@@ -2,9 +2,9 @@
 
 // 1. Aquí colocamos tus coordenadas reales que proporcionaste
 export const WAREHOUSE_POINTS = [
-  { lat: 40.596796067183284, lng: -3.5954137370500554 },
-  { lat: 40.59660531900063, lng: -3.5950704530829594 },
-  { lat: 40.59660531900063, lng: -3.5950704530829594 }
+  { lat: 40.596610219447584, lng: -3.5950148954052317 },
+  { lat: 40.596610219447584, lng: -3.5950148954052317 },
+  { lat: 40.596610219447584, lng: -3.5950148954052317 }
 ];
 
 // 2. Esta función calcula la distancia real en metros (Fórmula Haversine)
@@ -27,4 +27,4 @@ export const checkGeofence = (userLat, userLng) => {
   });
 };
 
-40.59660531900063, -3.5950704530829594
+40.596610219447584, -3.5950148954052317
