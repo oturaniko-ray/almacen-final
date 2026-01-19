@@ -14,6 +14,7 @@ export default function SupervisorPage() {
   const [documentoManual, setDocumentoManual] = useState('');
   const [animar, setAnimar] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const pinRef = useRef<HTMLInputElement>(null); // PUNTO 5: Referencia para foco
   const router = useRouter();
 
   const playSound = (t: 'success' | 'error') => {
@@ -28,6 +29,23 @@ export default function SupervisorPage() {
     }
   };
 
+  // PUNTO 2: Corrección navegación Volver
+  const handleVolver = async () => {
+    if (qrData || documentoManual) {
+      setQrData('');
+      setDocumentoManual('');
+      setPin('');
+    } else if (direccion) {
+      setDireccion(null);
+      await stopScanner();
+    } else if (modo !== 'menu') {
+      setModo('menu');
+      await stopScanner();
+    } else {
+      router.push('/');
+    }
+  };
+
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
@@ -37,63 +55,77 @@ export default function SupervisorPage() {
         const limpio = buffer.replace(/ScrollLock|AltGraph|Control|Shift/gi, "").trim();
         if (limpio) {
           setAnimar(true);
-          setTimeout(() => { setQrData(limpio); setAnimar(false); }, 600);
+          setTimeout(() => { 
+            setQrData(limpio); 
+            setAnimar(false); 
+            // PUNTO 5: Foco al PIN tras lectura USB
+            setTimeout(() => pinRef.current?.focus(), 100);
+          }, 600);
         }
-        buffer = ""; // RESET BUFFER PARA SIGUIENTE LECTURA
+        buffer = "";
       } else { buffer += e.key; }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
+  // PUNTO 7: Corrección Cámara (No se cuelga)
   useEffect(() => {
+    let isMounted = true;
     if (modo === 'camara' && direccion && !qrData) {
       const scanner = new Html5Qrcode("reader");
       scannerRef.current = scanner;
-      scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (text) => {
-        setAnimar(true);
-        setTimeout(() => { setQrData(text); setAnimar(false); stopScanner(); }, 600);
+      scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: 280 }, (text) => {
+        if (isMounted) {
+          setAnimar(true);
+          setQrData(text);
+          setAnimar(false);
+          stopScanner();
+          // PUNTO 5: Foco al PIN tras lectura Cámara
+          setTimeout(() => pinRef.current?.focus(), 200);
+        }
       }, () => {}).catch(console.error);
     }
-    return () => { stopScanner(); };
+    return () => { isMounted = false; stopScanner(); };
   }, [modo, direccion, qrData]);
 
   const registrar = async () => {
     const idCapturado = modo === 'manual' ? documentoManual : qrData;
     const [idLimpio, timeBlock] = idCapturado.split('|');
-    const currentTime = Math.floor(Date.now() / 60000);
+    const supSession = JSON.parse(localStorage.getItem('user_session') || '{}');
     
-    if (timeBlock && Math.abs(currentTime - parseInt(timeBlock)) > 2) {
-      playSound('error'); alert("❌ QR CADUCADO"); setQrData(''); return;
-    }
-
     const { data: emp, error } = await supabase.from('empleados').select('*').eq('documento_id', idLimpio.trim()).eq('pin_seguridad', pin.trim()).single();
 
-    if (error || !emp) {
-      playSound('error'); alert("❌ DATOS INCORRECTOS"); setPin(''); return;
+    if (error || !emp || !emp.activo) {
+      playSound('error'); 
+      alert(!emp?.activo ? "❌ EMPLEADO DESACTIVADO" : "❌ PIN/ID INCORRECTO"); 
+      setPin(''); return;
     }
 
+    // PUNTO 8: Registro con nombre de supervisor
     const { error: regError } = await supabase.from('registros_acceso').insert([{
-      empleado_id: emp.id, nombre_empleado: emp.nombre, tipo_movimiento: direccion,
-      detalles: `Modo: ${modo.toUpperCase()} - Autorizado`
+      empleado_id: emp.id, 
+      nombre_empleado: emp.nombre, 
+      tipo_movimiento: direccion,
+      detalles: `${modo.toUpperCase()} - POR: ${supSession.nombre || 'SISTEMA'}`
     }]);
 
     if (!regError) {
       await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
       playSound('success');
-      alert("✅ REGISTRO EXITOSO");
       setQrData(''); setPin(''); setDocumentoManual(''); setModo('menu'); setDireccion(null);
+      alert("✅ ACCESO REGISTRADO");
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white">
-      <button onClick={() => { if(direccion) setDireccion(null); else setModo('menu'); stopScanner(); }} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold border border-white/10 shadow-lg transition-all">← VOLVER</button>
+    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
+      <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold border border-white/10 shadow-lg">← VOLVER</button>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 text-center shadow-2xl relative overflow-hidden">
-        {animar && <div className="absolute inset-0 bg-blue-600/20 z-50 flex items-center justify-center backdrop-blur-sm animate-pulse"><div className="w-full h-1 bg-blue-400 absolute animate-bounce"></div><span className="font-black text-2xl tracking-tighter italic">LECTURA EXITOSA</span></div>}
+        {animar && <div className="absolute inset-0 bg-blue-600/20 z-50 flex items-center justify-center backdrop-blur-sm animate-pulse"><span className="font-black text-2xl italic">LEYENDO...</span></div>}
 
-        <h1 className="text-3xl font-black mb-12 text-[#3b82f6] uppercase tracking-widest">Supervisor</h1>
+        <h1 className="text-3xl font-black mb-12 text-blue-500 uppercase tracking-widest italic">Supervisor</h1>
 
         {modo === 'menu' ? (
           <div className="space-y-4">
@@ -103,21 +135,33 @@ export default function SupervisorPage() {
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-[#10b981] rounded-[30px] font-black text-3xl shadow-lg active:scale-95 transition-all">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-[#ef4444] rounded-[30px] font-black text-3xl shadow-lg active:scale-95 transition-all">SALIDA</button>
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-500 rounded-[30px] font-black text-3xl shadow-lg shadow-emerald-500/10">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-500 rounded-[30px] font-black text-3xl shadow-lg shadow-red-500/10">SALIDA</button>
           </div>
         ) : (
           <div className="space-y-6">
-            <div id="reader" className={`w-full rounded-2xl overflow-hidden mb-4 ${modo !== 'camara' ? 'hidden' : 'block'}`}></div>
+            {/* PUNTO 7: Mejora de contenedor cámara */}
+            <div id="reader" className={`w-full rounded-3xl overflow-hidden bg-black mb-4 ${modo !== 'camara' ? 'hidden' : 'block'}`} style={{ minHeight: '300px' }}></div>
+            
             <div className="bg-[#050a14] p-8 rounded-[30px] border border-white/5">
               {modo === 'manual' ? (
-                <input type="text" placeholder="ID DOCUMENTO" className="bg-transparent text-center text-white font-bold text-xl outline-none w-full" value={documentoManual} onChange={(e) => setDocumentoManual(e.target.value)} autoFocus />
+                <input type="text" placeholder="ID DOCUMENTO" className="bg-transparent text-center text-white font-bold text-2xl outline-none w-full" value={documentoManual} onChange={(e) => setDocumentoManual(e.target.value)} autoFocus />
               ) : (
-                <p className="text-[#3b82f6] font-mono font-bold text-xl">{qrData || "ESPERANDO LECTURA..."}</p>
+                <p className="text-blue-400 font-mono font-bold text-2xl">{qrData.split('|')[0] || "ESPERANDO LECTURA"}</p>
               )}
             </div>
-            <input type="password" placeholder="PIN" className="w-full py-8 bg-[#050a14] rounded-[30px] text-white text-center text-5xl font-black outline-none border-2 border-transparent focus:border-[#3b82f6] transition-all" value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && registrar()} />
-            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 transition-all">CONFIRMAR</button>
+            
+            <input 
+              ref={pinRef} // PUNTO 5: Referencia para el foco automático
+              type="password" 
+              placeholder="PIN DE SEGURIDAD" 
+              className="w-full py-8 bg-[#050a14] rounded-[30px] text-white text-center text-5xl font-black outline-none border-2 border-transparent focus:border-blue-500 transition-all" 
+              value={pin} 
+              onChange={(e) => setPin(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && registrar()} 
+            />
+            
+            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 transition-all uppercase">Confirmar Registro</button>
           </div>
         )}
       </div>
