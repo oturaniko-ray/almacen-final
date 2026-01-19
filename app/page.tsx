@@ -1,4 +1,3 @@
-// app/page.tsx - REEMPLAZO COMPLETO
 'use client';
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -7,39 +6,47 @@ import { useRouter } from 'next/navigation';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function LoginPage() {
-  const [identificador, setIdentificador] = useState(''); // Puede ser ID o Email
+  const [identificador, setIdentificador] = useState('');
   const [pin, setPin] = useState('');
   const router = useRouter();
 
   const handleLogin = async () => {
-    const valorLimpio = identificador.trim();
+    const valorBusqueda = identificador.trim();
     
-    // Buscamos si el valor coincide con documento_id O con email
+    // Buscamos al usuario por Documento ID o por Email
     const { data: user, error } = await supabase
       .from('empleados')
       .select('*')
-      .or(`documento_id.eq.${valorLimpio},email.eq.${valorLimpio}`)
+      .or(`documento_id.eq."${valorBusqueda}",email.eq."${valorBusqueda.toLowerCase()}"`)
       .eq('pin_seguridad', pin.trim())
       .single();
 
     if (error || !user) {
-      alert("❌ Credenciales incorrectas. Verifique su ID/Email y PIN.");
+      alert("❌ Credenciales incorrectas.");
       return;
     }
 
     if (!user.activo) {
-      alert("🚫 Usuario inactivo. Contacte al administrador.");
+      alert("🚫 Usuario inactivo.");
       return;
     }
 
     const newToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
+    // Actualizamos token de sesión única
     await supabase.from('empleados').update({ session_token: newToken }).eq('id', user.id);
+    
+    // Guardamos la sesión completa incluyendo el ROL exacto de la BD
     localStorage.setItem('user_session', JSON.stringify({ ...user, session_token: newToken }));
 
-    if (user.rol === 'administrador') router.push('/admin');
-    else if (user.rol === 'supervisor') router.push('/supervisor');
-    else router.push('/empleado');
+    // Redirección basada estrictamente en el ROL de la base de datos
+    if (user.rol === 'administrador') {
+      router.push('/admin');
+    } else if (user.rol === 'supervisor') {
+      router.push('/supervisor');
+    } else {
+      router.push('/empleado');
+    }
   };
 
   return (
@@ -50,13 +57,15 @@ export default function LoginPage() {
           <input 
             type="text" 
             placeholder="ID O EMAIL" 
-            className="w-full p-4 bg-[#050a14] rounded-xl text-white outline-none border border-white/5 focus:border-blue-500 transition-all uppercase" 
+            className="w-full p-4 bg-[#050a14] rounded-xl text-white outline-none border border-white/5 focus:border-blue-500 transition-all" 
+            value={identificador}
             onChange={(e) => setIdentificador(e.target.value)} 
           />
           <input 
             type="password" 
             placeholder="PIN SEGURIDAD" 
             className="w-full p-4 bg-[#050a14] rounded-xl text-white outline-none border border-white/5 focus:border-blue-500 transition-all" 
+            value={pin}
             onChange={(e) => setPin(e.target.value)} 
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
           />
