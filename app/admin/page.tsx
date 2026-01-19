@@ -24,8 +24,9 @@ export default function AdminPage() {
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
   const toggleEstado = async (id: string, actual: boolean) => {
+    // PUNTO 3: Actualización inmediata en BD
     await supabase.from('empleados').update({ activo: !actual }).eq('id', id);
-    cargarDatos();
+    await cargarDatos();
   };
 
   const guardarEmpleado = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -33,7 +34,7 @@ export default function AdminPage() {
     const fd = new FormData(e.currentTarget);
     const payload = {
       nombre: fd.get('nombre'),
-      documento_id: fd.get('doc'),
+      documento_id: fd.get('doc'), // PUNTO 2: Soportará hasta 12 dígitos
       pin_seguridad: fd.get('pin'),
       rol: fd.get('rol'),
       email: fd.get('email'),
@@ -47,7 +48,7 @@ export default function AdminPage() {
     }
     setShowModal(false);
     setEditingEmp(null);
-    cargarDatos();
+    await cargarDatos(); // Refresco inmediato
   };
 
   if (view === 'menu') {
@@ -74,63 +75,46 @@ export default function AdminPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <button onClick={() => setView('menu')} className="text-slate-500 font-bold hover:text-white transition-colors">← VOLVER AL MENÚ</button>
-          <h1 className="text-2xl font-black text-blue-500 uppercase tracking-widest italic">
-            {view === 'empleados' ? 'Personal Registrado' : 'Historial de Movimientos'}
-          </h1>
+          <h1 className="text-2xl font-black text-blue-500 uppercase tracking-widest italic">{view === 'empleados' ? 'Personal' : 'Accesos'}</h1>
           <div className="flex gap-3">
             {view === 'empleados' && (
-              <button onClick={() => { setEditingEmp(null); setShowModal(true); }} className="px-5 py-2 bg-blue-600 rounded-xl font-bold text-sm shadow-lg hover:bg-blue-500 transition-all italic">+ NUEVO EMPLEADO</button>
+              <button onClick={() => { setEditingEmp(null); setShowModal(true); }} className="px-5 py-2 bg-blue-600 rounded-xl font-bold text-sm shadow-lg hover:bg-blue-500 transition-all italic">+ NUEVO</button>
             )}
-            <button onClick={cargarDatos} className="px-5 py-2 bg-slate-800 rounded-xl font-bold text-sm flex items-center gap-2">
-              {loading ? '...' : '🔄 ACTUALIZAR'}
-            </button>
+            <button onClick={cargarDatos} className="px-5 py-2 bg-slate-800 rounded-xl font-bold text-sm">🔄 ACTUALIZAR</button>
           </div>
         </div>
 
         <div className="bg-[#0f172a] rounded-[35px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="max-h-[520px] overflow-y-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-[#1e293b] z-20 shadow-xl">
+              <thead className="sticky top-0 bg-[#1e293b] z-20">
                 <tr className="text-[10px] uppercase tracking-widest text-slate-400">
                   {view === 'empleados' ? (
-                    <>
-                      <th className="p-6">Nombre</th><th className="p-6">Rol / Email</th><th className="p-6">Activo</th><th className="p-6">ID / PIN</th><th className="p-6">Acciones</th>
-                    </>
+                    <><th className="p-6">Nombre</th><th className="p-6">Rol / Email</th><th className="p-6">Activo</th><th className="p-6">ID / PIN</th><th className="p-6">Acciones</th></>
                   ) : (
-                    <>
-                      <th className="p-6">Nombre</th><th className="p-6">Movimiento</th><th className="p-6">Fecha y Hora</th><th className="p-6">Método / Autorizó</th>
-                    </>
+                    <><th className="p-6">Nombre</th><th className="p-6">Movimiento</th><th className="p-6">Fecha/Hora</th><th className="p-6">Autorizó / Coordenadas</th></>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-medium">
                 {view === 'empleados' ? empleados.map(emp => (
-                  <tr key={emp.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-6 font-bold flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500'}`}></div>
-                      {emp.nombre}
-                    </td>
-                    <td className="p-6 text-sm text-slate-400 font-bold">{emp.rol}<br/><span className="text-[10px] opacity-50">{emp.email}</span></td>
-                    <td className="p-6">
-                      <button onClick={() => toggleEstado(emp.id, emp.activo)} className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${emp.activo ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
-                        {emp.activo ? 'ACTIVO' : 'INACTIVO'}
-                      </button>
-                    </td>
+                  <tr key={emp.id} className="hover:bg-white/5">
+                    <td className="p-6 font-bold flex items-center gap-3"><div className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500'}`}></div>{emp.nombre}</td>
+                    <td className="p-6 text-sm text-slate-400">{emp.rol}<br/><span className="text-[10px] opacity-50">{emp.email}</span></td>
+                    <td className="p-6"><button onClick={() => toggleEstado(emp.id, emp.activo)} className={`px-3 py-1 rounded-lg text-[9px] font-black ${emp.activo ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>{emp.activo ? 'ACTIVO' : 'INACTIVO'}</button></td>
                     <td className="p-6 text-xs font-mono text-blue-400">ID: {emp.documento_id}<br/>PIN: {emp.pin_seguridad}</td>
-                    <td className="p-6">
-                      <button onClick={() => { setEditingEmp(emp); setShowModal(true); }} className="text-blue-500 hover:text-white text-xs font-bold bg-blue-500/10 p-2 rounded-lg transition-all">EDITAR</button>
-                    </td>
+                    <td className="p-6"><button onClick={() => { setEditingEmp(emp); setShowModal(true); }} className="text-blue-500 hover:text-white text-xs font-bold bg-blue-500/10 p-2 rounded-lg">EDITAR</button></td>
                   </tr>
                 )) : logs.map(log => (
-                  <tr key={log.id} className="hover:bg-white/5 transition-colors text-sm">
+                  <tr key={log.id} className="hover:bg-white/5 text-sm">
                     <td className="p-6 font-bold">{log.nombre_empleado}</td>
-                    <td className="p-6">
-                      <span className={`px-4 py-1 rounded-full text-[10px] font-black ${log.tipo_movimiento === 'entrada' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
-                        {log.tipo_movimiento?.toUpperCase()}
-                      </span>
-                    </td>
+                    <td className="p-6"><span className={`px-4 py-1 rounded-full text-[10px] font-black ${log.tipo_movimiento === 'entrada' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>{log.tipo_movimiento?.toUpperCase()}</span></td>
                     <td className="p-6 text-slate-400 text-xs">{new Date(log.fecha_hora).toLocaleString()}</td>
-                    <td className="p-6 text-[10px] text-slate-500 font-bold uppercase tracking-tighter italic">{log.detalles}</td>
+                    {/* PUNTO 5: Visualización de coordenadas en Admin */}
+                    <td className="p-6 text-[9px] text-slate-500 font-bold uppercase tracking-tighter">
+                      {log.detalles}<br/>
+                      <span className="text-blue-500/60 font-mono">{log.coordenadas || 'Sin GPS'}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -142,26 +126,24 @@ export default function AdminPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
           <form onSubmit={guardarEmpleado} className="bg-[#0f172a] p-8 rounded-[40px] border border-white/10 w-full max-w-md shadow-2xl">
-            <h2 className="text-xl font-black text-blue-500 mb-6 uppercase tracking-widest italic">{editingEmp ? 'Editar Empleado' : 'Nuevo Empleado'}</h2>
+            <h2 className="text-xl font-black text-blue-500 mb-6 uppercase tracking-widest italic">{editingEmp ? 'Editar' : 'Nuevo'}</h2>
             <div className="space-y-4">
-              <input name="nombre" defaultValue={editingEmp?.nombre} placeholder="Nombre Completo" className="w-full p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 focus:border-blue-500 text-white" required />
+              <input name="nombre" defaultValue={editingEmp?.nombre} placeholder="Nombre" className="w-full p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 text-white" required />
               <div className="grid grid-cols-2 gap-4">
-                <input name="doc" defaultValue={editingEmp?.documento_id} placeholder="ID Documento" className="p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 focus:border-blue-500 text-white" required />
-                <input name="pin" defaultValue={editingEmp?.pin_seguridad} placeholder="PIN" className="p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 focus:border-blue-500 text-white" maxLength={4} required />
+                {/* PUNTO 2: Validado para 12 caracteres */}
+                <input name="doc" defaultValue={editingEmp?.documento_id} placeholder="ID (Max 12)" className="p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 text-white" maxLength={12} required />
+                <input name="pin" defaultValue={editingEmp?.pin_seguridad} placeholder="PIN" className="p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 text-white" maxLength={4} required />
               </div>
-              
-              {/* PUNTO 1: LISTA DESPLEGABLE DE ROLES */}
-              <select name="rol" defaultValue={editingEmp?.rol || "empleado"} className="w-full p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 focus:border-blue-500 text-white font-bold uppercase text-sm appearance-none">
+              <select name="rol" defaultValue={editingEmp?.rol || "empleado"} className="w-full p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 text-white font-bold uppercase text-sm">
                 <option value="empleado">Empleado</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="administrador">Administrador</option>
               </select>
-
-              <input name="email" defaultValue={editingEmp?.email} type="email" placeholder="Email" className="w-full p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 focus:border-blue-500 text-white" required />
+              <input name="email" defaultValue={editingEmp?.email} type="email" placeholder="Email" className="w-full p-4 bg-[#050a14] rounded-xl outline-none border border-white/5 text-white" required />
             </div>
             <div className="flex gap-4 mt-8">
-              <button type="button" onClick={() => setShowModal(false)} className="flex-1 p-4 bg-slate-800 rounded-2xl font-bold hover:bg-slate-700 transition-all uppercase text-xs">Cancelar</button>
-              <button type="submit" className="flex-1 p-4 bg-blue-600 rounded-2xl font-bold hover:bg-blue-500 transition-all uppercase text-xs">Guardar</button>
+              <button type="button" onClick={() => setShowModal(false)} className="flex-1 p-4 bg-slate-800 rounded-2xl font-bold uppercase text-xs">Cancelar</button>
+              <button type="submit" className="flex-1 p-4 bg-blue-600 rounded-2xl font-bold uppercase text-xs">Guardar</button>
             </div>
           </form>
         </div>
