@@ -11,9 +11,10 @@ export default function SupervisorPage() {
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
   const [pin, setPin] = useState('');
+  const [pinSupervisor, setPinSupervisor] = useState(''); // PIN del supervisor
   const [documentoManual, setDocumentoManual] = useState('');
   const [animar, setAnimar] = useState(false);
-  const [coordenadas, setCoordenadas] = useState(''); // PUNTO 5: Estado para GPS
+  const [coordenadas, setCoordenadas] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -23,7 +24,6 @@ export default function SupervisorPage() {
     a.play().catch(() => {});
   };
 
-  // PUNTO 5: Captura coordenadas en cuanto se elige dirección
   useEffect(() => {
     if (direccion) {
       navigator.geolocation.getCurrentPosition(
@@ -42,12 +42,13 @@ export default function SupervisorPage() {
   };
 
   const handleVolver = async () => {
-    if (qrData || documentoManual) { setQrData(''); setDocumentoManual(''); setPin(''); }
+    if (qrData || documentoManual) { setQrData(''); setDocumentoManual(''); setPin(''); setPinSupervisor(''); }
     else if (direccion) { setDireccion(null); await stopScanner(); }
     else if (modo !== 'menu') { setModo('menu'); await stopScanner(); }
     else { router.push('/'); }
   };
 
+  // Lógica USB
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
@@ -57,7 +58,11 @@ export default function SupervisorPage() {
         const limpio = buffer.replace(/ScrollLock|AltGraph|Control|Shift/gi, "").trim();
         if (limpio) {
           setAnimar(true);
-          setTimeout(() => { setQrData(limpio); setAnimar(false); setTimeout(() => pinRef.current?.focus(), 100); }, 600);
+          setTimeout(() => { 
+            setQrData(limpio); 
+            setAnimar(false); 
+            setTimeout(() => pinRef.current?.focus(), 100);
+          }, 600);
         }
         buffer = "";
       } else { buffer += e.key; }
@@ -66,7 +71,7 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
-  // PUNTO 4: Fix de Cámara (Agregado delay de procesamiento)
+  // Lógica Cámara
   useEffect(() => {
     let isMounted = true;
     if (modo === 'camara' && direccion && !qrData) {
@@ -86,12 +91,13 @@ export default function SupervisorPage() {
     return () => { isMounted = false; stopScanner(); };
   }, [modo, direccion, qrData]);
 
-const registrar = async () => {
+  const registrar = async () => {
     const idCapturado = modo === 'manual' ? documentoManual : qrData;
     const [idLimpio] = idCapturado.split('|');
     const supSession = JSON.parse(localStorage.getItem('user_session') || '{}');
-    
-    // 1. Leer BD antes de validar
+    const movimientoActual = direccion || 'movimiento';
+
+    // 1. Validar Empleado
     const { data: emp, error } = await supabase
       .from('empleados')
       .select('*')
@@ -100,15 +106,27 @@ const registrar = async () => {
 
     if (error || !emp || !emp.activo || emp.pin_seguridad !== pin.trim()) {
       playSound('error'); 
-      alert(!emp ? "❌ ID NO ENCONTRADO" : !emp.activo ? "❌ EMPLEADO INACTIVO" : "❌ PIN INCORRECTO"); 
+      alert(!emp ? "❌ ID NO ENCONTRADO" : !emp.activo ? "❌ EMPLEADO INACTIVO" : "❌ PIN EMPLEADO INCORRECTO"); 
       setPin(''); return;
     }
 
-    // Guardamos la dirección en una constante local para el alert
-    // Esto soluciona el error de TypeScript
-    const movimientoActual = direccion || 'movimiento';
+    // 2. Validar Supervisor (Solo si es Manual)
+    if (modo === 'manual') {
+      const { data: sup } = await supabase
+        .from('empleados')
+        .select('*')
+        .eq('id', supSession.id)
+        .eq('pin_seguridad', pinSupervisor.trim())
+        .single();
 
-    // 5. Guardar con coordenadas en la BD
+      if (!sup) {
+        playSound('error');
+        alert("❌ PIN DE SUPERVISOR INCORRECTO");
+        setPinSupervisor(''); return;
+      }
+    }
+
+    // 3. Guardar Registro
     const { error: regError } = await supabase.from('registros_acceso').insert([{
       empleado_id: emp.id, 
       nombre_empleado: emp.nombre, 
@@ -120,15 +138,7 @@ const registrar = async () => {
     if (!regError) {
       await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
       playSound('success'); 
-      
-      // Limpiamos estados
-      setQrData(''); 
-      setPin(''); 
-      setDocumentoManual(''); 
-      setModo('menu'); 
-      setDireccion(null);
-
-      // Usamos la constante local que NO es nula
+      setQrData(''); setPin(''); setPinSupervisor(''); setDocumentoManual(''); setModo('menu'); setDireccion(null);
       alert(`✅ REGISTRO EXITOSO (${movimientoActual.toUpperCase()})`);
     }
   };
@@ -137,14 +147,21 @@ const registrar = async () => {
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
       <style>{`
         @keyframes glow { 0%, 100% { text-shadow: 0 0 5px #3b82f6; opacity: 1; } 50% { text-shadow: 0 0 20px #3b82f6; opacity: 0.7; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
         .animate-glow { animation: glow 1.5s infinite; }
+        .animate-blink { animation: blink 1s infinite; }
       `}</style>
+      
       <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold border border-white/10 shadow-lg">← VOLVER</button>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 text-center shadow-2xl relative overflow-hidden">
         {animar && <div className="absolute inset-0 bg-blue-600/20 z-50 flex items-center justify-center backdrop-blur-sm animate-pulse"><span className="font-black text-2xl italic tracking-widest">VALIDANDO...</span></div>}
 
-        <h1 className="text-3xl font-black mb-12 text-blue-500 uppercase tracking-widest italic">Supervisor</h1>
+        {/* PUNTO 2: Cambio de Títulos */}
+        <div className="mb-12">
+          <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter italic">Entrada / Salida del Almacén</h1>
+          <p className="text-blue-500 font-bold text-xs uppercase tracking-[0.3em] animate-blink mt-2">Toma de Datos</p>
+        </div>
 
         {modo === 'menu' ? (
           <div className="space-y-4">
@@ -154,8 +171,8 @@ const registrar = async () => {
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-500 rounded-[30px] font-black text-3xl shadow-lg">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-500 rounded-[30px] font-black text-3xl shadow-lg">SALIDA</button>
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-500 rounded-[30px] font-black text-4xl shadow-lg">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-500 rounded-[30px] font-black text-4xl shadow-lg">SALIDA</button>
           </div>
         ) : (
           <div className="space-y-6">
@@ -163,18 +180,33 @@ const registrar = async () => {
             
             <div className="bg-[#050a14] p-8 rounded-[30px] border border-white/5 flex flex-col items-center">
               {!qrData && modo !== 'manual' && <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>}
+              
               {modo === 'manual' ? (
-                <input type="text" placeholder="DOCUMENTO ID" className="bg-transparent text-center text-white font-bold text-2xl outline-none w-full" value={documentoManual} onChange={(e) => setDocumentoManual(e.target.value)} autoFocus />
+                <div className="w-full space-y-4">
+                   <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest text-left ml-2">ID Empleado</p>
+                   <input type="text" placeholder="000000000000" className="bg-[#0f172a] p-4 rounded-xl text-center text-white font-bold text-2xl outline-none w-full border border-white/10" value={documentoManual} onChange={(e) => setDocumentoManual(e.target.value)} autoFocus />
+                </div>
               ) : (
                 <p className={`text-blue-400 font-mono font-bold text-2xl uppercase ${!qrData ? 'animate-glow' : ''}`}>{qrData.split('|')[0] || "Esperando QR"}</p>
               )}
             </div>
             
-            <div className="space-y-1">
-              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">PIN DE SEGURIDAD</p>
-              <input ref={pinRef} type="password" placeholder="****" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-5xl font-black outline-none border-2 border-transparent focus:border-blue-500" value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && registrar()} />
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-1">
+                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">PIN Empleado</p>
+                <input ref={pinRef} type="password" placeholder="****" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-4xl font-black outline-none border-2 border-transparent focus:border-blue-500" value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && modo !== 'manual' && registrar()} />
+              </div>
+
+              {/* PUNTO 1: PIN Supervisor (Solo visible en Manual) */}
+              {modo === 'manual' && (
+                <div className="space-y-1">
+                  <p className="text-[9px] text-amber-500 font-black uppercase tracking-widest">PIN Supervisor (Autorización)</p>
+                  <input type="password" placeholder="****" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-4xl font-black outline-none border-2 border-amber-500/30 focus:border-amber-500" value={pinSupervisor} onChange={(e) => setPinSupervisor(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && registrar()} />
+                </div>
+              )}
             </div>
-            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 transition-all uppercase italic">Confirmar</button>
+
+            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 transition-all uppercase italic">Confirmar Registro</button>
           </div>
         )}
       </div>
