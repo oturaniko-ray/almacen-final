@@ -1,4 +1,66 @@
 'use client';
+import { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
+export default function AdminPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [view, setView] = useState<'movimientos' | 'registro'>('movimientos');
+  const [logs, setLogs] = useState<any[]>([]);
+  const [empleados, setEmpleados] = useState<any[]>([]);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const router = useRouter();
+
+  // Función de carga memorizada para evitar re-renderizados infinitos
+  const cargarDatos = useCallback(async () => {
+    console.log("Actualizando datos desde base de datos...");
+    const { data: emps } = await supabase.from('empleados').select('*').order('nombre');
+    const { data: lg } = await supabase.from('registros_acceso').select('*').order('fecha_hora', { ascending: false }).limit(100);
+    
+    setEmpleados(emps || []);
+    setLogs(lg || []);
+    setLastUpdate(new Date());
+  }, []);
+
+  useEffect(() => {
+    const session = JSON.parse(localStorage.getItem('user_session') || '{}');
+    if (session.rol === 'admin') {
+      setAuthorized(true);
+      cargarDatos();
+
+      // --- AUTO-REFRESCO CADA 30 SEGUNDOS ---
+      const interval = setInterval(() => {
+        cargarDatos();
+      }, 30000); 
+
+      return () => clearInterval(interval);
+    } else {
+      router.push('/');
+    }
+  }, [router, cargarDatos]);
+
+  if (!authorized) return null;
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Barra de estado de actualización */}
+        <div className="flex justify-end mb-2">
+          <span className="text-[10px] text-slate-600 font-mono animate-pulse">
+            Última actualización: {lastUpdate.toLocaleTimeString()} (Auto-refresco 30s)
+          </span>
+        </div>
+
+        {/* ... Resto de tu código de Administrador (Tabla, Filtros, etc.) ... */}
+        {/* Mantén aquí la estructura de botones que ya teníamos */}
+      </div>
+    </main>
+  );
+}
+
+'use client';
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';

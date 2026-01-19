@@ -1,4 +1,64 @@
 'use client';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function LoginPage() {
+  const [user, setUser] = useState<any>(null);
+  const [view, setView] = useState<'login' | 'select'>('login');
+  const router = useRouter();
+
+  // Simulación de persistencia de sesión
+  useEffect(() => {
+    const session = localStorage.getItem('user_session');
+    if (session) {
+      setUser(JSON.parse(session));
+      setView('select');
+    }
+  }, []);
+
+  const handleAccess = (path: string) => {
+    router.push(path);
+  };
+
+  if (view === 'select' && user) {
+    return (
+      <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white font-sans">
+        <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-md shadow-2xl text-center">
+          <h1 className="text-2xl font-bold mb-2">Bienvenido, {user.nombre}</h1>
+          <p className="text-slate-500 text-sm mb-8">Seleccione su modo de acceso</p>
+          
+          <div className="grid gap-4">
+            {/* Botón común para todos */}
+            <button onClick={() => handleAccess('/empleado')} className="p-4 bg-slate-800 hover:bg-blue-600 rounded-xl transition-all font-bold">
+              👤 Acceso como Empleado
+            </button>
+
+            {/* Solo para Supervisores y Admins */}
+            {(user.rol === 'supervisor' || user.rol === 'admin') && (
+              <button onClick={() => handleAccess('/supervisor')} className="p-4 bg-slate-800 hover:bg-emerald-600 rounded-xl transition-all font-bold">
+                🛡️ Acceso como Supervisor
+              </button>
+            )}
+
+            {/* Solo para Admins */}
+            {user.rol === 'admin' && (
+              <button onClick={() => handleAccess('/admin')} className="p-4 bg-slate-800 hover:bg-purple-600 rounded-xl transition-all font-bold">
+                ⚙️ Panel de Administrador
+              </button>
+            )}
+          </div>
+          
+          <button onClick={() => { localStorage.clear(); setView('login'); }} className="mt-8 text-slate-600 text-xs underline">Cerrar Sesión</button>
+        </div>
+      </main>
+    );
+  }
+
+  // Aquí iría tu formulario de login actual...
+  return <div>Formulario de Login Original</div>;
+}
+
+'use client';
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
