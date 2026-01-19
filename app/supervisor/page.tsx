@@ -13,6 +13,7 @@ export default function SupervisorPage() {
   const [qrData, setQrData] = useState('');
   const [pin, setPin] = useState('');
   const [documentoManual, setDocumentoManual] = useState('');
+  const [loading, setLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const router = useRouter();
 
@@ -30,9 +31,9 @@ export default function SupervisorPage() {
   };
 
   const registrar = async () => {
+    setLoading(true);
     const idCapturado = modo === 'manual' ? documentoManual : qrData;
-    // Limpiamos cualquier residuo de texto como "undefined|" si viniera del QR viejo
-    let idFinal = idCapturado.replace('undefined|', '').split('|')[0].trim();
+    let idFinal = idCapturado.trim();
 
     const { data: emp, error } = await supabase
       .from('empleados')
@@ -43,8 +44,9 @@ export default function SupervisorPage() {
       .single();
 
     if (error || !emp) {
-      alert(`Datos incorrectos o usuario inactivo.\nLeído: ${idFinal}`);
+      alert(`Datos incorrectos.\nLeído: ${idFinal}`);
       setPin('');
+      setLoading(false);
       return;
     }
 
@@ -54,11 +56,12 @@ export default function SupervisorPage() {
       nombre_empleado: emp.nombre,
       tipo_movimiento: direccion,
       fecha_hora: new Date().toISOString(),
-      detalles: `Modo: ${modo.toUpperCase()} - Supervisor: ${session.nombre || 'SISTEMA'}`
+      detalles: `Modo: ${modo.toUpperCase()} - Supervisor: ${session.nombre}`
     }]);
 
-    alert(`✅ ${direccion?.toUpperCase()} REGISTRADA`);
+    alert(`✅ REGISTRO EXITOSO`);
     resetear();
+    setLoading(false);
   };
 
   const resetear = () => {
@@ -66,46 +69,57 @@ export default function SupervisorPage() {
     setQrData(''); setPin(''); setDocumentoManual(''); setModo('menu'); setDireccion(null);
   };
 
+  // Función para el botón volver dinámico
+  const manejarVolver = () => {
+    if (direccion) {
+      setDireccion(null);
+      setQrData('');
+      stopScanner();
+    } else if (modo !== 'menu') {
+      setModo('menu');
+    } else {
+      router.push('/'); // Si está en el menú principal de supervisor, vuelve al inicio
+    }
+  };
+
   if (!authorized) return null;
 
   return (
-    <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-4 font-sans">
-      <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg shadow-2xl relative border border-white/5">
-        
-        {/* BOTÓN VOLVER - Visible si no está en el menú principal */}
-        {modo !== 'menu' && (
-          <button 
-            onClick={() => { if(direccion) setDireccion(null); else setModo('menu'); stopScanner(); setQrData(''); }}
-            className="absolute top-10 left-10 text-slate-500 font-bold text-xs tracking-tighter hover:text-white transition-colors"
-          >
-            ← VOLVER
-          </button>
-        )}
+    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 font-sans">
+      
+      {/* BOTÓN VOLVER - Exactamente como en tu imagen */}
+      <button 
+        onClick={manejarVolver}
+        className="absolute top-8 left-8 bg-[#1e293b] hover:bg-[#2d3a4f] px-6 py-3 rounded-lg font-bold text-sm text-white flex items-center gap-2 border border-white/10 shadow-lg transition-all"
+      >
+        ← VOLVER
+      </button>
 
+      <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg shadow-2xl border border-white/5 relative mt-10">
         <h1 className="text-3xl font-black text-center mb-12 text-[#3b82f6] tracking-[0.2em] uppercase">
           Supervisor
         </h1>
 
         {modo === 'menu' ? (
           <div className="space-y-5">
-            <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all">
-              <span className="text-2xl">🔌</span> Escáner USB
+            <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all border border-white/5">
+              <span>🔌</span> Escáner USB
             </button>
-            <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all">
-              <span className="text-2xl">📱</span> Cámara Móvil
+            <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all border border-white/5">
+              <span>📱</span> Cámara Móvil
             </button>
-            <button onClick={() => setModo('manual')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all">
-              <span className="text-2xl">🖋️</span> Ingreso Manual
+            <button onClick={() => setModo('manual')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all border border-white/5">
+              <span>🖋️</span> Ingreso Manual
             </button>
           </div>
         ) : !direccion ? (
-          <div className="flex flex-col gap-6 pt-6">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-[#10b981] rounded-[30px] text-white font-black text-2xl tracking-widest shadow-lg shadow-emerald-500/10">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-[#ef4444] rounded-[30px] text-white font-black text-2xl tracking-widest shadow-lg shadow-red-500/10">SALIDA</button>
+          <div className="flex flex-col gap-6 pt-4">
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-[#10b981] rounded-[30px] text-white font-black text-2xl tracking-widest shadow-lg active:scale-95 transition-all">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-[#ef4444] rounded-[30px] text-white font-black text-2xl tracking-widest shadow-lg active:scale-95 transition-all">SALIDA</button>
           </div>
         ) : (
           <div className="space-y-6">
-            <div className={`text-center py-4 rounded-[25px] text-white font-black text-xl tracking-widest shadow-md ${direccion === 'entrada' ? 'bg-[#10b981]' : 'bg-[#ef4444]'}`}>
+            <div className={`text-center py-4 rounded-[25px] text-white font-black text-xl tracking-widest ${direccion === 'entrada' ? 'bg-[#10b981]' : 'bg-[#ef4444]'}`}>
               {direccion.toUpperCase()}
             </div>
 
@@ -132,13 +146,15 @@ export default function SupervisorPage() {
               className="w-full py-8 bg-[#050a14] rounded-[30px] border-2 border-transparent focus:border-[#3b82f6] text-white text-center text-4xl font-black outline-none transition-all placeholder:text-slate-800"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && registrar()}
             />
 
             <button 
+              disabled={loading}
               onClick={registrar}
-              className="w-full py-6 bg-[#2563eb] rounded-[30px] text-white font-black text-xl shadow-xl hover:bg-[#3b82f6] transition-all"
+              className="w-full py-6 bg-[#2563eb] rounded-[30px] text-white font-black text-xl shadow-xl hover:bg-[#3b82f6] transition-all disabled:opacity-50"
             >
-              CONFIRMAR
+              {loading ? 'PROCESANDO...' : 'CONFIRMAR'}
             </button>
           </div>
         )}
