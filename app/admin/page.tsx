@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [rol, setRol] = useState('empleado');
   const [cargando, setCargando] = useState(false);
 
+  // 2. CARGA DE DATOS
   useEffect(() => {
     cargarDatos();
   }, []);
@@ -30,6 +31,7 @@ export default function AdminPage() {
     setLogs(lg || []);
   }
 
+  // 3. ACCIONES
   async function crearEmpleado(e: React.FormEvent) {
     e.preventDefault();
     setCargando(true);
@@ -69,12 +71,16 @@ export default function AdminPage() {
     XLSX.writeFile(wb, "Reporte_Asistencia.xlsx");
   };
 
+  // 4. INTERFAZ (JSX)
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-center mb-10 border-b border-slate-800 pb-6">
           <h1 className="text-3xl font-bold text-blue-500">Panel Maestro Almacén</h1>
-          <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-bold transition-all shadow-lg shadow-emerald-900/20">
+          <button 
+            onClick={exportarExcel} 
+            className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-bold transition-all shadow-lg shadow-emerald-900/20"
+          >
             📥 Exportar Excel
           </button>
         </header>
@@ -96,7 +102,10 @@ export default function AdminPage() {
                 <option value="admin">Rol: Administrador</option>
               </select>
 
-              <button disabled={cargando} className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-bold transition-all active:scale-95 disabled:opacity-50">
+              <button 
+                disabled={cargando} 
+                className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-bold transition-all active:scale-95 disabled:opacity-50"
+              >
                 {cargando ? 'Guardando...' : 'Registrar Empleado'}
               </button>
             </form>
@@ -107,7 +116,9 @@ export default function AdminPage() {
                 <div key={emp.id} className="flex justify-between items-center p-3 bg-slate-800/50 rounded-xl border border-slate-700">
                   <div>
                     <p className="font-bold text-sm">{emp.nombre}</p>
-                    <p className="text-[10px] text-slate-400 font-mono">Rol: {emp.rol?.toUpperCase()} | PIN: {emp.pin_seguridad}</p>
+                    <p className="text-[10px] text-slate-400 font-mono text-uppercase">
+                      Rol: {emp.rol?.toUpperCase()} | PIN: {emp.pin_seguridad}
+                    </p>
                   </div>
                   <button onClick={() => eliminarEmpleado(emp.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-all">
                     🗑️
@@ -143,10 +154,11 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
-              {logs.length === 0 && <p className="text-center py-10 text-slate-600 italic">No hay registros de hoy</p>}
+              {logs.length === 0 && (
+                <p className="text-center py-10 text-slate-600 italic">No hay registros hoy</p>
+              )}
             </div>
           </section>
-
         </div>
       </div>
     </main>
