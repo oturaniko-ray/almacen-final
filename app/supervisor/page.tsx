@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { checkGeofence } from '../../utils/geofence';
 
-// Conectamos con tu base de datos
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -14,69 +13,76 @@ export default function SupervisorPage() {
   const [pin, setPin] = useState('');
   const [msg, setMsg] = useState({ texto: 'Esperando escaneo...', color: 'text-slate-400' });
 
-  // Lógica para capturar datos del Lector USB
   useEffect(() => {
     let buffer = "";
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: any) => { // Usamos 'any' para evitar conflictos de tipos en el build
       if (e.key === 'Enter') {
-        setQrData(buffer);
-        setMsg({ texto: "Código detectado. Ingrese PIN.", color: "text-blue-400" });
+        if (buffer.length > 0) {
+          setQrData(buffer);
+          setMsg({ texto: "Código detectado. Ingrese PIN.", color: "text-blue-400" });
+        }
         buffer = "";
       } else {
-        buffer += e.key;
+        // Evitamos que teclas de sistema como 'Shift' entren al buffer
+        if (e.key.length === 1) buffer += e.key;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ESTA ES LA FUNCIÓN QUE ACTUALIZAMOS
   const validarAcceso = async () => {
-    // 1. Verificamos GPS del Supervisor primero
+    if (!navigator.geolocation) {
+      setMsg({ texto: "GPS no soportado en este navegador", color: "text-red-500" });
+      return;
+    }
+
+    setMsg({ texto: "Validando ubicación...", color: "text-yellow-500" });
+
     navigator.geolocation.getCurrentPosition(async (pos) => {
-      const estaEnAlmacen = checkGeofence(pos.coords.latitude, pos.coords.longitude);
-      
-      if (!estaEnAlmacen) {
-        setMsg({ texto: "ERROR: Supervisor fuera de rango GPS", color: "text-red-500" });
-        return;
-      }
-
-      // 2. Buscamos al empleado en la base de datos por su ID (contenido en el QR)
-      setMsg({ texto: "Verificando en base de datos...", color: "text-yellow-500" });
-      
-      const { data: empleado, error } = await supabase
-        .from('empleados')
-        .select('*')
-        .eq('cedula_id', qrData)
-        .eq('activo', true)
-        .single();
-
-      if (error || !empleado) {
-        setMsg({ texto: "QR NO VÁLIDO O EMPLEADO INEXISTENTE", color: "text-red-500" });
-        return;
-      }
-
-      // 3. Validamos el PIN que el Admin asignó a ese empleado
-      if (pin === empleado.pin_seguridad) {
-        // Registramos el éxito en el historial
-        await supabase.from('registros_acceso').insert({
-          nombre_empleado: empleado.nombre,
-          empleado_id: empleado.id,
-          tipo_movimiento: 'entrada',
-          coordenadas_validacion: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`
-        });
-
-        setMsg({ texto: `ACCESO EXITOSO: ${empleado.nombre} ✅`, color: "text-emerald-500" });
+      try {
+        const estaEnAlmacen = checkGeofence(pos.coords.latitude, pos.coords.longitude);
         
-        // Limpiamos la pantalla después de 3 segundos para el siguiente empleado
-        setTimeout(() => {
-          setQrData('');
-          setPin('');
-          setMsg({ texto: 'Esperando escaneo...', color: 'text-slate-400' });
-        }, 3000);
-      } else {
-        setMsg({ texto: "PIN DE SEGURIDAD INCORRECTO ❌", color: "text-red-500" });
+        if (!estaEnAlmacen) {
+          setMsg({ texto: "ERROR: Supervisor fuera de rango GPS", color: "text-red-500" });
+          return;
+        }
+
+        const { data: empleado, error } = await supabase
+          .from('empleados')
+          .select('*')
+          .eq('cedula_id', qrData)
+          .eq('activo', true)
+          .single();
+
+        if (error || !empleado) {
+          setMsg({ texto: "QR NO VÁLIDO O EMPLEADO INEXISTENTE", color: "text-red-500" });
+          return;
+        }
+
+        if (pin === empleado.pin_seguridad) {
+          await supabase.from('registros_acceso').insert({
+            nombre_empleado: empleado.nombre,
+            empleado_id: empleado.id,
+            tipo_movimiento: 'entrada',
+            coordenadas_validacion: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`
+          });
+
+          setMsg({ texto: `ACCESO EXITOSO: ${empleado.nombre} ✅`, color: "text-emerald-500" });
+          
+          setTimeout(() => {
+            setQrData('');
+            setPin('');
+            setMsg({ texto: 'Esperando escaneo...', color: 'text-slate-400' });
+          }, 3000);
+        } else {
+          setMsg({ texto: "PIN DE SEGURIDAD INCORRECTO ❌", color: "text-red-500" });
+        }
+      } catch (err) {
+        setMsg({ texto: "Error interno al validar", color: "text-red-500" });
       }
+    }, () => {
+      setMsg({ texto: "Error: Activa el GPS de tu equipo", color: "text-red-500" });
     });
   };
 
@@ -108,9 +114,9 @@ export default function SupervisorPage() {
           </div>
         )}
 
-        <div className="mt-8 text-center">
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest">
-            Hardware: Lector USB Windows 11 Detectado
+        <div className="mt-8 text-center text-slate-600">
+          <p className="text-[10px] uppercase tracking-widest">
+            Hardware: Lector USB Windows 11
           </p>
         </div>
       </div>
