@@ -1,110 +1,136 @@
 'use client';
+
 import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [pin, setPin] = useState('');
   const [user, setUser] = useState<any>(null);
-  const [view, setView] = useState<'login' | 'select'>('login');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Simulación de persistencia de sesión
+  // Verificar si ya hay una sesión activa al cargar
   useEffect(() => {
     const session = localStorage.getItem('user_session');
     if (session) {
       setUser(JSON.parse(session));
-      setView('select');
     }
   }, []);
 
-  const handleAccess = (path: string) => {
-    router.push(path);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from('empleados')
+      .select('*')
+      .eq('email', email)
+      .eq('pin_seguridad', pin)
+      .eq('activo', true)
+      .single();
+
+    if (error || !data) {
+      alert("Credenciales incorrectas o usuario inactivo");
+    } else {
+      localStorage.setItem('user_session', JSON.stringify(data));
+      setUser(data);
+    }
+    setLoading(false);
   };
 
-  if (view === 'select' && user) {
+  const cerrarSesion = () => {
+    localStorage.clear();
+    setUser(null);
+  };
+
+  // PANTALLA DE SELECCIÓN DE ROL
+  if (user) {
     return (
       <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white font-sans">
         <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-md shadow-2xl text-center">
-          <h1 className="text-2xl font-bold mb-2">Bienvenido, {user.nombre}</h1>
-          <p className="text-slate-500 text-sm mb-8">Seleccione su modo de acceso</p>
+          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
+            {user.nombre[0]}
+          </div>
+          <h1 className="text-2xl font-bold mb-1">Hola, {user.nombre}</h1>
+          <p className="text-slate-500 text-sm mb-8 uppercase tracking-widest font-semibold">¿Cómo deseas acceder?</p>
           
           <div className="grid gap-4">
-            {/* Botón común para todos */}
-            <button onClick={() => handleAccess('/empleado')} className="p-4 bg-slate-800 hover:bg-blue-600 rounded-xl transition-all font-bold">
-              👤 Acceso como Empleado
+            {/* OPCIÓN EMPLEADO: Disponible para todos */}
+            <button 
+              onClick={() => router.push('/empleado')}
+              className="p-5 bg-slate-800 hover:bg-blue-600 rounded-2xl transition-all border border-slate-700 flex items-center justify-between group"
+            >
+              <span className="font-bold">Modo Empleado</span>
+              <span className="group-hover:translate-x-1 transition-transform">👤 →</span>
             </button>
 
-            {/* Solo para Supervisores y Admins */}
+            {/* OPCIÓN SUPERVISOR: Solo Supervisor y Admin */}
             {(user.rol === 'supervisor' || user.rol === 'admin') && (
-              <button onClick={() => handleAccess('/supervisor')} className="p-4 bg-slate-800 hover:bg-emerald-600 rounded-xl transition-all font-bold">
-                🛡️ Acceso como Supervisor
+              <button 
+                onClick={() => router.push('/supervisor')}
+                className="p-5 bg-slate-800 hover:bg-emerald-600 rounded-2xl transition-all border border-slate-700 flex items-center justify-between group"
+              >
+                <span className="font-bold">Modo Supervisor</span>
+                <span className="group-hover:translate-x-1 transition-transform">🛡️ →</span>
               </button>
             )}
 
-            {/* Solo para Admins */}
+            {/* OPCIÓN ADMINISTRADOR: Solo Admin */}
             {user.rol === 'admin' && (
-              <button onClick={() => handleAccess('/admin')} className="p-4 bg-slate-800 hover:bg-purple-600 rounded-xl transition-all font-bold">
-                ⚙️ Panel de Administrador
+              <button 
+                onClick={() => router.push('/admin')}
+                className="p-5 bg-slate-800 hover:bg-purple-600 rounded-2xl transition-all border border-slate-700 flex items-center justify-between group"
+              >
+                <span className="font-bold">Panel de Control</span>
+                <span className="group-hover:translate-x-1 transition-transform">⚙️ →</span>
               </button>
             )}
           </div>
           
-          <button onClick={() => { localStorage.clear(); setView('login'); }} className="mt-8 text-slate-600 text-xs underline">Cerrar Sesión</button>
+          <button onClick={cerrarSesion} className="mt-10 text-slate-600 text-xs underline hover:text-red-400">Cerrar Sesión Actual</button>
         </div>
       </main>
     );
   }
 
-  // Aquí iría tu formulario de login actual...
-  return <div>Formulario de Login Original</div>;
-
-
-'use client';
-import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const router = useRouter();
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Buscamos al usuario en la tabla empleados
-    const { data: user, error } = await supabase
-      .from('empleados')
-      .select('*')
-      .eq('email', email)
-      .eq('cedula_id', password) // Usamos la cédula como pass
-      .eq('activo', true)
-      .single();
-
-    if (error || !user) {
-      alert("Acceso denegado: Credenciales incorrectas");
-      return;
-    }
-
-    // Guardamos la sesión localmente (forma básica)
-    localStorage.setItem('user_session', JSON.stringify(user));
-
-    // Redirección lógica por ROL
-    if (user.rol === 'admin') router.push('/admin');
-    else if (user.rol === 'supervisor') router.push('/supervisor');
-    else router.push('/empleado');
-  };
-
+  // PANTALLA DE LOGIN
   return (
     <main className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
-      <form onSubmit={handleLogin} className="bg-slate-900 p-8 rounded-2xl border border-slate-800 w-full max-w-sm">
-        <h2 className="text-2xl font-bold mb-6 text-center text-blue-500">Sistema Almacén</h2>
-        <input type="email" placeholder="Email" onChange={e => setEmail(e.target.value)} className="w-full p-3 mb-4 bg-slate-800 rounded border border-slate-700" required />
-        <input type="password" placeholder="Cédula" onChange={e => setPassword(e.target.value)} className="w-full p-3 mb-6 bg-slate-800 rounded border border-slate-700" required />
-        <button type="submit" className="w-full bg-blue-600 py-3 rounded-lg font-bold hover:bg-blue-500 transition-all">Entrar</button>
+      <form onSubmit={handleLogin} className="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-md shadow-2xl">
+        <h1 className="text-3xl font-bold mb-8 text-center text-blue-500">Acceso Sistema</h1>
+        <div className="space-y-4">
+          <input 
+            type="email" 
+            placeholder="Correo Electrónico" 
+            className="w-full p-4 bg-slate-950 rounded-xl border border-slate-800 focus:border-blue-500 outline-none"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <input 
+            type="password" 
+            placeholder="PIN de Seguridad" 
+            className="w-full p-4 bg-slate-950 rounded-xl border border-slate-800 focus:border-blue-500 outline-none"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            required
+          />
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/40"
+          >
+            {loading ? 'Verificando...' : 'Entrar'}
+          </button>
+        </div>
       </form>
     </main>
   );
-}
 }
