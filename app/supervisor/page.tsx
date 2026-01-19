@@ -16,15 +16,15 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const router = useRouter();
 
-  // EFECTOS DE SONIDO
+  // --- SONIDOS ---
   const playSound = (type: 'success' | 'error') => {
     const audio = new Audio(type === 'success' 
       ? 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' 
       : 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-    audio.play().catch(() => {}); // Evitar error si el navegador bloquea audio sin interacción
+    audio.play().catch(() => {});
   };
 
-  // VALIDACIÓN DE SESIÓN ÚNICA
+  // --- SEGURIDAD SESIÓN ÚNICA ---
   const verificarSesion = useCallback(async () => {
     const sessionStr = localStorage.getItem('user_session');
     if (!sessionStr) return;
@@ -45,7 +45,7 @@ export default function SupervisorPage() {
     } else router.push('/');
   }, [router, verificarSesion]);
 
-  // --- LÓGICA DE LA CÁMARA (CORREGIDA PARA REINICIO) ---
+  // --- LÓGICA CÁMARA ---
   const stopScanner = async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
       await scannerRef.current.stop();
@@ -57,31 +57,26 @@ export default function SupervisorPage() {
     if (modo === 'camara' && direccion && !qrData) {
       const scanner = new Html5Qrcode("reader");
       scannerRef.current = scanner;
-      
       scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
-        async (decodedText) => {
-          setQrData(decodedText);
-          await stopScanner(); // Detener inmediatamente al leer
+        async (text) => {
+          setQrData(text);
+          await stopScanner();
         },
-        () => {} // Silenciar errores de lectura vacía
-      ).catch(err => console.error("Error al iniciar cámara:", err));
+        () => {}
+      ).catch(e => console.error(e));
     }
-    
-    return () => { 
-      // Limpieza al desmontar o cambiar modo
-      if (scannerRef.current) stopScanner();
-    };
+    return () => { if (scannerRef.current) stopScanner(); };
   }, [modo, direccion, qrData]);
 
-  // --- ESCÁNER USB ---
+  // --- LÓGICA USB ---
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
-        const clean = buffer.replace(/Shift|Dead|Control|Alt|CapsLock/gi, "");
+        const clean = buffer.replace(/Shift|Control|Alt|CapsLock|Dead/g, "").trim();
         if (clean.length > 2) setQrData(clean);
         buffer = "";
       } else if (e.key.length === 1) buffer += e.key;
@@ -90,22 +85,41 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
+  // --- PROCESAMIENTO DE ID (CRÍTICO PARA "DATOS INCORRECTOS") ---
+  const obtenerIdLimpio = (input: string) => {
+    if (!input) return "";
+    // Si viene de un QR con formato ID|NOMBRE
+    if (input.includes('|')) return input.split('|')[0].trim();
+    // Si viene como JSON
+    if (input.includes('{')) {
+      try { return JSON.parse(input).id; } catch { return input.trim(); }
+    }
+    return input.trim();
+  };
+
   const registrar = async () => {
-    const id = modo === 'manual' ? cedulaManual : qrData.split('|')[0];
+    const rawId = modo === 'manual' ? cedulaManual : qrData;
+    const idLimpio = obtenerIdLimpio(rawId);
     const session = JSON.parse(localStorage.getItem('user_session') || '{}');
-    
+
+    if (!idLimpio || !pin) {
+      playSound('error');
+      alert("Faltan datos por ingresar");
+      return;
+    }
+
     const { data: emp, error } = await supabase
       .from('empleados')
       .select('*')
-      .eq('cedula_id', id)
+      .eq('cedula_id', idLimpio)
       .eq('pin_seguridad', pin)
       .eq('activo', true)
       .single();
-    
+
     if (error || !emp) {
       playSound('error');
       alert("❌ Datos incorrectos o usuario inactivo");
-      setPin(''); // Limpiar PIN para obligar reintento
+      setPin(''); // Limpiar buffer de PIN para reintento
       return;
     }
 
@@ -118,23 +132,19 @@ export default function SupervisorPage() {
     }]);
 
     playSound('success');
-    alert(`✅ ${direccion?.toUpperCase()} exitosa`);
+    alert(`✅ ${direccion?.toUpperCase()} exitosa: ${emp.nombre}`);
     resetear();
   };
 
   const resetear = async () => {
     await stopScanner();
-    setQrData('');
-    setPin('');
-    setCedulaManual('');
-    setModo('menu');
-    setDireccion(null);
+    setQrData(''); setPin(''); setCedulaManual(''); setModo('menu'); setDireccion(null);
   };
 
+  // --- BOTÓN VOLVER (ESTRUCTURA CORREGIDA) ---
   const volverAtras = async () => {
-    if (qrData) {
-      setQrData('');
-      setPin('');
+    if (qrData || cedulaManual) {
+      setQrData(''); setCedulaManual(''); setPin('');
     } else if (direccion) {
       await stopScanner();
       setDireccion(null);
@@ -149,48 +159,44 @@ export default function SupervisorPage() {
     <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white font-sans">
       <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 w-full max-w-sm shadow-2xl relative">
         
+        {/* BOTÓN VOLVER SIEMPRE VISIBLE FUERA DEL MENÚ */}
         {modo !== 'menu' && (
-          <button onClick={volverAtras} className="absolute top-4 left-4 text-slate-500 hover:text-white text-xs">
+          <button onClick={volverAtras} className="absolute top-4 left-4 text-slate-500 hover:text-white text-xs z-50 bg-slate-800 px-2 py-1 rounded">
             ← Volver
           </button>
         )}
 
-        <h1 className="text-center font-bold mb-6 text-blue-500 uppercase tracking-widest">Supervisor</h1>
+        <h1 className="text-center font-bold mb-6 mt-4 text-blue-500 uppercase tracking-widest">Supervisor</h1>
 
         {modo === 'menu' ? (
-          <div className="grid gap-3">
-            <button onClick={() => setModo('usb')} className="p-4 bg-slate-800 rounded-xl hover:bg-blue-600 transition-all text-left flex items-center gap-3">
-              <span>🔌</span> Escáner USB
-            </button>
-            <button onClick={() => setModo('camara')} className="p-4 bg-slate-800 rounded-xl hover:bg-emerald-600 transition-all text-left flex items-center gap-3">
-              <span>📱</span> Cámara Móvil
-            </button>
-            <button onClick={() => setModo('manual')} className="p-4 bg-slate-800 rounded-xl hover:bg-amber-600 transition-all text-left flex items-center gap-3">
-              <span>✏️</span> Ingreso Manual
-            </button>
+          <div className="grid gap-3 animate-in fade-in duration-300">
+            <button onClick={() => setModo('usb')} className="p-4 bg-slate-800 rounded-xl hover:bg-blue-600 text-left">🔌 Escáner USB</button>
+            <button onClick={() => setModo('camara')} className="p-4 bg-slate-800 rounded-xl hover:bg-emerald-600 text-left">📱 Cámara Móvil</button>
+            <button onClick={() => setModo('manual')} className="p-4 bg-slate-800 rounded-xl hover:bg-amber-600 text-left">✏️ Ingreso Manual</button>
+            <button onClick={() => router.push('/')} className="mt-4 p-2 text-slate-500 text-[10px] text-center uppercase tracking-widest">Salir al Inicio</button>
           </div>
         ) : !direccion ? (
-          <div className="grid grid-cols-2 gap-4 pt-4 animate-in fade-in zoom-in duration-200">
+          <div className="grid grid-cols-2 gap-4 pt-4 animate-in slide-in-from-right-4 duration-300">
             <button onClick={() => setDireccion('entrada')} className="py-8 bg-emerald-600/20 border border-emerald-500 rounded-2xl text-emerald-500 font-bold hover:bg-emerald-500 hover:text-white transition-all">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="py-8 bg-red-600/20 border border-red-500 rounded-2xl text-red-500 font-bold hover:bg-red-500 hover:text-white transition-all">SALIDA</button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-in fade-in duration-300">
             <div className={`text-center py-1 rounded text-[10px] font-bold ${direccion === 'entrada' ? 'bg-emerald-500' : 'bg-red-500'}`}>
               MODO {direccion.toUpperCase()}
             </div>
             
             {!qrData && modo === 'camara' && (
-              <div id="reader" className="rounded-xl overflow-hidden bg-black border-2 border-emerald-500 shadow-xl min-h-[250px]"></div>
+              <div id="reader" className="rounded-xl overflow-hidden bg-black border-2 border-emerald-500 min-h-[250px]"></div>
             )}
 
             {!qrData && modo === 'usb' && (
-              <div className="py-12 text-center animate-pulse text-blue-400 text-sm">Esperando lectura USB...</div>
+              <div className="py-12 text-center text-blue-400 text-sm animate-pulse">Esperando lectura USB...</div>
             )}
 
             {(qrData || modo === 'manual') && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-2">
-                {qrData && <div className="p-2 bg-black/50 rounded border border-slate-800 text-[10px] truncate text-center font-mono text-slate-400">{qrData}</div>}
+              <div className="space-y-4">
+                {qrData && <div className="p-2 bg-black/50 rounded border border-slate-800 text-[10px] truncate text-center font-mono text-slate-500">ID: {obtenerIdLimpio(qrData)}</div>}
                 
                 {modo === 'manual' && (
                   <input 
@@ -207,14 +213,14 @@ export default function SupervisorPage() {
                   id="pinInput"
                   type="password" 
                   placeholder="PIN" 
-                  className="w-full p-4 bg-slate-950 rounded-xl border border-slate-700 text-center text-3xl outline-none focus:border-blue-500" 
+                  className="w-full p-4 bg-slate-950 rounded-xl border border-slate-700 text-center text-3xl focus:border-blue-500 outline-none" 
                   value={pin} 
                   onChange={e => setPin(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && registrar()}
                   autoFocus 
                 />
                 
-                <button onClick={registrar} className="w-full bg-blue-600 py-4 rounded-xl font-bold shadow-lg uppercase">Confirmar Registro</button>
+                <button onClick={registrar} className="w-full bg-blue-600 py-4 rounded-xl font-bold uppercase shadow-lg active:scale-95 transition-transform">Confirmar Registro</button>
               </div>
             )}
           </div>
