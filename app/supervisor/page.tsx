@@ -118,23 +118,41 @@ export default function SupervisorPage() {
     }
   };
 
-  const procesarQR = () => {
-    try {
-      // Intentamos parsear el JSON que viene del QR
-      const data = JSON.parse(qrData);
-      const diferencia = (new Date().getTime() - new Date(data.t).getTime()) / 1000;
+ const procesarQR = () => {
+  try {
+    // 1. LIMPIEZA AGRESIVA: 
+    // Removemos palabras que algunos escáneres insertan por error de driver (Shift, Dead, Control, etc)
+    let rawData = qrData
+      .replace(/Shift|Dead|Control|Alt|CapsLock|Ñ/g, "") // Limpia palabras de control
+      .replace(/idid/g, "id") // Corrige duplicados por velocidad
+      .trim();
 
-      if (diferencia > 300) { // 5 minutos de gracia
-        alert("❌ El QR ha expirado. Genere uno nuevo.");
-        setQrData('');
-        return;
-      }
-      registrarAcceso(data.id, pin, "QR_DIGITAL");
-    } catch (e) {
-      alert(`❌ QR No Válido.\nContenido leído: ${qrData}`);
+    // 2. BUSCAR EL JSON REAL: 
+    // A veces el escáner mete basura al inicio. Buscamos donde empieza '{' y termina '}'
+    const inicio = rawData.indexOf('{');
+    const fin = rawData.lastIndexOf('}');
+    
+    if (inicio === -1 || fin === -1) throw new Error("No se detecta formato JSON");
+    
+    const jsonLimpio = rawData.substring(inicio, fin + 1);
+    
+    // 3. PARSEAR
+    const data = JSON.parse(jsonLimpio);
+    
+    // Validación de tiempo
+    const diferencia = (new Date().getTime() - new Date(data.t).getTime()) / 1000;
+    if (diferencia > 600) { // 10 minutos de gracia
+      alert("❌ El QR ha expirado.");
       setQrData('');
+      return;
     }
-  };
+
+    registrarAcceso(data.id, pin, "QR_USB_CLEANED");
+  } catch (e) {
+    alert(`❌ Error de lectura física.\n\nEl escáner envió: ${qrData}\n\nIntente configurar su escáner en idioma Español o use la cámara del móvil.`);
+    setQrData('');
+  }
+};
 
   const resetearTodo = () => {
     setQrData('');
