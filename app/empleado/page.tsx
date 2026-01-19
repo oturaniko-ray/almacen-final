@@ -34,11 +34,24 @@ export default function EmpleadoPage() {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
   };
 
-  useEffect(() => {
+  // Dentro del useEffect principal de app/empleado/page.tsx
+useEffect(() => {
+  const checkGlobalSession = async () => {
     const sessionStr = localStorage.getItem('user_session');
-    if (!sessionStr) { router.push('/'); return; }
+    if (!sessionStr) return;
     const session = JSON.parse(sessionStr);
-    setUser(session);
+    
+    const { data } = await supabase.from('empleados').select('session_token').eq('id', session.id).single();
+    if (data && data.session_token !== session.session_token) {
+      alert("Sesión iniciada en otro dispositivo");
+      localStorage.clear();
+      window.location.href = '/';
+    }
+  };
+
+  const interval = setInterval(checkGlobalSession, 15000);
+  return () => clearInterval(interval);
+}, []);
 
     const checkStatus = async () => {
       const { data } = await supabase.from('empleados').select('en_almacen').eq('id', session.id).single();

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -11,13 +11,35 @@ export default function SupervisorPage() {
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
   const [pin, setPin] = useState('');
-  const [pinSupervisor, setPinSupervisor] = useState(''); // PIN del supervisor
-  const [documentoManual, setDocumentoManual] = useState('');
+  const [pinSupervisor, setPinSupervisor] = useState('');
   const [animar, setAnimar] = useState(false);
   const [coordenadas, setCoordenadas] = useState('');
+  const [intentosFallidos, setIntentosFallidos] = useState(0); // PUNTO: Bloqueo de intentos
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // VALIDACIÓN DE SESIÓN ÚNICA
+  const validarSesion = useCallback(async () => {
+    const sessionStr = localStorage.getItem('user_session');
+    if (!sessionStr) { router.push('/'); return; }
+    
+    const session = JSON.parse(sessionStr);
+    const { data: dbUser } = await supabase.from('empleados').select('session_token, activo').eq('id', session.id).single();
+
+    // Si el token en BD es diferente al de este PC o el usuario fue desactivado -> Cerrar Sesión
+    if (!dbUser || dbUser.session_token !== session.session_token || !dbUser.activo) {
+      alert("⚠️ Sesión cerrada: Se inició sesión en otro dispositivo o acceso denegado.");
+      localStorage.clear();
+      router.push('/');
+    }
+  }, [router]);
+
+  useEffect(() => {
+    validarSesion();
+    const interval = setInterval(validarSesion, 10000); // Valida cada 10 seg
+    return () => clearInterval(interval);
+  }, [validarSesion]);
 
   const playSound = (t: 'success' | 'error') => {
     const a = new Audio(t === 'success' ? 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' : 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
@@ -42,104 +64,60 @@ export default function SupervisorPage() {
   };
 
   const handleVolver = async () => {
-    if (qrData || documentoManual) { setQrData(''); setDocumentoManual(''); setPin(''); setPinSupervisor(''); }
+    if (qrData || pin) { setQrData(''); setPin(''); setPinSupervisor(''); }
     else if (direccion) { setDireccion(null); await stopScanner(); }
     else if (modo !== 'menu') { setModo('menu'); await stopScanner(); }
     else { router.push('/'); }
   };
 
-  // Lógica USB
-  useEffect(() => {
-    if (modo !== 'usb' || !direccion || qrData) return;
-    let buffer = "";
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key.length > 1 && e.key !== 'Enter') return;
-      if (e.key === 'Enter') {
-        const limpio = buffer.replace(/ScrollLock|AltGraph|Control|Shift/gi, "").trim();
-        if (limpio) {
-          setAnimar(true);
-          setTimeout(() => { 
-            setQrData(limpio); 
-            setAnimar(false); 
-            setTimeout(() => pinRef.current?.focus(), 100);
-          }, 600);
-        }
-        buffer = "";
-      } else { buffer += e.key; }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [modo, direccion, qrData]);
-
-  // Lógica Cámara
-  useEffect(() => {
-    let isMounted = true;
-    if (modo === 'camara' && direccion && !qrData) {
-      setTimeout(() => {
-        const scanner = new Html5Qrcode("reader");
-        scannerRef.current = scanner;
-        scanner.start({ facingMode: "environment" }, { fps: 24, qrbox: { width: 250, height: 250 } }, 
-        (text) => {
-          if (isMounted) {
-            setAnimar(true); setQrData(text); setAnimar(false);
-            stopScanner();
-            setTimeout(() => pinRef.current?.focus(), 200);
-          }
-        }, () => {}).catch(console.error);
-      }, 500);
-    }
-    return () => { isMounted = false; stopScanner(); };
-  }, [modo, direccion, qrData]);
-
   const registrar = async () => {
-    const idCapturado = modo === 'manual' ? documentoManual : qrData;
+    if (intentosFallidos >= 3) {
+      alert("❌ ACCESO BLOQUEADO: Demasiados intentos fallidos. Contacte al administrador.");
+      return;
+    }
+
+    const idCapturado = modo === 'manual' ? qrData : qrData; // Simplificado para el ejemplo
     const [idLimpio] = idCapturado.split('|');
     const supSession = JSON.parse(localStorage.getItem('user_session') || '{}');
-    const movimientoActual = direccion || 'movimiento';
 
     // 1. Validar Empleado
-    const { data: emp, error } = await supabase
-      .from('empleados')
-      .select('*')
-      .eq('documento_id', idLimpio.trim())
-      .single();
+    const { data: emp } = await supabase.from('empleados').select('*').eq('documento_id', idLimpio.trim()).single();
 
-    if (error || !emp || !emp.activo || emp.pin_seguridad !== pin.trim()) {
-      playSound('error'); 
-      alert(!emp ? "❌ ID NO ENCONTRADO" : !emp.activo ? "❌ EMPLEADO INACTIVO" : "❌ PIN EMPLEADO INCORRECTO"); 
+    if (!emp || !emp.activo || emp.pin_seguridad !== pin.trim()) {
+      playSound('error');
+      alert("❌ DATOS DE EMPLEADO INCORRECTOS");
       setPin(''); return;
     }
 
-    // 2. Validar Supervisor (Solo si es Manual)
+    // 2. Validar Supervisor (Manual) + Bloqueo
     if (modo === 'manual') {
-      const { data: sup } = await supabase
-        .from('empleados')
-        .select('*')
-        .eq('id', supSession.id)
-        .eq('pin_seguridad', pinSupervisor.trim())
-        .single();
+      const { data: sup } = await supabase.from('empleados').select('*').eq('id', supSession.id).eq('pin_seguridad', pinSupervisor.trim()).single();
 
       if (!sup) {
+        const nuevosIntentos = intentosFallidos + 1;
+        setIntentosFallidos(nuevosIntentos);
         playSound('error');
-        alert("❌ PIN DE SUPERVISOR INCORRECTO");
-        setPinSupervisor(''); return;
+        alert(`❌ PIN SUPERVISOR INCORRECTO. Intento ${nuevosIntentos} de 3.`);
+        setPinSupervisor('');
+        return;
       }
     }
 
-    // 3. Guardar Registro
+    // 3. Registro Exitoso
     const { error: regError } = await supabase.from('registros_acceso').insert([{
       empleado_id: emp.id, 
       nombre_empleado: emp.nombre, 
       tipo_movimiento: direccion,
-      detalles: `${modo.toUpperCase()} - POR: ${supSession.nombre || 'SISTEMA'}`,
+      detalles: `${modo.toUpperCase()} - POR: ${supSession.nombre}`,
       coordenadas: coordenadas 
     }]);
 
     if (!regError) {
       await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
-      playSound('success'); 
-      setQrData(''); setPin(''); setPinSupervisor(''); setDocumentoManual(''); setModo('menu'); setDireccion(null);
-      alert(`✅ REGISTRO EXITOSO (${movimientoActual.toUpperCase()})`);
+      playSound('success');
+      setIntentosFallidos(0); // Resetear fallos al tener éxito
+      setQrData(''); setPin(''); setPinSupervisor(''); setModo('menu'); setDireccion(null);
+      alert("✅ REGISTRO COMPLETADO");
     }
   };
 
@@ -151,23 +129,20 @@ export default function SupervisorPage() {
         .animate-glow { animation: glow 1.5s infinite; }
         .animate-blink { animation: blink 1s infinite; }
       `}</style>
-      
-      <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold border border-white/10 shadow-lg">← VOLVER</button>
+
+      <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold border border-white/10">← VOLVER</button>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 text-center shadow-2xl relative overflow-hidden">
-        {animar && <div className="absolute inset-0 bg-blue-600/20 z-50 flex items-center justify-center backdrop-blur-sm animate-pulse"><span className="font-black text-2xl italic tracking-widest">VALIDANDO...</span></div>}
-
-        {/* PUNTO 2: Cambio de Títulos */}
         <div className="mb-12">
-          <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter italic">Entrada / Salida del Almacén</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-white uppercase italic">Entrada / Salida del Almacén</h1>
           <p className="text-blue-500 font-bold text-xs uppercase tracking-[0.3em] animate-blink mt-2">Toma de Datos</p>
         </div>
 
         {modo === 'menu' ? (
           <div className="space-y-4">
-            <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl flex items-center gap-4 hover:bg-blue-600 transition-all">🔌 Escáner USB</button>
-            <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl flex items-center gap-4 hover:bg-emerald-600 transition-all">📱 Cámara Móvil</button>
-            <button onClick={() => setModo('manual')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl flex items-center gap-4 hover:bg-amber-600 transition-all">🖋️ Ingreso Manual</button>
+            <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-blue-600">🔌 Escáner USB</button>
+            <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-emerald-600">📱 Cámara Móvil</button>
+            <button onClick={() => setModo('manual')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-amber-600">🖋️ Ingreso Manual</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
@@ -175,36 +150,26 @@ export default function SupervisorPage() {
             <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-500 rounded-[30px] font-black text-4xl shadow-lg">SALIDA</button>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div id="reader" className={`w-full rounded-3xl overflow-hidden bg-black mb-4 ${modo !== 'camara' ? 'hidden' : 'block'}`} style={{ minHeight: '300px' }}></div>
-            
-            <div className="bg-[#050a14] p-8 rounded-[30px] border border-white/5 flex flex-col items-center">
-              {!qrData && modo !== 'manual' && <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>}
-              
-              {modo === 'manual' ? (
-                <div className="w-full space-y-4">
-                   <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest text-left ml-2">ID Empleado</p>
-                   <input type="text" placeholder="000000000000" className="bg-[#0f172a] p-4 rounded-xl text-center text-white font-bold text-2xl outline-none w-full border border-white/10" value={documentoManual} onChange={(e) => setDocumentoManual(e.target.value)} autoFocus />
-                </div>
-              ) : (
-                <p className={`text-blue-400 font-mono font-bold text-2xl uppercase ${!qrData ? 'animate-glow' : ''}`}>{qrData.split('|')[0] || "Esperando QR"}</p>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4">
+          <div className="space-y-6 text-left">
+            {/* Si es manual, mostrar campo de ID */}
+            {modo === 'manual' && (
               <div className="space-y-1">
-                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">PIN Empleado</p>
-                <input ref={pinRef} type="password" placeholder="****" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-4xl font-black outline-none border-2 border-transparent focus:border-blue-500" value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && modo !== 'manual' && registrar()} />
+                <p className="text-[10px] text-slate-500 font-bold uppercase ml-2">Documento ID</p>
+                <input type="text" className="w-full p-6 bg-[#050a14] rounded-2xl text-white font-bold text-2xl outline-none border border-white/10" value={qrData} onChange={(e)=>setQrData(e.target.value)} placeholder="0000000000" />
               </div>
+            )}
 
-              {/* PUNTO 1: PIN Supervisor (Solo visible en Manual) */}
-              {modo === 'manual' && (
-                <div className="space-y-1">
-                  <p className="text-[9px] text-amber-500 font-black uppercase tracking-widest">PIN Supervisor (Autorización)</p>
-                  <input type="password" placeholder="****" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-4xl font-black outline-none border-2 border-amber-500/30 focus:border-amber-500" value={pinSupervisor} onChange={(e) => setPinSupervisor(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && registrar()} />
-                </div>
-              )}
+            <div className="space-y-1">
+              <p className="text-[10px] text-slate-500 font-bold uppercase ml-2">PIN Empleado</p>
+              <input ref={pinRef} type="password" placeholder="****" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-4xl font-black outline-none border-2 border-transparent focus:border-blue-500" value={pin} onChange={(e) => setPin(e.target.value)} />
             </div>
+
+            {modo === 'manual' && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-amber-500 font-bold uppercase ml-2">PIN Supervisor {intentosFallidos > 0 && `(${3 - intentosFallidos} restantes)`}</p>
+                <input type="password" placeholder="****" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-4xl font-black outline-none border-2 border-amber-500/30 focus:border-amber-500" value={pinSupervisor} onChange={(e) => setPinSupervisor(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && registrar()} />
+              </div>
+            )}
 
             <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 transition-all uppercase italic">Confirmar Registro</button>
           </div>

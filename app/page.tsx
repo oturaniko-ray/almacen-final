@@ -1,79 +1,53 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [doc, setDoc] = useState('');
   const [pin, setPin] = useState('');
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const session = localStorage.getItem('user_session');
-    if (session) setUser(JSON.parse(session));
-  }, []);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const newSessionId = crypto.randomUUID();
-
-    const { data, error } = await supabase
+  const handleLogin = async () => {
+    const { data: user, error } = await supabase
       .from('empleados')
       .select('*')
-      .eq('email', email.trim())
-      .eq('pin_seguridad', pin.trim())
-      .eq('activo', true)
+      .eq('documento_id', doc)
+      .eq('pin_seguridad', pin)
       .single();
 
-    if (error || !data) {
+    if (error || !user || !user.activo) {
       alert("Credenciales incorrectas o usuario inactivo");
-    } else {
-      await supabase.from('empleados').update({ session_id: newSessionId }).eq('id', data.id);
-      const sessionData = { ...data, session_id: newSessionId };
-      localStorage.setItem('user_session', JSON.stringify(sessionData));
-      setUser(sessionData);
-      setEmail(''); setPin(''); // Limpiar buffer
+      return;
     }
-    setLoading(false);
+
+    // PUNTO: Crear un Token de Sesión Único (ID aleatorio)
+    const newToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+    // Actualizar en la base de datos para cerrar sesiones anteriores
+    await supabase.from('empleados').update({ session_token: newToken }).eq('id', user.id);
+
+    // Guardar en localStorage para validar después
+    localStorage.setItem('user_session', JSON.stringify({ ...user, session_token: newToken }));
+
+    // Redirección según rol
+    if (user.rol === 'administrador') router.push('/admin');
+    else if (user.rol === 'supervisor') router.push('/supervisor');
+    else router.push('/empleado');
   };
 
-  if (user) {
-    return (
-      <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
-        <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-md text-center shadow-2xl">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-xl">{user.nombre[0]}</div>
-          <h1 className="text-2xl font-bold mb-8">Bienvenido, {user.nombre}</h1>
-          <div className="grid gap-4">
-            <button onClick={() => router.push('/empleado')} className="p-5 bg-slate-800 hover:bg-blue-600 rounded-2xl transition-all font-bold border border-slate-700">👤 Modo Empleado</button>
-            {(user.rol === 'supervisor' || user.rol === 'admin') && (
-              <button onClick={() => router.push('/supervisor')} className="p-5 bg-slate-800 hover:bg-emerald-600 rounded-2xl transition-all font-bold border border-slate-700">🛡️ Modo Supervisor</button>
-            )}
-            {user.rol === 'admin' && (
-              <button onClick={() => router.push('/admin')} className="p-5 bg-slate-800 hover:bg-purple-600 rounded-2xl transition-all font-bold border border-slate-700">⚙️ Panel Administrativo</button>
-            )}
-          </div>
-          <button onClick={() => { localStorage.clear(); setUser(null); }} className="mt-8 text-slate-500 underline text-xs">Cerrar Sesión</button>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
-      <form onSubmit={handleLogin} className="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-sm shadow-2xl">
-        <h1 className="text-2xl font-bold mb-6 text-center text-blue-500">Acceso al Sistema</h1>
+    <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6">
+      <div className="bg-[#0f172a] p-10 rounded-[40px] border border-white/5 w-full max-w-md shadow-2xl">
+        <h1 className="text-3xl font-black text-blue-500 mb-8 text-center italic uppercase tracking-tighter">Acceso Sistema</h1>
         <div className="space-y-4">
-          <input type="email" placeholder="Correo Electrónico" className="w-full p-4 bg-slate-950 rounded-xl border border-slate-800 focus:border-blue-500 outline-none" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <input type="password" placeholder="PIN Alfanumérico" className="w-full p-4 bg-slate-950 rounded-xl border border-slate-800 focus:border-blue-500 outline-none" value={pin} onChange={(e) => setPin(e.target.value)} required />
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 py-4 rounded-xl font-bold hover:bg-blue-500 transition-all">{loading ? 'Verificando...' : 'ENTRAR'}</button>
+          <input type="text" placeholder="DOCUMENTO ID" className="w-full p-4 bg-[#050a14] rounded-xl text-white outline-none border border-white/5 focus:border-blue-500" onChange={(e) => setDoc(e.target.value)} />
+          <input type="password" placeholder="PIN SEGURIDAD" className="w-full p-4 bg-[#050a14] rounded-xl text-white outline-none border border-white/5 focus:border-blue-500" onChange={(e) => setPin(e.target.value)} />
+          <button onClick={handleLogin} className="w-full p-4 bg-blue-600 rounded-2xl font-black text-white hover:bg-blue-500 transition-all uppercase italic">Entrar</button>
         </div>
-      </form>
+      </div>
     </main>
   );
 }
