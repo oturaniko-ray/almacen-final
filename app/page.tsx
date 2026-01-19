@@ -56,7 +56,7 @@ export default function LoginPage() {
 
   // Aquí iría tu formulario de login actual...
   return <div>Formulario de Login Original</div>;
-}
+
 
 'use client';
 import { useState } from 'react';
@@ -106,4 +106,5 @@ export default function LoginPage() {
       </form>
     </main>
   );
+}
 }

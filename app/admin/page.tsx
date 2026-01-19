@@ -58,7 +58,7 @@ export default function AdminPage() {
       </div>
     </main>
   );
-}
+
 
 'use client';
 
@@ -278,4 +278,5 @@ export default function AdminPage() {
       </div>
     </main>
   );
+}
 }
