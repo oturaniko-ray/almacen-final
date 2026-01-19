@@ -1,4 +1,28 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function SupervisorPage() {
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user_session') || '{}');
+    // Permitimos a supervisor Y a admin entrar aquí
+    if (user.rol === 'supervisor' || user.rol === 'admin') {
+      setAuthorized(true);
+    } else {
+      alert("Acceso restringido a Supervisores");
+      router.push('/');
+    }
+  }, []);
+
+  if (!authorized) return null;
+
+  return (
+    <div>
+       {/* AQUÍ PEGA TU LÓGICA DE ESCÁNER QR QUE YA TENÍAS */}
+'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -151,3 +175,8 @@ export default function SupervisorPage() {
     </main>
   );
 }
+       <h1 className="text-white">Panel de Escaneo (Supervisor)</h1>
+    </div>
+  );
+}
+

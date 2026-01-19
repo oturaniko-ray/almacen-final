@@ -1,27 +1,4 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-
-export default function AdminPage() {
-  const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
-
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user_session') || '{}');
-    if (user.rol !== 'admin') {
-      alert("No tienes permiso para acceder aquí");
-      router.push('/');
-    } else {
-      setAuthorized(true);
-    }
-  }, []);
-
-  if (!authorized) return null;
-
-  return (
-    <div>
-       {/* AQUÍ PEGA TODO EL CONTENIDO DEL ADMIN QUE YA TENÍAMOS (Formulario, Historial, etc) */}
-'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
@@ -171,11 +148,3 @@ export default function AdminPage() {
     </main>
   );
 }
-       <h1 className="text-white">Bienvenido Administrador</h1>
-    </div>
-  );
-}
-
-
-
-
