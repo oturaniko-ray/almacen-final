@@ -6,7 +6,26 @@ import { useRouter } from 'next/navigation';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function SupervisorPage() {
-  const [modo, setModo] = useState<'menu' | 'usb' | 'manual'>('menu');
+  // Dentro del return de SupervisorPage, en la sección del menú principal:
+{modo === 'menu' ? (
+  <div className="space-y-5">
+    <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all border border-white/5">
+      <span className="text-2xl">🔌</span> Escáner USB
+    </button>
+    
+    {/* REINTEGRADO: CÁMARA MÓVIL */}
+    <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all border border-white/5">
+      <span className="text-2xl">📱</span> Cámara Móvil
+    </button>
+
+    {/* REINTEGRADO: INGRESO MANUAL */}
+    <button onClick={() => setModo('manual')} className="w-full p-8 bg-[#1e293b] hover:bg-[#2d3a4f] rounded-[25px] flex items-center gap-5 text-white font-bold text-xl transition-all border border-white/5">
+      <span className="text-2xl">🖋️</span> Ingreso Manual
+    </button>
+  </div>
+) : (
+  // Resto de la lógica de dirección y registro...
+)};
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
   const [pin, setPin] = useState('');
