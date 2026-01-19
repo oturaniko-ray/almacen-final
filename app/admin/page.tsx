@@ -9,7 +9,6 @@ const supabase = createClient(
 );
 
 export default function AdminPage() {
-  // 1. ESTADOS UNIFICADOS
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [nombre, setNombre] = useState('');
@@ -19,7 +18,6 @@ export default function AdminPage() {
   const [rol, setRol] = useState('empleado');
   const [cargando, setCargando] = useState(false);
 
-  // 2. CARGA DE DATOS
   useEffect(() => {
     cargarDatos();
   }, []);
@@ -31,20 +29,11 @@ export default function AdminPage() {
     setLogs(lg || []);
   }
 
-  // 3. ACCIONES
   async function crearEmpleado(e: React.FormEvent) {
     e.preventDefault();
     setCargando(true);
-    
     const { error } = await supabase.from('empleados').insert([
-      { 
-        nombre, 
-        cedula_id: cedula, 
-        email, 
-        pin_seguridad: pin, 
-        rol, 
-        activo: true 
-      }
+      { nombre, cedula_id: cedula, email, pin_seguridad: pin, rol, activo: true }
     ]);
 
     if (error) {
@@ -71,7 +60,6 @@ export default function AdminPage() {
     XLSX.writeFile(wb, "Reporte_Asistencia.xlsx");
   };
 
-  // 4. INTERFAZ (JSX)
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto">
@@ -87,7 +75,6 @@ export default function AdminPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* SECCIÓN IZQUIERDA: FORMULARIO */}
           <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
             <h2 className="text-xl font-semibold mb-6 text-blue-400">👤 Registro de Personal</h2>
             <form onSubmit={crearEmpleado} className="space-y-4">
@@ -102,10 +89,7 @@ export default function AdminPage() {
                 <option value="admin">Rol: Administrador</option>
               </select>
 
-              <button 
-                disabled={cargando} 
-                className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-bold transition-all active:scale-95 disabled:opacity-50"
-              >
+              <button disabled={cargando} className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-bold transition-all active:scale-95 disabled:opacity-50">
                 {cargando ? 'Guardando...' : 'Registrar Empleado'}
               </button>
             </form>
@@ -116,7 +100,7 @@ export default function AdminPage() {
                 <div key={emp.id} className="flex justify-between items-center p-3 bg-slate-800/50 rounded-xl border border-slate-700">
                   <div>
                     <p className="font-bold text-sm">{emp.nombre}</p>
-                    <p className="text-[10px] text-slate-400 font-mono text-uppercase">
+                    <p className="text-[10px] text-slate-400 font-mono">
                       Rol: {emp.rol?.toUpperCase()} | PIN: {emp.pin_seguridad}
                     </p>
                   </div>
@@ -128,7 +112,6 @@ export default function AdminPage() {
             </div>
           </section>
 
-          {/* SECCIÓN DERECHA: HISTORIAL */}
           <section className="lg:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
             <h2 className="text-xl font-semibold mb-6 text-emerald-400">📋 Historial de Movimientos</h2>
             <div className="overflow-x-auto">
@@ -159,6 +142,7 @@ export default function AdminPage() {
               )}
             </div>
           </section>
+
         </div>
       </div>
     </main>
