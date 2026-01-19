@@ -1,5 +1,41 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+// ... otros imports
+
+export default function EmployeeLoginPage() {
+  const [user, setUser] = useState<any>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState(''); // Usaremos la cédula como password inicial
+
+  const handleLogin = async () => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) alert("Error: " + error.message);
+    else setUser(data.user);
+  };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 w-full max-w-sm">
+          <h2 className="text-2xl font-bold text-white mb-6">Ingreso de Personal</h2>
+          <input type="email" placeholder="Tu Email" onChange={e => setEmail(e.target.value)} className="w-full p-3 mb-4 bg-slate-800 text-white rounded-lg" />
+          <input type="password" placeholder="Contraseña (Cédula)" onChange={e => setPassword(e.target.value)} className="w-full p-3 mb-6 bg-slate-800 text-white rounded-lg" />
+          <button onClick={handleLogin} className="w-full bg-blue-600 py-3 rounded-lg font-bold text-white">Entrar</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Si el usuario está logueado, AQUÍ es donde muestras el Generador de QR que ya tenías
+  return <QRCodeGenerator user={user} />;
+}
+
+'use client';
+import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { checkGeofence } from '../utils/geofence';
 

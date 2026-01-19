@@ -130,3 +130,30 @@ export default function AdminPage() {
     </main>
   );
 }
+
+// ... dentro del componente AdminPage, agrega este estado:
+const [rol, setRol] = useState('empleado');
+const [email, setEmail] = useState('');
+
+// ... y actualiza la función crearEmpleado:
+async function crearEmpleado(e: React.FormEvent) {
+  e.preventDefault();
+  // Al crear el empleado en la tabla, también deberías invitarlo vía Supabase Auth
+  const { data, error } = await supabase.from('empleados').insert([
+    { nombre, cedula_id: cedula, pin_seguridad: pin, email, rol, activo: true }
+  ]);
+  
+  if (!error) {
+     alert("Empleado creado. Ahora debe registrarse con su email: " + email);
+     // Limpiar campos...
+  }
+}
+
+// ... En el diseño (JSX), añade los inputs:
+<input type="email" placeholder="Correo Electrónico" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-800 p-3 rounded-lg border border-slate-700" required />
+
+<select value={rol} onChange={e => setRol(e.target.value)} className="w-full bg-slate-800 p-3 rounded-lg border border-slate-700 text-white">
+  <option value="empleado">Empleado (Solo QR)</option>
+  <option value="supervisor">Supervisor (Escáner)</option>
+  <option value="admin">Administrador (Todo)</option>
+</select>
