@@ -82,7 +82,9 @@ export default function AdminPage() {
                   <div className="flex items-center gap-6">
                     {/* QR GENERADO CON documento_id PARA QUE EL SUPERVISOR LO RECONOZCA */}
                     <div className="bg-white p-2 rounded-lg">
-                      <QRCodeSVG value={`${emp.documento_id}|${emp.nombre}`} size={60} />
+// Solo pasamos el documento_id puro para evitar errores de undefined
+                      <QRCodeSVG value={emp.documento_id} size={60} />
+                      //<QRCodeSVG value={`${emp.documento_id}|${emp.nombre}`} size={60} />
                     </div>
                     <button onClick={() => { setEditId(emp.id); setNombre(emp.nombre); setDocumento(emp.documento_id); setEmail(emp.email); setPin(emp.pin_seguridad); setRol(emp.rol); }} className="text-blue-500 font-bold">Editar</button>
                   </div>
