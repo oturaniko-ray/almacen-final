@@ -1,3 +1,4 @@
+// app/page.tsx - REEMPLAZO COMPLETO
 'use client';
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -6,41 +7,36 @@ import { useRouter } from 'next/navigation';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function LoginPage() {
-  const [doc, setDoc] = useState('');
+  const [identificador, setIdentificador] = useState(''); // Puede ser ID o Email
   const [pin, setPin] = useState('');
   const router = useRouter();
 
   const handleLogin = async () => {
+    const valorLimpio = identificador.trim();
+    
+    // Buscamos si el valor coincide con documento_id O con email
     const { data: user, error } = await supabase
       .from('empleados')
       .select('*')
-      .eq('documento_id', doc)
-      .eq('pin_seguridad', pin)
+      .or(`documento_id.eq.${valorLimpio},email.eq.${valorLimpio}`)
+      .eq('pin_seguridad', pin.trim())
       .single();
 
-    if (error || !user || !user.activo) {
-      alert("❌ Credenciales incorrectas o usuario inactivo");
+    if (error || !user) {
+      alert("❌ Credenciales incorrectas. Verifique su ID/Email y PIN.");
       return;
     }
 
-    // GENERAR TOKEN ÚNICO DE SESIÓN
+    if (!user.activo) {
+      alert("🚫 Usuario inactivo. Contacte al administrador.");
+      return;
+    }
+
     const newToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
-    // Actualizar en BD para invalidar otras sesiones
-    const { error: upError } = await supabase
-      .from('empleados')
-      .update({ session_token: newToken })
-      .eq('id', user.id);
-
-    if (upError) {
-      alert("Error al iniciar sesión");
-      return;
-    }
-
-    // Guardar sesión localmente incluyendo el token
+    await supabase.from('empleados').update({ session_token: newToken }).eq('id', user.id);
     localStorage.setItem('user_session', JSON.stringify({ ...user, session_token: newToken }));
 
-    // Redirección por Rol
     if (user.rol === 'administrador') router.push('/admin');
     else if (user.rol === 'supervisor') router.push('/supervisor');
     else router.push('/empleado');
@@ -53,9 +49,9 @@ export default function LoginPage() {
         <div className="space-y-4">
           <input 
             type="text" 
-            placeholder="DOCUMENTO ID" 
-            className="w-full p-4 bg-[#050a14] rounded-xl text-white outline-none border border-white/5 focus:border-blue-500 transition-all" 
-            onChange={(e) => setDoc(e.target.value)} 
+            placeholder="ID O EMAIL" 
+            className="w-full p-4 bg-[#050a14] rounded-xl text-white outline-none border border-white/5 focus:border-blue-500 transition-all uppercase" 
+            onChange={(e) => setIdentificador(e.target.value)} 
           />
           <input 
             type="password" 
@@ -64,12 +60,7 @@ export default function LoginPage() {
             onChange={(e) => setPin(e.target.value)} 
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
           />
-          <button 
-            onClick={handleLogin} 
-            className="w-full p-4 bg-blue-600 rounded-2xl font-black text-white hover:bg-blue-500 transition-all uppercase italic tracking-widest mt-4"
-          >
-            Entrar
-          </button>
+          <button onClick={handleLogin} className="w-full p-4 bg-blue-600 rounded-2xl font-black text-white hover:bg-blue-500 transition-all uppercase italic tracking-widest mt-4">Entrar</button>
         </div>
       </div>
     </main>
