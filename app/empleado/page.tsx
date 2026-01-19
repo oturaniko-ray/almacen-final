@@ -2,8 +2,10 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 
-// 📍 COORDENADAS DEL ALMACÉN (Mantenidas según tu archivo)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
 const ALMACEN_LAT = 40.59665469156573; 
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 50; 
@@ -13,6 +15,7 @@ export default function EmpleadoPage() {
   const [qrValue, setQrValue] = useState('');
   const [errorGeo, setErrorGeo] = useState('');
   const [cargando, setCargando] = useState(true);
+  const [enAlmacen, setEnAlmacen] = useState(false);
   const router = useRouter();
 
   const playSound = (type: 'success' | 'error') => {
@@ -37,67 +40,65 @@ export default function EmpleadoPage() {
     const session = JSON.parse(sessionStr);
     setUser(session);
 
+    const checkStatus = async () => {
+      const { data } = await supabase.from('empleados').select('en_almacen').eq('id', session.id).single();
+      if (data) setEnAlmacen(data.en_almacen);
+    };
+
     const generarQR = () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ALMACEN_LAT, ALMACEN_LON);
           if (dist <= RADIO_MAXIMO_METROS) {
             setErrorGeo('');
-            // SEGURIDAD DINÁMICA: Bloque de 60 segundos
-            const identificador = session.documento_id || session.id;
+            const idReal = session.documento_id || session.id;
             const timeBlock = Math.floor(Date.now() / 60000); 
-            setQrValue(`${identificador}|${timeBlock}`);
+            setQrValue(`${idReal}|${timeBlock}`);
           } else {
             setErrorGeo(`Fuera de rango (${Math.round(dist)}m)`);
             playSound('error');
           }
           setCargando(false);
         },
-        () => { 
-          setErrorGeo("Activa el GPS"); 
-          playSound('error');
-          setCargando(false); 
-        },
+        () => { setErrorGeo("GPS Requerido"); playSound('error'); setCargando(false); },
         { enableHighAccuracy: true }
       );
     };
 
     generarQR();
-    const interval = setInterval(generarQR, 30000); // Refresca cada 30 segundos
+    checkStatus();
+    const interval = setInterval(() => { generarQR(); checkStatus(); }, 30000);
     return () => clearInterval(interval);
   }, [router]);
 
   if (!user) return null;
 
   return (
-    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-4 text-white">
-      {/* Botón Volver Externo */}
-      <button 
-        onClick={() => router.push('/')}
-        className="absolute top-8 left-8 bg-[#1e293b] hover:bg-[#2d3a4f] px-6 py-3 rounded-lg font-bold text-sm text-white border border-white/10 transition-all"
-      >
-        ← VOLVER
-      </button>
+    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-4 text-white font-sans">
+      <button onClick={() => router.push('/')} className="absolute top-6 left-6 bg-[#1e293b] px-5 py-2 rounded-xl font-bold text-xs border border-white/10 shadow-lg">← VOLVER</button>
 
-      <div className="bg-[#0f172a] p-8 rounded-[40px] w-full max-w-[320px] shadow-2xl border border-white/5 text-center">
-        <h1 className="text-xl font-black mb-1 text-blue-500 uppercase">{user.nombre}</h1>
-        <p className="text-slate-500 text-[10px] mb-6 font-bold tracking-widest uppercase">Carnet de Empleado</p>
+      <div className="bg-[#0f172a] p-8 rounded-[40px] w-full max-w-[310px] shadow-2xl border border-white/5 text-center">
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <div className={`w-3 h-3 rounded-full ${enAlmacen ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`}></div>
+          <h1 className="text-lg font-black uppercase tracking-tighter">{user.nombre}</h1>
+        </div>
+        <p className="text-slate-500 text-[10px] mb-6 font-bold uppercase tracking-widest">
+          {enAlmacen ? 'Dentro del Almacén' : 'Fuera del Almacén'}
+        </p>
 
         <div className="bg-white p-4 rounded-[30px] inline-block mb-6 border-4 border-[#1e293b] shadow-inner">
           {cargando ? (
-            <div className="w-[160px] h-[160px] flex items-center justify-center">
-              <div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
+             <div className="w-[150px] h-[150px] flex items-center justify-center"><div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>
           ) : errorGeo ? (
-            <div className="w-[160px] h-[160px] flex items-center justify-center text-red-600 text-[10px] font-black uppercase px-2">{errorGeo}</div>
+            <div className="w-[150px] h-[150px] flex items-center justify-center text-red-600 text-[10px] font-black px-4">{errorGeo}</div>
           ) : (
-            <QRCodeSVG value={qrValue} size={160} level="H" />
+            <QRCodeSVG value={qrValue} size={150} level="H" />
           )}
         </div>
 
-        <div className="bg-[#050a14] py-3 px-4 rounded-xl border border-white/5">
-          <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mb-1">Documento ID</p>
-          <p className="text-lg font-mono font-bold text-blue-400">{user.documento_id || user.id}</p>
+        <div className="bg-[#050a14] py-3 rounded-2xl border border-white/5">
+          <p className="text-[9px] text-slate-600 font-bold mb-1 uppercase">ID Verificado</p>
+          <p className="text-base font-mono font-bold text-blue-400">{user.documento_id}</p>
         </div>
       </div>
     </main>
