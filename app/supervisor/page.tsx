@@ -86,12 +86,12 @@ export default function SupervisorPage() {
     return () => { isMounted = false; stopScanner(); };
   }, [modo, direccion, qrData]);
 
-  const registrar = async () => {
+const registrar = async () => {
     const idCapturado = modo === 'manual' ? documentoManual : qrData;
     const [idLimpio] = idCapturado.split('|');
     const supSession = JSON.parse(localStorage.getItem('user_session') || '{}');
     
-    // PUNTO 1: Leer BD antes de validar para tener datos frescos
+    // 1. Leer BD antes de validar
     const { data: emp, error } = await supabase
       .from('empleados')
       .select('*')
@@ -104,21 +104,32 @@ export default function SupervisorPage() {
       setPin(''); return;
     }
 
-    // PUNTO 5: Guardar con coordenadas en la BD
+    // Guardamos la dirección en una constante local para el alert
+    // Esto soluciona el error de TypeScript
+    const movimientoActual = direccion || 'movimiento';
+
+    // 5. Guardar con coordenadas en la BD
     const { error: regError } = await supabase.from('registros_acceso').insert([{
       empleado_id: emp.id, 
       nombre_empleado: emp.nombre, 
       tipo_movimiento: direccion,
       detalles: `${modo.toUpperCase()} - POR: ${supSession.nombre || 'SISTEMA'}`,
-      coordenadas: coordenadas // GUARDADO GPS
+      coordenadas: coordenadas 
     }]);
 
     if (!regError) {
-      // PUNTO 1: Refrescar estado del empleado en BD
       await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
       playSound('success'); 
-      setQrData(''); setPin(''); setDocumentoManual(''); setModo('menu'); setDireccion(null);
-      alert(`✅ REGISTRO EXITOSO (${direccion.toUpperCase()})`);
+      
+      // Limpiamos estados
+      setQrData(''); 
+      setPin(''); 
+      setDocumentoManual(''); 
+      setModo('menu'); 
+      setDireccion(null);
+
+      // Usamos la constante local que NO es nula
+      alert(`✅ REGISTRO EXITOSO (${movimientoActual.toUpperCase()})`);
     }
   };
 
