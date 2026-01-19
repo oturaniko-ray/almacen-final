@@ -16,6 +16,7 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const router = useRouter();
 
+  // --- SONIDOS ---
   const playSound = (type: 'success' | 'error') => {
     const audio = new Audio(type === 'success' 
       ? 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' 
@@ -23,25 +24,12 @@ export default function SupervisorPage() {
     audio.play().catch(() => {});
   };
 
-  const verificarSesion = useCallback(async () => {
-    const sessionStr = localStorage.getItem('user_session');
-    if (!sessionStr) return;
-    const localUser = JSON.parse(sessionStr);
-    const { data } = await supabase.from('empleados').select('session_id').eq('id', localUser.id).single();
-    if (data?.session_id !== localUser.session_id) {
-      alert("⚠️ Sesión abierta en otro dispositivo.");
-      localStorage.clear();
-      router.push('/');
-    }
-  }, [router]);
-
+  // --- SEGURIDAD ---
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user_session') || '{}');
-    if (user.rol === 'supervisor' || user.rol === 'admin') {
-      setAuthorized(true);
-      verificarSesion();
-    } else router.push('/');
-  }, [router, verificarSesion]);
+    if (user.rol === 'supervisor' || user.rol === 'admin') setAuthorized(true);
+    else router.push('/');
+  }, [router]);
 
   const stopScanner = async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
@@ -50,54 +38,48 @@ export default function SupervisorPage() {
     }
   };
 
-  useEffect(() => {
-    if (modo === 'camara' && direccion && !qrData) {
-      const scanner = new Html5Qrcode("reader");
-      scannerRef.current = scanner;
-      scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, async (text) => {
-        setQrData(text);
-        await stopScanner();
-      }, () => {}).catch(e => console.error(e));
-    }
-    return () => { if (scannerRef.current) stopScanner(); };
-  }, [modo, direccion, qrData]);
-
+  // --- LÓGICA LECTOR USB (FILTRADA) ---
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
+      // IGNORAR TECLAS DE CONTROL (Shift, Alt, Dead, etc.)
+      if (e.key.length > 1 && e.key !== 'Enter' && e.key !== 'Backspace') return;
+      
       if (e.key === 'Enter') {
-        const clean = buffer.replace(/[^a-zA-Z0-9|{}:,"-]/g, "").trim();
-        if (clean.length > 1) setQrData(clean);
+        if (buffer.length > 0) setQrData(buffer.trim());
         buffer = "";
-      } else if (e.key.length === 1) buffer += e.key;
+      } else if (e.key === 'Backspace') {
+        buffer = buffer.slice(0, -1);
+      } else {
+        buffer += e.key;
+      }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
+  // --- REGISTRO ---
   const registrar = async () => {
-    // CAPTURA CORRECTA DEL ID SEGÚN EL MODO
-    const inputBruto = modo === 'manual' ? documentoManual : qrData;
-    let idLimpio = inputBruto.trim();
+    const inputId = modo === 'manual' ? documentoManual : qrData;
+    let idLimpio = inputId.trim();
     if (idLimpio.includes('|')) idLimpio = idLimpio.split('|')[0].trim();
     
-    // Filtro para asegurar que sea alfanumérico puro
-    idLimpio = idLimpio.replace(/[^a-zA-Z0-9-]/g, "");
-    const pinLimpio = pin.trim();
+    // Limpieza final de caracteres extraños del lector
+    idLimpio = idLimpio.replace(/Shift|Dead|AltGraph|Control/g, "");
 
     const { data: emp, error } = await supabase
       .from('empleados')
       .select('*')
       .eq('documento_id', idLimpio)
-      .eq('pin_seguridad', pinLimpio)
+      .eq('pin_seguridad', pin.trim())
       .eq('activo', true)
       .single();
 
     if (error || !emp) {
       playSound('error');
-      alert(`❌ Datos incorrectos. Reintente.\nID: ${idLimpio}`);
-      setPin(''); // Borrar buffer de PIN
+      alert(`QR No Válido o Datos Incorrectos.\nContenido leído: ${idLimpio}`);
+      setPin('');
       return;
     }
 
@@ -107,11 +89,11 @@ export default function SupervisorPage() {
       nombre_empleado: emp.nombre,
       tipo_movimiento: direccion,
       fecha_hora: new Date().toISOString(),
-      detalles: `Modo: ${modo.toUpperCase()} - Por: ${session.nombre}`
+      detalles: `Hardware: ${modo.toUpperCase()} - Supervisor: ${session.nombre || 'SISTEMA'}`
     }]);
 
     playSound('success');
-    alert(`✅ ${direccion?.toUpperCase()} exitosa`);
+    alert(`✅ ${direccion?.toUpperCase()} REGISTRADA: ${emp.nombre}`);
     resetear();
   };
 
@@ -120,69 +102,84 @@ export default function SupervisorPage() {
     setQrData(''); setPin(''); setDocumentoManual(''); setModo('menu'); setDireccion(null);
   };
 
-  const volverAtras = async () => {
-    if (qrData || documentoManual) {
-      setQrData(''); setDocumentoManual(''); setPin('');
-    } else if (direccion) {
-      await stopScanner();
-      setDireccion(null);
-    } else {
-      setModo('menu');
-    }
-  };
-
   if (!authorized) return null;
 
   return (
-    <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
-      <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 w-full max-w-md relative shadow-2xl">
+    <main className="min-h-screen bg-[#0a0f1e] flex items-center justify-center p-6 font-sans">
+      <div className="bg-[#111827] p-10 rounded-[40px] w-full max-w-lg shadow-2xl border border-white/5 relative">
         
-        {/* BOTÓN VOLVER RESTAURADO */}
+        {/* BOTÓN VOLVER (Como en tu imagen) */}
         {modo !== 'menu' && (
-          <button onClick={volverAtras} className="absolute top-6 left-6 text-xs text-slate-500 font-bold uppercase tracking-widest hover:text-white">
-            ← Volver
+          <button 
+            onClick={() => { if(direccion) setDireccion(null); else setModo('menu'); stopScanner(); setQrData(''); }}
+            className="absolute top-8 left-8 text-slate-500 font-bold text-sm tracking-widest flex items-center gap-2 hover:text-white transition-colors"
+          >
+            ← VOLVER
           </button>
         )}
 
-        <h1 className="text-2xl font-bold text-center mb-8 text-blue-500">SUPERVISOR</h1>
+        <h1 className="text-3xl font-black text-center mb-12 text-[#3b82f6] tracking-widest">SUPERVISOR</h1>
 
         {modo === 'menu' ? (
-          <div className="grid gap-4">
-            <button onClick={() => setModo('usb')} className="p-6 bg-slate-800 hover:bg-blue-600 rounded-2xl transition-all font-bold text-left">🔌 Escáner USB</button>
-            <button onClick={() => setModo('camara')} className="p-6 bg-slate-800 hover:bg-emerald-600 rounded-2xl transition-all font-bold text-left">📱 Cámara Móvil</button>
-            <button onClick={() => setModo('manual')} className="p-6 bg-slate-800 hover:bg-amber-600 rounded-2xl transition-all font-bold text-left">✏️ Ingreso Manual</button>
+          <div className="space-y-4">
+            <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1f2937] hover:bg-[#3b82f6] rounded-3xl transition-all flex items-center gap-4 text-white font-bold text-xl group">
+              <span>🔌</span> Escáner USB
+            </button>
+            <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1f2937] hover:bg-[#10b981] rounded-3xl transition-all flex items-center gap-4 text-white font-bold text-xl group">
+              <span>📱</span> Cámara Móvil
+            </button>
+            <button onClick={() => setModo('manual')} className="w-full p-8 bg-[#1f2937] hover:bg-[#f59e0b] rounded-3xl transition-all flex items-center gap-4 text-white font-bold text-xl group">
+              <span>🖊️</span> Ingreso Manual
+            </button>
           </div>
         ) : !direccion ? (
-          <div className="grid grid-cols-2 gap-4 pt-4">
-            <button onClick={() => setDireccion('entrada')} className="py-12 bg-emerald-600/20 border-2 border-emerald-500 rounded-3xl font-black text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="py-12 bg-red-600/20 border-2 border-red-500 rounded-3xl font-black text-red-500 hover:bg-red-500 hover:text-white transition-all">SALIDA</button>
+          <div className="flex flex-col gap-6 pt-4">
+            <button onClick={() => setDireccion('entrada')} className="w-full py-10 bg-[#10b981] rounded-[30px] text-white font-black text-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-all">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-10 bg-[#ef4444] rounded-[30px] text-white font-black text-2xl shadow-[0_0_20px_rgba(239,68,68,0.3)] active:scale-95 transition-all">SALIDA</button>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className={`text-center py-2 rounded-xl font-bold uppercase tracking-widest ${direccion === 'entrada' ? 'bg-emerald-500' : 'bg-red-500'}`}>
-              {direccion}
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className={`text-center py-4 rounded-3xl text-white font-black text-xl tracking-widest shadow-lg ${direccion === 'entrada' ? 'bg-[#10b981]' : 'bg-[#ef4444]'}`}>
+              {direccion.toUpperCase()}
             </div>
 
-            {!qrData && modo === 'camara' && <div id="reader" className="rounded-2xl overflow-hidden border-2 border-slate-800"></div>}
-            {!qrData && modo === 'usb' && <div className="py-12 text-center text-blue-500 font-bold animate-pulse">ESPERANDO LECTURA USB...</div>}
+            <div className="bg-[#0a0f1e] p-6 rounded-3xl border border-white/5 min-h-[100px] flex items-center justify-center">
+              {qrData ? (
+                <p className="text-[#3b82f6] font-mono font-bold text-lg break-all text-center">{qrData}</p>
+              ) : modo === 'camara' ? (
+                <div id="reader" className="w-full rounded-2xl overflow-hidden"></div>
+              ) : modo === 'manual' ? (
+                <input 
+                  type="text" 
+                  placeholder="DOCUMENTO ID" 
+                  className="bg-transparent w-full text-center text-white font-bold text-xl outline-none"
+                  value={documentoManual}
+                  onChange={(e) => setDocumentoManual(e.target.value)}
+                  autoFocus
+                />
+              ) : (
+                <p className="text-slate-500 font-bold animate-pulse uppercase tracking-tighter">Esperando Lectura USB...</p>
+              )}
+            </div>
 
-            {(qrData || modo === 'manual') && (
-              <div className="space-y-4">
-                {qrData && <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-center font-mono text-sm text-blue-400 truncate">{qrData}</div>}
-                
-                {modo === 'manual' && (
-                  <input type="text" placeholder="Documento ID" className="w-full p-5 bg-slate-950 rounded-2xl border border-slate-800 text-center font-bold" 
-                    value={documentoManual} onChange={e => setDocumentoManual(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && document.getElementById('pinInput')?.focus()} />
-                )}
+            <div className="relative group">
+              <input 
+                id="pinInput"
+                type="password" 
+                placeholder="PIN" 
+                className="w-full py-8 bg-[#0a0f1e] rounded-[30px] border-2 border-transparent focus:border-[#3b82f6] text-white text-center text-4xl font-black outline-none transition-all placeholder:text-slate-700"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && registrar()}
+              />
+            </div>
 
-                <input id="pinInput" type="text" placeholder="PIN" className="w-full p-5 bg-slate-950 rounded-2xl border border-slate-800 text-center text-3xl font-black" 
-                  value={pin} onChange={e => setPin(e.target.value)} 
-                  onKeyDown={(e) => e.key === 'Enter' && registrar()} autoFocus />
-
-                <button onClick={registrar} className="w-full bg-blue-600 py-5 rounded-2xl font-bold uppercase shadow-lg">Confirmar</button>
-              </div>
-            )}
+            <button 
+              onClick={registrar}
+              className="w-full py-6 bg-[#3b82f6] rounded-[30px] text-white font-black text-xl shadow-xl hover:bg-[#2563eb] active:scale-95 transition-all uppercase"
+            >
+              Confirmar
+            </button>
           </div>
         )}
       </div>
