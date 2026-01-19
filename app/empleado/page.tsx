@@ -5,9 +5,9 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useRouter } from 'next/navigation';
 
 // 📍 COORDENADAS DEL ALMACÉN (Ajusta estas a tu ubicación real)
-const ALMACEN_LAT = 18.4861; 
-const ALMACEN_LON = -69.9312;
-const RADIO_MAXIMO_METROS = 100; // Radio de tolerancia
+const ALMACEN_LAT = 40.59665469156573; 
+const ALMACEN_LON = -3.5953966013026935;
+const RADIO_MAXIMO_METROS = 50; // Radio de tolerancia
 
 export default function EmpleadoPage() {
   const [user, setUser] = useState<any>(null);
