@@ -120,36 +120,45 @@ export default function SupervisorPage() {
 
  const procesarQR = () => {
   try {
-    // 1. LIMPIEZA AGRESIVA: 
-    // Removemos palabras que algunos escáneres insertan por error de driver (Shift, Dead, Control, etc)
-    let rawData = qrData
-      .replace(/Shift|Dead|Control|Alt|CapsLock|Ñ/g, "") // Limpia palabras de control
-      .replace(/idid/g, "id") // Corrige duplicados por velocidad
-      .trim();
+    console.log("Datos recibidos del escáner:", qrData);
 
-    // 2. BUSCAR EL JSON REAL: 
-    // A veces el escáner mete basura al inicio. Buscamos donde empieza '{' y termina '}'
+    // 1. LIMPIEZA AGRESIVA
+    // Filtramos palabras de control que el driver del teclado inyecta por error de idioma
+    let rawData = qrData
+      .replace(/Shift|Dead|Control|Alt|CapsLock|NumLock|Enter/gi, "") 
+      .replace(/\s/g, ""); // Eliminamos espacios en blanco accidentales
+
+    // 2. EXTRACCIÓN DEL JSON
+    // Buscamos la primera '{' y la última '}' por si hay basura alrededor
     const inicio = rawData.indexOf('{');
     const fin = rawData.lastIndexOf('}');
     
-    if (inicio === -1 || fin === -1) throw new Error("No se detecta formato JSON");
+    if (inicio === -1 || fin === -1) {
+      throw new Error("No se encontró un formato de código válido.");
+    }
     
     const jsonLimpio = rawData.substring(inicio, fin + 1);
     
-    // 3. PARSEAR
+    // 3. VALIDACIÓN Y PARSEO
     const data = JSON.parse(jsonLimpio);
     
-    // Validación de tiempo
+    // Verificamos que tenga los campos necesarios
+    if (!data.id || !data.t) {
+      throw new Error("El código no contiene la información requerida.");
+    }
+
+    // Validación de tiempo (5 minutos de margen)
     const diferencia = (new Date().getTime() - new Date(data.t).getTime()) / 1000;
-    if (diferencia > 600) { // 10 minutos de gracia
-      alert("❌ El QR ha expirado.");
+    if (diferencia > 300) { 
+      alert("❌ El código QR ha expirado. Por favor, genere uno nuevo.");
       setQrData('');
       return;
     }
 
-    registrarAcceso(data.id, pin, "QR_USB_CLEANED");
-  } catch (e) {
-    alert(`❌ Error de lectura física.\n\nEl escáner envió: ${qrData}\n\nIntente configurar su escáner en idioma Español o use la cámara del móvil.`);
+    registrarAcceso(data.id, pin, "QR_USB_FIXED");
+
+  } catch (e: any) {
+    alert(`❌ Error de Lectura Física\n\nDetalle: ${e.message}\n\nSugerencia: Cambie el idioma de su teclado a 'Estados Unidos' o use la cámara del móvil.`);
     setQrData('');
   }
 };
