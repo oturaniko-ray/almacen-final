@@ -1,5 +1,3 @@
-40.59665469156573, -3.5953966013026935
-
 'use client';
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
