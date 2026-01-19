@@ -37,7 +37,7 @@ export default function EmpleadoPage() {
           const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ALMACEN_LAT, ALMACEN_LON);
           if (dist <= RADIO_MAXIMO_METROS) {
             setErrorGeo('');
-            setQrValue(`${session.cedula_id}|${new Date().getTime()}`);
+            setQrValue(`${session.documento_id}|${new Date().getTime()}`);
           } else {
             setErrorGeo(`Fuera de rango (${Math.round(dist)}m)`);
           }
