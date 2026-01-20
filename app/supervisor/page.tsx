@@ -31,18 +31,14 @@ export default function SupervisorPage() {
 
   const handleVolver = async () => {
     if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
-        }
-      } catch (e) { console.log("Error al detener scanner:", e); }
+      try { if (scannerRef.current.isScanning) await scannerRef.current.stop(); } catch (e) {}
       scannerRef.current = null;
     }
     setQrData(''); setPinSupervisor(''); setAnimar(false);
     if (direccion) setDireccion(null); else if (modo !== 'menu') setModo('menu'); else router.push('/');
   };
 
-  // 1. LECTURA USB (Mantenida intacta)
+  // LECTURA USB
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
@@ -51,53 +47,36 @@ export default function SupervisorPage() {
         const limpio = buffer.replace(/(ScrollLock|AltGraph|Control|Shift|CapsLock|Alt|Meta|Tab)/gi, "").trim();
         if (limpio) { setQrData(limpio); setTimeout(() => pinRef.current?.focus(), 200); }
         buffer = "";
-      } else if (e.key.length === 1) { buffer += e.key; }
+      } else if (e.key.length === 1) buffer += e.key;
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
-  // 2. CORRECCIÓN DEFINITIVA CÁMARA + ANIMACIÓN
+  // CÁMARA CON ANIMACIÓN LÁSER
   useEffect(() => {
     let isMounted = true;
     if (modo === 'camara' && direccion && !qrData) {
       const iniciarScanner = async () => {
-        // Espera de seguridad para montaje de DOM
         await new Promise(r => setTimeout(r, 1000));
         if (!isMounted || !document.getElementById("reader")) return;
-
         const scanner = new Html5Qrcode("reader");
         scannerRef.current = scanner;
-
         try {
-          await scanner.start(
-            { facingMode: "environment" },
-            { 
-              fps: 10, 
-              qrbox: { width: 250, height: 250 },
-              aspectRatio: 1.0 
-            },
+          await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
             (decodedText) => {
               setQrData(decodedText);
-              scanner.stop().catch(e => console.log(e));
+              scanner.stop().catch(() => {});
               setTimeout(() => pinRef.current?.focus(), 300);
-            },
-            () => {} // Ignorar errores de frame
-          );
-        } catch (err) {
-          console.error("No se pudo iniciar la cámara:", err);
-        }
+            }, () => {});
+        } catch (err) { console.error(err); }
       };
       iniciarScanner();
     }
-    return () => { 
-      isMounted = false; 
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(e => console.log(e));
-      }
-    };
+    return () => { isMounted = false; if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
   }, [modo, direccion, qrData]);
 
+  // LÓGICA CRÍTICA DE REGISTRO Y ACTUALIZACIÓN DE ESTATUS
   const registrar = async () => {
     if (!qrData || !pinSupervisor) return;
     setAnimar(true);
@@ -112,47 +91,55 @@ export default function SupervisorPage() {
       let documentoId = qrData;
       try {
         const decoded = atob(qrData).split('|');
-        if (decoded.length === 2) {
-          const tokenMinuto = parseInt(decoded[1]);
-          const minutoActual = Math.floor(Date.now() / 60000);
-          if (Math.abs(minutoActual - tokenMinuto) > 2) {
-            alert("TOKEN EXPIRADO"); setAnimar(false); return;
-          }
-          documentoId = decoded[0];
-        }
+        if (decoded.length === 2) documentoId = decoded[0];
       } catch (e) {}
 
+      // 1. Verificar Empleado
+      const { data: emp, error: errEmp } = await supabase.from('empleados').select('*').eq('documento_id', documentoId).single();
+      if (errEmp || !emp || !emp.activo) { alert("Usuario no encontrado o inactivo"); setAnimar(false); return; }
+
+      // 2. Verificar Supervisor (PIN)
       const session = JSON.parse(localStorage.getItem('user_session') || '{}');
-      const { data: emp } = await supabase.from('empleados').select('*').eq('documento_id', documentoId).single();
-      if (!emp || !emp.activo) { alert("Usuario no válido"); setAnimar(false); return; }
-
       const { data: sup } = await supabase.from('empleados').select('*').eq('id', session.id).eq('pin_seguridad', pinSupervisor.trim()).single();
-      if (!sup) { alert("PIN INCORRECTO"); setAnimar(false); return; }
+      if (!sup) { alert("PIN DE SUPERVISOR INCORRECTO"); setAnimar(false); return; }
 
-      const { error } = await supabase.from('registros_acceso').insert([{
+      // 3. INSERTAR EN HISTORIAL
+      const { error: errInsert } = await supabase.from('registros_acceso').insert([{
         empleado_id: emp.id,
         nombre_empleado: emp.nombre,
         tipo_movimiento: direccion,
         detalles: `${modo.toUpperCase()} - AUTORIZÓ: ${sup.nombre}`
       }]);
 
-      if (!error) {
-        await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
-        alert("EXITO"); handleVolver();
+      if (errInsert) {
+        alert("Error al registrar movimiento");
+        setAnimar(false); return;
       }
+
+      // 4. ACTUALIZAR ESTATUS EN TIEMPO REAL (Lo que el Admin lee)
+      const nuevoEstado = (direccion === 'entrada');
+      const { error: errUpdate } = await supabase
+        .from('empleados')
+        .update({ en_almacen: nuevoEstado })
+        .eq('id', emp.id);
+
+      if (!errUpdate) {
+        alert(`REGISTRO DE ${direccion?.toUpperCase()} EXITOSO`);
+        handleVolver();
+      } else {
+        alert("Error al actualizar estatus del empleado");
+      }
+      
       setAnimar(false);
     }, () => { alert("GPS REQUERIDO"); setAnimar(false); });
   };
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
-      {animar && <div className="fixed inset-0 z-[100] bg-slate-950/90 flex items-center justify-center font-black italic animate-pulse tracking-widest">VALIDANDO...</div>}
-      
-      <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold uppercase text-[10px] border border-white/5 tracking-widest z-50">← Volver</button>
-      
+      {animar && <div className="fixed inset-0 z-[100] bg-slate-950/90 flex items-center justify-center font-black italic animate-pulse tracking-widest">PROCESANDO...</div>}
+      <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold uppercase text-[10px] border border-white/5 z-50">← Volver</button>
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 text-center shadow-2xl relative overflow-hidden">
         <h1 className="text-2xl font-black uppercase italic tracking-tighter mb-10 text-blue-500">Supervisor</h1>
-        
         {modo === 'menu' ? (
           <div className="space-y-4">
             <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-blue-600 transition-all">🔌 Escáner USB</button>
@@ -169,47 +156,21 @@ export default function SupervisorPage() {
             {modo === 'camara' && !qrData && (
               <div className="relative w-full aspect-square rounded-3xl overflow-hidden bg-black border-2 border-white/10">
                 <div id="reader" className="w-full h-full"></div>
-                {/* ANIMACIÓN DE ESCANEO */}
                 <div className="absolute inset-0 pointer-events-none border-2 border-emerald-500/30 rounded-3xl">
                   <div className="w-full h-[2px] bg-emerald-500 shadow-[0_0_15px_#10b981] absolute top-0 animate-[scan_2s_linear_infinite]"></div>
                 </div>
               </div>
             )}
-            
             <div className="bg-[#050a14] p-6 rounded-[30px] border border-white/5">
-              <input 
-                type="text" 
-                className="bg-transparent text-blue-400 font-mono font-bold text-center w-full outline-none uppercase" 
-                placeholder={qrData ? qrData : "Esperando Lectura de QR"}
-                value={qrData} 
-                onChange={(e)=>setQrData(e.target.value)}
-                autoFocus={modo === 'manual' || modo === 'usb'}
-              />
+              <input type="text" className="bg-transparent text-blue-400 font-mono font-bold text-center w-full outline-none uppercase" 
+                placeholder={qrData ? qrData : "Esperando Lectura de QR"} value={qrData} onChange={(e)=>setQrData(e.target.value)} autoFocus={modo === 'manual' || modo === 'usb'} />
             </div>
-
-            <input 
-              ref={pinRef} 
-              type="password" 
-              placeholder="PIN AUTORIZACIÓN" 
-              className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-3xl font-black outline-none border-2 border-blue-500/20 focus:border-blue-500" 
-              value={pinSupervisor} 
-              onChange={(e) => setPinSupervisor(e.target.value)} 
-            />
-            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 uppercase italic transition-all">Confirmar Registro</button>
+            <input ref={pinRef} type="password" placeholder="PIN AUTORIZACIÓN" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-3xl font-black outline-none border-2 border-blue-500/20 focus:border-blue-500" value={pinSupervisor} onChange={(e) => setPinSupervisor(e.target.value)} />
+            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 uppercase italic">Confirmar Registro</button>
           </div>
         )}
       </div>
-
-      <style jsx global>{`
-        @keyframes scan {
-          0% { top: 0%; }
-          100% { top: 100%; }
-        }
-        #reader video {
-          object-fit: cover !important;
-          border-radius: 24px;
-        }
-      `}</style>
+      <style jsx global>{` @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } } #reader video { object-fit: cover !important; border-radius: 24px; } `}</style>
     </main>
   );
 }
