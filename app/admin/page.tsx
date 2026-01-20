@@ -63,31 +63,46 @@ export default function AdminPanel() {
     if (!error) { setEditando(null); fetchEmpleados(); }
   }
 
+  // VISTA PRINCIPAL DEL PANEL ADMIN
   if (vista === 'menu') {
     return (
       <main className="min-h-screen bg-[#050a14] text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-xl font-black uppercase italic tracking-tighter text-blue-500 mb-10">Panel Administrativo</h1>
+        <h1 className="text-xl font-black uppercase italic tracking-tighter text-blue-500 mb-10 text-center">
+          Panel Administrativo <br/> <span className="text-[10px] text-slate-500 not-italic tracking-[0.4em]">Control Maestro</span>
+        </h1>
         <div className="w-full max-w-sm space-y-4">
-          <button onClick={() => setVista('empleados')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl">
-            👥 Gestión de Personal
+          <button onClick={() => setVista('empleados')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl group">
+             <span className="block text-2xl mb-2 group-hover:scale-110 transition-transform">👥</span>
+             Gestión de Personal
           </button>
-          <button onClick={() => setVista('movimientos')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl">
-            🕒 Historial de Accesos
+          
+          <button onClick={() => setVista('movimientos')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl group">
+             <span className="block text-2xl mb-2 group-hover:scale-110 transition-transform">🕒</span>
+             Historial de Accesos
           </button>
-          <button onClick={() => router.push('/')} className="w-full p-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest">
-            ← Salir al Inicio
-          </button>
+
+          {/* BOTÓN DE RETORNO AL SELECTOR DE ROL */}
+          <div className="pt-6 flex flex-col items-center gap-4">
+            <button 
+              onClick={() => router.push('/')} 
+              className="w-full p-4 bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-600 hover:text-white transition-all"
+            >
+              ← Volver al Menú de Selección
+            </button>
+            <p className="text-[8px] text-slate-600 font-bold uppercase tracking-widest">Cambiar de rol o cerrar sesión</p>
+          </div>
         </div>
       </main>
     );
   }
 
+  // VISTAS DETALLADAS (GESTIÓN Y MOVIMIENTOS)
   return (
     <main className="h-screen bg-[#050a14] text-white font-sans flex flex-col overflow-hidden">
       {/* ENCABEZADO FIJO */}
       <div className="flex-none bg-[#050a14] p-4 border-b border-white/5 shadow-xl">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-4">
-          <button onClick={() => setVista('menu')} className="bg-slate-800 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-white/5">← Menú</button>
+          <button onClick={() => setVista('menu')} className="bg-slate-800 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-white/5">← Volver</button>
           <h2 className="text-[10px] font-black uppercase tracking-widest text-blue-500">
             {vista === 'empleados' ? 'Gestión de Personal' : 'Historial de Accesos'}
           </h2>
@@ -138,7 +153,6 @@ export default function AdminPanel() {
                         <button onClick={() => setEditando(emp)} className="p-2 bg-blue-500/10 text-blue-500 rounded-lg">✎</button>
                         <button onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} className={`px-2 py-1 rounded-lg font-black text-[8px] ${emp.activo ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{emp.activo ? 'DESACTIVAR' : 'ACTIVAR'}</button>
                       </td>
-                      {/* STATUS EN TIEMPO REAL (Verde si está en almacén, Rojo si no) */}
                       <td className="p-3 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <div className={`w-3 h-3 rounded-full transition-all duration-500 ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'}`}></div>

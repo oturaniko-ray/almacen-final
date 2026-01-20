@@ -11,15 +11,12 @@ export default function GestionPersonal() {
 
   useEffect(() => {
     fetchEmpleados();
-
-    // SUSCRIPCIÓN EN TIEMPO REAL
     const channel = supabase
-      .channel('cambios-personal')
+      .channel('realtime-personal')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'empleados' }, (payload) => {
         setEmpleados(prev => prev.map(emp => emp.id === payload.new.id ? { ...emp, en_almacen: payload.new.en_almacen } : emp));
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -30,27 +27,24 @@ export default function GestionPersonal() {
 
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
-      <div className="max-w-5xl mx-auto">
-        <header className="flex justify-between items-center mb-10">
-          <button onClick={() => router.back()} className="text-[10px] font-black uppercase text-slate-500 tracking-widest hover:text-white transition-all">← Volver</button>
-          <h2 className="text-2xl font-black uppercase italic tracking-tight">Gestión de <span className="text-blue-500">Personal</span></h2>
+      <div className="max-w-4xl mx-auto">
+        <header className="flex items-center gap-6 mb-12">
+          <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest">← Panel</button>
+          <h2 className="text-3xl font-black uppercase italic">Control de <span className="text-blue-500">Asistencia</span></h2>
         </header>
 
-        <div className="grid gap-4">
+        <div className="space-y-4">
           {empleados.map((emp) => (
-            <div key={emp.id} className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {/* LÓGICA DEL PUNTO VERDE/ROJO */}
-                <div className={`w-3 h-3 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-red-500 shadow-[0_0_15px_#ef4444]'}`}></div>
+            <div key={emp.id} className="bg-[#0f172a] p-8 rounded-[35px] border border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className={`w-4 h-4 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_20px_#10b981]' : 'bg-red-500 shadow-[0_0_20px_#ef4444]'}`}></div>
                 <div>
-                  <h4 className="font-black uppercase text-sm">{emp.nombre}</h4>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase">{emp.rol} • {emp.documento_id}</p>
+                  <h4 className="text-lg font-black uppercase tracking-tight">{emp.nombre}</h4>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{emp.rol} • ID: {emp.documento_id}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <span className={`text-[9px] font-black uppercase px-4 py-1 rounded-full border ${emp.en_almacen ? 'border-emerald-500/30 text-emerald-500' : 'border-red-500/30 text-red-500'}`}>
-                  {emp.en_almacen ? 'EN ALMACÉN' : 'AUSENTE'}
-                </span>
+              <div className={`px-6 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest ${emp.en_almacen ? 'border-emerald-500/20 text-emerald-500' : 'border-red-500/20 text-red-500'}`}>
+                {emp.en_almacen ? 'Presente' : 'Ausente'}
               </div>
             </div>
           ))}
