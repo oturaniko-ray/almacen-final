@@ -19,43 +19,44 @@ export default function LoginPage() {
       const entrada = identificador.trim();
       const pinLimpio = pin.trim();
       
-      // DETERMINAR SI ES EMAIL O ID NUMÉRICO
-      const esEmail = entrada.includes('@');
-      const columnaBusqueda = esEmail ? 'email' : 'documento_id';
+      let usuarioEncontrado = null;
 
-      // CONSULTA FLEXIBLE
-      const { data, error } = await supabase
-        .from('empleados')
-        .select('*')
-        .eq(columnaBusqueda, entrada)
-        .eq('pin_seguridad', pinLimpio)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error DB:", error);
-        alert("Error técnico en la base de datos.");
-        setLoading(false);
-        return;
-      }
-
-      if (!data) {
-        // DIAGNÓSTICO DE FALLA
-        const { data: existe } = await supabase
-          .from('empleados')
-          .select('nombre')
-          .eq(columnaBusqueda, entrada)
+      if (entrada.includes('@')) {
+        // 1. Si es correo, buscamos primero en la tabla PROFILES (según tu captura)
+        const { data: perfil, error: errPerfil } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', entrada) // Verifica si en profiles la columna es 'email' o 'correo'
           .maybeSingle();
 
-        if (existe) {
-          alert(`Usuario "${existe.nombre}" encontrado, pero el PIN es incorrecto.`);
-        } else {
-          alert(`No existe ningún usuario registrado con el ${esEmail ? 'correo' : 'ID'}: "${entrada}"`);
+        if (perfil) {
+          // 2. Si hallamos el perfil, buscamos sus datos de empleado por ID
+          const { data: emp } = await supabase
+            .from('empleados')
+            .select('*')
+            .eq('id', perfil.id)
+            .eq('pin_seguridad', pinLimpio)
+            .maybeSingle();
+          usuarioEncontrado = emp;
         }
+      } else {
+        // 3. Si es ID numérico, buscamos directo en EMPLEADOS
+        const { data: emp } = await supabase
+          .from('empleados')
+          .select('*')
+          .eq('documento_id', entrada)
+          .eq('pin_seguridad', pinLimpio)
+          .maybeSingle();
+        usuarioEncontrado = emp;
+      }
+
+      if (!usuarioEncontrado) {
+        alert("Credenciales incorrectas o usuario no encontrado en la base de datos de personal.");
         setLoading(false);
         return;
       }
 
-      if (!data.activo) {
+      if (!usuarioEncontrado.activo) {
         alert("Usuario inactivo.");
         setLoading(false);
         return;
@@ -63,20 +64,21 @@ export default function LoginPage() {
 
       // PERSISTENCIA DE SESIÓN
       localStorage.setItem('user_session', JSON.stringify({
-        id: data.id,
-        nombre: data.nombre,
-        rol: data.rol?.toLowerCase().trim() || 'empleado',
-        documento_id: data.documento_id
+        id: usuarioEncontrado.id,
+        nombre: usuarioEncontrado.nombre,
+        rol: usuarioEncontrado.rol?.toLowerCase().trim(),
+        documento_id: usuarioEncontrado.documento_id
       }));
 
-      // REDIRECCIÓN POR ROL
-      const rol = data.rol?.toLowerCase().trim();
+      // REDIRECCIÓN
+      const rol = usuarioEncontrado.rol?.toLowerCase().trim();
       if (rol === 'admin' || rol === 'administrador') router.push('/admin');
       else if (rol === 'supervisor') router.push('/supervisor');
       else router.push('/empleado');
 
     } catch (err) {
-      alert("Error de conexión");
+      console.error(err);
+      alert("Error crítico de conexión.");
     } finally {
       setLoading(false);
     }
@@ -94,19 +96,19 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase ml-4 text-slate-400 tracking-widest">Usuario o ID</label>
+            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Usuario o ID</label>
             <input 
               type="text" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all font-bold"
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
-              placeholder="Email o Cédula"
+              placeholder="Email o Identificación"
               required
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase ml-4 text-slate-400 tracking-widest">PIN</label>
+            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">PIN</label>
             <input 
               type="password" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all text-center text-3xl font-black"
@@ -120,7 +122,7 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic tracking-widest mt-6 transition-all shadow-xl"
+            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic tracking-widest mt-6 transition-all"
           >
             {loading ? 'Validando...' : 'Entrar'}
           </button>
