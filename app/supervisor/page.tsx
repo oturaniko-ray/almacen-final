@@ -11,6 +11,7 @@ const ALMACEN_LAT = 40.59665469156573;
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 50; // Radio de tolerancia
 
+
 export default function SupervisorPage() {
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
@@ -76,7 +77,6 @@ export default function SupervisorPage() {
     return () => { isMounted = false; if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
   }, [modo, direccion, qrData]);
 
-  // FUNCIÓN DE REGISTRO CORREGIDA
   const registrar = async () => {
     if (!qrData || !pinSupervisor) return;
     setAnimar(true);
@@ -84,10 +84,7 @@ export default function SupervisorPage() {
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
         const dSup = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ALMACEN_LAT, ALMACEN_LON);
-        if (dSup > RADIO_MAXIMO_METROS) {
-          alert(`FUERA DE RANGO: Estás a ${Math.round(dSup)}m.`);
-          setAnimar(false); return;
-        }
+        if (dSup > RADIO_MAXIMO_METROS) throw new Error(`Supervisor fuera de rango (${Math.round(dSup)}m)`);
 
         let documentoId = qrData;
         try {
@@ -95,85 +92,56 @@ export default function SupervisorPage() {
           if (decoded.length === 2) documentoId = decoded[0];
         } catch (e) {}
 
-        // 1. Buscar al empleado por su documento_id
-        const { data: emp, error: errEmp } = await supabase
-          .from('empleados')
-          .select('id, nombre, activo')
-          .eq('documento_id', documentoId)
-          .maybeSingle();
+        // 1. Validar Empleado Escaneado
+        const { data: emp, error: errEmp } = await supabase.from('empleados').select('*').eq('documento_id', documentoId).maybeSingle();
+        if (errEmp || !emp) throw new Error("Empleado no encontrado.");
+        if (!emp.activo) throw new Error("Empleado inactivo.");
 
-        if (errEmp || !emp) {
-          throw new Error("Empleado no encontrado en la base de datos.");
-        }
-        if (!emp.activo) {
-          throw new Error("El empleado se encuentra inactivo.");
-        }
-
-        // 2. Verificar PIN del Supervisor actual
+        // 2. Validar Supervisor (en la misma tabla empleados)
         const session = JSON.parse(localStorage.getItem('user_session') || '{}');
-        const { data: sup, error: errSup } = await supabase
-          .from('empleados')
-          .select('nombre')
-          .eq('id', session.id)
-          .eq('pin_seguridad', pinSupervisor.trim())
-          .maybeSingle();
+        const { data: sup, error: errSup } = await supabase.from('empleados').select('*').eq('id', session.id).eq('pin_seguridad', pinSupervisor.trim()).maybeSingle();
+        if (errSup || !sup) throw new Error("PIN de Supervisor incorrecto.");
 
-        if (errSup || !sup) {
-          throw new Error("PIN de autorización incorrecto.");
-        }
-
-        // 3. Ejecutar ambas actualizaciones en la base de datos
-        // Primero registramos el movimiento en el historial
+        // 3. Insertar Movimiento
         const { error: errInsert } = await supabase.from('registros_acceso').insert([{
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
           tipo_movimiento: direccion,
           detalles: `${modo.toUpperCase()} - AUTORIZÓ: ${sup.nombre}`
         }]);
+        if (errInsert) throw new Error("Error al registrar en historial.");
 
-        if (errInsert) throw new Error("Fallo al insertar en el historial.");
+        // 4. Actualizar Estatus en_almacen
+        const { error: errUpdate } = await supabase.from('empleados').update({ en_almacen: (direccion === 'entrada') }).eq('id', emp.id);
+        if (errUpdate) throw new Error("Error al actualizar estatus visual.");
 
-        // Segundo: Actualizamos el estatus real del empleado
-        const estaDentro = (direccion === 'entrada');
-        const { error: errUpdate } = await supabase
-          .from('empleados')
-          .update({ en_almacen: estaDentro })
-          .eq('id', emp.id);
-
-        if (errUpdate) {
-          console.error("Detalle error update:", errUpdate);
-          throw new Error(`Fallo al cambiar estatus a ${direccion}. Verifique permisos de tabla.`);
-        }
-
-        // ÉXITO TOTAL
         alert(`REGISTRO DE ${direccion?.toUpperCase()} EXITOSO`);
         handleVolver();
 
       } catch (error: any) {
-        alert(`ERROR: ${error.message}`);
+        alert(error.message);
       } finally {
         setAnimar(false);
       }
     }, () => {
-      alert("GPS REQUERIDO: No se puede validar el acceso sin ubicación.");
+      alert("Se requiere GPS activo.");
       setAnimar(false);
     });
   };
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
-      {animar && <div className="fixed inset-0 z-[100] bg-slate-950/90 flex items-center justify-center font-black italic animate-pulse tracking-widest text-blue-500">PROCESANDO PROTOCOLO...</div>}
-      
-      <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold uppercase text-[10px] border border-white/5 z-50 shadow-lg">← Volver</button>
+      {animar && <div className="fixed inset-0 z-[100] bg-slate-950/90 flex items-center justify-center font-black italic animate-pulse text-blue-500">PROCESANDO...</div>}
+      <button onClick={handleVolver} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-xl font-bold uppercase text-[10px] border border-white/5 z-50">← Volver</button>
       
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 text-center shadow-2xl relative overflow-hidden">
         <h1 className="text-2xl font-black uppercase italic tracking-tighter mb-10 text-blue-500">Supervisor</h1>
         
         {modo === 'menu' ? (
           <div className="space-y-4">
-            <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-blue-600 transition-all border border-white/5">🔌 Escáner USB</button>
-            <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-emerald-600 transition-all border border-white/5">📱 Cámara Móvil</button>
-            <button onClick={() => setModo('manual')} className="w-full p-8 bg-slate-800 rounded-[25px] font-bold text-xl transition-all border border-white/5">🖋️ Manual</button>
+            <button onClick={() => setModo('usb')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-blue-600 border border-white/5 transition-all">🔌 Escáner USB</button>
+            <button onClick={() => setModo('camara')} className="w-full p-8 bg-[#1e293b] rounded-[25px] font-bold text-xl hover:bg-emerald-600 border border-white/5 transition-all">📱 Cámara Móvil</button>
+            <button onClick={() => setModo('manual')} className="w-full p-8 bg-slate-800 rounded-[25px] font-bold text-xl">🖋️ Manual</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
@@ -190,30 +158,12 @@ export default function SupervisorPage() {
                 </div>
               </div>
             )}
-            
             <div className="bg-[#050a14] p-6 rounded-[30px] border border-white/5 shadow-inner">
-              <input 
-                type="text" 
-                className="bg-transparent text-blue-400 font-mono font-bold text-center w-full outline-none uppercase text-lg" 
-                placeholder={qrData ? qrData : "Esperando Lectura de QR"} 
-                value={qrData} 
-                onChange={(e)=>setQrData(e.target.value)} 
-                autoFocus={modo === 'manual' || modo === 'usb'} 
-              />
+              <input type="text" className="bg-transparent text-blue-400 font-mono font-bold text-center w-full outline-none uppercase text-lg" 
+                placeholder={qrData ? qrData : "Esperando Lectura de QR"} value={qrData} onChange={(e)=>setQrData(e.target.value)} autoFocus={modo === 'manual' || modo === 'usb'} />
             </div>
-
-            <input 
-              ref={pinRef} 
-              type="password" 
-              placeholder="PIN AUTORIZACIÓN" 
-              className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-3xl font-black outline-none border-2 border-blue-500/20 focus:border-blue-500 shadow-lg" 
-              value={pinSupervisor} 
-              onChange={(e) => setPinSupervisor(e.target.value)} 
-            />
-            
-            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 uppercase italic transition-all shadow-xl">
-              Confirmar Registro
-            </button>
+            <input ref={pinRef} type="password" placeholder="PIN AUTORIZACIÓN" className="w-full py-6 bg-[#050a14] rounded-[30px] text-white text-center text-3xl font-black outline-none border-2 border-blue-500/20 focus:border-blue-500 shadow-lg" value={pinSupervisor} onChange={(e) => setPinSupervisor(e.target.value)} />
+            <button onClick={registrar} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl hover:bg-blue-500 uppercase italic transition-all shadow-xl">Confirmar Registro</button>
           </div>
         )}
       </div>
