@@ -19,66 +19,70 @@ export default function LoginPage() {
       const entrada = identificador.trim();
       const pinLimpio = pin.trim();
       
-      let usuarioEncontrado = null;
+      // DETERMINAR SI BUSCAMOS POR EMAIL O POR DOCUMENTO_ID
+      const esEmail = entrada.includes('@');
+      const columnaBusqueda = esEmail ? 'email' : 'documento_id';
 
-      if (entrada.includes('@')) {
-        // 1. Si es correo, buscamos primero en la tabla PROFILES (según tu captura)
-        const { data: perfil, error: errPerfil } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', entrada) // Verifica si en profiles la columna es 'email' o 'correo'
-          .maybeSingle();
+      // CONSULTA BASADA EXACTAMENTE EN TU CAPTURA DE LA TABLA 'EMPLEADOS'
+      const { data, error } = await supabase
+        .from('empleados')
+        .select('*')
+        .eq(columnaBusqueda, entrada)
+        .eq('pin_seguridad', pinLimpio)
+        .maybeSingle();
 
-        if (perfil) {
-          // 2. Si hallamos el perfil, buscamos sus datos de empleado por ID
-          const { data: emp } = await supabase
-            .from('empleados')
-            .select('*')
-            .eq('id', perfil.id)
-            .eq('pin_seguridad', pinLimpio)
-            .maybeSingle();
-          usuarioEncontrado = emp;
-        }
-      } else {
-        // 3. Si es ID numérico, buscamos directo en EMPLEADOS
-        const { data: emp } = await supabase
+      if (error) {
+        console.error("Error Supabase:", error);
+        alert("Error de conexión con la base de datos.");
+        setLoading(false);
+        return;
+      }
+
+      if (!data) {
+        // DIAGNÓSTICO PARA EL USUARIO
+        const { data: existeUser } = await supabase
           .from('empleados')
-          .select('*')
-          .eq('documento_id', entrada)
-          .eq('pin_seguridad', pinLimpio)
+          .select('nombre')
+          .eq(columnaBusqueda, entrada)
           .maybeSingle();
-        usuarioEncontrado = emp;
-      }
 
-      if (!usuarioEncontrado) {
-        alert("Credenciales incorrectas o usuario no encontrado en la base de datos de personal.");
+        if (existeUser) {
+          alert(`Usuario "${existeUser.nombre}" localizado, pero el PIN es incorrecto.`);
+        } else {
+          alert(`El ${esEmail ? 'correo' : 'ID'} "${entrada}" no está registrado en la tabla de empleados.`);
+        }
         setLoading(false);
         return;
       }
 
-      if (!usuarioEncontrado.activo) {
-        alert("Usuario inactivo.");
+      // VALIDACIÓN DE COLUMNA 'ACTIVO' (según tu captura)
+      if (!data.activo) {
+        alert("Acceso denegado: El usuario no está activo.");
         setLoading(false);
         return;
       }
 
-      // PERSISTENCIA DE SESIÓN
+      // GUARDAR SESIÓN UNIFICADA
       localStorage.setItem('user_session', JSON.stringify({
-        id: usuarioEncontrado.id,
-        nombre: usuarioEncontrado.nombre,
-        rol: usuarioEncontrado.rol?.toLowerCase().trim(),
-        documento_id: usuarioEncontrado.documento_id
+        id: data.id,
+        nombre: data.nombre,
+        rol: data.rol?.toLowerCase().trim() || 'empleado',
+        documento_id: data.documento_id,
+        email: data.email
       }));
 
-      // REDIRECCIÓN
-      const rol = usuarioEncontrado.rol?.toLowerCase().trim();
-      if (rol === 'admin' || rol === 'administrador') router.push('/admin');
-      else if (rol === 'supervisor') router.push('/supervisor');
-      else router.push('/empleado');
+      // REDIRECCIÓN POR ROL
+      const rol = data.rol?.toLowerCase().trim();
+      if (rol === 'admin' || rol === 'administrador') {
+        router.push('/admin');
+      } else if (rol === 'supervisor') {
+        router.push('/supervisor');
+      } else {
+        router.push('/empleado');
+      }
 
     } catch (err) {
-      console.error(err);
-      alert("Error crítico de conexión.");
+      alert("Error crítico en el proceso de autenticación.");
     } finally {
       setLoading(false);
     }
@@ -96,19 +100,19 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Usuario o ID</label>
+            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Identificación o Email</label>
             <input 
               type="text" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all font-bold"
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
-              placeholder="Email o Identificación"
+              placeholder="ana@almacen.com"
               required
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">PIN</label>
+            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">PIN de Acceso</label>
             <input 
               type="password" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all text-center text-3xl font-black"
@@ -122,11 +126,15 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic tracking-widest mt-6 transition-all"
+            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic tracking-widest mt-6 transition-all shadow-lg"
           >
             {loading ? 'Validando...' : 'Entrar'}
           </button>
         </form>
+
+        <div className="mt-10 text-center">
+          <p className="text-[8px] text-slate-600 font-black uppercase tracking-widest">Seguridad Encriptada & GPS</p>
+        </div>
       </div>
     </main>
   );
