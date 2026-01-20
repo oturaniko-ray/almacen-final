@@ -86,7 +86,7 @@ export default function LoginPage() {
           <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 font-black text-2xl shadow-lg shadow-blue-900/20">
             {user.nombre ? user.nombre[0].toUpperCase() : 'U'}
           </div>
-          <h1 className="text-2xl font-black mb-2 italic uppercase tracking-tighter">Bienvenido</h1>
+          <h1 className="text-2xl font-black mb-2 italic uppercase tracking-tighter">Bienvenido(a)</h1>
           <p className="text-slate-400 mb-8 font-bold">{user.nombre}</p>
           
           <div className="grid gap-4">
@@ -108,7 +108,7 @@ export default function LoginPage() {
 
             {(user.rol === 'admin') && (
               <button 
-                onClick={() => router.push('/admin')} 
+                onClick={() => router.push('/administrador')} 
                 className="p-5 bg-slate-800 hover:bg-purple-600 rounded-2xl transition-all font-bold border border-slate-700 uppercase italic text-sm tracking-widest"
               >
                 ⚙️ Panel Administrativo
