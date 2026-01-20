@@ -16,39 +16,59 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // BUSQUEDA UNIFICADA EN TABLA EMPLEADOS
+      // Limpiamos espacios en blanco para evitar errores de tipeo
+      const docLimpio = documento.trim();
+      const pinLimpio = pin.trim();
+
+      // CONSULTA DE VALIDACIÓN
       const { data, error } = await supabase
         .from('empleados')
         .select('*')
-        .eq('documento_id', documento.trim())
-        .eq('pin_seguridad', pin.trim())
+        .eq('documento_id', docLimpio)
+        .eq('pin_seguridad', pinLimpio)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error de Supabase:", error);
+        alert(`Error de DB: ${error.message}`);
+        setLoading(false);
+        return;
+      }
 
       if (!data) {
-        alert("Credenciales incorrectas");
+        // Diagnóstico: Verificamos si al menos el documento existe
+        const { data: existeDoc } = await supabase
+          .from('empleados')
+          .select('documento_id')
+          .eq('documento_id', docLimpio)
+          .maybeSingle();
+
+        if (existeDoc) {
+          alert("El PIN es incorrecto.");
+        } else {
+          alert("El Documento ID no está registrado.");
+        }
         setLoading(false);
         return;
       }
 
       if (!data.activo) {
-        alert("El usuario se encuentra inactivo. Contacte al administrador.");
+        alert("Usuario inactivo. Contacte al administrador.");
         setLoading(false);
         return;
       }
 
-      // GUARDAR SESIÓN CON ESTRUCTURA UNIFICADA
+      // GUARDAR SESIÓN
       const sessionData = {
         id: data.id,
         nombre: data.nombre,
-        rol: data.rol.toLowerCase(),
+        rol: data.rol ? data.rol.toLowerCase() : 'empleado',
         documento_id: data.documento_id
       };
       
       localStorage.setItem('user_session', JSON.stringify(sessionData));
 
-      // REDIRECCIÓN SEGÚN ROL
+      // REDIRECCIÓN LÓGICA
       if (sessionData.rol === 'admin' || sessionData.rol === 'administrador') {
         router.push('/admin');
       } else if (sessionData.rol === 'supervisor') {
@@ -58,8 +78,8 @@ export default function LoginPage() {
       }
 
     } catch (err) {
-      console.error(err);
-      alert("Error de conexión con el servidor");
+      console.error("Error crítico:", err);
+      alert("Error crítico de conexión.");
     } finally {
       setLoading(false);
     }
@@ -83,7 +103,7 @@ export default function LoginPage() {
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] text-white outline-none focus:border-blue-500 transition-all font-bold"
               value={documento}
               onChange={(e) => setDocumento(e.target.value)}
-              placeholder="00000000"
+              placeholder="Ej: 123456"
               required
             />
           </div>
@@ -96,7 +116,6 @@ export default function LoginPage() {
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="****"
-              maxLength={6}
               required
             />
           </div>
@@ -104,15 +123,11 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] text-white font-black uppercase italic tracking-widest mt-6 transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50"
+            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] text-white font-black uppercase italic tracking-widest mt-6 transition-all shadow-lg disabled:opacity-50"
           >
             {loading ? 'Verificando...' : 'Entrar'}
           </button>
         </form>
-
-        <div className="mt-10 text-center">
-          <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest">Seguridad Biométrica & GPS Activa</p>
-        </div>
       </div>
     </main>
   );
