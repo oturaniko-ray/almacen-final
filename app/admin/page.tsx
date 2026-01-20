@@ -17,10 +17,11 @@ export default function AdminPanel() {
     fetchEmpleados();
     fetchMovimientos();
 
-    // SUSCRIPCIÓN EN TIEMPO REAL: Actualiza la lista si hay cambios en la DB
+    // SUSCRIPCIÓN EN TIEMPO REAL: Escucha cambios específicamente en la tabla 'empleados'
     const canalEmpleados = supabase
       .channel('cambios-empleados')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => {
+        // Al detectar un cambio (como la actualización de en_almacen), refresca la lista local
         fetchEmpleados();
       })
       .subscribe();
@@ -44,6 +45,7 @@ export default function AdminPanel() {
 
   async function guardarEmpleado() {
     if (!nuevo.nombre || !nuevo.documento_id || !nuevo.pin_seguridad) return;
+    // Al crear un nuevo empleado, se inicializa por defecto como 'en_almacen: false'
     const { error } = await supabase.from('empleados').insert([{ ...nuevo, rol: mapearRol(nuevo.rol), en_almacen: false }]);
     if (!error) {
       setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado' });
@@ -81,7 +83,6 @@ export default function AdminPanel() {
              Historial de Accesos
           </button>
 
-          {/* BOTÓN DE RETORNO AL SELECTOR DE ROL */}
           <div className="pt-6 flex flex-col items-center gap-4">
             <button 
               onClick={() => router.push('/')} 
@@ -140,7 +141,7 @@ export default function AdminPanel() {
                 <thead className="bg-white/5 uppercase text-slate-500 font-black">
                   <tr>
                     <th className="p-3">Acción</th>
-                    <th className="p-3">Status</th>
+                    <th className="p-3 text-center">Status</th>
                     <th className="p-3">Empleado</th>
                     <th className="p-3">Rol</th>
                     <th className="p-3">ID/PIN</th>
@@ -154,6 +155,7 @@ export default function AdminPanel() {
                         <button onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} className={`px-2 py-1 rounded-lg font-black text-[8px] ${emp.activo ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{emp.activo ? 'DESACTIVAR' : 'ACTIVAR'}</button>
                       </td>
                       <td className="p-3 text-center">
+                        {/* VALIDACIÓN SEGÚN CAMPO LÓGICO 'en_almacen' */}
                         <div className="flex flex-col items-center gap-1">
                           <div className={`w-3 h-3 rounded-full transition-all duration-500 ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'}`}></div>
                           <span className={`text-[7px] font-black uppercase ${emp.en_almacen ? 'text-emerald-500' : 'text-red-500'}`}>

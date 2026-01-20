@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 COORDENADAS DEL ALMACÉN
+// 📍 COORDENADAS DEL ALMACÉN (Mantengo tus coordenadas originales)
 const ALMACEN_LAT = 40.59665469156573; 
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 80; 
@@ -21,7 +21,6 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const router = useRouter();
 
-  // NAVEGACIÓN Y LIMPIEZA
   const resetearTodo = async () => {
     if (scannerRef.current) {
       if (scannerRef.current.isScanning) await scannerRef.current.stop();
@@ -33,7 +32,6 @@ export default function SupervisorPage() {
     setDireccion(null);
   };
 
-  // LÓGICA LECTOR USB (ÓPTICO)
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
@@ -49,7 +47,6 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
-  // LÓGICA CÁMARA
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData) {
       const iniciarCamara = async () => {
@@ -94,10 +91,16 @@ export default function SupervisorPage() {
         const { data: sup } = await supabase.from('empleados').select('*').eq('id', session.id).eq('pin_seguridad', pinSupervisor).maybeSingle();
         if (!sup) throw new Error("PIN Incorrecto");
 
-        // ACTUALIZACIÓN DE ESTADO EN TABLA EMPLEADOS
-        await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
+        // 🟢 MATERIALIZACIÓN DE TU IDEA: Actualizar el campo lógico
+        // Si direccion es 'entrada' -> true, si es 'salida' -> false
+        const { error: updateError } = await supabase
+          .from('empleados')
+          .update({ en_almacen: direccion === 'entrada' })
+          .eq('id', emp.id);
         
-        // REGISTRO DE MOVIMIENTO
+        if (updateError) throw new Error("Error al actualizar estado de presencia");
+        
+        // REGISTRO DE MOVIMIENTO EN HISTORIAL
         await supabase.from('registros_acceso').insert([{
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
@@ -105,7 +108,7 @@ export default function SupervisorPage() {
           detalles: `SUPERVISOR: ${sup.nombre} (${modo})`
         }]);
 
-        alert("Registro Exitoso");
+        alert(`Registro Exitoso: ${emp.nombre} está ahora ${direccion === 'entrada' ? 'PRESENTE' : 'AUSENTE'}`);
         resetearTodo();
       } catch (err: any) { alert(err.message); } finally { setAnimar(false); }
     }, () => alert("GPS Obligatorio"));
@@ -114,25 +117,17 @@ export default function SupervisorPage() {
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative">
       
-      {/* BOTÓN VOLVER (Sólo visible cuando NO se está en el menú principal) */}
       {modo !== 'menu' && (
         <div className="absolute top-8 left-8">
-          <button 
-            onClick={resetearTodo} 
-            className="bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest hover:bg-red-600 transition-all"
-          >
+          <button onClick={resetearTodo} className="bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest hover:bg-red-600 transition-all">
             ← Volver al Menú Supervisor
           </button>
         </div>
       )}
 
-      {/* BOTÓN SALIR AL SELECTOR DE ROLES (Sólo visible en el menú principal del supervisor) */}
       {modo === 'menu' && (
         <div className="absolute top-8 left-8">
-          <button 
-            onClick={() => router.push('/')} 
-            className="bg-blue-600/20 text-blue-400 px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-blue-500/20 tracking-widest hover:bg-blue-600 hover:text-white transition-all"
-          >
+          <button onClick={() => router.push('/')} className="bg-blue-600/20 text-blue-400 px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-blue-500/20 tracking-widest hover:bg-blue-600 hover:text-white transition-all">
             🏠 Volver a Selección de Rol
           </button>
         </div>
@@ -148,14 +143,14 @@ export default function SupervisorPage() {
             <button onClick={() => setModo('manual')} className="p-8 bg-[#050a14] rounded-[30px] font-black text-lg border border-white/10 hover:bg-slate-800 transition-all text-slate-400">🖋️ ENTRADA MANUAL</button>
           </div>
         ) : !direccion ? (
-          <div className="grid grid-cols-1 gap-6">
-            <button onClick={() => setDireccion('entrada')} className="py-16 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl shadow-emerald-900/20">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="py-16 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl shadow-red-900/20">SALIDA</button>
+          <div className="flex flex-col gap-6">
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl shadow-emerald-900/20 transition-transform active:scale-95">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl shadow-red-900/20 transition-transform active:scale-95">SALIDA</button>
           </div>
         ) : (
           <div className="space-y-6">
             <div className="bg-[#050a14] p-6 rounded-[30px] border border-white/5">
-              <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest text-center">Datos del Empleado</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest text-center">Identificación de Empleado</p>
               {modo === 'camara' && !qrData ? (
                 <div id="reader" className="w-full aspect-square overflow-hidden rounded-2xl"></div>
               ) : (
@@ -165,7 +160,7 @@ export default function SupervisorPage() {
                   value={qrData}
                   placeholder="ID / CÓDIGO"
                   onChange={(e) => setQrData(e.target.value)}
-                  readOnly={modo === 'usb' && qrData !== ''}
+                  readOnly={modo === 'usb'}
                 />
               )}
             </div>
@@ -183,7 +178,7 @@ export default function SupervisorPage() {
               disabled={animar || !qrData || !pinSupervisor}
               className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-50"
             >
-              {animar ? 'REGISTRANDO...' : 'CONFIRMAR OPERACIÓN'}
+              {animar ? 'PROCESANDO...' : 'CONFIRMAR OPERACIÓN'}
             </button>
           </div>
         )}
