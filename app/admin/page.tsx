@@ -24,11 +24,22 @@ export default function AdminPanel() {
   }
 
   async function fetchMovimientos() {
-    const { data } = await supabase.from('registros_acceso').select('*').order('creado_en', { ascending: false }).limit(100);
-    if (data) setMovimientos(data);
+    // CORRECCIÓN: Usamos 'fecha_hora' según tu captura de DB
+    const { data, error } = await supabase
+      .from('registros_acceso')
+      .select('*')
+      .order('fecha_hora', { ascending: false });
+    
+    if (error) {
+      console.error("Error al cargar historial:", error.message);
+    } else {
+      setMovimientos(data || []);
+    }
   }
 
-  const mapearRol = (r: string) => (r === 'administrador' || r === 'admin') ? 'admin' : r;
+  // Ajustamos el rol para que coincida con la restricción 'empleados_rol_check'
+  // Si tu base de datos espera 'administrador' en lugar de 'admin', aquí se corrige.
+  const mapearRol = (r: string) => (r === 'admin') ? 'administrador' : r;
 
   async function guardarEmpleado() {
     if (!nuevo.nombre || !nuevo.documento_id || !nuevo.pin_seguridad) return;
@@ -36,6 +47,8 @@ export default function AdminPanel() {
     if (!error) {
       setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado' });
       fetchEmpleados();
+    } else {
+      alert("Error al agregar: " + error.message);
     }
   }
 
@@ -53,30 +66,32 @@ export default function AdminPanel() {
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white font-sans flex flex-col">
-      <div className="sticky top-0 z-50 bg-[#050a14] p-6 border-b border-white/5">
+      <div className="sticky top-0 z-50 bg-[#050a14] p-6 border-b border-white/5 shadow-xl">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
           <h1 className="text-2xl font-black uppercase italic tracking-tighter text-blue-500">Panel Administrativo</h1>
-          <button onClick={() => router.push('/')} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5 tracking-widest">← Volver</button>
+          <button onClick={() => router.push('/')} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">← Volver</button>
         </div>
 
         <div className="max-w-7xl mx-auto flex gap-4 mb-6">
-          <button onClick={() => setVista('empleados')} className={`flex-1 p-4 rounded-2xl font-black uppercase italic transition-all ${vista === 'empleados' ? 'bg-blue-600 shadow-lg shadow-blue-900/20' : 'bg-[#0f172a] text-slate-500'}`}>👥 Gestión de Empleados</button>
-          <button onClick={() => setVista('movimientos')} className={`flex-1 p-4 rounded-2xl font-black uppercase italic transition-all ${vista === 'movimientos' ? 'bg-blue-600 shadow-lg shadow-blue-900/20' : 'bg-[#0f172a] text-slate-500'}`}>🕒 Historial de Movimientos</button>
+          <button onClick={() => setVista('empleados')} className={`flex-1 p-4 rounded-2xl font-black uppercase italic transition-all ${vista === 'empleados' ? 'bg-blue-600' : 'bg-[#0f172a] text-slate-500'}`}>👥 Gestión de Empleados</button>
+          <button onClick={() => setVista('movimientos')} className={`flex-1 p-4 rounded-2xl font-black uppercase italic transition-all ${vista === 'movimientos' ? 'bg-blue-600' : 'bg-[#0f172a] text-slate-500'}`}>🕒 Historial de Movimientos</button>
         </div>
 
         {vista === 'empleados' && (
-          <div className="max-w-7xl mx-auto bg-[#0f172a] p-6 rounded-[30px] border border-white/5 shadow-2xl">
+          <div className="max-w-7xl mx-auto bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
             <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-              <input type="text" placeholder="Nombre" className="bg-slate-950 p-3 rounded-xl border border-white/5 outline-none text-sm" value={editando ? editando.nombre : nuevo.nombre} onChange={e => editando ? setEditando({...editando, nombre: e.target.value}) : setNuevo({...nuevo, nombre: e.target.value})} />
-              <input type="text" placeholder="ID Documento" className="bg-slate-950 p-3 rounded-xl border border-white/5 outline-none text-sm" value={editando ? editando.documento_id : nuevo.documento_id} onChange={e => editando ? setEditando({...editando, documento_id: e.target.value}) : setNuevo({...nuevo, documento_id: e.target.value})} />
-              <input type="email" placeholder="Correo" className="bg-slate-950 p-3 rounded-xl border border-white/5 outline-none text-sm" value={editando ? editando.email : nuevo.email} onChange={e => editando ? setEditando({...editando, email: e.target.value}) : setNuevo({...nuevo, email: e.target.value})} />
-              <input type="text" placeholder="PIN" className="bg-slate-950 p-3 rounded-xl border border-white/5 outline-none text-sm" value={editando ? editando.pin_seguridad : nuevo.pin_seguridad} onChange={e => editando ? setEditando({...editando, pin_seguridad: e.target.value}) : setNuevo({...nuevo, pin_seguridad: e.target.value})} />
-              <select className="bg-slate-950 p-3 rounded-xl border border-white/5 outline-none text-sm font-bold" value={editando ? editando.rol : nuevo.rol} onChange={e => editando ? setEditando({...editando, rol: e.target.value}) : setNuevo({...nuevo, rol: e.target.value})}>
+              <input type="text" placeholder="Nombre" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-sm" value={editando ? editando.nombre : nuevo.nombre} onChange={e => editando ? setEditando({...editando, nombre: e.target.value}) : setNuevo({...nuevo, nombre: e.target.value})} />
+              <input type="text" placeholder="ID Documento" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-sm" value={editando ? editando.documento_id : nuevo.documento_id} onChange={e => editando ? setEditando({...editando, documento_id: e.target.value}) : setNuevo({...nuevo, documento_id: e.target.value})} />
+              <input type="email" placeholder="Correo" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-sm" value={editando ? editando.email : nuevo.email} onChange={e => editando ? setEditando({...editando, email: e.target.value}) : setNuevo({...nuevo, email: e.target.value})} />
+              <input type="text" placeholder="PIN" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-sm" value={editando ? editando.pin_seguridad : nuevo.pin_seguridad} onChange={e => editando ? setEditando({...editando, pin_seguridad: e.target.value}) : setNuevo({...nuevo, pin_seguridad: e.target.value})} />
+              <select className="bg-slate-950 p-3 rounded-xl border border-white/5 text-sm font-bold" value={editando ? editando.rol : nuevo.rol} onChange={e => editando ? setEditando({...editando, rol: e.target.value}) : setNuevo({...nuevo, rol: e.target.value})}>
                 <option value="empleado">Empleado</option>
                 <option value="supervisor">Supervisor</option>
-                <option value="admin">Admin</option>
+                <option value="administrador">Admin</option>
               </select>
-              <button onClick={editando ? actualizarEmpleado : guardarEmpleado} className="bg-blue-600 rounded-xl font-black uppercase italic text-xs hover:bg-blue-500 transition-all">{editando ? 'Actualizar' : 'Registrar'}</button>
+              <button onClick={editando ? actualizarEmpleado : guardarEmpleado} className="bg-blue-600 rounded-xl font-black uppercase italic text-xs">
+                {editando ? 'Actualizar' : 'Registrar'}
+              </button>
             </div>
           </div>
         )}
@@ -87,7 +102,7 @@ export default function AdminPanel() {
           <div className="space-y-4">
             <div className="flex justify-between items-center px-2">
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-500">Lista de Personal</h2>
-              <button onClick={fetchEmpleados} className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-lg border border-blue-500/20 font-bold">🔄 ACTUALIZAR LISTA</button>
+              <button onClick={fetchEmpleados} className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-lg border border-blue-500/20 font-bold">🔄 Actualizar</button>
             </div>
             <div className="bg-[#0f172a] rounded-[35px] border border-white/5 overflow-hidden">
               <table className="w-full text-left text-xs">
@@ -115,7 +130,7 @@ export default function AdminPanel() {
           <div className="space-y-4">
             <div className="flex justify-between items-center px-2">
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-500">Historial de Accesos</h2>
-              <button onClick={fetchMovimientos} className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-lg border border-blue-500/20 font-bold">🔄 ACTUALIZAR HISTORIAL</button>
+              <button onClick={fetchMovimientos} className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-lg border border-blue-500/20 font-bold">🔄 Actualizar</button>
             </div>
             <div className="bg-[#0f172a] rounded-[35px] border border-white/5 overflow-hidden">
               <table className="w-full text-left text-xs">
@@ -125,10 +140,13 @@ export default function AdminPanel() {
                 <tbody className="divide-y divide-white/5">
                   {movimientos.map(mov => (
                     <tr key={mov.id}>
-                      <td className="p-4 font-bold">{mov.nombre_empleado}</td>
-                      <td className="p-4 uppercase font-black tracking-tighter"><span className={`px-2 py-1 rounded-md ${mov.tipo_movimiento === 'entrada' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>{mov.tipo_movimiento}</span></td>
+                      <td className="p-4 font-bold">{mov.nombre_empleado || 'Sin Nombre'}</td>
+                      <td className="p-4 uppercase font-black"><span className={`px-2 py-1 rounded-md ${mov.tipo_movimiento === 'entrada' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>{mov.tipo_movimiento}</span></td>
                       <td className="p-4 text-slate-400 text-[10px]">{mov.detalles}</td>
-                      <td className="p-4 text-slate-500 font-mono">{new Date(mov.creado_en).toLocaleString()}</td>
+                      <td className="p-4 text-slate-500 font-mono">
+                        {/* CORRECCIÓN: Mostramos fecha_hora */}
+                        {mov.fecha_hora ? new Date(mov.fecha_hora).toLocaleString() : '---'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
