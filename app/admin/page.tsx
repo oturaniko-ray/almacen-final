@@ -16,6 +16,18 @@ export default function AdminPanel() {
   useEffect(() => {
     fetchEmpleados();
     fetchMovimientos();
+
+    // SUSCRIPCIÓN EN TIEMPO REAL: Actualiza la lista si hay cambios en la DB
+    const canalEmpleados = supabase
+      .channel('cambios-empleados')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => {
+        fetchEmpleados();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalEmpleados);
+    };
   }, []);
 
   async function fetchEmpleados() {
@@ -32,7 +44,7 @@ export default function AdminPanel() {
 
   async function guardarEmpleado() {
     if (!nuevo.nombre || !nuevo.documento_id || !nuevo.pin_seguridad) return;
-    const { error } = await supabase.from('empleados').insert([{ ...nuevo, rol: mapearRol(nuevo.rol) }]);
+    const { error } = await supabase.from('empleados').insert([{ ...nuevo, rol: mapearRol(nuevo.rol), en_almacen: false }]);
     if (!error) {
       setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado' });
       fetchEmpleados();
@@ -57,10 +69,10 @@ export default function AdminPanel() {
         <h1 className="text-xl font-black uppercase italic tracking-tighter text-blue-500 mb-10">Panel Administrativo</h1>
         <div className="w-full max-w-sm space-y-4">
           <button onClick={() => setVista('empleados')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl">
-            👥 Gestión de Empleados
+            👥 Gestión de Personal
           </button>
           <button onClick={() => setVista('movimientos')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl">
-            🕒 Historial de Movimientos
+            🕒 Historial de Accesos
           </button>
           <button onClick={() => router.push('/')} className="w-full p-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest">
             ← Salir al Inicio
@@ -72,7 +84,7 @@ export default function AdminPanel() {
 
   return (
     <main className="h-screen bg-[#050a14] text-white font-sans flex flex-col overflow-hidden">
-      {/* 1. ENCABEZADO FIJO */}
+      {/* ENCABEZADO FIJO */}
       <div className="flex-none bg-[#050a14] p-4 border-b border-white/5 shadow-xl">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-4">
           <button onClick={() => setVista('menu')} className="bg-slate-800 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-white/5">← Menú</button>
@@ -104,7 +116,7 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* 1. CONTENIDO EN SCROLL */}
+      {/* CONTENIDO EN SCROLL */}
       <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
         {vista === 'empleados' ? (
           <div className="max-w-7xl mx-auto">
@@ -112,23 +124,29 @@ export default function AdminPanel() {
               <table className="w-full text-left text-[10px] min-w-[600px]">
                 <thead className="bg-white/5 uppercase text-slate-500 font-black">
                   <tr>
-                    {/* 3. COLUMNA ACCIÓN AL LADO IZQUIERDO */}
                     <th className="p-3">Acción</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Empleado</th>
-                    {/* 2. COLUMNA ROL */}
                     <th className="p-3">Rol</th>
                     <th className="p-3">ID/PIN</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {empleados.map(emp => (
-                    <tr key={emp.id}>
+                    <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="p-3 flex gap-2">
                         <button onClick={() => setEditando(emp)} className="p-2 bg-blue-500/10 text-blue-500 rounded-lg">✎</button>
-                        <button onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} className={`px-2 py-1 rounded-lg font-black text-[8px] ${emp.activo ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{emp.activo ? 'OFF' : 'ON'}</button>
+                        <button onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} className={`px-2 py-1 rounded-lg font-black text-[8px] ${emp.activo ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{emp.activo ? 'DESACTIVAR' : 'ACTIVAR'}</button>
                       </td>
-                      <td className="p-3"><div className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500'}`}></div></td>
+                      {/* STATUS EN TIEMPO REAL (Verde si está en almacén, Rojo si no) */}
+                      <td className="p-3 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className={`w-3 h-3 rounded-full transition-all duration-500 ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'}`}></div>
+                          <span className={`text-[7px] font-black uppercase ${emp.en_almacen ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {emp.en_almacen ? 'PRESENTE' : 'AUSENTE'}
+                          </span>
+                        </div>
+                      </td>
                       <td className="p-3">
                         <p className="font-bold">{emp.nombre}</p>
                         <p className="text-[9px] text-slate-500">{emp.email}</p>
@@ -152,7 +170,6 @@ export default function AdminPanel() {
                   <tr>
                     <th className="p-3">Nombre</th>
                     <th className="p-3">Tipo</th>
-                    {/* 4. COLUMNA DETALLES (MÉTODO Y AUTORIZACIÓN) */}
                     <th className="p-3">Acceso / Autorización</th>
                     <th className="p-3">Fecha/Hora</th>
                   </tr>
@@ -162,7 +179,9 @@ export default function AdminPanel() {
                     <tr key={mov.id}>
                       <td className="p-3 font-bold">{mov.nombre_empleado || '---'}</td>
                       <td className="p-3 uppercase">
-                        <span className={`px-2 py-1 rounded-md ${mov.tipo_movimiento === 'entrada' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>{mov.tipo_movimiento}</span>
+                        <span className={`px-2 py-1 rounded-md font-black ${mov.tipo_movimiento === 'entrada' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>
+                          {mov.tipo_movimiento}
+                        </span>
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col">
