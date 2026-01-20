@@ -82,17 +82,17 @@ export default function LoginPage() {
         
         <div className="text-center mb-10">
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">
-            SISTEMA <span className="text-blue-500">PRO</span>
+            SISTEMA <span className="text-blue-500">RAY</span>
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">
-            {paso === 'login' ? 'Control de Almacén' : 'Seleccione Nivel de Acceso'}
+            {paso === 'login' ? 'Control de Almacén' : 'Seleccione el Rol a ejecutar'}
           </p>
         </div>
 
         {paso === 'login' ? (
           <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in duration-500">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Credenciales</label>
+              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Correo Electrónico</label>
               <input 
                 type="text" 
                 className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all font-bold"
