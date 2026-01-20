@@ -108,7 +108,7 @@ export default function LoginPage() {
 
             {(user.rol === 'admin') && (
               <button 
-                onClick={() => router.push('/administrador')} 
+                onClick={() => router.push('/admin')} 
                 className="p-5 bg-slate-800 hover:bg-purple-600 rounded-2xl transition-all font-bold border border-slate-700 uppercase italic text-sm tracking-widest"
               >
                 ⚙️ Panel Administrativo
