@@ -6,10 +6,10 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 COORDENADAS DEL ALMACÉN (Ajusta estas a tu ubicación real)
+// 📍 COORDENADAS DEL ALMACÉN
 const ALMACEN_LAT = 40.59665469156573; 
 const ALMACEN_LON = -3.5953966013026935;
-const RADIO_MAXIMO_METROS = 80; // Radio de tolerancia
+const RADIO_MAXIMO_METROS = 80; 
 const TIEMPO_MAX_TOKEN_MS = 120000;
 
 export default function SupervisorPage() {
@@ -21,13 +21,16 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const router = useRouter();
 
-  // NAVEGACIÓN
+  // NAVEGACIÓN Y LIMPIEZA
   const resetearTodo = async () => {
     if (scannerRef.current) {
       if (scannerRef.current.isScanning) await scannerRef.current.stop();
       scannerRef.current = null;
     }
-    setQrData(''); setPinSupervisor(''); setModo('menu'); setDireccion(null);
+    setQrData(''); 
+    setPinSupervisor(''); 
+    setModo('menu'); 
+    setDireccion(null);
   };
 
   // LÓGICA LECTOR USB (ÓPTICO)
@@ -64,7 +67,7 @@ export default function SupervisorPage() {
           );
         } catch (err) { console.error("Error cámara:", err); }
       };
-      setTimeout(iniciarCamara, 500); // Delay para asegurar que el div #reader exista
+      setTimeout(iniciarCamara, 500); 
     }
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, qrData]);
@@ -91,7 +94,10 @@ export default function SupervisorPage() {
         const { data: sup } = await supabase.from('empleados').select('*').eq('id', session.id).eq('pin_seguridad', pinSupervisor).maybeSingle();
         if (!sup) throw new Error("PIN Incorrecto");
 
+        // ACTUALIZACIÓN DE ESTADO EN TABLA EMPLEADOS
         await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
+        
+        // REGISTRO DE MOVIMIENTO
         await supabase.from('registros_acceso').insert([{
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
@@ -107,12 +113,30 @@ export default function SupervisorPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative">
-      <div className="absolute top-8 left-8 flex gap-4">
-        <button onClick={() => router.push('/')} className="bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest hover:bg-blue-600 transition-all">← Volver al Menú</button>
-        {modo !== 'menu' && (
-          <button onClick={resetearTodo} className="bg-red-600/20 text-red-500 px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-red-500/20 tracking-widest">Reiniciar</button>
-        )}
-      </div>
+      
+      {/* BOTÓN VOLVER (Sólo visible cuando NO se está en el menú principal) */}
+      {modo !== 'menu' && (
+        <div className="absolute top-8 left-8">
+          <button 
+            onClick={resetearTodo} 
+            className="bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest hover:bg-red-600 transition-all"
+          >
+            ← Volver al Menú Supervisor
+          </button>
+        </div>
+      )}
+
+      {/* BOTÓN SALIR AL SELECTOR DE ROLES (Sólo visible en el menú principal del supervisor) */}
+      {modo === 'menu' && (
+        <div className="absolute top-8 left-8">
+          <button 
+            onClick={() => router.push('/')} 
+            className="bg-blue-600/20 text-blue-400 px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-blue-500/20 tracking-widest hover:bg-blue-600 hover:text-white transition-all"
+          >
+            🏠 Volver a Selección de Rol
+          </button>
+        </div>
+      )}
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl">
         <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Terminal Supervisor</h2>
