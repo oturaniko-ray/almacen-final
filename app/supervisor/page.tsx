@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 COORDENADAS Y CONSTANTES (Restauradas y protegidas)
+// 📍 COORDENADAS Y CONSTANTES (Protegidas)
 const ALMACEN_LAT = 40.59665469156573; 
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 80; 
@@ -27,7 +27,7 @@ export default function SupervisorPage() {
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
-  // Función de navegación jerárquica (Vuelve siempre un paso atrás)
+  // Función de navegación jerárquica
   const volverAtras = async () => {
     if (mostrarWarning) {
       setMostrarWarning(false);
@@ -39,7 +39,9 @@ export default function SupervisorPage() {
       setPinEmpleadoManual('');
       setPinAdminManual('');
       if (scannerRef.current?.isScanning) await scannerRef.current.stop();
-    } else if (modo !== 'menu') {
+    } else if (modo === 'menu') {
+      router.push('/'); // Regresa al menú de roles
+    } else {
       setModo('menu');
     }
   };
@@ -76,7 +78,7 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData, mostrarWarning]);
 
-  // Lógica Cámara con láser
+  // Lógica Cámara
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData && !mostrarWarning) {
       const iniciarCamara = async () => {
@@ -110,12 +112,10 @@ export default function SupervisorPage() {
 
         const { data: autorizador } = await supabase.from('empleados').select('*').eq('pin_seguridad', pinAValidar).maybeSingle();
         if (!autorizador) throw new Error("PIN de autorización incorrecto");
-        if (esManual && autorizador.rol !== 'administrador') throw new Error("El acceso manual SOLO puede ser validado por un Administrador");
+        if (esManual && autorizador.rol !== 'administrador') throw new Error("Acceso manual requiere Administrador");
 
-        // ACTUALIZACIÓN CAMPO EN_ALMACEN
         await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
         
-        // REGISTRO EN HISTORIAL
         await supabase.from('registros_acceso').insert([{
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
@@ -135,33 +135,32 @@ export default function SupervisorPage() {
       <style jsx global>{`
         @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        @keyframes warningBlink { 0%, 100% { border-color: #facc15; background-color: rgba(250,204,21,0.1); } 50% { border-color: transparent; background-color: transparent; } }
-        @keyframes checkPop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        @keyframes warningBlink { 0%, 100% { border-color: #facc15; background-color: rgba(250,204,21,0.2); } 50% { border-color: transparent; background-color: transparent; } }
+        @keyframes textBlink { 0%, 100% { color: #facc15; } 50% { color: #854d0e; } }
         .animate-laser { animation: laser 2s infinite linear; }
         .animate-blink { animation: blink 1.5s infinite ease-in-out; }
         .animate-warning { animation: warningBlink 0.8s infinite; }
-        .animate-check { animation: checkPop 0.4s forwards; }
+        .animate-text-warning { animation: textBlink 0.8s infinite; }
       `}</style>
 
       {/* WARNING MODAL MANUAL */}
       {mostrarWarning && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-          <div className="bg-yellow-400 p-10 rounded-[40px] border-8 animate-warning text-black max-w-md text-center shadow-[0_0_50px_rgba(250,204,21,0.3)]">
-            <p className="font-black text-2xl leading-tight uppercase italic">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
+          <div className="bg-[#1a1a1a] p-10 rounded-[40px] border-8 animate-warning max-w-md text-center shadow-[0_0_60px_rgba(250,204,21,0.2)]">
+            <p className="font-black text-2xl leading-tight uppercase italic animate-text-warning">
               Para este acceso se requiere<br/>la presencia de un Administrador<br/>para validar el proceso.
             </p>
-            <div className="mt-8 py-2 px-4 bg-black text-yellow-400 rounded-full inline-block font-black text-[10px] tracking-[0.2em] animate-pulse">
+            <div className="mt-8 py-2 px-6 bg-yellow-400 text-black rounded-full inline-block font-black text-[10px] tracking-[0.2em]">
               PRESIONE ENTER PARA CONTINUAR
             </div>
           </div>
         </div>
       )}
 
-      {modo !== 'menu' && (
-        <button onClick={volverAtras} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest z-50 hover:bg-red-600 transition-all shadow-lg">
-          ← Volver
-        </button>
-      )}
+      {/* Botón Volver (Siempre presente para navegación jerárquica) */}
+      <button onClick={volverAtras} className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest z-50 hover:bg-red-600 transition-all shadow-lg">
+        ← Volver
+      </button>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
         <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Lectura de Código QR</h2>
@@ -174,8 +173,8 @@ export default function SupervisorPage() {
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl shadow-emerald-900/20 active:scale-95 transition-transform">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl shadow-red-900/20 active:scale-95 transition-transform">SALIDA</button>
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl active:scale-95 transition-transform">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl active:scale-95 transition-transform">SALIDA</button>
           </div>
         ) : (
           <div className="space-y-6">
@@ -185,11 +184,18 @@ export default function SupervisorPage() {
                   {(modo === 'usb' || modo === 'camara') && <div className="absolute inset-x-0 h-[3px] bg-red-600 shadow-[0_0_15px_red] animate-laser z-20"></div>}
                   {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl opacity-40"></div>}
                   {modo === 'manual' && (
-                    <input type="text" placeholder="DOCUMENTO IDENTIDAD" className="w-full bg-transparent text-center text-xl font-bold text-blue-400 outline-none" value={qrData} onChange={(e) => setQrData(e.target.value)} />
+                    <input 
+                      type="text" 
+                      placeholder="DOCUMENTO IDENTIDAD" 
+                      maxLength={15}
+                      className="w-full bg-transparent text-center text-xl font-bold text-blue-400 outline-none uppercase" 
+                      value={qrData} 
+                      onChange={(e) => setQrData(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))} 
+                    />
                   )}
                 </>
               ) : (
-                <div className="flex flex-col items-center animate-check">
+                <div className="flex flex-col items-center">
                   <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center mb-2 shadow-[0_0_20px_#10b981]">
                     <span className="text-white text-2xl">✔</span>
                   </div>
