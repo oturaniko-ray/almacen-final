@@ -16,11 +16,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Limpiamos espacios en blanco para evitar errores de tipeo
       const docLimpio = documento.trim();
       const pinLimpio = pin.trim();
 
-      // CONSULTA DE VALIDACIÓN
+      // 1. INTENTO DE BÚSQUEDA (Ajusta 'documento_id' si en tu DB se llama 'cedula' o 'identificacion')
       const { data, error } = await supabase
         .from('empleados')
         .select('*')
@@ -29,57 +28,52 @@ export default function LoginPage() {
         .maybeSingle();
 
       if (error) {
-        console.error("Error de Supabase:", error);
-        alert(`Error de DB: ${error.message}`);
+        // Si sale este error, es que la columna 'documento_id' o 'pin_seguridad' NO EXISTEN con ese nombre
+        console.error("Error de columnas:", error);
+        alert(`Error técnico: Verifique que las columnas se llamen 'documento_id' y 'pin_seguridad'`);
         setLoading(false);
         return;
       }
 
       if (!data) {
-        // Diagnóstico: Verificamos si al menos el documento existe
-        const { data: existeDoc } = await supabase
+        // Verificación de existencia simple para diagnóstico
+        const { data: existe } = await supabase
           .from('empleados')
-          .select('documento_id')
+          .select('nombre')
           .eq('documento_id', docLimpio)
           .maybeSingle();
 
-        if (existeDoc) {
-          alert("El PIN es incorrecto.");
+        if (existe) {
+          alert(`Hola ${existe.nombre}, el PIN ingresado es incorrecto.`);
         } else {
-          alert("El Documento ID no está registrado.");
+          alert(`El ID ${docLimpio} no aparece en la base de datos.`);
         }
         setLoading(false);
         return;
       }
 
-      if (!data.activo) {
-        alert("Usuario inactivo. Contacte al administrador.");
+      if (data.activo === false) {
+        alert("Usuario inactivo.");
         setLoading(false);
         return;
       }
 
       // GUARDAR SESIÓN
-      const sessionData = {
+      localStorage.setItem('user_session', JSON.stringify({
         id: data.id,
         nombre: data.nombre,
-        rol: data.rol ? data.rol.toLowerCase() : 'empleado',
+        rol: data.rol?.toLowerCase() || 'empleado',
         documento_id: data.documento_id
-      };
-      
-      localStorage.setItem('user_session', JSON.stringify(sessionData));
+      }));
 
-      // REDIRECCIÓN LÓGICA
-      if (sessionData.rol === 'admin' || sessionData.rol === 'administrador') {
-        router.push('/admin');
-      } else if (sessionData.rol === 'supervisor') {
-        router.push('/supervisor');
-      } else {
-        router.push('/empleado');
-      }
+      // REDIRECCIÓN
+      const rol = data.rol?.toLowerCase();
+      if (rol === 'admin' || rol === 'administrador') router.push('/admin');
+      else if (rol === 'supervisor') router.push('/supervisor');
+      else router.push('/empleado');
 
     } catch (err) {
-      console.error("Error crítico:", err);
-      alert("Error crítico de conexión.");
+      alert("Error de conexión");
     } finally {
       setLoading(false);
     }
@@ -87,32 +81,30 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans">
-      <div className="w-full max-w-sm bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl">
+      <div className="w-full max-w-sm bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl text-white">
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">
-            SISTEMA <span className="text-blue-500">PRO</span>
-          </h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">Control de Almacén</p>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter">SISTEMA <span className="text-blue-500">PRO</span></h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">Acceso de Personal</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Documento ID</label>
+          <div>
+            <label className="text-[10px] font-black uppercase ml-4 text-slate-400 tracking-widest">Identificación</label>
             <input 
               type="text" 
-              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] text-white outline-none focus:border-blue-500 transition-all font-bold"
+              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all font-bold mt-1"
               value={documento}
               onChange={(e) => setDocumento(e.target.value)}
-              placeholder="Ej: 123456"
+              placeholder="Ingrese ID"
               required
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase ml-4 text-slate-400">PIN de Seguridad</label>
+          <div>
+            <label className="text-[10px] font-black uppercase ml-4 text-slate-400 tracking-widest">PIN</label>
             <input 
               type="password" 
-              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] text-white outline-none focus:border-blue-500 transition-all text-center text-2xl tracking-[0.5em] font-black"
+              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all text-center text-2xl font-black mt-1"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="****"
@@ -123,9 +115,9 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] text-white font-black uppercase italic tracking-widest mt-6 transition-all shadow-lg disabled:opacity-50"
+            className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic tracking-widest mt-6 transition-all disabled:opacity-50"
           >
-            {loading ? 'Verificando...' : 'Entrar'}
+            {loading ? 'Validando...' : 'Entrar'}
           </button>
         </form>
       </div>
