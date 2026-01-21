@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONFIGURACIÓN DE SEGURIDAD (Mantenida de tus constantes)
+// 📍 CONFIGURACIÓN DE SEGURIDAD
 const ALMACEN_LAT = 40.59665469156573; 
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 80; 
@@ -18,27 +18,25 @@ export default function SupervisorPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 🛡️ ALGORITMO DE DECODIFICACIÓN Y LIMPIEZA
-  // Este proceso asegura que el ID sea idéntico al que espera el LoginPage
+  // 🛡️ ALGORITMO DE EXTRACCIÓN (Basado en tu lógica de Login)
   const extraerDocumentoID = (raw: string) => {
-    // 1. Eliminar caracteres de control ASCII (los símbolos extraños que viste)
+    // 1. Limpieza de caracteres de control ASCII (los símbolos extraños)
     let limpio = raw.replace(/[\x00-\x1F\x7F-\x9F]/g, "").trim();
 
-    // 2. Intentar decodificar si es Base64 (Algoritmo común en tus QRs)
+    // 2. Decodificación espejo (si el QR tiene Pipe o es largo)
     if (limpio.length > 15 || limpio.includes('|')) {
       try {
         const decoded = atob(limpio);
-        // Si el formato es "ID|TIMESTAMP|TOKEN", extraemos solo el ID
+        // Extraemos solo la parte del ID antes del primer separador
         return decoded.split('|')[0].trim().toUpperCase();
       } catch (e) {
-        // Si no es Base64, devolvemos el texto limpio en mayúsculas
         return limpio.toUpperCase();
       }
     }
     return limpio.toUpperCase();
   };
 
-  // Captura del Escáner USB
+  // Escáner USB
   useEffect(() => {
     if (!direccion || qrData) return;
     let buffer = "";
@@ -49,45 +47,42 @@ export default function SupervisorPage() {
           setTimeout(() => pinRef.current?.focus(), 50);
         }
         buffer = "";
-      } else if (e.key.length === 1) {
-        buffer += e.key;
-      }
+      } else if (e.key.length === 1) { buffer += e.key; }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [direccion, qrData]);
 
   const registrarAcceso = async () => {
-    if (!qrData || !pinSupervisor || animar) return;
+    // 🛡️ GUARDA DE SEGURIDAD PARA TYPESCRIPT
+    if (!direccion || !qrData || !pinSupervisor || animar) return;
+    
     setAnimar(true);
-
     const idFinal = extraerDocumentoID(qrData);
 
     try {
-      // Validación de Geolocalización
       const pos = await new Promise<GeolocationPosition | null>((res) => 
         navigator.geolocation.getCurrentPosition(res, () => res(null), { timeout: 4000 })
       );
 
-      if (!pos) throw new Error("GPS no detectado. Activa la ubicación.");
+      if (!pos) throw new Error("GPS no detectado.");
 
-      // Búsqueda de Empleado y Validación de PIN de Supervisor (según roles de tu LoginPage)
+      // Validación de usuario y autorizador
       const [empRes, supRes] = await Promise.all([
-        supabase.from('empleados').select('*').eq('documento_id', idFinal).maybeSingle(),
-        supabase.from('empleados').select('*').eq('pin_seguridad', pinSupervisor.trim()).maybeSingle()
+        supabase.from('employees').select('*').eq('documento_id', idFinal).maybeSingle(),
+        supabase.from('employees').select('*').eq('pin_seguridad', pinSupervisor.trim()).maybeSingle()
       ]);
 
-      if (!empRes.data) throw new Error(`Empleado ID [${idFinal}] no registrado.`);
+      if (!empRes.data) throw new Error(`ID [${idFinal}] no encontrado.`);
       
-      // Validar que quien autoriza sea Supervisor o Admin (basado en los roles de tu archivo)
-      const rolAutorizador = supRes.data?.rol?.toLowerCase();
-      if (!supRes.data || !['admin', 'administrador', 'supervisor'].includes(rolAutorizador)) {
-        throw new Error("PIN de autorización inválido o sin permisos.");
+      const rol = supRes.data?.rol?.toLowerCase();
+      if (!supRes.data || !['admin', 'administrador', 'supervisor'].includes(rol)) {
+        throw new Error("PIN de autorización no válido.");
       }
 
-      // Ejecutar actualización de estado y log de acceso
+      // Registro
       await Promise.all([
-        supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', empRes.data.id),
+        supabase.from('employees').update({ en_almacen: direccion === 'entrada' }).eq('id', empRes.data.id),
         supabase.from('registros_acceso').insert([{
           empleado_id: empRes.data.id,
           nombre_empleado: empRes.data.nombre,
@@ -97,9 +92,7 @@ export default function SupervisorPage() {
       ]);
 
       alert(`✅ ${direccion.toUpperCase()} REGISTRADA: ${empRes.data.nombre}`);
-      setQrData('');
-      setPinSupervisor('');
-      setDireccion(null);
+      setQrData(''); setPinSupervisor(''); setDireccion(null);
     } catch (err: any) {
       alert(`❌ ERROR: ${err.message}`);
     } finally {
@@ -119,9 +112,9 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className={`bg-[#050a14] p-8 rounded-[30px] border-2 border-dashed ${qrData ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-500/20'} h-32 flex flex-col items-center justify-center transition-all`}>
+            <div className={`bg-[#050a14] p-8 rounded-[30px] border-2 border-dashed ${qrData ? 'border-emerald-500 bg-emerald-500/5' : 'border-blue-500/20'} h-32 flex flex-col items-center justify-center`}>
               {!qrData ? (
-                <p className="text-blue-400 font-black animate-pulse uppercase text-center">Esperando Escaneo USB...</p>
+                <p className="text-blue-400 font-black animate-pulse uppercase text-center">Esperando Escaneo...</p>
               ) : (
                 <div className="text-center">
                   <span className="text-emerald-500 text-3xl">✔</span>
@@ -150,7 +143,7 @@ export default function SupervisorPage() {
               {animar ? 'PROCESANDO...' : 'CONFIRMAR ACCESO'}
             </button>
             
-            <button onClick={() => { setDireccion(null); setQrData(''); }} className="w-full text-slate-500 font-bold uppercase text-[10px] tracking-tighter">Regresar al menú</button>
+            <button onClick={() => { setDireccion(null); setQrData(''); }} className="w-full text-slate-500 font-bold uppercase text-[10px] tracking-tighter">Cancelar</button>
           </div>
         )}
       </div>
