@@ -25,7 +25,6 @@ export default function SupervisorPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // Función Haversine para validar distancia
   const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3;
     const p1 = lat1 * Math.PI/180;
@@ -41,12 +40,8 @@ export default function SupervisorPage() {
       await scannerRef.current.stop();
       scannerRef.current = null;
     }
-    setQrData('');
-    setPinSupervisor('');
-    setPinEmpleadoManual('');
-    setPinAdminManual('');
-    setAnimar(false);
-    setDireccion(null); 
+    setQrData(''); setPinSupervisor(''); setPinEmpleadoManual(''); setPinAdminManual('');
+    setAnimar(false); setDireccion(null); 
   };
 
   const volverAtras = async () => {
@@ -56,7 +51,7 @@ export default function SupervisorPage() {
     else { setModo('menu'); }
   };
 
-  // Lógica de Cámara Móvil
+  // Cámara Móvil
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData && !mostrarWarning) {
       const startCamera = async () => {
@@ -76,7 +71,7 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, qrData, mostrarWarning]);
 
-  // Lógica Escáner USB (Limpieza de buffer mejorada)
+  // Escáner USB
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData || mostrarWarning) return;
     let localBuffer = "";
@@ -87,9 +82,7 @@ export default function SupervisorPage() {
           setTimeout(() => pinRef.current?.focus(), 50);
         }
         localBuffer = "";
-      } else if (e.key.length === 1) {
-        localBuffer += e.key;
-      }
+      } else if (e.key.length === 1) { localBuffer += e.key; }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
@@ -99,19 +92,18 @@ export default function SupervisorPage() {
     const esManual = modo === 'manual';
     const pinAValidar = esManual ? pinAdminManual : pinSupervisor;
     
-    // 1. LIMPIEZA EXTREMA DEL ID (Elimina caracteres invisibles de escáneres)
-    let idFinal = qrData.trim().replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+    // Limpieza de caracteres de control inyectados por hardware
+    let idFinalInterno = qrData.trim().replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
 
-    if (!esManual && idFinal) {
+    if (!esManual && idFinalInterno) {
       try {
-        if (idFinal.length > 20 || idFinal.includes('|')) {
-          const decoded = atob(idFinal).split('|');
-          idFinal = decoded[0].trim();
+        if (idFinalInterno.length > 20 || idFinalInterno.includes('|')) {
+          idFinalInterno = atob(idFinalInterno).split('|')[0].trim();
         }
       } catch (e) {}
     }
 
-    if (!idFinal || !pinAValidar || animar) return;
+    if (!idFinalInterno || !pinAValidar || animar) return;
     setAnimar(true);
 
     const geoPromise = new Promise((resolve) => {
@@ -119,27 +111,21 @@ export default function SupervisorPage() {
     });
 
     try {
-      // 2. CONSULTA SINCRONIZADA
       const [pos, empRes, authRes] = await Promise.all([
         geoPromise as Promise<GeolocationPosition | null>,
-        supabase.from('empleados').select('*').eq('documento_id', idFinal.toUpperCase()).maybeSingle(),
+        supabase.from('empleados').select('*').eq('documento_id', idFinalInterno.toUpperCase()).maybeSingle(),
         supabase.from('empleados').select('*').eq('pin_seguridad', pinAValidar).maybeSingle()
       ]);
 
-      // Validar Ubicación
       if (!pos) throw new Error("GPS no detectado");
       const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ALMACEN_LAT, ALMACEN_LON);
       if (d > RADIO_MAXIMO_METROS) throw new Error(`Fuera de rango (${Math.round(d)}m)`);
 
-      // Validar Empleado
-      if (!empRes.data) throw new Error(`Empleado ${idFinal} no registrado en DB`);
+      if (!empRes.data) throw new Error(`Empleado ${idFinalInterno} no registrado`);
       if (esManual && empRes.data.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN empleado incorrecto");
-      
-      // Validar Autorizador
       if (!authRes.data) throw new Error("PIN autorización inválido");
       if (esManual && authRes.data.rol !== 'administrador') throw new Error("Requiere Administrador");
 
-      // 3. REGISTRO FINAL
       await Promise.all([
         supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', empRes.data.id),
         supabase.from('registros_acceso').insert([{
@@ -192,7 +178,7 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all ${qrData ? 'border-emerald-500' : 'border-white/5'} h-32 flex flex-col items-center justify-center overflow-hidden relative`}>
+            <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all ${qrData ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'border-white/5'} h-32 flex flex-col items-center justify-center overflow-hidden relative`}>
               {!qrData ? (
                 <>
                   {modo !== 'manual' && <div className="absolute inset-x-0 h-[3px] bg-red-600 shadow-[0_0_15px_red] animate-[laser_2s_infinite_linear]"></div>}
@@ -205,7 +191,7 @@ export default function SupervisorPage() {
               ) : (
                 <div className="flex flex-col items-center">
                   <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center mb-1">✔</div>
-                  <p className="text-emerald-500 font-black text-[10px] uppercase">ID: {idFinal}</p>
+                  <p className="text-emerald-500 font-black text-[10px] uppercase">Lectura Correcta</p>
                 </div>
               )}
             </div>
@@ -214,7 +200,7 @@ export default function SupervisorPage() {
               {modo === 'manual' && (
                 <input type="password" placeholder="PIN EMPLEADO" className="w-full py-4 bg-[#050a14] rounded-[25px] text-center text-xl border border-white/10 outline-none" value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)} />
               )}
-              <input ref={pinRef} type="password" placeholder={modo === 'manual' ? "PIN ADMINISTRADOR" : "PIN SUPERVISOR"} className="w-full py-6 bg-[#050a14] rounded-[30px] text-center text-3xl font-black border-2 border-blue-500/20 focus:border-blue-500 outline-none" value={modo === 'manual' ? pinAdminManual : pinSupervisor} onChange={(e) => modo === 'manual' ? setPinAdminManual(e.target.value) : setPinSupervisor(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
+              <input ref={pinRef} type="password" placeholder={modo === 'manual' ? "PIN ADMINISTRADOR" : "PIN AUTORIZACIÓN"} className="w-full py-6 bg-[#050a14] rounded-[30px] text-center text-3xl font-black border-2 border-blue-500/20 focus:border-blue-500 outline-none" value={modo === 'manual' ? pinAdminManual : pinSupervisor} onChange={(e) => modo === 'manual' ? setPinAdminManual(e.target.value) : setPinSupervisor(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
             </div>
 
             <button onClick={registrarAcceso} disabled={animar || !qrData || (modo === 'manual' ? !pinAdminManual : !pinSupervisor)} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg">
