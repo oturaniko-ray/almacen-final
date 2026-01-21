@@ -25,7 +25,7 @@ export default function SupervisorPage() {
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
-  // Limpieza total y retorno al menú de dirección
+  // Limpieza total y retorno al menú de dirección (Mantiene el modo seleccionado)
   const volverADireccionYLimpiar = async () => {
     if (scannerRef.current?.isScanning) await scannerRef.current.stop();
     setQrData('');
@@ -33,7 +33,6 @@ export default function SupervisorPage() {
     setPinEmpleadoManual('');
     setPinAdminManual('');
     setAnimar(false);
-    // Mantiene el modo (USB/Cámara/Manual) pero pide elegir Entrada/Salida de nuevo
     setDireccion(null); 
   };
 
@@ -50,7 +49,6 @@ export default function SupervisorPage() {
     }
   };
 
-  // Escucha de tecla Enter para Warning
   useEffect(() => {
     if (!mostrarWarning) return;
     const h = (e: KeyboardEvent) => { if (e.key === 'Enter') setMostrarWarning(false); };
@@ -58,7 +56,6 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', h);
   }, [mostrarWarning]);
 
-  // Lógica Escáner USB
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData || mostrarWarning) return;
     let buffer = "";
@@ -78,21 +75,30 @@ export default function SupervisorPage() {
   const registrarAcceso = async () => {
     const esManual = modo === 'manual';
     const pinAValidar = esManual ? pinAdminManual : pinSupervisor;
-    const idLimpio = qrData.trim().toUpperCase(); // Normalización para evitar el error de registro
+    let idFinal = qrData.trim();
 
-    if (!idLimpio || !pinAValidar || animar) return;
+    // 🔴 RUTINA DE DESCRIFRADO (Si no es manual, intentamos decodificar Base64)
+    if (!esManual) {
+      try {
+        const decoded = atob(idFinal).split('|');
+        if (decoded.length >= 1) idFinal = decoded[0];
+      } catch (e) {
+        // Si no es base64, se asume que es el ID directo
+      }
+    }
+
+    if (!idFinal || !pinAValidar || animar) return;
     setAnimar(true);
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        // Corrección de búsqueda: Trim y UpperCase para asegurar match
-        const { data: emp, error: empErr } = await supabase
+        const { data: emp } = await supabase
           .from('empleados')
           .select('*')
-          .eq('documento_id', idLimpio)
+          .eq('documento_id', idFinal.toUpperCase())
           .maybeSingle();
 
-        if (!emp) throw new Error(`Empleado con ID ${idLimpio} no encontrado`);
+        if (!emp) throw new Error(`Empleado con ID ${idFinal} no encontrado`);
         if (esManual && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN de empleado incorrecto");
 
         const { data: autorizador } = await supabase.from('empleados').select('*').eq('pin_seguridad', pinAValidar).maybeSingle();
@@ -112,7 +118,7 @@ export default function SupervisorPage() {
         volverADireccionYLimpiar();
       } catch (err: any) {
         alert(`ERROR: ${err.message}`);
-        volverADireccionYLimpiar(); // Limpia buffer incluso en error
+        volverADireccionYLimpiar();
       }
     }, () => {
       alert("GPS Requerido");
@@ -124,7 +130,6 @@ export default function SupervisorPage() {
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative">
       <style jsx global>{`
         @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         @keyframes warningBlink { 0%, 100% { border-color: #facc15; background-color: rgba(250,204,21,0.2); } 50% { border-color: transparent; background-color: transparent; } }
         @keyframes textBlink { 0%, 100% { color: #facc15; } 50% { color: #854d0e; } }
       `}</style>
@@ -149,9 +154,9 @@ export default function SupervisorPage() {
 
         {modo === 'menu' ? (
           <div className="grid gap-4">
-            <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all">🔌 ESCÁNER USB</button>
-            <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-emerald-500 transition-all">📱 CÁMARA QR</button>
-            <button onClick={() => { setModo('manual'); setMostrarWarning(true); }} className="p-8 bg-[#050a14] rounded-[30px] font-black text-[12px] border border-white/10 text-slate-400 uppercase tracking-widest italic">🖋️ Entrada Manual</button>
+            <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-tighter text-center">🔌 Escáner USB</button>
+            <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-emerald-500 transition-all uppercase tracking-tighter text-center">📱 Cámara Móvil</button>
+            <button onClick={() => { setModo('manual'); setMostrarWarning(true); }} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-yellow-500 transition-all uppercase tracking-tighter text-center">🖋️ Entrada Manual</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
@@ -171,14 +176,14 @@ export default function SupervisorPage() {
                       maxLength={15}
                       className="w-full bg-transparent text-center text-xl font-bold text-blue-400 outline-none uppercase" 
                       value={qrData} 
-                      onChange={(e) => setQrData(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))} 
+                      onChange={(e) => setQrData(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} 
                     />
-                  ) : <p className="text-blue-500 font-black animate-pulse uppercase tracking-tighter">Esperando Lectura...</p>}
+                  ) : <p className="text-blue-500 font-black animate-pulse uppercase tracking-tighter text-center">Esperando Lectura...</p>}
                 </>
               ) : (
                 <div className="flex flex-col items-center">
                   <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center mb-1">✔</div>
-                  <p className="text-emerald-500 font-black text-[10px] uppercase">ID Detectado</p>
+                  <p className="text-emerald-500 font-black text-[10px] uppercase">Lectura realizada</p>
                 </div>
               )}
             </div>
@@ -187,7 +192,7 @@ export default function SupervisorPage() {
               {modo === 'manual' && (
                 <input type="password" placeholder="PIN EMPLEADO" className="w-full py-4 bg-[#050a14] rounded-[25px] text-center text-xl border border-white/10 outline-none" value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)} />
               )}
-              <input ref={pinRef} type="password" placeholder={modo === 'manual' ? "PIN ADMINISTRADOR" : "PIN SUPERVISOR"} className="w-full py-6 bg-[#050a14] rounded-[30px] text-center text-4xl font-black border-2 border-blue-500/20 focus:border-blue-500 outline-none" value={modo === 'manual' ? pinAdminManual : pinSupervisor} onChange={(e) => modo === 'manual' ? setPinAdminManual(e.target.value) : setPinSupervisor(e.target.value)} />
+              <input ref={pinRef} type="password" placeholder={modo === 'manual' ? "PIN ADMINISTRADOR" : "PIN SUPERVISOR"} className="w-full py-6 bg-[#050a14] rounded-[30px] text-center text-3xl font-black border-2 border-blue-500/20 focus:border-blue-500 outline-none" value={modo === 'manual' ? pinAdminManual : pinSupervisor} onChange={(e) => modo === 'manual' ? setPinAdminManual(e.target.value) : setPinSupervisor(e.target.value)} />
             </div>
 
             <button ref={confirmBtnRef} onClick={registrarAcceso} disabled={animar || !qrData || (modo === 'manual' ? !pinAdminManual : !pinSupervisor)} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-50">
