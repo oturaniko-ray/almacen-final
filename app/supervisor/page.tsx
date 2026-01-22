@@ -54,7 +54,6 @@ export default function SupervisorPage() {
   };
 
   useEffect(() => {
-    // Solo activar el buffer de teclado automático en modo USB
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
@@ -159,10 +158,18 @@ export default function SupervisorPage() {
         <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Lectura del QR</h2>
 
         {modo === 'menu' ? (
-          <div className="grid gap-4">
+          <div className="grid gap-4 text-center">
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
             <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-emerald-500 transition-all uppercase tracking-widest">📱 Cámara Móvil</button>
             <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-slate-400 transition-all uppercase tracking-widest">🖋️ Entrada Manual</button>
+            
+            {/* BOTÓN SOLICITADO: REGRESO A MENU DE ROLES */}
+            <button 
+              onClick={() => router.push('/')} 
+              className="mt-6 text-slate-500 font-bold uppercase text-[11px] tracking-[0.3em] hover:text-blue-400 transition-colors"
+            >
+              ← Volver al Menú de Roles
+            </button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
@@ -188,7 +195,6 @@ export default function SupervisorPage() {
                         onChange={(e) => setQrData(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && qrData.trim() !== "") {
-                            // Simulamos que la lectura terminó para que aparezca el check y baje al PIN
                             document.getElementById('hidden-trigger')?.click();
                           }
                         }}
