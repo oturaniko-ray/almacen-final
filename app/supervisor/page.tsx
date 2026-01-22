@@ -81,30 +81,26 @@ export default function SupervisorPage() {
       try {
         let docId = qrData;
 
-        // 🛡️ RUTINA DE TOKEN (Solo si no es manual)
         if (modo !== 'manual') {
           try {
             const decoded = atob(qrData).split('|');
             docId = decoded[0].trim().toUpperCase();
-            // SE ELIMINA LA VALIDACIÓN DE TIEMPO PARA EVITAR EL ERROR "TOKEN EXPIRADO"
+            // Eliminada validación de tiempo por solicitud previa para evitar "TOKEN EXPIRADO"
           } catch (e: any) {
             throw new Error("CÓDIGO QR NO VÁLIDO");
           }
         }
 
-        // 1. BUSCAR EMPLEADO
         const { data: emp } = await supabase.from('empleados').select('*').eq('documento_id', docId).maybeSingle();
         if (!emp) throw new Error(`Empleado [${docId}] no registrado`);
         
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN de empleado incorrecto");
 
-        // 2. VALIDAR PIN DE AUTORIZACIÓN (Supervisor o Admin si es manual)
         const pinAValidar = modo === 'manual' ? pinAdminManual : pinSupervisor;
         const { data: autorizador } = await supabase.from('empleados').select('*').eq('pin_seguridad', pinAValidar).maybeSingle();
 
         if (!autorizador) throw new Error("PIN de autorización incorrecto");
 
-        // 3. ACTUALIZAR ESTADO EN GESTIÓN DE PERSONAL
         const { error: updateError } = await supabase
           .from('empleados')
           .update({ en_almacen: dirActual === 'entrada' })
@@ -112,7 +108,6 @@ export default function SupervisorPage() {
 
         if (updateError) throw new Error("Error al actualizar presencia");
 
-        // 4. REGISTRAR EN HISTORIAL
         await supabase.from('registros_acceso').insert([{
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
@@ -179,7 +174,7 @@ export default function SupervisorPage() {
                 <input type="password" placeholder="PIN EMPLEADO" className="w-full py-4 bg-[#050a14] rounded-[25px] text-center text-xl border border-white/5 outline-none" value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)} />
               )}
               <div className="relative">
-                <p className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0f172a] px-4 text-[8px] font-black text-slate-500 uppercase mb-2 tracking-widest text-center animate-blink">
+                <p className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0f172a] px-4 text-[8px] font-black text-slate-500 uppercase mb-2 tracking-widest text-center">
                   {modo === 'manual' ? 'PIN ADMINISTRADOR' : 'PIN AUTORIZACIÓN'}
                 </p>
                 <input 
@@ -197,5 +192,13 @@ export default function SupervisorPage() {
               ref={confirmBtnRef}
               onClick={registrarAcceso} 
               disabled={animar || !qrData || (modo === 'manual' ? (!pinAdminManual || !pinEmpleadoManual) : !pinSupervisor)}
-              onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
-              className={`w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-50 transition
+              className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-50 transition-all"
+            >
+              {animar ? 'PROCESANDO...' : 'Confirmar Operación'}
+            </button>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
