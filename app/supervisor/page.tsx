@@ -39,7 +39,6 @@ export default function SupervisorPage() {
 
   const volverAtras = () => resetearTodo();
 
-  // Listener para aceptar la advertencia con ENTER
   useEffect(() => {
     if (modo === 'manual' && !advertenciaAceptada) {
       const handleEnterWarning = (e: KeyboardEvent) => {
@@ -59,7 +58,6 @@ export default function SupervisorPage() {
         if (buffer.trim()) {
           setQrData(buffer.trim());
           setLecturaLista(true);
-          setTimeout(() => pinRef.current?.focus(), 100);
         }
         buffer = "";
       } else if (e.key.length === 1) { buffer += e.key; }
@@ -82,7 +80,6 @@ export default function SupervisorPage() {
               setQrData(text);
               setLecturaLista(true);
               scanner.stop().then(() => { scannerRef.current = null; });
-              setTimeout(() => pinRef.current?.focus(), 200);
             }, 
             () => {}
           );
@@ -119,20 +116,25 @@ export default function SupervisorPage() {
 
         if (!emp) throw new Error("Empleado no encontrado");
 
-        // Validación PIN Empleado obligatoria en Manual
+        // VALIDACIÓN PIN EMPLEADO (Solo en manual)
         if (modo === 'manual') {
           if (emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         }
 
-        // Validación del Supervisor/Admin
+        // VALIDACIÓN DE AUTORIZADOR
+        // Manual = Solo Admin | USB/Cámara = Supervisor o Admin
+        const rolesPermitidos = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
+        
         const { data: autorizador } = await supabase
           .from('empleados')
           .select('nombre, rol')
           .eq('pin_seguridad', pinAutorizador)
-          .in('rol', ['supervisor', 'admin', 'administrador'])
+          .in('rol', rolesPermitidos)
           .maybeSingle();
 
-        if (!autorizador) throw new Error("PIN de Supervisor/Admin inválido o sin permisos");
+        if (!autorizador) {
+          throw new Error(modo === 'manual' ? "Solo un ADMINISTRADOR puede autorizar acceso manual" : "PIN de Supervisor inválido");
+        }
 
         await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
         
@@ -140,10 +142,10 @@ export default function SupervisorPage() {
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
           tipo_movimiento: direccion,
-          detalles: `AUTORIZADO POR: ${autorizador.nombre} (Modo: ${modo})`
+          detalles: `MODO ${modo.toUpperCase()} - Autoriza ${autorizador.rol}: ${autorizador.nombre}`
         }]);
 
-        alert(`✅ Éxito: ${emp.nombre} registrado correctamente.`);
+        alert(`✅ Éxito: ${emp.nombre} registrado por ${autorizador.nombre}`);
         resetearTodo();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
@@ -187,7 +189,7 @@ export default function SupervisorPage() {
                 <p className="font-black text-center text-sm uppercase mb-4 leading-tight">
                   ⚠️ Solo el supervisor es quién valida el acceso manual, antes de seguir solicite la presencia de algún supervisor presente
                 </p>
-                <p className="text-[10px] font-bold text-center uppercase opacity-70">Presione [ENTER] para continuar</p>
+                <p className="text-[10px] font-bold text-center uppercase opacity-70 italic">Presione [ENTER] para aceptar</p>
               </div>
             ) : (
               <>
@@ -229,13 +231,14 @@ export default function SupervisorPage() {
                         type="password" placeholder="PIN Personal"
                         className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/5 focus:border-blue-500 outline-none"
                         value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') pinRef.current?.focus(); }}
                       />
                     </div>
                   )}
 
                   <div className="space-y-2">
                     <p className="text-[10px] font-black text-slate-500 uppercase text-center">
-                      {modo === 'manual' ? '2. PIN del Supervisor (Autoriza)' : 'PIN del Supervisor'}
+                      {modo === 'manual' ? '2. PIN del Administrador (Autoriza)' : 'PIN del Supervisor'}
                     </p>
                     <input 
                       ref={pinRef} type="password" placeholder="PIN Seguridad"
@@ -247,7 +250,7 @@ export default function SupervisorPage() {
                 </div>
 
                 <div className="flex flex-col gap-4 pt-4">
-                  <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador}
+                  <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador || (modo === 'manual' && !pinEmpleadoManual)}
                     className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase shadow-lg disabled:opacity-30">
                     {animar ? 'PROCESANDO...' : 'REGISTRAR'}
                   </button>
