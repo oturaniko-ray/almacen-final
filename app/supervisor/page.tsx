@@ -20,45 +20,36 @@ export default function SupervisorPage() {
   const [animar, setAnimar] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
-  const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   const volverAtras = async () => {
+    try {
+      if (scannerRef.current?.isScanning) {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+      }
+    } catch (e) { console.warn("Error deteniendo cámara:", e); }
+
     if (direccion) {
       setDireccion(null); setQrData(''); setPinSupervisor('');
-      if (scannerRef.current?.isScanning) await scannerRef.current.stop();
     } else if (modo !== 'menu') { 
       setModo('menu'); 
     }
   };
 
   const resetearTodo = async () => {
-    if (scannerRef.current) {
-      if (scannerRef.current.isScanning) await scannerRef.current.stop();
-      scannerRef.current = null;
-    }
+    try {
+      if (scannerRef.current?.isScanning) {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+      }
+    } catch (e) { console.warn(e); }
     setQrData(''); setPinSupervisor(''); setModo('menu'); setDireccion(null);
   };
 
   const reintentarLectura = () => {
     setQrData('');
     setPinSupervisor('');
-    // Si es cámara, necesitamos reiniciar el scanner si se detuvo
-    if (modo === 'camara' && !scannerRef.current?.isScanning) {
-        setTimeout(iniciarCamaraManual, 100);
-    }
-  };
-
-  const iniciarCamaraManual = async () => {
-    try {
-      const scanner = new Html5Qrcode("reader");
-      scannerRef.current = scanner;
-      await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-        setQrData(text);
-        scanner.stop();
-        setTimeout(() => pinRef.current?.focus(), 100);
-      }, () => {});
-    } catch (err) { console.error(err); }
   };
 
   useEffect(() => {
@@ -79,9 +70,29 @@ export default function SupervisorPage() {
 
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData) {
-      iniciarCamaraManual();
+      const iniciarCamara = async () => {
+        try {
+          const scanner = new Html5Qrcode("reader");
+          scannerRef.current = scanner;
+          await scanner.start(
+            { facingMode: "environment" }, 
+            { fps: 10, qrbox: 250 }, 
+            (text) => {
+              setQrData(text);
+              scanner.stop().then(() => { scannerRef.current = null; });
+              setTimeout(() => pinRef.current?.focus(), 200);
+            }, 
+            () => {}
+          );
+        } catch (err) { console.error("Error cámara:", err); }
+      };
+      setTimeout(iniciarCamara, 300); 
     }
-    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
+    return () => {
+        if (scannerRef.current?.isScanning) {
+            scannerRef.current.stop().catch(console.error);
+        }
+    };
   }, [modo, direccion, qrData]);
 
   const registrarAcceso = async () => {
@@ -119,7 +130,7 @@ export default function SupervisorPage() {
         resetearTodo();
       } catch (err: any) { 
         alert(err.message); 
-        reintentarLectura(); // 🟢 Vuelve a la rutina de lectura tras error
+        reintentarLectura();
       } finally { 
         setAnimar(false); 
       }
@@ -131,7 +142,7 @@ export default function SupervisorPage() {
       
       <style jsx global>{`
         @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         @keyframes checkPop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
         .animate-laser { animation: laser 2s infinite linear; }
         .animate-blink { animation: blink 1s infinite ease-in-out; }
@@ -139,7 +150,7 @@ export default function SupervisorPage() {
       `}</style>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Terminal de Acceso</h2>
+        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Lectura del QR</h2>
 
         {modo === 'menu' ? (
           <div className="grid gap-4">
@@ -158,10 +169,10 @@ export default function SupervisorPage() {
             <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all duration-500 ${qrData ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-white/5'} relative overflow-hidden h-32 flex flex-col items-center justify-center`}>
               {!qrData ? (
                 <>
-                  <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest">Esperando Lectura</p>
-                  {modo === 'usb' && <div className="absolute inset-x-0 h-[2px] bg-blue-500 shadow-[0_0_10px_blue] animate-laser z-20"></div>}
+                  <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest animate-blink">Esperando Lectura</p>
+                  {(modo === 'usb' || modo === 'camara') && <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>}
                   {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden"></div>}
-                  {modo === 'manual' && <input type="text" autoFocus className="bg-transparent border-b border-blue-500/50 text-center text-xl font-bold outline-none w-3/4" placeholder="Ingrese ID" value={qrData} onChange={(e) => setQrData(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') pinRef.current?.focus(); }} />}
+                  {modo === 'manual' && <input type="text" autoFocus className="bg-transparent border-b border-blue-500/50 text-center text-xl font-bold outline-none w-3/4" placeholder="ID" value={qrData} onChange={(e) => setQrData(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') pinRef.current?.focus(); }} />}
                 </>
               ) : (
                 <div className="flex flex-col items-center animate-check">
@@ -182,12 +193,12 @@ export default function SupervisorPage() {
                 className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10 focus:border-blue-500 transition-all outline-none"
                 value={pinSupervisor}
                 onChange={(e) => setPinSupervisor(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
               />
             </div>
 
             <div className="flex flex-col gap-4">
               <button 
-                ref={confirmBtnRef}
                 onClick={registrarAcceso} 
                 disabled={animar || !qrData || !pinSupervisor}
                 className={`w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30 transition-all ${qrData && pinSupervisor && !animar ? 'animate-blink' : ''}`}
