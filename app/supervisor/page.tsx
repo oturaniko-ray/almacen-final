@@ -11,6 +11,7 @@ const ALMACEN_LAT = 40.59665469156573;
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 80; 
 const TIEMPO_MAX_TOKEN_MS = 120000;
+const TIEMPO_ESPERA_LECTURA = 60000; // 1 minuto en milisegundos
 
 export default function SupervisorPage() {
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
@@ -19,12 +20,30 @@ export default function SupervisorPage() {
   const [pinEmpleadoManual, setPinEmpleadoManual] = useState('');
   const [pinSupervisor, setPinSupervisor] = useState('');
   const [animar, setAnimar] = useState(false);
-  const [lecturaLista, setLecturaLista] = useState(false); // Nuevo estado para controlar flujo manual
+  const [lecturaLista, setLecturaLista] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // Gestión de tiempo de espera
+  const iniciarTemporizador = () => {
+    limpiarTemporizador();
+    timeoutRef.current = setTimeout(() => {
+      alert("Tiempo de espera agotado");
+      volverAtras();
+    }, TIEMPO_ESPERA_LECTURA);
+  };
+
+  const limpiarTemporizador = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
   const volverAtras = async () => {
+    limpiarTemporizador();
     try {
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.stop();
@@ -40,6 +59,7 @@ export default function SupervisorPage() {
   };
 
   const resetearTodo = async () => {
+    limpiarTemporizador();
     try {
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.stop();
@@ -49,25 +69,34 @@ export default function SupervisorPage() {
     setQrData(''); setPinSupervisor(''); setPinEmpleadoManual(''); setModo('menu'); setDireccion(null); setLecturaLista(false);
   };
 
+  // Efecto para Escáner USB con temporizador
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
+    
+    iniciarTemporizador();
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         if (buffer.trim()) {
+          limpiarTemporizador();
           setQrData(buffer.trim());
-          setLecturaLista(true); // En USB la lectura está lista tras el primer Enter del scanner
+          setLecturaLista(true);
           setTimeout(() => pinRef.current?.focus(), 100);
         }
         buffer = "";
       } else if (e.key.length === 1) { buffer += e.key; }
     };
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      limpiarTemporizador();
+    };
   }, [modo, direccion, qrData]);
 
+  // Efecto para Cámara con temporizador
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData) {
+      iniciarTemporizador();
       const iniciarCamara = async () => {
         try {
           const scanner = new Html5Qrcode("reader");
@@ -76,8 +105,9 @@ export default function SupervisorPage() {
             { facingMode: "environment" }, 
             { fps: 10, qrbox: 250 }, 
             (text) => {
+              limpiarTemporizador();
               setQrData(text);
-              setLecturaLista(true); // En Cámara la lectura está lista al detectar QR
+              setLecturaLista(true);
               scanner.stop().then(() => { scannerRef.current = null; });
               setTimeout(() => pinRef.current?.focus(), 200);
             }, 
@@ -87,7 +117,10 @@ export default function SupervisorPage() {
       };
       setTimeout(iniciarCamara, 300); 
     }
-    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
+    return () => { 
+      if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {});
+      limpiarTemporizador();
+    };
   }, [modo, direccion, qrData]);
 
   const registrarAcceso = async () => {
@@ -98,16 +131,14 @@ export default function SupervisorPage() {
       try {
         let docIdOrEmail = qrData.trim();
         
-        // 1. DESENCRIPTAR SI ES TOKEN (Para Cámara/USB)
         try {
           const decoded = atob(docIdOrEmail).split('|');
           if (decoded.length === 2) {
             docIdOrEmail = decoded[0];
             if (Date.now() - parseInt(decoded[1]) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
           }
-        } catch (e) { /* No es Base64, continuar como ID plano */ }
+        } catch (e) { }
 
-        // 2. BUSCAR EMPLEADO
         const { data: emp } = await supabase
           .from('empleados')
           .select('*')
@@ -116,12 +147,10 @@ export default function SupervisorPage() {
 
         if (!emp) throw new Error("Empleado no encontrado");
 
-        // 3. VALIDAR PIN EMPLEADO SI ES MANUAL
         if (modo === 'manual') {
           if (emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         }
 
-        // 4. VALIDAR PIN SUPERVISOR
         const { data: sup } = await supabase
           .from('empleados')
           .select('nombre, rol')
@@ -165,9 +194,8 @@ export default function SupervisorPage() {
       `}</style>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-1 text-center tracking-tighter">Lectura del QR</h2>
+        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-1 text-center tracking-tighter">Toma de Datos QR</h2>
         
-        {/* TEXTO PARPADEANTE SOLICITADO */}
         {modo === 'manual' && (
           <p className="text-amber-500 font-bold text-center text-[12px] uppercase tracking-widest mb-6 animate-blink">
             Modo Manual Activo
@@ -189,33 +217,24 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all duration-500 ${lecturaLista ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-white/5'} relative overflow-hidden h-32 flex flex-col items-center justify-center`}>
-              {!lecturaLista ? (
+            {/* Contenedor de Identificación */}
+            <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all duration-500 ${(lecturaLista || modo === 'manual') ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-white/5'} relative overflow-hidden h-32 flex flex-col items-center justify-center`}>
+              {modo === 'manual' ? (
+                  <div className="w-full flex flex-col items-center">
+                    <p className="text-[10px] font-black text-blue-500 uppercase mb-2 tracking-widest">Documento o Em@il</p>
+                    <input 
+                      type="text" autoFocus maxLength={35}
+                      className="bg-transparent border-b-2 border-blue-500 text-center text-xl font-bold outline-none w-full px-4 text-white" 
+                      placeholder="Escriba aquí" 
+                      value={qrData} 
+                      onChange={(e) => setQrData(e.target.value)}
+                    />
+                  </div>
+              ) : !lecturaLista ? (
                 <>
-                  {modo === 'manual' ? (
-                    <div className="w-full flex flex-col items-center">
-                      <p className="text-[10px] font-black text-blue-500 uppercase mb-2 tracking-widest animate-blink">Escriba ID y presione ENTER</p>
-                      <input 
-                        type="text" autoFocus maxLength={20}
-                        className="bg-transparent border-b-2 border-blue-500 text-center text-xl font-bold outline-none w-full px-4 text-white" 
-                        placeholder="Documento o Correo" 
-                        value={qrData} 
-                        onChange={(e) => setQrData(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && qrData.trim() !== "") {
-                            setLecturaLista(true);
-                            setTimeout(() => document.getElementById('pin-emp-input')?.focus(), 100);
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest animate-blink">Esperando Lectura</p>
-                      {(modo === 'usb' || modo === 'camara') && <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>}
-                      {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden"></div>}
-                    </>
-                  )}
+                  <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest animate-blink">Esperando Lectura</p>
+                  {(modo === 'usb' || modo === 'camara') && <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>}
+                  {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden"></div>}
                 </>
               ) : (
                 <div className="flex flex-col items-center animate-check">
@@ -227,8 +246,10 @@ export default function SupervisorPage() {
               )}
             </div>
 
+            {/* Campos de PIN */}
             <div className="space-y-4">
-              {modo === 'manual' && lecturaLista && (
+              {/* Mostrar PIN de empleado siempre si es manual, o si es automático y ya leyó */}
+              {(modo === 'manual' || lecturaLista) && (
                 <div className="space-y-2 text-center">
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">1. PIN de Empleado</p>
                   <input 
@@ -236,23 +257,25 @@ export default function SupervisorPage() {
                     className="w-full py-4 bg-[#050a14] rounded-[25px] text-center text-2xl font-black border border-white/5 focus:border-blue-500 outline-none transition-all"
                     value={pinEmpleadoManual}
                     onChange={(e) => setPinEmpleadoManual(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') pinRef.current?.focus(); }}
                   />
                 </div>
               )}
 
-              <div className="space-y-2 text-center">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                  {modo === 'manual' ? '2. PIN Autorización Supervisor' : 'Confirmación de Supervisor'}
-                </p>
-                <input 
-                  ref={pinRef} type="password" placeholder="PIN"
-                  className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10 focus:border-blue-500 transition-all outline-none"
-                  value={pinSupervisor}
-                  onChange={(e) => setPinSupervisor(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
-                />
-              </div>
+              {/* PIN Supervisor se muestra siempre en manual, o si automático ya leyó */}
+              {(modo === 'manual' || lecturaLista) && (
+                <div className="space-y-2 text-center">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    2. PIN Autorización Supervisor
+                  </p>
+                  <input 
+                    ref={pinRef} type="password" placeholder="PIN"
+                    className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10 focus:border-blue-500 transition-all outline-none"
+                    value={pinSupervisor}
+                    onChange={(e) => setPinSupervisor(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-4">
