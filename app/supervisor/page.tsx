@@ -12,10 +12,10 @@ export default function SupervisorPage() {
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
   const [pinEmpleadoManual, setPinEmpleadoManual] = useState('');
-  const [pinAutorizador, setPinAutorizador] = useState(''); // PIN de Supervisor o Admin según modo
+  const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
-  const [advertenciaAceptada, setAdvertenciaAceptada] = useState(false); // Para el warning manual
+  const [advertenciaAceptada, setAdvertenciaAceptada] = useState(false); 
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
@@ -28,7 +28,6 @@ export default function SupervisorPage() {
         scannerRef.current = null;
       }
     } catch (e) { console.warn(e); }
-    // Limpieza total de buffers y estados
     setQrData('');
     setPinEmpleadoManual('');
     setPinAutorizador('');
@@ -39,6 +38,17 @@ export default function SupervisorPage() {
   };
 
   const volverAtras = () => resetearTodo();
+
+  // Listener para aceptar la advertencia con ENTER
+  useEffect(() => {
+    if (modo === 'manual' && !advertenciaAceptada) {
+      const handleEnterWarning = (e: KeyboardEvent) => {
+        if (e.key === 'Enter') setAdvertenciaAceptada(true);
+      };
+      window.addEventListener('keydown', handleEnterWarning);
+      return () => window.removeEventListener('keydown', handleEnterWarning);
+    }
+  }, [modo, advertenciaAceptada]);
 
   // Lógica USB
   useEffect(() => {
@@ -91,7 +101,6 @@ export default function SupervisorPage() {
       try {
         let docIdOrEmail = qrData.trim();
         
-        // Decodificación solo para medios automáticos (USB/Cámara)
         if (modo !== 'manual') {
           try {
             const decoded = atob(docIdOrEmail).split('|');
@@ -110,23 +119,20 @@ export default function SupervisorPage() {
 
         if (!emp) throw new Error("Empleado no encontrado");
 
-        // Validación PIN Empleado solo en Manual
+        // Validación PIN Empleado obligatoria en Manual
         if (modo === 'manual') {
           if (emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         }
 
-        // Definir roles permitidos según el modo
-        const rolesPermitidos = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
-        const errorMsg = modo === 'manual' ? "Solo un ADMINISTRADOR puede autorizar ingresos manuales" : "PIN de Supervisor inválido";
-
+        // Validación del Supervisor/Admin
         const { data: autorizador } = await supabase
           .from('empleados')
           .select('nombre, rol')
           .eq('pin_seguridad', pinAutorizador)
-          .in('rol', rolesPermitidos)
+          .in('rol', ['supervisor', 'admin', 'administrador'])
           .maybeSingle();
 
-        if (!autorizador) throw new Error(errorMsg);
+        if (!autorizador) throw new Error("PIN de Supervisor/Admin inválido o sin permisos");
 
         await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
         
@@ -137,7 +143,7 @@ export default function SupervisorPage() {
           detalles: `AUTORIZADO POR: ${autorizador.nombre} (Modo: ${modo})`
         }]);
 
-        alert(`✅ Éxito: ${emp.nombre} ha registrado su ${direccion}`);
+        alert(`✅ Éxito: ${emp.nombre} registrado correctamente.`);
         resetearTodo();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
@@ -176,18 +182,12 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* VENTANA EMERGENTE DE WARNING (Solo Manual) */}
             {modo === 'manual' && !advertenciaAceptada ? (
-              <div className="bg-amber-400 p-6 rounded-[30px] border-4 border-amber-600 animate-blink text-black">
+              <div className="bg-amber-400 p-6 rounded-[30px] border-4 border-amber-600 animate-blink text-black shadow-[0_0_30px_rgba(251,191,36,0.4)]">
                 <p className="font-black text-center text-sm uppercase mb-4 leading-tight">
                   ⚠️ Solo el supervisor es quién valida el acceso manual, antes de seguir solicite la presencia de algún supervisor presente
                 </p>
-                <button 
-                  onClick={() => setAdvertenciaAceptada(true)}
-                  className="w-full py-3 bg-black text-white rounded-xl font-bold uppercase text-xs"
-                >
-                  Entendido, Continuar
-                </button>
+                <p className="text-[10px] font-bold text-center uppercase opacity-70">Presione [ENTER] para continuar</p>
               </div>
             ) : (
               <>
@@ -196,12 +196,12 @@ export default function SupervisorPage() {
                     <>
                       {modo === 'manual' ? (
                         <div className="w-full text-center">
-                          <p className="text-[10px] font-black text-amber-500 uppercase mb-2 tracking-widest">Ingrese Documento o Email</p>
+                          <p className="text-[10px] font-black text-amber-500 uppercase mb-2 tracking-widest">Documento o Email</p>
                           <input 
-                            type="text" autoFocus maxLength={18}
+                            type="text" autoFocus maxLength={35}
                             className="bg-transparent border-b-2 border-amber-500 text-center text-xl font-bold outline-none w-full px-2" 
-                            placeholder="Máx 18 caracteres" value={qrData} 
-                            onChange={(e) => setQrData(e.target.value.replace(/[^a-zA-Z0-9@.]/g, ''))}
+                            placeholder="Máx 35 caracteres" value={qrData} 
+                            onChange={(e) => setQrData(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && qrData.length > 0) setLecturaLista(true); }}
                           />
                         </div>
@@ -224,9 +224,9 @@ export default function SupervisorPage() {
                 <div className="space-y-4">
                   {modo === 'manual' && lecturaLista && (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-black text-slate-500 uppercase text-center">1. PIN del Empleado</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase text-center">1. PIN del Empleado (A ingresar)</p>
                       <input 
-                        type="password" placeholder="PIN Empleado"
+                        type="password" placeholder="PIN Personal"
                         className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/5 focus:border-blue-500 outline-none"
                         value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)}
                       />
@@ -235,7 +235,7 @@ export default function SupervisorPage() {
 
                   <div className="space-y-2">
                     <p className="text-[10px] font-black text-slate-500 uppercase text-center">
-                      {modo === 'manual' ? '2. PIN del Administrador (Autoriza)' : 'PIN del Supervisor'}
+                      {modo === 'manual' ? '2. PIN del Supervisor (Autoriza)' : 'PIN del Supervisor'}
                     </p>
                     <input 
                       ref={pinRef} type="password" placeholder="PIN Seguridad"
