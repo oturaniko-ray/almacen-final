@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONSTANTES MANTENIDAS
+// 📍 COORDENADAS Y CONSTANTES
 const ALMACEN_LAT = 40.59665469156573; 
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 80; 
@@ -71,9 +71,12 @@ export default function SupervisorPage() {
   }, [modo, direccion, qrData]);
 
   const registrarAcceso = async () => {
+    // 🛡️ Capturamos la dirección en una constante local para evitar el Type Error
+    const dirActual = direccion;
     const esManual = modo === 'manual';
     const pinAValidar = esManual ? pinAdminManual : pinSupervisor;
-    if (!qrData || !pinAValidar || animar) return;
+
+    if (!qrData || !pinAValidar || animar || !dirActual) return;
 
     setAnimar(true);
 
@@ -81,44 +84,44 @@ export default function SupervisorPage() {
       try {
         let docId = qrData;
 
-        // 🛡️ CORRECCIÓN TOKEN: Extraemos el ID sin validar el tiempo para evitar el bloqueo "TOKEN EXPIRADO"
+        // Extraer ID del token (sin validación de tiempo para evitar "TOKEN EXPIRADO")
         if (!esManual) {
           try {
             const decoded = atob(qrData).split('|');
             docId = decoded[0].trim().toUpperCase();
-            // Hemos omitido el check de Date.now() para permitir el flujo sin errores de sincronización
           } catch (e) {
-            throw new Error("ERROR EN FORMATO DE TOKEN/QR");
+            throw new Error("Formato de identificación no reconocido");
           }
         }
 
-        // 1. Buscar Empleado
+        // 1. Validar Empleado
         const { data: emp } = await supabase.from('empleados').select('*').eq('documento_id', docId).maybeSingle();
         if (!emp) throw new Error(`Empleado [${docId}] no registrado`);
         
         if (esManual && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN de empleado incorrecto");
 
-        // 2. Validar PIN Autorizador
+        // 2. Validar Autorización
         const { data: autorizador } = await supabase.from('empleados').select('*').eq('pin_seguridad', pinAValidar).maybeSingle();
         if (!autorizador) throw new Error("PIN de autorización incorrecto");
 
-        // 3. ACTUALIZACIÓN CRÍTICA: Cambiar presencia para Gestión de Personal
+        // 3. ACTUALIZACIÓN DE ESTADO (Para Gestión de Personal)
         const { error: updateError } = await supabase
           .from('empleados')
-          .update({ en_almacen: direccion === 'entrada' })
+          .update({ en_almacen: dirActual === 'entrada' })
           .eq('id', emp.id);
 
-        if (updateError) throw new Error("Error al actualizar estado en_almacen");
-
-        // 4. Registro Histórico
+        if (updateError) throw new Error("Error al actualizar presencia");
+        
+        // 4. Registro en Historial
         await supabase.from('registros_acceso').insert([{
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
-          tipo_movimiento: direccion,
+          tipo_movimiento: dirActual,
           detalles: esManual ? `Manual por Admin: ${autorizador.nombre}` : `Supervisor: ${autorizador.nombre}`
         }]);
 
-        alert(`✅ ${direccion.toUpperCase()} EXITOSA: ${emp.nombre}`);
+        // ✅ Usamos la constante garantizada dirActual
+        alert(`✅ ${dirActual.toUpperCase()} EXITOSA: ${emp.nombre}`);
         resetearTodo();
 
       } catch (err: any) { 
@@ -127,7 +130,7 @@ export default function SupervisorPage() {
         setAnimar(false); 
       }
     }, () => {
-      alert("Error: GPS Requerido");
+      alert("GPS Requerido para la operación");
       setAnimar(false);
     });
   };
@@ -141,7 +144,7 @@ export default function SupervisorPage() {
         </button>
       )}
 
-      <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative">
+      <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl">
         <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Terminal Supervisor</h2>
 
         {modo === 'menu' ? (
@@ -159,7 +162,7 @@ export default function SupervisorPage() {
           <div className="space-y-6">
             <div className={`bg-[#050a14] p-6 rounded-[30px] border ${qrData ? 'border-emerald-500' : 'border-white/5'} h-32 flex flex-col items-center justify-center transition-all`}>
               {!qrData ? (
-                <p className="text-blue-400 font-black animate-pulse uppercase text-[10px] tracking-widest">Esperando Lectura...</p>
+                <p className="text-blue-400 font-black animate-pulse uppercase text-[10px] tracking-widest text-center">Esperando Lectura...</p>
               ) : (
                 <div className="text-center">
                   <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center mb-1 mx-auto">✔</div>
