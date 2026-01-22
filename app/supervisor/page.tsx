@@ -163,14 +163,7 @@ export default function SupervisorPage() {
       `}</style>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-2 text-center tracking-tighter">Lectura del QR</h2>
-        
-        {/* TEXTO PARPADEANTE MODO MANUAL */}
-        {modo === 'manual' && (
-          <p className="text-center text-red-500 font-bold uppercase tracking-[0.2em] text-[12px] mb-6 animate-blink">
-            Modo Manual Activo
-          </p>
-        )}
+        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Lectura del QR</h2>
 
         {modo === 'menu' ? (
           <div className="grid gap-4 text-center">
