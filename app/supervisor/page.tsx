@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
 const TIEMPO_MAX_TOKEN_MS = 120000;
 
 export default function SupervisorPage() {
@@ -13,26 +12,14 @@ export default function SupervisorPage() {
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
   const [pinEmpleadoManual, setPinEmpleadoManual] = useState('');
-  const [pinSupervisor, setPinSupervisor] = useState('');
+  const [pinAutorizador, setPinAutorizador] = useState(''); // PIN de Supervisor o Admin según modo
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
+  const [advertenciaAceptada, setAdvertenciaAceptada] = useState(false); // Para el warning manual
+  
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-
-  const volverAtras = async () => {
-    try {
-      if (scannerRef.current?.isScanning) {
-        await scannerRef.current.stop();
-        scannerRef.current = null;
-      }
-    } catch (e) { console.warn("Error deteniendo cámara:", e); }
-    if (direccion) {
-      setDireccion(null); setQrData(''); setPinSupervisor(''); setPinEmpleadoManual(''); setLecturaLista(false);
-    } else if (modo !== 'menu') { 
-      setModo('menu'); 
-    }
-  };
 
   const resetearTodo = async () => {
     try {
@@ -41,10 +28,19 @@ export default function SupervisorPage() {
         scannerRef.current = null;
       }
     } catch (e) { console.warn(e); }
-    setQrData(''); setPinSupervisor(''); setPinEmpleadoManual(''); setModo('menu'); setDireccion(null); setLecturaLista(false);
+    // Limpieza total de buffers y estados
+    setQrData('');
+    setPinEmpleadoManual('');
+    setPinAutorizador('');
+    setModo('menu');
+    setDireccion(null);
+    setLecturaLista(false);
+    setAdvertenciaAceptada(false);
   };
 
-  // Lógica USB corregida para procesar Base64
+  const volverAtras = () => resetearTodo();
+
+  // Lógica USB
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
@@ -62,7 +58,7 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
-  // Lógica Cámara corregida
+  // Lógica Cámara
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData) {
       const iniciarCamara = async () => {
@@ -88,21 +84,23 @@ export default function SupervisorPage() {
   }, [modo, direccion, qrData]);
 
   const registrarAcceso = async () => {
-    if (!qrData || !pinSupervisor || animar) return;
+    if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
         let docIdOrEmail = qrData.trim();
         
-        // Decodificación de seguridad (Base64)
-        try {
-          const decoded = atob(docIdOrEmail).split('|');
-          if (decoded.length === 2) {
-            docIdOrEmail = decoded[0];
-            if (Date.now() - parseInt(decoded[1]) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
-          }
-        } catch (e) {}
+        // Decodificación solo para medios automáticos (USB/Cámara)
+        if (modo !== 'manual') {
+          try {
+            const decoded = atob(docIdOrEmail).split('|');
+            if (decoded.length === 2) {
+              docIdOrEmail = decoded[0];
+              if (Date.now() - parseInt(decoded[1]) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
+            }
+          } catch (e) {}
+        }
 
         const { data: emp } = await supabase
           .from('empleados')
@@ -112,18 +110,23 @@ export default function SupervisorPage() {
 
         if (!emp) throw new Error("Empleado no encontrado");
 
+        // Validación PIN Empleado solo en Manual
         if (modo === 'manual') {
           if (emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         }
 
-        const { data: sup } = await supabase
+        // Definir roles permitidos según el modo
+        const rolesPermitidos = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
+        const errorMsg = modo === 'manual' ? "Solo un ADMINISTRADOR puede autorizar ingresos manuales" : "PIN de Supervisor inválido";
+
+        const { data: autorizador } = await supabase
           .from('empleados')
           .select('nombre, rol')
-          .eq('pin_seguridad', pinSupervisor)
-          .in('rol', ['supervisor', 'admin', 'administrador'])
+          .eq('pin_seguridad', pinAutorizador)
+          .in('rol', rolesPermitidos)
           .maybeSingle();
 
-        if (!sup) throw new Error("Autorización denegada: PIN de Administrador inválido");
+        if (!autorizador) throw new Error(errorMsg);
 
         await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
         
@@ -131,114 +134,127 @@ export default function SupervisorPage() {
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
           tipo_movimiento: direccion,
-          detalles: `ADMINISTRADOR - Autoriza: ${sup.nombre} (${modo})`
+          detalles: `AUTORIZADO POR: ${autorizador.nombre} (Modo: ${modo})`
         }]);
 
-        alert(`✅ Operación Exitosa: ${emp.nombre}`);
+        alert(`✅ Éxito: ${emp.nombre} ha registrado su ${direccion}`);
         resetearTodo();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
-        setPinSupervisor('');
+        setPinAutorizador('');
         if (modo === 'manual') setPinEmpleadoManual('');
       } finally { 
         setAnimar(false); 
       }
-    }, () => alert("GPS Obligatorio"));
+    }, () => alert("GPS Obligatorio para registrar"));
   };
 
   return (
-    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white relative">
+    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white relative font-sans">
       <style jsx global>{`
         @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         .animate-laser { animation: laser 2s infinite linear; }
         .animate-blink { animation: blink 1s infinite ease-in-out; }
       `}</style>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl z-10">
-        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-6 text-center italic tracking-tighter">Acceso de Supervisión</h2>
+        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-6 text-center tracking-tighter">Panel de Supervisión</h2>
 
         {modo === 'menu' ? (
           <div className="grid gap-4">
-            <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
-            <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black border border-white/5 hover:border-emerald-500 transition-all uppercase tracking-widest">📱 Cámara Móvil</button>
-            <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black border border-white/5 hover:border-amber-400 transition-all uppercase tracking-widest">🖋️ Entrada Manual</button>
+            <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black border border-white/5 hover:border-blue-500 transition-all uppercase">🔌 Escáner USB</button>
+            <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black border border-white/5 hover:border-emerald-500 transition-all uppercase">📱 Cámara Móvil</button>
+            <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black border border-white/5 hover:border-amber-400 transition-all uppercase">🖋️ Entrada Manual</button>
             <button onClick={() => router.push('/')} className="mt-4 text-slate-500 font-bold uppercase text-[10px] text-center">← Volver al inicio</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
             <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl">SALIDA</button>
-            <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-center">← Volver</button>
+            <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-center">← Cancelar</button>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Aviso Amarillo Parpadeante para Modo Manual */}
-            {modo === 'manual' && !lecturaLista && (
-              <div className="bg-amber-400/20 border border-amber-400 p-4 rounded-2xl animate-blink">
-                <p className="text-amber-400 font-black text-center text-xs uppercase leading-tight">
-                  ⚠️ Solo algún administrador podrá dar permisos de acceso en esta opción
+            {/* VENTANA EMERGENTE DE WARNING (Solo Manual) */}
+            {modo === 'manual' && !advertenciaAceptada ? (
+              <div className="bg-amber-400 p-6 rounded-[30px] border-4 border-amber-600 animate-blink text-black">
+                <p className="font-black text-center text-sm uppercase mb-4 leading-tight">
+                  ⚠️ Solo el supervisor es quién valida el acceso manual, antes de seguir solicite la presencia de algún supervisor presente
                 </p>
+                <button 
+                  onClick={() => setAdvertenciaAceptada(true)}
+                  className="w-full py-3 bg-black text-white rounded-xl font-bold uppercase text-xs"
+                >
+                  Entendido, Continuar
+                </button>
               </div>
-            )}
-
-            <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all duration-500 ${lecturaLista ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-white/5'} relative h-32 flex items-center justify-center`}>
-              {!lecturaLista ? (
-                <>
-                  {modo === 'manual' ? (
-                    <input 
-                      type="text" autoFocus className="bg-transparent border-b border-blue-500 text-center text-xl font-bold outline-none w-full" 
-                      placeholder="Correo o Documento" value={qrData} onChange={(e) => setQrData(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') setLecturaLista(true); }}
-                    />
+            ) : (
+              <>
+                <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all duration-500 ${lecturaLista ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-white/5'} relative h-32 flex items-center justify-center`}>
+                  {!lecturaLista ? (
+                    <>
+                      {modo === 'manual' ? (
+                        <div className="w-full text-center">
+                          <p className="text-[10px] font-black text-amber-500 uppercase mb-2 tracking-widest">Ingrese Documento o Email</p>
+                          <input 
+                            type="text" autoFocus maxLength={18}
+                            className="bg-transparent border-b-2 border-amber-500 text-center text-xl font-bold outline-none w-full px-2" 
+                            placeholder="Máx 18 caracteres" value={qrData} 
+                            onChange={(e) => setQrData(e.target.value.replace(/[^a-zA-Z0-9@.]/g, ''))}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && qrData.length > 0) setLecturaLista(true); }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <p className="text-[10px] font-black text-slate-500 uppercase animate-blink">Esperando Dispositivo</p>
+                          <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser"></div>
+                          {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden mt-2"></div>}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="text-center">
-                      <p className="text-[10px] font-black text-slate-500 uppercase animate-blink">Esperando Lectura</p>
-                      <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser"></div>
-                      {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden mt-2"></div>}
+                      <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-2">✔</div>
+                      <p className="text-emerald-500 font-black text-[9px] uppercase">Datos Capturados</p>
                     </div>
                   )}
-                </>
-              ) : (
-                <div className="text-center">
-                  <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-2">✔</div>
-                  <p className="text-emerald-500 font-black text-[9px] uppercase">Identificado</p>
                 </div>
-              )}
-            </div>
 
-            <div className="space-y-4">
-              {modo === 'manual' && lecturaLista && (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase text-center">1. PIN de Empleado</p>
-                  <input 
-                    type="password" placeholder="PIN Personal"
-                    className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/5 focus:border-blue-500 outline-none"
-                    value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)}
-                  />
+                <div className="space-y-4">
+                  {modo === 'manual' && lecturaLista && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-slate-500 uppercase text-center">1. PIN del Empleado</p>
+                      <input 
+                        type="password" placeholder="PIN Empleado"
+                        className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/5 focus:border-blue-500 outline-none"
+                        value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-slate-500 uppercase text-center">
+                      {modo === 'manual' ? '2. PIN del Administrador (Autoriza)' : 'PIN del Supervisor'}
+                    </p>
+                    <input 
+                      ref={pinRef} type="password" placeholder="PIN Seguridad"
+                      className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/5 focus:border-blue-500 outline-none"
+                      value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
+                    />
+                  </div>
                 </div>
-              )}
 
-              <div className="space-y-2">
-                <p className="text-[10px] font-black text-slate-500 uppercase text-center">
-                  {modo === 'manual' ? '2. PIN Administrador' : 'PIN Supervisor'}
-                </p>
-                <input 
-                  ref={pinRef} type="password" placeholder="PIN"
-                  className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/5 focus:border-blue-500 outline-none"
-                  value={pinSupervisor} onChange={(e) => setPinSupervisor(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <button onClick={registrarAcceso} disabled={animar || !qrData || !pinSupervisor}
-                className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase shadow-lg disabled:opacity-30">
-                {animar ? 'PROCESANDO...' : 'Confirmar'}
-              </button>
-              <button onClick={volverAtras} className="text-slate-600 font-bold uppercase text-[9px] text-center">✕ Cancelar</button>
-            </div>
+                <div className="flex flex-col gap-4 pt-4">
+                  <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador}
+                    className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase shadow-lg disabled:opacity-30">
+                    {animar ? 'PROCESANDO...' : 'REGISTRAR'}
+                  </button>
+                  <button onClick={volverAtras} className="text-slate-600 font-bold uppercase text-[9px] text-center">✕ Cancelar y Limpiar</button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
