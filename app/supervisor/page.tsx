@@ -19,7 +19,7 @@ export default function SupervisorPage() {
   const [pinEmpleadoManual, setPinEmpleadoManual] = useState('');
   const [pinSupervisor, setPinSupervisor] = useState('');
   const [animar, setAnimar] = useState(false);
-  const [lecturaLista, setLecturaLista] = useState(false); // Nuevo estado para controlar flujo manual
+  const [lecturaLista, setLecturaLista] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -56,7 +56,7 @@ export default function SupervisorPage() {
       if (e.key === 'Enter') {
         if (buffer.trim()) {
           setQrData(buffer.trim());
-          setLecturaLista(true); // En USB la lectura está lista tras el primer Enter del scanner
+          setLecturaLista(true);
           setTimeout(() => pinRef.current?.focus(), 100);
         }
         buffer = "";
@@ -77,7 +77,7 @@ export default function SupervisorPage() {
             { fps: 10, qrbox: 250 }, 
             (text) => {
               setQrData(text);
-              setLecturaLista(true); // En Cámara la lectura está lista al detectar QR
+              setLecturaLista(true);
               scanner.stop().then(() => { scannerRef.current = null; });
               setTimeout(() => pinRef.current?.focus(), 200);
             }, 
@@ -98,16 +98,14 @@ export default function SupervisorPage() {
       try {
         let docIdOrEmail = qrData.trim();
         
-        // 1. DESENCRIPTAR SI ES TOKEN (Para Cámara/USB)
         try {
           const decoded = atob(docIdOrEmail).split('|');
           if (decoded.length === 2) {
             docIdOrEmail = decoded[0];
             if (Date.now() - parseInt(decoded[1]) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
           }
-        } catch (e) { /* No es Base64, continuar como ID plano */ }
+        } catch (e) {}
 
-        // 2. BUSCAR EMPLEADO
         const { data: emp } = await supabase
           .from('empleados')
           .select('*')
@@ -116,12 +114,12 @@ export default function SupervisorPage() {
 
         if (!emp) throw new Error("Empleado no encontrado");
 
-        // 3. VALIDAR PIN EMPLEADO SI ES MANUAL
+        // VALIDACIÓN PIN EMPLEADO (Solo en manual)
         if (modo === 'manual') {
           if (emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         }
 
-        // 4. VALIDAR PIN SUPERVISOR
+        // VALIDACIÓN PIN SUPERVISOR/ADMIN
         const { data: sup } = await supabase
           .from('empleados')
           .select('nombre, rol')
@@ -165,7 +163,14 @@ export default function SupervisorPage() {
       `}</style>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Lectura del QR</h2>
+        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-2 text-center tracking-tighter">Lectura del QR</h2>
+        
+        {/* TEXTO PARPADEANTE MODO MANUAL */}
+        {modo === 'manual' && (
+          <p className="text-center text-red-500 font-bold uppercase tracking-[0.2em] text-[12px] mb-6 animate-blink">
+            Modo Manual Activo
+          </p>
+        )}
 
         {modo === 'menu' ? (
           <div className="grid gap-4 text-center">
@@ -221,6 +226,7 @@ export default function SupervisorPage() {
             </div>
 
             <div className="space-y-4">
+              {/* PIN DEL EMPLEADO (Solo visible en manual después de poner el ID) */}
               {modo === 'manual' && lecturaLista && (
                 <div className="space-y-2 text-center">
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">1. PIN de Empleado</p>
@@ -234,9 +240,10 @@ export default function SupervisorPage() {
                 </div>
               )}
 
+              {/* PIN DEL ADMINISTRADOR / SUPERVISOR */}
               <div className="space-y-2 text-center">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                  {modo === 'manual' ? '2. PIN Autorización Supervisor' : 'Confirmación de Supervisor'}
+                  {modo === 'manual' ? '2. PIN Autorización Administrador' : 'Confirmación de Supervisor'}
                 </p>
                 <input 
                   ref={pinRef} type="password" placeholder="PIN"
@@ -252,7 +259,7 @@ export default function SupervisorPage() {
               <button 
                 onClick={registrarAcceso} 
                 disabled={animar || !qrData || !pinSupervisor || (modo === 'manual' && !pinEmpleadoManual)}
-                className={`w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30 transition-all ${qrData && pinSupervisor && !animar ? 'animate-blink' : ''}`}
+                className={`w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30 transition-all ${qrData && pinSupervisor && (!modo === 'manual' || pinEmpleadoManual) && !animar ? 'animate-blink' : ''}`}
               >
                 {animar ? 'PROCESANDO...' : 'Confirmar Entrada/Salida'}
               </button>
