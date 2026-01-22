@@ -23,6 +23,15 @@ export default function SupervisorPage() {
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
+  const volverAtras = async () => {
+    if (direccion) {
+      setDireccion(null); setQrData(''); setPinSupervisor('');
+      if (scannerRef.current?.isScanning) await scannerRef.current.stop();
+    } else if (modo !== 'menu') { 
+      setModo('menu'); 
+    }
+  };
+
   const resetearTodo = async () => {
     if (scannerRef.current) {
       if (scannerRef.current.isScanning) await scannerRef.current.stop();
@@ -116,7 +125,15 @@ export default function SupervisorPage() {
         .animate-check { animation: checkPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
       `}</style>
       
-      {/* Botones de volver eliminados según petición */}
+      {/* BOTÓN VOLVER (Visible en cualquier pantalla que no sea el menú inicial) */}
+      {modo !== 'menu' && (
+        <button 
+          onClick={volverAtras} 
+          className="absolute top-8 left-8 bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest z-50 hover:bg-slate-700 transition-colors"
+        >
+          ← Volver
+        </button>
+      )}
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
         <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-8 text-center tracking-tighter">Lectura de Código QR</h2>
@@ -152,7 +169,6 @@ export default function SupervisorPage() {
             </div>
 
             <div className="space-y-2">
-              {/* PIN AUMENTADO UN 30% (de 10px a 13px) */}
               <p className="text-[13px] font-black text-slate-400 uppercase tracking-widest text-center animate-blink">PIN AUTORIZACIÓN</p>
               <input 
                 ref={pinRef}
