@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 COORDENADAS DEL ALMACÉN (Mantengo tus coordenadas originales)
+// 📍 CONFIGURACIÓN (Manteniendo tus constantes)
 const ALMACEN_LAT = 40.59665469156573; 
 const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 80; 
@@ -30,6 +30,27 @@ export default function SupervisorPage() {
     setPinSupervisor(''); 
     setModo('menu'); 
     setDireccion(null);
+  };
+
+  // 🛡️ PROCESADOR DE ID (Lógica de limpieza + Decodificación de tu archivo)
+  const procesarIdentificador = (raw: string) => {
+    // 1. Limpieza de ruidos del escáner (caracteres ASCII invisibles)
+    let limpio = raw.replace(/[\x00-\x1F\x7F-\x9F]/g, "").trim();
+    
+    // 2. Intentar decodificar según tu lógica de Token | Timestamp
+    try {
+      const decoded = atob(limpio).split('|');
+      if (decoded.length >= 2) {
+        const timestamp = parseInt(decoded[1]);
+        if (Date.now() - timestamp > TIEMPO_MAX_TOKEN_MS) {
+          throw new Error("TOKEN EXPIRADO");
+        }
+        return decoded[0].trim().toUpperCase(); // Retorna el ID del token
+      }
+    } catch (e) {
+      // Si no es Base64 o falla, devolvemos el ID limpio tal cual (para escáneres USB planos)
+    }
+    return limpio.toUpperCase();
   };
 
   useEffect(() => {
@@ -70,37 +91,39 @@ export default function SupervisorPage() {
   }, [modo, direccion, qrData]);
 
   const registrarAcceso = async () => {
-    if (!qrData || !pinSupervisor) return;
+    if (!qrData || !pinSupervisor || !direccion) return;
     setAnimar(true);
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        let docId = qrData;
-        try {
-          const decoded = atob(qrData).split('|');
-          if (decoded.length === 2) {
-            docId = decoded[0];
-            if (Date.now() - parseInt(decoded[1]) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
-          }
-        } catch (e) {}
+        // Usamos el procesador para limpiar el ID antes de ir a Supabase
+        const docId = procesarIdentificador(qrData);
 
+        // 1. Buscar al empleado
         const { data: emp } = await supabase.from('empleados').select('*').eq('documento_id', docId).maybeSingle();
-        if (!emp) throw new Error("Empleado no registrado");
+        if (!emp) throw new Error(`Empleado [${docId}] no registrado`);
 
+        // 2. Validar sesión del supervisor (tu lógica original)
         const session = JSON.parse(localStorage.getItem('user_session') || '{}');
-        const { data: sup } = await supabase.from('empleados').select('*').eq('id', session.id).eq('pin_seguridad', pinSupervisor).maybeSingle();
-        if (!sup) throw new Error("PIN Incorrecto");
+        if (!session.id) throw new Error("Sesión de supervisor no encontrada");
 
-        // 🟢 MATERIALIZACIÓN DE TU IDEA: Actualizar el campo lógico
-        // Si direccion es 'entrada' -> true, si es 'salida' -> false
+        const { data: sup } = await supabase.from('empleados')
+          .select('*')
+          .eq('id', session.id)
+          .eq('pin_seguridad', pinSupervisor)
+          .maybeSingle();
+
+        if (!sup) throw new Error("PIN de Supervisor Incorrecto");
+
+        // 3. ACTUALIZACIÓN DE ESTADO (Corrección falla Gestión de Personal)
         const { error: updateError } = await supabase
           .from('empleados')
           .update({ en_almacen: direccion === 'entrada' })
           .eq('id', emp.id);
         
-        if (updateError) throw new Error("Error al actualizar estado de presencia");
+        if (updateError) throw new Error("Fallo al actualizar presencia en base de datos");
         
-        // REGISTRO DE MOVIMIENTO EN HISTORIAL
+        // 4. REGISTRO EN HISTORIAL
         await supabase.from('registros_acceso').insert([{
           empleado_id: emp.id,
           nombre_empleado: emp.nombre,
@@ -108,10 +131,18 @@ export default function SupervisorPage() {
           detalles: `SUPERVISOR: ${sup.nombre} (${modo})`
         }]);
 
-        alert(`Registro Exitoso: ${emp.nombre} está ahora ${direccion === 'entrada' ? 'PRESENTE' : 'AUSENTE'}`);
+        alert(`✅ Registro Exitoso: ${emp.nombre} está ahora ${direccion === 'entrada' ? 'PRESENTE' : 'AUSENTE'}`);
         resetearTodo();
-      } catch (err: any) { alert(err.message); } finally { setAnimar(false); }
-    }, () => alert("GPS Obligatorio"));
+
+      } catch (err: any) { 
+        alert(`❌ ERROR: ${err.message}`); 
+      } finally { 
+        setAnimar(false); 
+      }
+    }, () => {
+      alert("Error: El GPS es obligatorio para registrar el acceso.");
+      setAnimar(false);
+    });
   };
 
   return (
@@ -120,7 +151,7 @@ export default function SupervisorPage() {
       {modo !== 'menu' && (
         <div className="absolute top-8 left-8">
           <button onClick={resetearTodo} className="bg-[#1e293b] px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 tracking-widest hover:bg-red-600 transition-all">
-            ← Volver al Menú Supervisor
+            ← Volver al Menú
           </button>
         </div>
       )}
@@ -128,7 +159,7 @@ export default function SupervisorPage() {
       {modo === 'menu' && (
         <div className="absolute top-8 left-8">
           <button onClick={() => router.push('/')} className="bg-blue-600/20 text-blue-400 px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-blue-500/20 tracking-widest hover:bg-blue-600 hover:text-white transition-all">
-            🏠 Volver a Selección de Rol
+            🏠 Inicio
           </button>
         </div>
       )}
@@ -144,19 +175,19 @@ export default function SupervisorPage() {
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl shadow-emerald-900/20 transition-transform active:scale-95">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl shadow-red-900/20 transition-transform active:scale-95">SALIDA</button>
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl transition-transform active:scale-95">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl transition-transform active:scale-95">SALIDA</button>
           </div>
         ) : (
           <div className="space-y-6">
             <div className="bg-[#050a14] p-6 rounded-[30px] border border-white/5">
-              <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest text-center">Identificación de Empleado</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest text-center">Identificación</p>
               {modo === 'camara' && !qrData ? (
                 <div id="reader" className="w-full aspect-square overflow-hidden rounded-2xl"></div>
               ) : (
                 <input 
                   type="text" 
-                  className="w-full bg-transparent text-center text-xl font-bold text-blue-400 outline-none"
+                  className="w-full bg-transparent text-center text-xl font-bold text-blue-400 outline-none uppercase"
                   value={qrData}
                   placeholder="ID / CÓDIGO"
                   onChange={(e) => setQrData(e.target.value)}
@@ -168,7 +199,7 @@ export default function SupervisorPage() {
             <input 
               type="password" 
               placeholder="PIN AUTORIZACIÓN" 
-              className="w-full py-6 bg-[#050a14] rounded-[30px] text-center text-3xl font-black border-2 border-blue-500/20 focus:border-blue-500 transition-all outline-none"
+              className="w-full py-6 bg-[#050a14] rounded-[30px] text-center text-3xl font-black border-2 border-blue-500/20 focus:border-blue-500 outline-none"
               value={pinSupervisor}
               onChange={(e) => setPinSupervisor(e.target.value)}
             />
