@@ -10,8 +10,8 @@ export default function AdminPanel() {
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [movimientos, setMovimientos] = useState<any[]>([]);
   const [busquedaMov, setBusquedaMov] = useState('');
-  const [filtroFecha, setFiltroFecha] = useState(''); // Sugerencia 3: Filtro por fecha
-  const [mostrarPinId, setMostrarPinId] = useState<string | null>(null); // Sugerencia 1: Ocultar PINs
+  const [filtroFecha, setFiltroFecha] = useState(''); 
+  const [mostrarPinId, setMostrarPinId] = useState<string | null>(null);
   const [editando, setEditando] = useState<any>(null);
   const [nuevo, setNuevo] = useState({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado' });
   const router = useRouter();
@@ -39,33 +39,49 @@ export default function AdminPanel() {
     if (data) setMovimientos(data);
   }
 
-  // Sugerencia 2: Validación estricta de PIN único
   const validarPinUnico = (pin: string, idExcluir?: string) => {
     return !empleados.some(emp => emp.pin_seguridad === pin && emp.id !== idExcluir);
   };
 
   async function guardarEmpleado() {
     if (!nuevo.nombre || !nuevo.documento_id || !nuevo.pin_seguridad) {
-      alert("Faltan datos obligatorios"); return;
+      alert("Por favor, complete Nombre, Documento y PIN."); return;
     }
     if (!validarPinUnico(nuevo.pin_seguridad)) {
-      alert("❌ ERROR: Este PIN ya está asignado a otra persona."); return;
+      alert("❌ ERROR: El PIN ya está en uso."); return;
     }
     const { error } = await supabase.from('empleados').insert([{ ...nuevo, en_almacen: false, activo: true }]);
     if (!error) {
       setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado' });
       fetchEmpleados();
-      alert("✅ Registrado");
+      alert("✅ Empleado registrado con éxito");
+    } else {
+      alert("Error al registrar: " + error.message);
     }
   }
 
+  // --- RESTAURACIÓN DE LA LÓGICA DE ACTUALIZACIÓN ---
   async function actualizarEmpleado() {
     if (!editando) return;
     if (!validarPinUnico(editando.pin_seguridad, editando.id)) {
-      alert("❌ ERROR: PIN duplicado."); return;
+      alert("❌ ERROR: El nuevo PIN ya pertenece a otro empleado."); return;
     }
-    const { error } = await supabase.from('empleados').update(editando).eq('id', editando.id);
-    if (!error) { setEditando(null); fetchEmpleados(); alert("✅ Actualizado"); }
+
+    const { error } = await supabase.from('empleados').update({
+      nombre: editando.nombre,
+      documento_id: editando.documento_id,
+      email: editando.email,
+      pin_seguridad: editando.pin_seguridad,
+      rol: editando.rol
+    }).eq('id', editando.id);
+
+    if (!error) {
+      setEditando(null); // Sale del modo edición
+      fetchEmpleados(); // Recarga la lista
+      alert("✅ Información actualizada en la base de datos");
+    } else {
+      alert("Error al actualizar: " + error.message);
+    }
   }
 
   const parseDetalles = (detalles: string) => {
@@ -74,64 +90,14 @@ export default function AdminPanel() {
     return { modo, autoriza: autorizaMatch ? autorizaMatch[1] : 'Sistema' };
   };
 
-  // --- COMPONENTE TABLA EMPLEADOS ---
-  const TablaEmpleados = ({ datos }: { datos: any[] }) => (
-    <table className="w-full text-left text-[10px] table-fixed border-collapse">
-      <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-md">
-        <tr>
-          <th className="p-4 w-16 text-center">Status</th>
-          <th className="p-4">Nombre / Email</th>
-          <th className="p-4 w-24 text-center">Rol</th>
-          <th className="p-4 w-40">Doc / PIN Seguridad</th>
-          <th className="p-4 w-24 text-center">Acción</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-white/5 bg-[#0f172a]">
-        {datos.map(emp => (
-          <tr key={emp.id} className="hover:bg-white/[0.02]">
-            <td className="p-4 text-center">
-              <div className={`w-3 h-3 rounded-full mx-auto ${emp.en_almacen ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-            </td>
-            <td className="p-4">
-              <div className="font-bold text-slate-200">{emp.nombre}</div>
-              <div className="text-[9px] text-slate-500">{emp.email}</div>
-            </td>
-            <td className="p-4 text-center">
-              <span className="px-2 py-1 bg-white/5 rounded text-[8px] uppercase">{emp.rol}</span>
-            </td>
-            <td className="p-4">
-              <div className="font-mono text-blue-400">{emp.documento_id}</div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-slate-500 font-mono">
-                  {mostrarPinId === emp.id ? emp.pin_seguridad : '••••'}
-                </span>
-                <button 
-                  onMouseDown={() => setMostrarPinId(emp.id)} 
-                  onMouseUp={() => setMostrarPinId(null)}
-                  onMouseLeave={() => setMostrarPinId(null)}
-                  className="text-[10px] opacity-40 hover:opacity-100"
-                >
-                  👁️
-                </button>
-              </div>
-            </td>
-            <td className="p-4 text-center">
-              <button onClick={() => setEditando(emp)} className="p-2 bg-blue-500/10 text-blue-500 rounded-lg hover:bg-blue-500 hover:text-white transition-all">✎</button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-
   if (vista === 'menu') {
     return (
       <main className="min-h-screen bg-[#050a14] text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-2xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">ADMIN MASTER CONTROL</h1>
+        <h1 className="text-2xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">PANEL DEL ADMINISTRADOR</h1>
         <div className="w-full max-w-sm space-y-4">
-          <button onClick={() => setVista('empleados')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl">👥 Gestión Personal</button>
-          <button onClick={() => setVista('movimientos')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-emerald-600 transition-all shadow-2xl">🕒 Historial Accesos</button>
-          <button onClick={() => router.push('/')} className="w-full p-4 mt-6 text-slate-500 font-black uppercase text-[10px] hover:text-white">← Salir</button>
+          <button onClick={() => setVista('empleados')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-blue-600 transition-all shadow-2xl">👥 Gestión de Empleados</button>
+          <button onClick={() => setVista('movimientos')} className="w-full p-8 bg-[#0f172a] border border-white/5 rounded-[30px] font-black uppercase italic hover:bg-emerald-600 transition-all shadow-2xl">🕒 Movimientos(Entradas/Salidas)</button>
+          <button onClick={() => router.push('/')} className="w-full p-4 mt-6 text-slate-500 font-black uppercase text-[10px] hover:text-white transition-colors">← Salir al Inicio</button>
         </div>
       </main>
     );
@@ -143,27 +109,35 @@ export default function AdminPanel() {
       {/* CABECERA FIJA */}
       <div className="flex-none p-4 border-b border-white/5 bg-[#050a14] z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-4">
-          <button onClick={() => {setVista('menu'); setEditando(null);}} className="bg-slate-800 px-4 py-2 rounded-xl text-[9px] font-black uppercase">← Menú</button>
+          <button onClick={() => {setVista('menu'); setEditando(null);}} className="bg-slate-800 px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-slate-700 transition-colors">← Menú Principal</button>
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">
-            {vista === 'empleados' ? 'REGISTRO DE PERSONAL' : 'INTELIGENCIA DE ACCESOS'}
+            {vista === 'empleados' ? 'REGISTRO Y EDICIÓN' : 'HISTORIAL DE MOVIMIENTOS'}
           </h2>
           <div className="w-20"></div>
         </div>
 
         {vista === 'empleados' ? (
-          <div className="max-w-7xl mx-auto bg-[#0f172a] p-5 rounded-[30px] border border-white/5 shadow-2xl">
+          <div className={`max-w-7xl mx-auto p-5 rounded-[30px] border transition-all duration-500 shadow-2xl ${editando ? 'bg-amber-500/10 border-amber-500/30' : 'bg-[#0f172a] border-white/5'}`}>
             <div className="grid grid-cols-5 gap-3">
-              <input type="text" placeholder="Nombre" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none" value={editando ? editando.nombre : nuevo.nombre} onChange={e => editando ? setEditando({...editando, nombre: e.target.value}) : setNuevo({...nuevo, nombre: e.target.value})} />
-              <input type="text" placeholder="Doc ID" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none" value={editando ? editando.documento_id : nuevo.documento_id} onChange={e => editando ? setEditando({...editando, documento_id: e.target.value}) : setNuevo({...nuevo, documento_id: e.target.value})} />
-              <input type="email" placeholder="Email" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none" value={editando ? editando.email : nuevo.email} onChange={e => editando ? setEditando({...editando, email: e.target.value}) : setNuevo({...nuevo, email: e.target.value})} />
-              <input type="text" placeholder="PIN" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none" value={editando ? editando.pin_seguridad : nuevo.pin_seguridad} onChange={e => editando ? setEditando({...editando, pin_seguridad: e.target.value}) : setNuevo({...nuevo, pin_seguridad: e.target.value})} />
+              <input type="text" placeholder="Nombre" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none focus:border-blue-500" value={editando ? editando.nombre : nuevo.nombre} onChange={e => editando ? setEditando({...editando, nombre: e.target.value}) : setNuevo({...nuevo, nombre: e.target.value})} />
+              <input type="text" placeholder="Doc ID" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none focus:border-blue-500" value={editando ? editando.documento_id : nuevo.documento_id} onChange={e => editando ? setEditando({...editando, documento_id: e.target.value}) : setNuevo({...nuevo, documento_id: e.target.value})} />
+              <input type="email" placeholder="Email" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none focus:border-blue-500" value={editando ? editando.email : nuevo.email} onChange={e => editando ? setEditando({...editando, email: e.target.value}) : setNuevo({...nuevo, email: e.target.value})} />
+              <input type="text" placeholder="PIN" className="bg-slate-950 p-3 rounded-xl border border-white/5 text-[11px] outline-none focus:border-blue-500" value={editando ? editando.pin_seguridad : nuevo.pin_seguridad} onChange={e => editando ? setEditando({...editando, pin_seguridad: e.target.value}) : setNuevo({...nuevo, pin_seguridad: e.target.value})} />
               <div className="flex gap-2">
                 <select className="flex-1 bg-slate-950 p-3 rounded-xl border border-white/5 text-[10px] font-bold" value={editando ? editando.rol : nuevo.rol} onChange={e => editando ? setEditando({...editando, rol: e.target.value}) : setNuevo({...nuevo, rol: e.target.value})}>
                   <option value="empleado">Empleado</option>
                   <option value="supervisor">Supervisor</option>
                   <option value="admin">Administrador</option>
                 </select>
-                <button onClick={editando ? actualizarEmpleado : guardarEmpleado} className="flex-1 bg-blue-600 rounded-xl font-black uppercase text-[9px]">{editando ? 'OK' : 'ADD'}</button>
+                <button 
+                  onClick={editando ? actualizarEmpleado : guardarEmpleado} 
+                  className={`flex-[1.5] rounded-xl font-black uppercase text-[9px] transition-all ${editando ? 'bg-amber-500 hover:bg-amber-400 text-black' : 'bg-blue-600 hover:bg-blue-500'}`}
+                >
+                  {editando ? 'ACTUALIZAR' : 'GUARDAR'}
+                </button>
+                {editando && (
+                  <button onClick={() => setEditando(null)} className="px-3 bg-slate-800 rounded-xl font-black text-slate-400 hover:text-white">✕</button>
+                )}
               </div>
             </div>
           </div>
@@ -183,12 +157,54 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* CUERPO CON SCROLL (Sugerencia: Scroll con Header Fijo) */}
+      {/* CUERPO CON SCROLL */}
       <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
         <div className="max-w-7xl mx-auto">
           <div className="bg-[#0f172a] rounded-[30px] border border-white/5 shadow-2xl overflow-hidden">
             {vista === 'empleados' ? (
-              <TablaEmpleados datos={empleados} />
+              <table className="w-full text-left text-[10px] table-fixed border-collapse">
+                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-md">
+                  <tr>
+                    <th className="p-4 w-16 text-center">Status</th>
+                    <th className="p-4">Nombre / Email</th>
+                    <th className="p-4 w-24 text-center">Rol</th>
+                    <th className="p-4 w-40">Doc / PIN Seguridad</th>
+                    <th className="p-4 w-24 text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 bg-[#0f172a]">
+                  {empleados.map(emp => (
+                    <tr key={emp.id} className={`hover:bg-white/[0.02] transition-colors ${editando?.id === emp.id ? 'bg-blue-500/5' : ''}`}>
+                      <td className="p-4 text-center">
+                        <div className={`w-3 h-3 rounded-full mx-auto ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500'}`}></div>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-bold text-slate-200">{emp.nombre}</div>
+                        <div className="text-[9px] text-slate-500">{emp.email}</div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="px-2 py-1 bg-white/5 rounded text-[8px] uppercase">{emp.rol}</span>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-mono text-blue-400">{emp.documento_id}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-slate-500 font-mono">
+                            {mostrarPinId === emp.id ? emp.pin_seguridad : '••••'}
+                          </span>
+                          <button 
+                            onMouseDown={() => setMostrarPinId(emp.id)} 
+                            onMouseUp={() => setMostrarPinId(null)}
+                            className="text-[10px] opacity-40 hover:opacity-100"
+                          >👁️</button>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <button onClick={() => { setEditando(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="p-2 bg-blue-500/10 text-blue-500 rounded-lg hover:bg-blue-500 hover:text-white transition-all">✎</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : (
               <table className="w-full text-left text-[10px] table-fixed border-collapse">
                 <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-md">
@@ -197,7 +213,7 @@ export default function AdminPanel() {
                     <th className="p-4 w-24">Tipo</th>
                     <th className="p-4 w-28">Modo</th>
                     <th className="p-4">Autorizado por</th>
-                    <th className="p-4 w-32">Fecha/Hora</th>
+                    <th className="p-4 w-32">Hora</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
