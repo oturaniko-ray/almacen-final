@@ -1,189 +1,198 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-export default function ReportesPage() {
-  const [user, setUser] = useState<any>(null);
-  const [reportes, setReportes] = useState<any[]>([]);
+export default function LoginPage() {
+  const [identificador, setIdentificador] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const [filtroNombre, setFiltroNombre] = useState('');
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
-  const [sesionDuplicada, setSesionDuplicada] = useState(false);
+  const [paso, setPaso] = useState<'login' | 'selector'>('login');
+  const [tempUser, setTempUser] = useState<any>(null);
+  const [sesionExpulsada, setSesionExpulsada] = useState(false);
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) {
-      router.push('/');
-      return;
-    }
-    const currentUser = JSON.parse(sessionData);
-    if (!['admin', 'administrador', 'supervisor'].includes(currentUser.rol)) {
-      router.push('/');
-      return;
-    }
-    setUser(currentUser);
+    if (!sessionData) return;
 
-    // Control de sesión única
-    const canalSesion = supabase.channel('reportes-session-control');
-    canalSesion
+    const currentUser = JSON.parse(sessionData);
+    setTempUser(currentUser);
+    setPaso('selector');
+
+    const canalSession = supabase.channel('global-session-control');
+    canalSession
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
         if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
-          setSesionDuplicada(true);
+          setSesionExpulsada(true);
           localStorage.removeItem('user_session');
-          setTimeout(() => router.push('/'), 3000);
+          setTimeout(() => {
+            window.location.reload();
+          }, 3000);
         }
       })
       .subscribe();
 
-    cargarDatos();
-    return () => { supabase.removeChannel(canalSesion); };
-  }, [router]);
+    return () => {
+      supabase.removeChannel(canalSession);
+    };
+  }, []);
 
-  const cargarDatos = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    try {
-      let query = supabase.from('reporte_jornadas').select('*');
-      
-      if (fechaInicio) query = query.gte('hora_entrada', fechaInicio);
-      if (fechaFin) query = query.lte('hora_entrada', fechaFin);
-      if (filtroNombre) query = query.ilike('nombre_empleado', `%${filtroNombre}%`);
 
-      const { data, error } = await query.order('hora_entrada', { ascending: false });
-      if (error) throw error;
-      setReportes(data || []);
+    try {
+      const entrada = identificador.trim();
+      const pinLimpio = pin.trim();
+      const esEmail = entrada.includes('@');
+      let empleadoData = null;
+
+      if (esEmail) {
+        const { data: directo } = await supabase.from('empleados').select('*').eq('email', entrada).eq('pin_seguridad', pinLimpio).maybeSingle();
+        if (directo) {
+          empleadoData = directo;
+        } else {
+          const { data: perfil } = await supabase.from('profiles').select('id').eq('email', entrada).maybeSingle();
+          if (perfil) {
+            const { data: relacional } = await supabase.from('empleados').select('*').eq('id', perfil.id).eq('pin_seguridad', pinLimpio).maybeSingle();
+            empleadoData = relacional;
+          }
+        }
+      } else {
+        const { data: documento } = await supabase.from('empleados').select('*').eq('documento_id', entrada).eq('pin_seguridad', pinLimpio).maybeSingle();
+        empleadoData = documento;
+      }
+
+      if (!empleadoData) {
+        alert("Credenciales incorrectas.");
+        setLoading(false);
+        return;
+      }
+
+      if (!empleadoData.activo) {
+        alert("Usuario inactivo.");
+        setLoading(false);
+        return;
+      }
+
+      const rolLimpio = empleadoData.rol?.toLowerCase().trim();
+      const userSession = { ...empleadoData, rol: rolLimpio };
+      
+      localStorage.setItem('user_session', JSON.stringify(userSession));
+      setTempUser(userSession);
+
+      const canalSession = supabase.channel('global-session-control');
+      await canalSession.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await canalSession.send({
+            type: 'broadcast',
+            event: 'nueva-sesion',
+            payload: { sid: sessionId.current, userEmail: userSession.email },
+          });
+        }
+      });
+
+      if (rolLimpio === 'admin' || rolLimpio === 'administrador' || rolLimpio === 'supervisor') {
+        setPaso('selector');
+      } else {
+        router.push('/empleado');
+      }
+
     } catch (err) {
-      console.error("Error cargando reportes:", err);
+      alert("Error de conexión.");
     } finally {
       setLoading(false);
     }
   };
 
-  const exportarExcel = () => {
-    const datosExcel = reportes.map(r => ({
-      Empleado: r.nombre_empleado,
-      Entrada: new Date(r.hora_entrada).toLocaleString(),
-      Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'PENDIENTE',
-      'Horas Totales': r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0'
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(datosExcel);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
-    XLSX.writeFile(wb, `Reporte_RAY_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const irARuta = (ruta: string) => {
+    router.push(ruta);
   };
 
-  // Cálculos rápidos para los widgets
-  const totalHorasFlota = reportes.reduce((acc, curr) => acc + (curr.horas_trabajadas || 0), 0);
-  // CORRECCIÓN: Se usa .length en lugar de .size para el array de IDs únicos
-  const promedioPorEmpleado = reportes.length > 0 ? totalHorasFlota / [...new Set(reportes.map(r => r.empleado_id))].length : 0;
-
-  if (sesionDuplicada) {
+  if (sesionExpulsada) {
     return (
-      <main className="h-screen bg-black flex items-center justify-center text-white">
-        <div className="border-2 border-red-600 p-10 rounded-[40px] animate-pulse text-center">
-          <h2 className="text-4xl font-black text-red-500 uppercase italic">Sesión Duplicada</h2>
+      <main className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
+        <div className="bg-red-600/10 border-2 border-red-600 p-10 rounded-[45px] shadow-[0_0_50px_rgba(220,38,38,0.2)] animate-pulse">
+          <h2 className="text-3xl font-black text-red-500 uppercase italic">Sesión Cerrada</h2>
+          <p className="text-white mt-4 font-bold">Se ha iniciado sesión en otro dispositivo.<br/>Cerrando acceso actual...</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#050a14] text-white p-4 md:p-8 font-sans">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter">
-              REPORTES DE <span className="text-amber-500">OPERACIÓN</span>
-            </h1>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Análisis de productividad RAY</p>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">
-              📥 Exportar Excel
+    <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans text-white">
+      <div className="w-full max-w-sm bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
+        
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter">
+            SISTEMA <span className="text-blue-500">RAY</span>
+          </h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">
+            {paso === 'login' ? 'GESTIÓN DE ALMACÉN' : 'Seleccione el Rol'}
+          </p>
+        </div>
+
+        {paso === 'login' ? (
+          <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in duration-500">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Correo Electrónico/DNI</label>
+              <input 
+                type="text" 
+                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all font-bold"
+                value={identificador}
+                onChange={(e) => setIdentificador(e.target.value)}
+                placeholder="Email o DNI"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">INGRESE SU PIN</label>
+              <input 
+                type="password" 
+                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all text-center text-3xl font-black"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="****"
+                required
+              />
+            </div>
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic mt-6 transition-all shadow-lg">
+              {loading ? 'Sincronizando...' : 'Validar'}
             </button>
-            <button onClick={() => router.push('/')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">
-              Volver
+          </form>
+        ) : (
+          <div className="space-y-4 animate-in slide-in-from-bottom duration-500">
+            <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-emerald-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
+              🏃 Empleado
+            </button>
+            
+            <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
+              🛡️ Panel Supervisor
+            </button>
+
+            {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador' || tempUser?.rol === 'supervisor') && (
+              <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
+                📊 Reportes de Operación
+              </button>
+            )}
+
+            {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
+              <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-6 rounded-[25px] font-bold text-lg transition-all shadow-xl">
+                ⚙️ Panel Administración
+              </button>
+            )}
+            
+            <button onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); }} className="w-full p-2 text-[10px] font-black text-slate-500 uppercase mt-4">
+              Cerrar Sesión
             </button>
           </div>
-        </div>
-
-        {/* Widgets de Resumen */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Horas Flota</p>
-            <p className="text-4xl font-black text-blue-500">{totalHorasFlota.toFixed(1)} <span className="text-sm text-slate-400">HRS</span></p>
-          </div>
-          <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Promedio por Persona</p>
-            <p className="text-4xl font-black text-amber-500">{promedioPorEmpleado.toFixed(1)} <span className="text-sm text-slate-400">HRS</span></p>
-          </div>
-          <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Registros en Rango</p>
-            <p className="text-4xl font-black text-emerald-500">{reportes.length}</p>
-          </div>
-        </div>
-
-        {/* Filtros */}
-        <div className="bg-[#0f172a] p-6 rounded-[35px] border border-white/5 mb-8 flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Buscar Empleado</label>
-            <input type="text" value={filtroNombre} onChange={(e) => setFiltroNombre(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 transition-all text-sm" placeholder="Nombre..." />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Desde</label>
-            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 transition-all text-sm" />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Hasta</label>
-            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 transition-all text-sm" />
-          </div>
-          <button onClick={cargarDatos} className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-black text-xs uppercase h-[46px]">Filtrar</button>
-        </div>
-
-        {/* Tabla de Resultados */}
-        <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-white/[0.02] text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                  <th className="p-6">Empleado</th>
-                  <th className="p-6">Entrada</th>
-                  <th className="p-6">Salida</th>
-                  <th className="p-6">Horas</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {loading ? (
-                  <tr><td colSpan={4} className="p-20 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Cargando datos maestros...</td></tr>
-                ) : reportes.length === 0 ? (
-                  <tr><td colSpan={4} className="p-20 text-center font-black text-slate-600 uppercase tracking-widest">No hay jornadas registradas</td></tr>
-                ) : (
-                  reportes.map((r, i) => (
-                    <tr key={i} className="hover:bg-white/[0.01] transition-colors group">
-                      <td className="p-6 font-bold group-hover:text-amber-500 transition-colors">{r.nombre_empleado}</td>
-                      <td className="p-6 text-xs text-slate-400 font-mono">{new Date(r.hora_entrada).toLocaleString()}</td>
-                      <td className="p-6 text-xs text-slate-400 font-mono">{r.hora_salida ? new Date(r.hora_salida).toLocaleString() : <span className="text-blue-500 italic">EN CURSO</span>}</td>
-                      <td className="p-6">
-                        <span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full font-black text-xs">
-                          {r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0.00'} H
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
       </div>
     </main>
   );
