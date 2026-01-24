@@ -22,7 +22,6 @@ export default function AdminPanel() {
     fetchEmpleados();
     fetchMovimientos();
 
-    // CANAL DE DATOS Y SESIÓN
     const canalRealtime = supabase.channel('admin-control-room');
 
     canalRealtime
@@ -31,11 +30,10 @@ export default function AdminPanel() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'registros_acceso' }, () => { fetchMovimientos(); })
       
-      // LÓGICA DE SESIÓN ÚNICA (BROADCAST)
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
         if (payload.payload.id !== sessionId.current) {
           setSesionDuplicada(true);
-          setTimeout(() => router.push('/'), 3000); // Redirige tras 3 segundos
+          setTimeout(() => router.push('/'), 3000);
         }
       })
       .subscribe(async (status) => {
@@ -108,7 +106,6 @@ export default function AdminPanel() {
     return { modo, autoriza: autorizaMatch ? autorizaMatch[1] : 'Sistema' };
   };
 
-  // Bloqueo por sesión duplicada
   if (sesionDuplicada) {
     return (
       <main className="h-screen bg-black flex items-center justify-center p-10 text-center">
@@ -136,7 +133,6 @@ export default function AdminPanel() {
   return (
     <main className="h-screen bg-[#050a14] text-white font-sans flex flex-col overflow-hidden">
       
-      {/* CSS PARA ANIMACIÓN FLASH PERSONALIZADA */}
       <style jsx global>{`
         @keyframes flash-strong {
           0%, 100% { opacity: 1; background-color: rgba(16, 185, 129, 0.15); }
@@ -147,10 +143,9 @@ export default function AdminPanel() {
         }
       `}</style>
 
-      {/* CABECERA FIJA SUPERIOR */}
       <div className="flex-none p-6 border-b border-white/5 bg-[#050a14] z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
-          <button onClick={() => {setVista('menu'); setEditando(null);}} className="bg-slate-800 px-6 py-3 rounded-xl text-[13px] font-black uppercase hover:bg-slate-700">← Menú</button>
+          <button onClick={() => {setVista('menu'); setEditando(null); setBusqueda('');}} className="bg-slate-800 px-6 py-3 rounded-xl text-[13px] font-black uppercase hover:bg-slate-700">← Menú</button>
           <h2 className="text-[14px] font-black uppercase tracking-[0.3em] text-blue-500">
             {vista === 'empleados' ? 'REGISTRO Y EDICIÓN' : 'HISTORIAL DE MOVIMIENTOS'}
           </h2>
@@ -177,11 +172,22 @@ export default function AdminPanel() {
           </div>
         ) : (
           <div className="max-w-7xl mx-auto grid grid-cols-2 gap-6">
-            <input 
-              type="text" placeholder="🔍 Buscar por nombre..." 
-              className="bg-[#0f172a] border border-white/5 p-5 rounded-2xl text-[15px] outline-none focus:border-emerald-500/50"
-              value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-            />
+            {/* BUSCADOR CON BOTÓN DE BORRADO */}
+            <div className="relative group">
+              <input 
+                type="text" placeholder="🔍 Buscar por nombre..." 
+                className="w-full bg-[#0f172a] border border-white/5 p-5 pr-14 rounded-2xl text-[15px] outline-none focus:border-emerald-500/50 transition-all"
+                value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+              />
+              {busqueda && (
+                <button 
+                  onClick={() => setBusqueda('')}
+                  className="absolute right-5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-red-500/20 hover:text-red-500 rounded-full text-slate-500 transition-all font-bold"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             <input 
               type="date" 
               className="bg-[#0f172a] border border-white/5 p-5 rounded-2xl text-[15px] outline-none text-slate-400"
@@ -191,7 +197,6 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* CUERPO CON SCROLL - MEMBRETE FIJO */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide bg-[#050a14]">
         <div className="max-w-7xl mx-auto">
           <div className="bg-[#0f172a] rounded-[35px] border border-white/5 shadow-2xl overflow-hidden">
