@@ -116,10 +116,9 @@ export default function LoginPage() {
 
   if (sesionExpulsada) {
     return (
-      <main className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
-        <div className="bg-red-600/10 border-2 border-red-600 p-10 rounded-[45px] shadow-[0_0_50px_rgba(220,38,38,0.2)] animate-pulse">
+      <main className="min-h-screen bg-black flex items-center justify-center p-6 text-center text-white">
+        <div className="bg-red-600/10 border-2 border-red-600 p-10 rounded-[45px] animate-pulse">
           <h2 className="text-3xl font-black text-red-500 uppercase italic">Sesión Cerrada</h2>
-          <p className="text-white mt-4 font-bold">Se ha iniciado sesión en otro dispositivo.<br/>Cerrando acceso actual...</p>
         </div>
       </main>
     );
@@ -127,24 +126,25 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans text-white">
-      <div className="w-full max-sm bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
+      {/* SE AJUSTÓ EL MAX-W-SM PARA QUE EL FORMULARIO NO SE ESTIRE */}
+      <div className="w-full max-w-[380px] bg-[#0f172a] p-8 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
         
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-black italic uppercase tracking-tighter">
             SISTEMA <span className="text-blue-500">RAY</span>
           </h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">
-            {paso === 'login' ? 'GESTIÓN DE ALMACÉN' : 'Seleccione el Rol'}
+          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">
+            {paso === 'login' ? 'GESTIÓN DE ALMACÉN' : 'SELECCIONE EL ROL'}
           </p>
         </div>
 
         {paso === 'login' ? (
           <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in duration-500">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Correo Electrónico/DNI</label>
+              <label className="text-[9px] font-black uppercase ml-4 text-slate-400">Identificador</label>
               <input 
                 type="text" 
-                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all font-bold"
+                className="w-full bg-[#050a14] border border-white/5 p-4 rounded-[22px] outline-none focus:border-blue-500 transition-all font-bold text-sm"
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
                 placeholder="Email o DNI"
@@ -152,45 +152,43 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">INGRESE SU PIN</label>
+              <label className="text-[9px] font-black uppercase ml-4 text-slate-400">PIN de Seguridad</label>
               <input 
                 type="password" 
-                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all text-center text-3xl font-black"
+                className="w-full bg-[#050a14] border border-white/5 p-4 rounded-[22px] outline-none focus:border-blue-500 transition-all text-center text-2xl font-black"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="****"
                 required
               />
             </div>
-            <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic mt-6 transition-all shadow-lg">
-              {loading ? 'Sincronizando...' : 'Validar'}
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[22px] font-black uppercase italic mt-4 transition-all shadow-lg text-sm">
+              {loading ? 'Sincronizando...' : 'Validar Acceso'}
             </button>
           </form>
         ) : (
-          <div className="space-y-4 animate-in slide-in-from-bottom duration-500">
-            <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-emerald-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
+          <div className="space-y-3 animate-in slide-in-from-bottom duration-500">
+            <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-emerald-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
               🏃 Empleado
             </button>
             
-            <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
-              🛡️ Panel Supervisor
+            <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
+              🛡️ Supervisor
             </button>
 
-            {/* Acceso a Reportes para Admin y Supervisor */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador' || tempUser?.rol === 'supervisor') && (
-              <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
-                📊 Reportes de Operación
+              <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
+                📊 Reportes
               </button>
             )}
 
-            {/* Acceso a Panel Administración solo para Admin */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
-              <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-6 rounded-[25px] font-bold text-lg transition-all shadow-xl">
-                ⚙️ Panel Administración
+              <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-5 rounded-[22px] font-bold text-md transition-all shadow-xl text-left pl-8">
+                ⚙️ Administración
               </button>
             )}
             
-            <button onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); }} className="w-full p-2 text-[10px] font-black text-slate-500 uppercase mt-4">
+            <button onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); }} className="w-full p-2 text-[9px] font-black text-slate-500 uppercase mt-4 hover:text-white transition-colors">
               Cerrar Sesión
             </button>
           </div>
