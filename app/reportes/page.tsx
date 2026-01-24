@@ -82,7 +82,8 @@ export default function ReportesPage() {
 
   // Cálculos rápidos para los widgets
   const totalHorasFlota = reportes.reduce((acc, curr) => acc + (curr.horas_trabajadas || 0), 0);
-  const promedioPorEmpleado = reportes.length > 0 ? totalHorasFlota / [...new Set(reportes.map(r => r.empleado_id))].size : 0;
+  // CORRECCIÓN: Se usa .length en lugar de .size para el array de IDs únicos
+  const promedioPorEmpleado = reportes.length > 0 ? totalHorasFlota / [...new Set(reportes.map(r => r.empleado_id))].length : 0;
 
   if (sesionDuplicada) {
     return (
