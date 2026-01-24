@@ -9,8 +9,8 @@ export default function AdminPanel() {
   const [vista, setVista] = useState<'menu' | 'empleados' | 'movimientos'>('menu');
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [movimientos, setMovimientos] = useState<any[]>([]);
-  const [busquedaMov, setBusquedaMov] = useState('');
-  const [filtroFecha, setFiltroFecha] = useState(''); 
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroFecha, setFiltroFecha] = useState('');
   const [mostrarPinId, setMostrarPinId] = useState<string | null>(null);
   const [editando, setEditando] = useState<any>(null);
   const [nuevo, setNuevo] = useState({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado' });
@@ -89,7 +89,7 @@ export default function AdminPanel() {
   if (vista === 'menu') {
     return (
       <main className="min-h-screen bg-[#050a14] text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-3xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">ADMIN MASTER CONTROL</h1>
+        <h1 className="text-3xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">PANEL ADMINISTRATIVO</h1>
         <div className="w-full max-w-sm space-y-5">
           <button onClick={() => setVista('empleados')} className="w-full p-10 bg-[#0f172a] border border-white/5 rounded-[30px] font-black text-xl uppercase italic hover:bg-blue-600 transition-all shadow-2xl">👥 Gestión Personal</button>
           <button onClick={() => setVista('movimientos')} className="w-full p-10 bg-[#0f172a] border border-white/5 rounded-[30px] font-black text-xl uppercase italic hover:bg-emerald-600 transition-all shadow-2xl">🕒 Historial Accesos</button>
@@ -102,7 +102,7 @@ export default function AdminPanel() {
   return (
     <main className="h-screen bg-[#050a14] text-white font-sans flex flex-col overflow-hidden">
       
-      {/* CABECERA FIJA */}
+      {/* CABECERA FIJA SUPERIOR */}
       <div className="flex-none p-6 border-b border-white/5 bg-[#050a14] z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
           <button onClick={() => {setVista('menu'); setEditando(null);}} className="bg-slate-800 px-6 py-3 rounded-xl text-[13px] font-black uppercase hover:bg-slate-700">← Menú</button>
@@ -133,9 +133,9 @@ export default function AdminPanel() {
         ) : (
           <div className="max-w-7xl mx-auto grid grid-cols-2 gap-6">
             <input 
-              type="text" placeholder="🔍 Buscar por nombre o autorizador..." 
+              type="text" placeholder="🔍 Buscar por nombre..." 
               className="bg-[#0f172a] border border-white/5 p-5 rounded-2xl text-[15px] outline-none focus:border-emerald-500/50"
-              value={busquedaMov} onChange={(e) => setBusquedaMov(e.target.value)}
+              value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
             />
             <input 
               type="date" 
@@ -146,7 +146,7 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* CUERPO CON SCROLL */}
+      {/* CUERPO CON SCROLL - MEMBRETE FIJO INTEGRADO */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide bg-[#050a14]">
         <div className="max-w-7xl mx-auto">
           <div className="bg-[#0f172a] rounded-[35px] border border-white/5 shadow-2xl overflow-hidden">
@@ -163,7 +163,7 @@ export default function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {empleados.map(emp => (
+                  {empleados.filter(e => e.nombre.toLowerCase().includes(busqueda.toLowerCase())).map(emp => (
                     <tr key={emp.id} className={`hover:bg-white/[0.02] transition-colors ${editando?.id === emp.id ? 'bg-blue-500/5' : ''}`}>
                       <td className="p-5 text-center">
                         <div className={`w-4 h-4 rounded-full mx-auto ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`}></div>
@@ -211,7 +211,7 @@ export default function AdminPanel() {
                 <tbody className="divide-y divide-white/5">
                   {movimientos
                     .filter(m => {
-                      const matchesBusqueda = m.nombre_empleado.toLowerCase().includes(busquedaMov.toLowerCase()) || m.detalles.toLowerCase().includes(busquedaMov.toLowerCase());
+                      const matchesBusqueda = m.nombre_empleado.toLowerCase().includes(busqueda.toLowerCase());
                       const matchesFecha = filtroFecha ? new Date(m.fecha_hora).toISOString().split('T')[0] === filtroFecha : true;
                       return matchesBusqueda && matchesFecha;
                     })
@@ -222,13 +222,15 @@ export default function AdminPanel() {
                       const esNuevoDia = fechaActual !== fechaPrevia;
 
                       return (
-                        <>
+                        <React.Fragment key={mov.id}>
                           {esNuevoDia && (
-                            <tr key={`date-${mov.id}`} className="bg-white/[0.03]">
-                              <td colSpan={5} className="p-3 text-center text-[12px] font-black text-emerald-500 uppercase tracking-[0.6em]">🗓️ {fechaActual}</td>
+                            <tr className="bg-emerald-500/5 animate-pulse">
+                              <td colSpan={5} className="p-3 text-center text-[12px] font-black text-emerald-500 uppercase tracking-[0.6em]">
+                                🗓️ {fechaActual}
+                              </td>
                             </tr>
                           )}
-                          <tr key={mov.id} className="hover:bg-white/[0.01]">
+                          <tr className="hover:bg-white/[0.01]">
                             <td className="p-5 font-bold text-slate-200">{mov.nombre_empleado}</td>
                             <td className="p-5">
                               <span className={`px-3 py-1 rounded-md font-black text-[11px] ${mov.tipo_movimiento === 'entrada' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>
@@ -237,9 +239,11 @@ export default function AdminPanel() {
                             </td>
                             <td className="p-5 uppercase text-slate-400 font-black text-[12px]">{info.modo}</td>
                             <td className="p-5 text-blue-400 font-bold">{info.autoriza}</td>
-                            <td className="p-5 text-slate-500 font-mono text-[13px]">{new Date(mov.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td className="p-5 text-slate-500 font-mono text-[13px]">
+                                {new Date(mov.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
                           </tr>
-                        </>
+                        </React.Fragment>
                       );
                     })}
                 </tbody>
