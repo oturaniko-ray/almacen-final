@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; // Importación de React añadida para corregir el error
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -89,7 +89,7 @@ export default function AdminPanel() {
   if (vista === 'menu') {
     return (
       <main className="min-h-screen bg-[#050a14] text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-3xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">PANEL ADMINISTRATIVO</h1>
+        <h1 className="text-3xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">ADMIN MASTER CONTROL</h1>
         <div className="w-full max-w-sm space-y-5">
           <button onClick={() => setVista('empleados')} className="w-full p-10 bg-[#0f172a] border border-white/5 rounded-[30px] font-black text-xl uppercase italic hover:bg-blue-600 transition-all shadow-2xl">👥 Gestión Personal</button>
           <button onClick={() => setVista('movimientos')} className="w-full p-10 bg-[#0f172a] border border-white/5 rounded-[30px] font-black text-xl uppercase italic hover:bg-emerald-600 transition-all shadow-2xl">🕒 Historial Accesos</button>
@@ -102,7 +102,7 @@ export default function AdminPanel() {
   return (
     <main className="h-screen bg-[#050a14] text-white font-sans flex flex-col overflow-hidden">
       
-      {/* CABECERA FIJA SUPERIOR */}
+      {/* CABECERA FIJA SUPERIOR (CONTROLES) */}
       <div className="flex-none p-6 border-b border-white/5 bg-[#050a14] z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
           <button onClick={() => {setVista('menu'); setEditando(null);}} className="bg-slate-800 px-6 py-3 rounded-xl text-[13px] font-black uppercase hover:bg-slate-700">← Menú</button>
@@ -146,7 +146,7 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* CUERPO CON SCROLL - MEMBRETE FIJO INTEGRADO */}
+      {/* CUERPO CON SCROLL - MEMBRETE FIJO (EL CONTENEDOR TIENE EL SCROLL) */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide bg-[#050a14]">
         <div className="max-w-7xl mx-auto">
           <div className="bg-[#0f172a] rounded-[35px] border border-white/5 shadow-2xl overflow-hidden">
@@ -224,7 +224,7 @@ export default function AdminPanel() {
                       return (
                         <React.Fragment key={mov.id}>
                           {esNuevoDia && (
-                            <tr className="bg-emerald-500/5 animate-pulse">
+                            <tr className="bg-emerald-500/10 animate-pulse border-y border-emerald-500/20">
                               <td colSpan={5} className="p-3 text-center text-[12px] font-black text-emerald-500 uppercase tracking-[0.6em]">
                                 🗓️ {fechaActual}
                               </td>
