@@ -13,11 +13,9 @@ export default function LoginPage() {
   const [tempUser, setTempUser] = useState<any>(null);
   const [sesionExpulsada, setSesionExpulsada] = useState(false);
   
-  // Identificador único para esta pestaña/instancia
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
-  // --- CONTROL DE SESIÓN ÚNICA EN TIEMPO REAL ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) return;
@@ -26,17 +24,14 @@ export default function LoginPage() {
     setTempUser(currentUser);
     setPaso('selector');
 
-    // Suscribirse al canal de control de sesiones
     const canalSession = supabase.channel('global-session-control');
-
     canalSession
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
-        // Si el email coincide pero el ID de sesión es distinto, esta sesión debe morir
         if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
           setSesionExpulsada(true);
           localStorage.removeItem('user_session');
           setTimeout(() => {
-            window.location.reload(); // Recarga para limpiar estados
+            window.location.reload();
           }, 3000);
         }
       })
@@ -57,7 +52,6 @@ export default function LoginPage() {
       const esEmail = entrada.includes('@');
       let empleadoData = null;
 
-      // 1. Lógica de búsqueda original (Email o ID)
       if (esEmail) {
         const { data: directo } = await supabase.from('empleados').select('*').eq('email', entrada).eq('pin_seguridad', pinLimpio).maybeSingle();
         if (directo) {
@@ -89,11 +83,9 @@ export default function LoginPage() {
       const rolLimpio = empleadoData.rol?.toLowerCase().trim();
       const userSession = { ...empleadoData, rol: rolLimpio };
       
-      // GUARDAR SESIÓN LOCAL
       localStorage.setItem('user_session', JSON.stringify(userSession));
       setTempUser(userSession);
 
-      // NOTIFICAR A OTROS DISPOSITIVOS PARA EXPULSARLOS
       const canalSession = supabase.channel('global-session-control');
       await canalSession.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -105,7 +97,6 @@ export default function LoginPage() {
         }
       });
 
-      // 2. Bifurcación original
       if (rolLimpio === 'admin' || rolLimpio === 'administrador' || rolLimpio === 'supervisor') {
         setPaso('selector');
       } else {
@@ -123,7 +114,6 @@ export default function LoginPage() {
     router.push(ruta);
   };
 
-  // Pantalla de bloqueo si se detecta duplicidad
   if (sesionExpulsada) {
     return (
       <main className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
@@ -137,14 +127,14 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans text-white">
-      <div className="w-full max-w-sm bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
+      <div className="w-full max-sm bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
         
         <div className="text-center mb-10">
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">
             SISTEMA <span className="text-blue-500">RAY</span>
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">
-            {paso === 'login' ? 'GESTIÓN DE ALMACÉN' : 'Seleccione el Rol a ejecutar'}
+            {paso === 'login' ? 'GESTIÓN DE ALMACÉN' : 'Seleccione el Rol'}
           </p>
         </div>
 
@@ -179,13 +169,21 @@ export default function LoginPage() {
         ) : (
           <div className="space-y-4 animate-in slide-in-from-bottom duration-500">
             <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-emerald-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
-              🏃 Acceso Empleado
+              🏃 Empleado
             </button>
             
             <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
               🛡️ Panel Supervisor
             </button>
 
+            {/* Acceso a Reportes para Admin y Supervisor */}
+            {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador' || tempUser?.rol === 'supervisor') && (
+              <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-6 rounded-[25px] font-bold text-lg transition-all border border-white/5">
+                📊 Reportes de Operación
+              </button>
+            )}
+
+            {/* Acceso a Panel Administración solo para Admin */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-6 rounded-[25px] font-bold text-lg transition-all shadow-xl">
                 ⚙️ Panel Administración
