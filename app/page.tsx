@@ -110,8 +110,9 @@ export default function LoginPage() {
     }
   };
 
+  // Función de navegación optimizada
   const irARuta = (ruta: string) => {
-    router.push(ruta);
+    router.replace(ruta); // Usamos replace para evitar que el historial mantenga el bucle
   };
 
   if (sesionExpulsada) {
@@ -127,7 +128,6 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans text-white">
-      {/* Contenedor con tamaño original restaurado */}
       <div className="w-full max-w-[360px] bg-[#0f172a] p-8 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
         
         <div className="text-center mb-8">
@@ -177,21 +177,19 @@ export default function LoginPage() {
               🛡️ Panel Supervisor
             </button>
 
-            {/* BOTÓN REPORTES: Visible para Admin y Supervisor */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador' || tempUser?.rol === 'supervisor') && (
               <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
                 📊 Reportes Operación
               </button>
             )}
 
-            {/* BOTÓN ADMIN: Solo Administradores */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-5 rounded-[22px] font-bold text-md transition-all shadow-xl text-left pl-8">
                 ⚙️ Consola Admin
               </button>
             )}
             
-            <button onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); }} className="w-full p-2 text-[9px] font-black text-slate-500 uppercase mt-4 hover:text-white transition-colors">
+            <button onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); setTempUser(null); }} className="w-full p-2 text-[9px] font-black text-slate-500 uppercase mt-4 hover:text-white transition-colors">
               Cerrar Sesión
             </button>
           </div>
