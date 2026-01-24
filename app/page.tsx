@@ -144,25 +144,25 @@ export default function LoginPage() {
             SISTEMA <span className="text-blue-500">RAY</span>
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">
-            {paso === 'login' ? 'Control de Almacén' : 'Seleccione el Rol a ejecutar'}
+            {paso === 'login' ? 'GESTIÓN DE ALMACÉN' : 'Seleccione el Rol a ejecutar'}
           </p>
         </div>
 
         {paso === 'login' ? (
           <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in duration-500">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Correo Electrónico</label>
+              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">Correo Electrónico/DNI</label>
               <input 
                 type="text" 
                 className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all font-bold"
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
-                placeholder="Email o Documento"
+                placeholder="Email o DNI"
                 required
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">PIN</label>
+              <label className="text-[10px] font-black uppercase ml-4 text-slate-400">INGRESE SU PIN</label>
               <input 
                 type="password" 
                 className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[25px] outline-none focus:border-blue-500 transition-all text-center text-3xl font-black"
@@ -173,7 +173,7 @@ export default function LoginPage() {
               />
             </div>
             <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-6 rounded-[25px] font-black uppercase italic mt-6 transition-all shadow-lg">
-              {loading ? 'Sincronizando...' : 'Entrar'}
+              {loading ? 'Sincronizando...' : 'Validar'}
             </button>
           </form>
         ) : (
@@ -188,7 +188,7 @@ export default function LoginPage() {
 
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-6 rounded-[25px] font-bold text-lg transition-all shadow-xl">
-                ⚙️ Consola Admin
+                ⚙️ Panel Administración
               </button>
             )}
             
