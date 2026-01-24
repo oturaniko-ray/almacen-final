@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -11,7 +11,41 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
+  const [sesionExpulsada, setSesionExpulsada] = useState(false);
+  
+  // Identificador único para esta pestaña/instancia
+  const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
+
+  // --- CONTROL DE SESIÓN ÚNICA EN TIEMPO REAL ---
+  useEffect(() => {
+    const sessionData = localStorage.getItem('user_session');
+    if (!sessionData) return;
+
+    const currentUser = JSON.parse(sessionData);
+    setTempUser(currentUser);
+    setPaso('selector');
+
+    // Suscribirse al canal de control de sesiones
+    const canalSession = supabase.channel('global-session-control');
+
+    canalSession
+      .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
+        // Si el email coincide pero el ID de sesión es distinto, esta sesión debe morir
+        if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
+          setSesionExpulsada(true);
+          localStorage.removeItem('user_session');
+          setTimeout(() => {
+            window.location.reload(); // Recarga para limpiar estados
+          }, 3000);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalSession);
+    };
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +57,7 @@ export default function LoginPage() {
       const esEmail = entrada.includes('@');
       let empleadoData = null;
 
-      // 1. Lógica de búsqueda (Email o ID)
+      // 1. Lógica de búsqueda original (Email o ID)
       if (esEmail) {
         const { data: directo } = await supabase.from('empleados').select('*').eq('email', entrada).eq('pin_seguridad', pinLimpio).maybeSingle();
         if (directo) {
@@ -52,13 +86,26 @@ export default function LoginPage() {
         return;
       }
 
-      // Guardamos temporalmente para el selector
       const rolLimpio = empleadoData.rol?.toLowerCase().trim();
       const userSession = { ...empleadoData, rol: rolLimpio };
-      setTempUser(userSession);
+      
+      // GUARDAR SESIÓN LOCAL
       localStorage.setItem('user_session', JSON.stringify(userSession));
+      setTempUser(userSession);
 
-      // 2. Bifurcación: Si es Empleado va directo, si tiene rango va al Selector
+      // NOTIFICAR A OTROS DISPOSITIVOS PARA EXPULSARLOS
+      const canalSession = supabase.channel('global-session-control');
+      await canalSession.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await canalSession.send({
+            type: 'broadcast',
+            event: 'nueva-sesion',
+            payload: { sid: sessionId.current, userEmail: userSession.email },
+          });
+        }
+      });
+
+      // 2. Bifurcación original
       if (rolLimpio === 'admin' || rolLimpio === 'administrador' || rolLimpio === 'supervisor') {
         setPaso('selector');
       } else {
@@ -75,6 +122,18 @@ export default function LoginPage() {
   const irARuta = (ruta: string) => {
     router.push(ruta);
   };
+
+  // Pantalla de bloqueo si se detecta duplicidad
+  if (sesionExpulsada) {
+    return (
+      <main className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
+        <div className="bg-red-600/10 border-2 border-red-600 p-10 rounded-[45px] shadow-[0_0_50px_rgba(220,38,38,0.2)] animate-pulse">
+          <h2 className="text-3xl font-black text-red-500 uppercase italic">Sesión Cerrada</h2>
+          <p className="text-white mt-4 font-bold">Se ha iniciado sesión en otro dispositivo.<br/>Cerrando acceso actual...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans text-white">
@@ -133,7 +192,7 @@ export default function LoginPage() {
               </button>
             )}
             
-            <button onClick={() => setPaso('login')} className="w-full p-2 text-[10px] font-black text-slate-500 uppercase mt-4">
+            <button onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); }} className="w-full p-2 text-[10px] font-black text-slate-500 uppercase mt-4">
               Cerrar Sesión
             </button>
           </div>
