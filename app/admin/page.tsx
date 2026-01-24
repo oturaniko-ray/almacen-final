@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react'; // Importación de React añadida para corregir el error
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -14,20 +14,42 @@ export default function AdminPanel() {
   const [mostrarPinId, setMostrarPinId] = useState<string | null>(null);
   const [editando, setEditando] = useState<any>(null);
   const [nuevo, setNuevo] = useState({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado' });
+  const [sesionDuplicada, setSesionDuplicada] = useState(false);
+  const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
   useEffect(() => {
     fetchEmpleados();
     fetchMovimientos();
-    const canalRealtime = supabase
-      .channel('admin-live')
+
+    // CANAL DE DATOS Y SESIÓN
+    const canalRealtime = supabase.channel('admin-control-room');
+
+    canalRealtime
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'empleados' }, (payload) => {
           setEmpleados(current => current.map(emp => emp.id === payload.new.id ? { ...emp, ...payload.new } : emp));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'registros_acceso' }, () => { fetchMovimientos(); })
-      .subscribe();
+      
+      // LÓGICA DE SESIÓN ÚNICA (BROADCAST)
+      .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
+        if (payload.payload.id !== sessionId.current) {
+          setSesionDuplicada(true);
+          setTimeout(() => router.push('/'), 3000); // Redirige tras 3 segundos
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await canalRealtime.send({
+            type: 'broadcast',
+            event: 'nueva-sesion',
+            payload: { id: sessionId.current },
+          });
+        }
+      });
+
     return () => { supabase.removeChannel(canalRealtime); };
-  }, []);
+  }, [router]);
 
   async function fetchEmpleados() {
     const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
@@ -86,10 +108,22 @@ export default function AdminPanel() {
     return { modo, autoriza: autorizaMatch ? autorizaMatch[1] : 'Sistema' };
   };
 
+  // Bloqueo por sesión duplicada
+  if (sesionDuplicada) {
+    return (
+      <main className="h-screen bg-black flex items-center justify-center p-10 text-center">
+        <div className="bg-red-600/20 border-2 border-red-600 p-10 rounded-[40px] shadow-[0_0_50px_rgba(220,38,38,0.3)] animate-pulse">
+          <h2 className="text-4xl font-black text-red-500 mb-4 uppercase italic tracking-tighter">Acceso Denegado</h2>
+          <p className="text-white text-xl font-bold max-w-md">Se ha iniciado sesión en otro dispositivo. Por seguridad, esta sesión se cerrará automáticamente.</p>
+        </div>
+      </main>
+    );
+  }
+
   if (vista === 'menu') {
     return (
       <main className="min-h-screen bg-[#050a14] text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-3xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">ADMIN MASTER CONTROL</h1>
+        <h1 className="text-4xl font-black uppercase italic text-blue-500 mb-10 tracking-tighter">Panel Administrativo</h1>
         <div className="w-full max-w-sm space-y-5">
           <button onClick={() => setVista('empleados')} className="w-full p-10 bg-[#0f172a] border border-white/5 rounded-[30px] font-black text-xl uppercase italic hover:bg-blue-600 transition-all shadow-2xl">👥 Gestión Personal</button>
           <button onClick={() => setVista('movimientos')} className="w-full p-10 bg-[#0f172a] border border-white/5 rounded-[30px] font-black text-xl uppercase italic hover:bg-emerald-600 transition-all shadow-2xl">🕒 Historial Accesos</button>
@@ -102,7 +136,18 @@ export default function AdminPanel() {
   return (
     <main className="h-screen bg-[#050a14] text-white font-sans flex flex-col overflow-hidden">
       
-      {/* CABECERA FIJA SUPERIOR (CONTROLES) */}
+      {/* CSS PARA ANIMACIÓN FLASH PERSONALIZADA */}
+      <style jsx global>{`
+        @keyframes flash-strong {
+          0%, 100% { opacity: 1; background-color: rgba(16, 185, 129, 0.15); }
+          50% { opacity: 0.4; background-color: transparent; }
+        }
+        .animate-flash {
+          animation: flash-strong 0.8s infinite ease-in-out;
+        }
+      `}</style>
+
+      {/* CABECERA FIJA SUPERIOR */}
       <div className="flex-none p-6 border-b border-white/5 bg-[#050a14] z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
           <button onClick={() => {setVista('menu'); setEditando(null);}} className="bg-slate-800 px-6 py-3 rounded-xl text-[13px] font-black uppercase hover:bg-slate-700">← Menú</button>
@@ -146,13 +191,13 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* CUERPO CON SCROLL - MEMBRETE FIJO (EL CONTENEDOR TIENE EL SCROLL) */}
+      {/* CUERPO CON SCROLL - MEMBRETE FIJO */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide bg-[#050a14]">
         <div className="max-w-7xl mx-auto">
           <div className="bg-[#0f172a] rounded-[35px] border border-white/5 shadow-2xl overflow-hidden">
             {vista === 'empleados' ? (
               <table className="w-full text-left text-[14px] table-fixed border-collapse">
-                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-sm">
+                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-sm border-b border-white/5">
                   <tr>
                     <th className="p-5 w-20 text-center">Loc</th>
                     <th className="p-5">Nombre / Email</th>
@@ -199,7 +244,7 @@ export default function AdminPanel() {
               </table>
             ) : (
               <table className="w-full text-left text-[14px] table-fixed border-collapse">
-                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-sm">
+                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-sm border-b border-white/5">
                   <tr>
                     <th className="p-5">Empleado</th>
                     <th className="p-5 w-32">Tipo</th>
@@ -224,7 +269,7 @@ export default function AdminPanel() {
                       return (
                         <React.Fragment key={mov.id}>
                           {esNuevoDia && (
-                            <tr className="bg-emerald-500/10 animate-pulse border-y border-emerald-500/20">
+                            <tr className="animate-flash border-y border-emerald-500/20">
                               <td colSpan={5} className="p-3 text-center text-[12px] font-black text-emerald-500 uppercase tracking-[0.6em]">
                                 🗓️ {fechaActual}
                               </td>
