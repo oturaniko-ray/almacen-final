@@ -75,6 +75,11 @@ export default function AdminPanel() {
     }
   }
 
+  async function toggleActivo(id: string, estadoActual: boolean) {
+    const { error } = await supabase.from('empleados').update({ activo: !estadoActual }).eq('id', id);
+    if (!error) fetchEmpleados();
+  }
+
   const parseDetalles = (detalles: string) => {
     const modo = detalles.includes('MANUAL') ? 'MANUAL' : (detalles.includes('USB') ? 'USB' : 'CÁMARA');
     const autorizaMatch = detalles.match(/Autoriza: (.*)/i);
@@ -102,7 +107,7 @@ export default function AdminPanel() {
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
           <button onClick={() => {setVista('menu'); setEditando(null);}} className="bg-slate-800 px-6 py-3 rounded-xl text-[13px] font-black uppercase hover:bg-slate-700">← Menú</button>
           <h2 className="text-[14px] font-black uppercase tracking-[0.3em] text-blue-500">
-            {vista === 'empleados' ? 'REGISTRO Y EDICIÓN' : 'INTELIGENCIA DE ACCESOS'}
+            {vista === 'empleados' ? 'REGISTRO Y EDICIÓN' : 'HISTORIAL DE MOVIMIENTOS'}
           </h2>
           <div className="w-24"></div>
         </div>
@@ -141,19 +146,20 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* CUERPO CON SCROLL Y CABECERA FIJA */}
-      <div className="flex-1 overflow-y-auto p-6 scrollbar-hide bg-[#050a14]">
+      {/* CUERPO CON SCROLL */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide bg-[#050a14]">
         <div className="max-w-7xl mx-auto">
           <div className="bg-[#0f172a] rounded-[35px] border border-white/5 shadow-2xl overflow-hidden">
             {vista === 'empleados' ? (
               <table className="w-full text-left text-[14px] table-fixed border-collapse">
-                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-xl">
+                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-sm">
                   <tr>
-                    <th className="p-5 w-20 text-center">Status</th>
+                    <th className="p-5 w-20 text-center">Loc</th>
                     <th className="p-5">Nombre / Email</th>
                     <th className="p-5 w-32 text-center">Rol</th>
                     <th className="p-5 w-52">Doc / PIN Seguridad</th>
-                    <th className="p-5 w-24 text-center">Acción</th>
+                    <th className="p-5 w-32 text-center">Estado</th>
+                    <th className="p-5 w-20 text-center">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -177,6 +183,14 @@ export default function AdminPanel() {
                         </div>
                       </td>
                       <td className="p-5 text-center">
+                        <button 
+                          onClick={() => toggleActivo(emp.id, emp.activo)}
+                          className={`w-full py-2 rounded-lg font-black text-[11px] border transition-all ${emp.activo ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10' : 'border-orange-500/30 text-orange-500 bg-orange-500/5 hover:bg-orange-500/10'}`}
+                        >
+                          {emp.activo ? 'ACTIVO' : 'INACTIVO'}
+                        </button>
+                      </td>
+                      <td className="p-5 text-center">
                         <button onClick={() => { setEditando(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="p-3 bg-blue-500/10 text-blue-500 rounded-xl hover:bg-blue-500 hover:text-white transition-all">✎</button>
                       </td>
                     </tr>
@@ -185,7 +199,7 @@ export default function AdminPanel() {
               </table>
             ) : (
               <table className="w-full text-left text-[14px] table-fixed border-collapse">
-                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-xl">
+                <thead className="bg-[#1e293b] uppercase text-slate-400 font-black sticky top-0 z-30 shadow-sm">
                   <tr>
                     <th className="p-5">Empleado</th>
                     <th className="p-5 w-32">Tipo</th>
@@ -210,7 +224,7 @@ export default function AdminPanel() {
                       return (
                         <>
                           {esNuevoDia && (
-                            <tr key={`date-${mov.id}`} className="bg-emerald-500/5">
+                            <tr key={`date-${mov.id}`} className="bg-white/[0.03]">
                               <td colSpan={5} className="p-3 text-center text-[12px] font-black text-emerald-500 uppercase tracking-[0.6em]">🗓️ {fechaActual}</td>
                             </tr>
                           )}
