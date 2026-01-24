@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -17,14 +17,55 @@ export default function SupervisorPage() {
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
   const [pinEmpleadoManual, setPinEmpleadoManual] = useState('');
-  const [pinAutorizador, setPinAutorizador] = useState(''); // PIN del Admin o Supervisor
+  const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
+  const [sesionDuplicada, setSesionDuplicada] = useState(false);
   
+  const sessionId = useRef(Math.random().toString(36).substring(7));
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // --- LÓGICA DE SESIÓN ÚNICA SEGMENTADA ---
+  useEffect(() => {
+    // Recuperar el usuario de la sesión actual
+    const sessionData = localStorage.getItem('user_session');
+    if (!sessionData) {
+      router.push('/');
+      return;
+    }
+    const currentUser = JSON.parse(sessionData);
+
+    const canalSesion = supabase.channel('supervisor-session-control');
+
+    canalSesion
+      .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
+        // Solo cerrar si es el MISMO usuario (email) pero DIFERENTE instancia (sessionId)
+        if (payload.payload.email === currentUser.email && payload.payload.id !== sessionId.current) {
+          setSesionDuplicada(true);
+          setTimeout(() => {
+            localStorage.removeItem('user_session');
+            router.push('/');
+          }, 3000);
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await canalSesion.send({
+            type: 'broadcast',
+            event: 'nueva-sesion',
+            payload: { 
+              id: sessionId.current, 
+              email: currentUser.email 
+            },
+          });
+        }
+      });
+
+    return () => { supabase.removeChannel(canalSesion); };
+  }, [router]);
 
   const volverAtras = async () => {
     try {
@@ -39,16 +80,6 @@ export default function SupervisorPage() {
     } else if (modo !== 'menu') { 
       setModo('menu'); 
     }
-  };
-
-  const resetearTodo = async () => {
-    try {
-      if (scannerRef.current?.isScanning) {
-        await scannerRef.current.stop();
-        scannerRef.current = null;
-      }
-    } catch (e) { console.warn(e); }
-    setQrData(''); setPinAutorizador(''); setPinEmpleadoManual(''); setModo('menu'); setDireccion(null); setLecturaLista(false);
   };
 
   const prepararSiguienteEmpleado = () => {
@@ -131,12 +162,10 @@ export default function SupervisorPage() {
 
         if (!emp) throw new Error("Empleado no encontrado");
 
-        // Regla de oro: Validar PIN de empleado solo en manual
         if (modo === 'manual') {
           if (emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         }
 
-        // Validar quien autoriza (Supervisor en scan, Admin en manual)
         const { data: autorizador } = await supabase
           .from('empleados')
           .select('nombre, rol')
@@ -173,6 +202,18 @@ export default function SupervisorPage() {
     });
   };
 
+  // VISTA DE SESIÓN BLOQUEADA
+  if (sesionDuplicada) {
+    return (
+      <main className="h-screen bg-black flex items-center justify-center p-10 text-center">
+        <div className="bg-red-600/20 border-2 border-red-600 p-10 rounded-[40px] shadow-[0_0_50px_rgba(220,38,38,0.3)] animate-pulse">
+          <h2 className="text-4xl font-black text-red-500 mb-4 uppercase italic tracking-tighter">Acceso Denegado</h2>
+          <p className="text-white text-xl font-bold max-w-md">Se ha detectado que has iniciado sesión en otro dispositivo. Por seguridad, esta sesión se cerrará.</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
       
@@ -202,94 +243,4 @@ export default function SupervisorPage() {
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
             <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl hover:scale-[1.02] transition-transform">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl hover:scale-[1.02] transition-transform">SALIDA</button>
-            <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors">← Cambiar Modo</button>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            
-            {modo === 'manual' ? (
-              <div className="space-y-6">
-                <div className="text-center">
-                  <p className="text-[10px] font-black text-blue-500 uppercase mb-2 tracking-widest">1. Documento o Email</p>
-                  <input 
-                    ref={docInputRef}
-                    type="text" autoFocus
-                    className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-bold border border-white/10 focus:border-blue-500 outline-none transition-all"
-                    placeholder="ID Empleado"
-                    value={qrData}
-                    onChange={(e) => setQrData(e.target.value)}
-                  />
-                </div>
-
-                <div className="text-center">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">2. PIN del Empleado</p>
-                  <input 
-                    type="password" placeholder="PIN Personal"
-                    className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border border-white/10 focus:border-blue-500 outline-none"
-                    value={pinEmpleadoManual}
-                    onChange={(e) => setPinEmpleadoManual(e.target.value)}
-                  />
-                </div>
-
-                <div className="text-center">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">3. PIN del Administrador</p>
-                  <input 
-                    ref={pinRef} type="password" placeholder="PIN Administrador"
-                    className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border-2 border-blue-500/20 focus:border-blue-500 outline-none"
-                    value={pinAutorizador}
-                    onChange={(e) => setPinAutorizador(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all duration-500 ${lecturaLista ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-white/5'} relative overflow-hidden h-32 flex flex-col items-center justify-center`}>
-                  {!lecturaLista ? (
-                    <>
-                      <p className="text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest animate-blink">Esperando Lectura</p>
-                      <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>
-                      {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden"></div>}
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center mb-1">
-                        <span className="text-white">✔</span>
-                      </div>
-                      <p className="text-emerald-500 font-black text-[9px] uppercase tracking-widest">Identificado</p>
-                    </div>
-                  )}
-                </div>
-
-                {lecturaLista && (
-                  <div className="space-y-2 text-center animate-in fade-in duration-300">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">PIN del Supervisor</p>
-                    <input 
-                      ref={pinRef} type="password" placeholder="PIN Supervisor"
-                      className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10 focus:border-blue-500 transition-all outline-none"
-                      value={pinAutorizador}
-                      onChange={(e) => setPinAutorizador(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-4">
-              <button 
-                onClick={registrarAcceso} 
-                disabled={animar || !qrData || !pinAutorizador || (modo === 'manual' && !pinEmpleadoManual)}
-                className={`w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30 transition-all hover:bg-blue-500 active:scale-95`}
-              >
-                {animar ? 'PROCESANDO...' : 'Registrar'}
-              </button>
-              <button onClick={volverAtras} className="text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors">✕ Cancelar y Limpiar</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </main>
-  );
-}
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-
