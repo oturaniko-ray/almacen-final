@@ -119,6 +119,7 @@ export default function LoginPage() {
       <main className="min-h-screen bg-black flex items-center justify-center p-6 text-center text-white">
         <div className="bg-red-600/10 border-2 border-red-600 p-10 rounded-[45px] animate-pulse">
           <h2 className="text-3xl font-black text-red-500 uppercase italic">Sesión Cerrada</h2>
+          <p className="mt-4">Iniciada en otro dispositivo.</p>
         </div>
       </main>
     );
@@ -126,8 +127,8 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans text-white">
-      {/* SE AJUSTÓ EL MAX-W-SM PARA QUE EL FORMULARIO NO SE ESTIRE */}
-      <div className="w-full max-w-[380px] bg-[#0f172a] p-8 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
+      {/* Contenedor con tamaño original restaurado */}
+      <div className="w-full max-w-[360px] bg-[#0f172a] p-8 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
         
         <div className="text-center mb-8">
           <h1 className="text-2xl font-black italic uppercase tracking-tighter">
@@ -163,28 +164,30 @@ export default function LoginPage() {
               />
             </div>
             <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[22px] font-black uppercase italic mt-4 transition-all shadow-lg text-sm">
-              {loading ? 'Sincronizando...' : 'Validar Acceso'}
+              {loading ? 'Validando...' : 'Entrar'}
             </button>
           </form>
         ) : (
           <div className="space-y-3 animate-in slide-in-from-bottom duration-500">
             <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-emerald-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
-              🏃 Empleado
+              🏃 Acceso Empleado
             </button>
             
             <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
-              🛡️ Supervisor
+              🛡️ Panel Supervisor
             </button>
 
+            {/* BOTÓN REPORTES: Visible para Admin y Supervisor */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador' || tempUser?.rol === 'supervisor') && (
               <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
-                📊 Reportes
+                📊 Reportes Operación
               </button>
             )}
 
+            {/* BOTÓN ADMIN: Solo Administradores */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-5 rounded-[22px] font-bold text-md transition-all shadow-xl text-left pl-8">
-                ⚙️ Administración
+                ⚙️ Consola Admin
               </button>
             )}
             
