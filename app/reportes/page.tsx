@@ -15,6 +15,10 @@ export default function ReportesPage() {
   const [fechaFin, setFechaFin] = useState('');
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
   
+  // Estados para la edición
+  const [editandoRow, setEditandoRow] = useState<any>(null);
+  const [guardando, setGuardando] = useState(false);
+  
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
@@ -25,14 +29,12 @@ export default function ReportesPage() {
       return;
     }
     const currentUser = JSON.parse(sessionData);
-    // Validación estricta de roles para acceso
     if (!['admin', 'administrador', 'supervisor'].includes(currentUser.rol)) {
       router.replace('/');
       return;
     }
     setUser(currentUser);
 
-    // Control de sesión única (Regla de Oro)
     const canalSesion = supabase.channel('reportes-session-control');
     canalSesion
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
@@ -51,9 +53,9 @@ export default function ReportesPage() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('reporte_jornadas').select('*');
-      if (fechaInicio) query = query.gte('hora_entrada', fechaInicio);
-      if (fechaFin) query = query.lte('hora_entrada', fechaFin);
+      let query = supabase.from('jornadas').select('*'); // Usamos la tabla base para permitir edición
+      if (fechaInicio) query = query.gte('hora_entrada', `${fechaInicio}T00:00:00`);
+      if (fechaFin) query = query.lte('hora_entrada', `${fechaFin}T23:59:59`);
       if (filtroNombre) query = query.ilike('nombre_empleado', `%${filtroNombre}%`);
 
       const { data, error } = await query.order('hora_entrada', { ascending: false });
@@ -63,6 +65,40 @@ export default function ReportesPage() {
       console.error("Error cargando reportes:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const guardarAjuste = async () => {
+    if (!editandoRow) return;
+    setGuardando(true);
+    try {
+      const hEntrada = new Date(editandoRow.hora_entrada);
+      const hSalida = editandoRow.hora_salida ? new Date(editandoRow.hora_salida) : null;
+      
+      let nuevasHoras = 0;
+      if (hSalida) {
+        nuevasHoras = (hSalida.getTime() - hEntrada.getTime()) / (1000 * 60 * 60);
+      }
+
+      const { error } = await supabase
+        .from('jornadas')
+        .update({
+          hora_entrada: editandoRow.hora_entrada,
+          hora_salida: editandoRow.hora_salida,
+          horas_trabajadas: nuevasHoras > 0 ? nuevasHoras : 0,
+          editado_por: user.nombre // Auditoría de quién hizo el cambio
+        })
+        .eq('id', editandoRow.id);
+
+      if (error) throw error;
+      
+      setEditandoRow(null);
+      await cargarDatos();
+      alert("Registro actualizado correctamente");
+    } catch (err: any) {
+      alert("Error al actualizar: " + err.message);
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -94,7 +130,57 @@ export default function ReportesPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-4 md:p-8 font-sans">
+      
+      {/* MODAL DE EDICIÓN */}
+      {editandoRow && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-white/10 p-8 rounded-[40px] w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
+            <h2 className="text-xl font-black italic uppercase mb-6 text-amber-500">Ajuste de Jornada</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Empleado</label>
+                <div className="p-3 bg-white/5 rounded-xl text-sm font-bold">{editandoRow.nombre_empleado}</div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Hora Entrada</label>
+                <input 
+                  type="datetime-local" 
+                  value={editandoRow.hora_entrada ? editandoRow.hora_entrada.slice(0,16) : ''}
+                  onChange={(e) => setEditandoRow({...editandoRow, hora_entrada: e.target.value})}
+                  className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Hora Salida</label>
+                <input 
+                  type="datetime-local" 
+                  value={editandoRow.hora_salida ? editandoRow.hora_salida.slice(0,16) : ''}
+                  onChange={(e) => setEditandoRow({...editandoRow, hora_salida: e.target.value})}
+                  className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button 
+                onClick={guardarAjuste}
+                disabled={guardando}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 py-3 rounded-2xl font-black text-xs uppercase transition-all"
+              >
+                {guardando ? 'Guardando...' : '💾 Guardar'}
+              </button>
+              <button 
+                onClick={() => setEditandoRow(null)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-2xl font-black text-xs uppercase transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto">
+        {/* Cabecera y Filtros (Se mantiene igual que tu original) */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">
@@ -108,6 +194,7 @@ export default function ReportesPage() {
           </div>
         </div>
 
+        {/* Widgets de Stats (Se mantiene igual) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Horas Flota</p>
@@ -123,6 +210,7 @@ export default function ReportesPage() {
           </div>
         </div>
 
+        {/* Filtros */}
         <div className="bg-[#0f172a] p-6 rounded-[35px] border border-white/5 mb-8 flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Buscar Empleado</label>
@@ -139,6 +227,7 @@ export default function ReportesPage() {
           <button onClick={cargarDatos} className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-black text-xs uppercase h-[46px]">Filtrar</button>
         </div>
 
+        {/* TABLA CON ACCIÓN DE EDICIÓN */}
         <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -148,13 +237,14 @@ export default function ReportesPage() {
                   <th className="p-6">Entrada</th>
                   <th className="p-6">Salida</th>
                   <th className="p-6">Horas</th>
+                  <th className="p-6 text-center">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {loading ? (
-                  <tr><td colSpan={4} className="p-20 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Cargando datos maestros...</td></tr>
+                  <tr><td colSpan={5} className="p-20 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Cargando datos maestros...</td></tr>
                 ) : reportes.length === 0 ? (
-                  <tr><td colSpan={4} className="p-20 text-center font-black text-slate-600 uppercase tracking-widest">No hay jornadas registradas</td></tr>
+                  <tr><td colSpan={5} className="p-20 text-center font-black text-slate-600 uppercase tracking-widest">No hay jornadas registradas</td></tr>
                 ) : (
                   reportes.map((r, i) => (
                     <tr key={i} className="hover:bg-white/[0.01] transition-colors group">
@@ -165,6 +255,17 @@ export default function ReportesPage() {
                         <span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full font-black text-xs">
                           {r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0.00'} H
                         </span>
+                      </td>
+                      <td className="p-6 text-center">
+                        <button 
+                          onClick={() => setEditandoRow(r)}
+                          className="text-slate-500 hover:text-amber-500 transition-colors"
+                          title="Editar Registro"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
                       </td>
                     </tr>
                   ))
