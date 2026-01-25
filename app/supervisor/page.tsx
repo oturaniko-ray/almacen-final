@@ -29,7 +29,6 @@ export default function SupervisorPage() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // --- LÓGICA DE SESIÓN ÚNICA SEGMENTADA ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
@@ -84,7 +83,6 @@ export default function SupervisorPage() {
     if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 100);
   };
 
-  // --- RUTINA ESCÁNER USB ---
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
@@ -98,7 +96,6 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
-  // --- RUTINA CÁMARA MÓVIL ---
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData) {
       const iniciarCamara = async () => {
@@ -117,7 +114,6 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
   }, [modo, direccion, qrData]);
 
-  // --- RUTINA DE REGISTRO CONSOLIDADA (TABLA JORNADAS) ---
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
@@ -134,15 +130,21 @@ export default function SupervisorPage() {
           } catch (e) {}
         }
         
-        // 1. Identificación
         const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${docIdOrEmail},email.eq.${docIdOrEmail}`).maybeSingle();
+        
         if (!emp) throw new Error("Empleado no encontrado");
+
+        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE ESTADO ACTIVO
+        // Verificamos si el empleado tiene permiso de acceso según su estado en la tabla
+        if (emp.estado !== 'activo' && emp.estado !== 'Activo') {
+          throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
+        }
+
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         
         const { data: autorizador } = await supabase.from('empleados').select('nombre, rol').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
         if (!autorizador) throw new Error(modo === 'manual' ? "PIN de Administrador inválido" : "PIN de Supervisor inválido");
 
-        // 2. Lógica de Jornada Consolidada
         const { data: jornadaActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
         if (direccion === 'entrada') {
@@ -173,7 +175,11 @@ export default function SupervisorPage() {
 
         alert(`✅ Éxito: ${emp.nombre}`);
         prepararSiguienteEmpleado();
-      } catch (err: any) { alert(`❌ ${err.message}`); setPinAutorizador(''); setAnimar(false); }
+      } catch (err: any) { 
+        alert(`❌ ${err.message}`); 
+        setPinAutorizador(''); 
+        setAnimar(false); 
+      }
     }, () => { alert("GPS Obligatorio"); setAnimar(false); }, { enableHighAccuracy: true });
   };
 
