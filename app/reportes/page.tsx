@@ -11,8 +11,8 @@ export default function ReportesPage() {
   const [reportes, setReportes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [filtroNombre, setFiltroNombre] = useState('');
-  const [fechaInicio, setFechaInicio] = useState(''); // YYYY-MM-DD
-  const [fechaFin, setFechaFin] = useState('');    // YYYY-MM-DD
+  const [fechaInicio, setFechaInicio] = useState(''); 
+  const [fechaFin, setFechaFin] = useState('');    
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
@@ -25,6 +25,7 @@ export default function ReportesPage() {
     if (!['admin', 'administrador', 'supervisor'].includes(currentUser.rol)) { router.replace('/'); return; }
     setUser(currentUser);
 
+    // RESTAURACIÓN: Control de sesión para evitar conflictos de carga
     const canalSession = supabase.channel('global-session-control');
     canalSession.on('broadcast', { event: 'nueva-sesion' }, (payload) => {
       if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
@@ -34,19 +35,29 @@ export default function ReportesPage() {
 
     canalSession.send({ type: 'broadcast', event: 'nueva-sesion', payload: { userEmail: currentUser.email, sid: sessionId.current } });
 
+    // Carga inicial de datos para asegurar que la tabla no aparezca vacía
+    consultarReportes();
+
     return () => { supabase.removeChannel(canalSession); };
   }, [router]);
 
   const consultarReportes = async () => {
     setLoading(true);
+    // RESTAURACIÓN: Ajuste en la query para asegurar la obtención de datos de 'jornadas_completas'
     let query = supabase.from('jornadas_completas').select('*').order('hora_entrada', { ascending: false });
     
     if (filtroNombre) query = query.ilike('nombre_empleado', `%${filtroNombre}%`);
+    
+    // MODIFICACIÓN: Lógica de filtrado por fechas corregida para inputs tipo date
     if (fechaInicio) query = query.gte('hora_entrada', `${fechaInicio}T00:00:00`);
     if (fechaFin) query = query.lte('hora_entrada', `${fechaFin}T23:59:59`);
 
-    const { data } = await query;
-    if (data) setReportes(data);
+    const { data, error } = await query;
+    if (error) {
+      console.error("Error cargando reportes:", error);
+    } else {
+      setReportes(data || []);
+    }
     setLoading(false);
   };
 
@@ -54,24 +65,31 @@ export default function ReportesPage() {
     if (reportes.length === 0) return;
 
     const ahora = new Date();
-    const timestamp = ahora.toISOString().replace(/[-T:Z]/g, '').slice(0, 12);
+    // MODIFICACIÓN: Formato de nombre de archivo "operacionesYYYYMMDDHHMM" sin guiones
+    const timestamp = ahora.getFullYear().toString() + 
+                      (ahora.getMonth() + 1).toString().padStart(2, '0') + 
+                      ahora.getDate().toString().padStart(2, '0') + 
+                      ahora.getHours().toString().padStart(2, '0') + 
+                      ahora.getMinutes().toString().padStart(2, '0');
     const nombreArchivo = `operaciones${timestamp}.xlsx`;
 
-    // Preparar datos para el Excel con separadores y encabezado
+    // MODIFICACIÓN: Estructura de Excel con Membrete de Empleado, Rol y Fecha de exportación
     const rows = [
-      ["EMPLEADO:", filtroNombre || "TODOS"],
+      ["REPORTE DE OPERACIONES"],
+      ["EMPLEADO CONSULTADO:", filtroNombre || "TODOS"],
       ["GENERADO POR:", user?.nombre, "ROL:", user?.rol],
-      ["FECHA EXPORTACIÓN:", ahora.toLocaleString()],
+      ["FECHA Y HORA DE EXPORTACIÓN:", ahora.toLocaleString()],
       [],
-      ["FECHA/HORA", "NOMBRE EMPLEADO", "ENTRADA", "SALIDA", "HORAS"]
+      ["FECHA/HORA", "NOMBRE EMPLEADO", "ENTRADA", "SALIDA", "HORAS TOTALES"]
     ];
 
-    let fechaActual = "";
+    let fechaActualExcel = "";
     reportes.forEach(r => {
       const fechaFila = new Date(r.hora_entrada).toLocaleDateString();
-      if (fechaFila !== fechaActual) {
-        fechaActual = fechaFila;
-        rows.push([`--- DÍA: ${fechaActual} ---`]);
+      if (fechaFila !== fechaActualExcel) {
+        fechaActualExcel = fechaFila;
+        // MODIFICACIÓN: Separador de fecha dentro del listado Excel
+        rows.push([`--- DÍA: ${fechaActualExcel} ---`]);
       }
       rows.push([
         "",
@@ -104,7 +122,7 @@ export default function ReportesPage() {
               <label className="text-[10px] font-black uppercase text-slate-500 ml-4">Nombre Empleado</label>
               <input className="w-full bg-[#050a14] p-4 rounded-2xl border border-white/10 text-xs" value={filtroNombre} onChange={(e) => setFiltroNombre(e.target.value)} placeholder="Ej: Juan Perez" />
             </div>
-            {/* AJUSTE 1: Calendarios Interactivos */}
+            {/* MODIFICACIÓN: Inputs de tipo calendario para Desde / Hasta */}
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-500 ml-4">Desde</label>
               <input type="date" className="w-full bg-[#050a14] p-4 rounded-2xl border border-white/10 text-xs text-white" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
@@ -131,34 +149,40 @@ export default function ReportesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
-              {reportes.map((r, i) => {
-                const fechaFila = new Date(r.hora_entrada).toLocaleDateString();
-                const mostrarSeparador = fechaFila !== fechaCabeceraActual;
-                if (mostrarSeparador) fechaCabeceraActual = fechaFila;
+              {loading ? (
+                <tr><td colSpan={4} className="p-20 text-center animate-pulse font-black text-slate-500 uppercase tracking-widest">Consultando registros...</td></tr>
+              ) : reportes.length === 0 ? (
+                <tr><td colSpan={4} className="p-20 text-center font-black text-slate-600 uppercase tracking-widest">No se encontraron resultados</td></tr>
+              ) : (
+                reportes.map((r, i) => {
+                  const fechaFila = new Date(r.hora_entrada).toLocaleDateString();
+                  const mostrarSeparador = fechaFila !== fechaCabeceraActual;
+                  if (mostrarSeparador) fechaCabeceraActual = fechaFila;
 
-                return (
-                  <React.Fragment key={i}>
-                    {/* AJUSTE 2: Separador de Fecha en Tabla */}
-                    {mostrarSeparador && (
-                      <tr className="bg-blue-500/5">
-                        <td colSpan={4} className="p-3 text-center text-[10px] font-black text-blue-400 uppercase tracking-[0.5em] border-y border-blue-500/10">
-                          --- {fechaFila} ---
+                  return (
+                    <React.Fragment key={i}>
+                      {/* MODIFICACIÓN: Separador visual de fecha en la tabla de resultados */}
+                      {mostrarSeparador && (
+                        <tr className="bg-blue-500/5">
+                          <td colSpan={4} className="p-3 text-center text-[10px] font-black text-blue-400 uppercase tracking-[0.5em] border-y border-blue-500/10">
+                            --- {fechaFila} ---
+                          </td>
+                        </tr>
+                      )}
+                      <tr className="hover:bg-white/[0.01] transition-colors group">
+                        <td className="p-6 font-bold group-hover:text-blue-500 transition-colors uppercase text-sm">{r.nombre_empleado}</td>
+                        <td className="p-6 text-xs text-slate-400 font-mono">{new Date(r.hora_entrada).toLocaleString()}</td>
+                        <td className="p-6 text-xs text-slate-400 font-mono">{r.hora_salida ? new Date(r.hora_salida).toLocaleString() : <span className="text-blue-500 italic uppercase">En Curso</span>}</td>
+                        <td className="p-6">
+                          <span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full font-black text-xs">
+                            {r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0.00'} H
+                          </span>
                         </td>
                       </tr>
-                    )}
-                    <tr className="hover:bg-white/[0.01] transition-colors group">
-                      <td className="p-6 font-bold group-hover:text-blue-500 transition-colors uppercase text-sm">{r.nombre_empleado}</td>
-                      <td className="p-6 text-xs text-slate-400 font-mono">{new Date(r.hora_entrada).toLocaleString()}</td>
-                      <td className="p-6 text-xs text-slate-400 font-mono">{r.hora_salida ? new Date(r.hora_salida).toLocaleString() : <span className="text-blue-500 italic">EN CURSO</span>}</td>
-                      <td className="p-6">
-                        <span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full font-black text-xs">
-                          {r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0.00'} H
-                        </span>
-                      </td>
-                    </tr>
-                  </React.Fragment>
-                );
-              })}
+                    </React.Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
