@@ -179,13 +179,13 @@ export default function LoginPage() {
 
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador' || tempUser?.rol === 'supervisor') && (
               <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
-                📊 Reportes Operación
+                📊 Análisis y Reportes
               </button>
             )}
 
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-5 rounded-[22px] font-bold text-md transition-all shadow-xl text-left pl-8">
-                ⚙️ Consola Admin
+                ⚙️ Gestión Adminstrativa"
               </button>
             )}
             
