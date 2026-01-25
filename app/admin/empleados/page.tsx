@@ -10,7 +10,8 @@ export default function GestionEmpleados() {
   const [user, setUser] = useState<any>(null);
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [editando, setEditando] = useState<any>(null);
-  // AJUSTE: Se incluye 'rol' en el estado inicial
+  // MODIFICACIÓN: Se añade estado 'filtro' para la barra de búsqueda solicitada
+  const [filtro, setFiltro] = useState(''); 
   const [nuevo, setNuevo] = useState({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
   const router = useRouter();
 
@@ -43,16 +44,32 @@ export default function GestionEmpleados() {
     if (!error) fetchEmpleados();
   };
 
+  // MODIFICACIÓN: Lógica de filtrado reactiva para la barra de búsqueda
+  const empleadosFiltrados = empleados.filter(emp => 
+    emp.nombre.toLowerCase().includes(filtro.toLowerCase()) || 
+    emp.documento_id.includes(filtro)
+  );
+
   return (
     <main className="min-h-screen bg-[#050a14] p-4 md:p-12 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-center mb-12">
           <h2 className="text-4xl font-black uppercase italic tracking-tighter">Gestión de <span className="text-blue-500">Personal</span></h2>
-          <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700">← Volver</button>
+          <div className="flex gap-4">
+            {/* MODIFICACIÓN: Agregar barra de búsqueda que filtra por caracteres introducidos */}
+            <input 
+              type="text" 
+              placeholder="BUSCAR EMPLEADO..." 
+              className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 w-64"
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+            />
+            <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700">← Volver</button>
+          </div>
         </header>
 
-        {/* FORMULARIO DE REGISTRO / EDICIÓN */}
-        <div className="bg-[#0f172a] p-8 rounded-[35px] border border-white/5 mb-12">
+        {/* MODIFICACIÓN: Se añade 'sticky top-4 z-20' para que el membrete de datos quede fijo */}
+        <div className="sticky top-4 z-20 bg-[#0f172a] p-8 rounded-[35px] border border-white/5 mb-12 shadow-2xl">
           <h3 className="text-sm font-black uppercase text-blue-500 mb-6 tracking-[0.3em]">
             {editando ? 'Modificar Ficha' : 'Registro de Nuevo Personal'}
           </h3>
@@ -62,7 +79,6 @@ export default function GestionEmpleados() {
             <input placeholder="Email" type="email" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.email || nuevo.email} onChange={e => editando ? setEditando({...editando, email: e.target.value}) : setNuevo({...nuevo, email: e.target.value})} required />
             <input placeholder="PIN (4-6 dígitos)" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.pin_seguridad || nuevo.pin_seguridad} onChange={e => editando ? setEditando({...editando, pin_seguridad: e.target.value}) : setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
             
-            {/* AJUSTE: Agregado campo Rol al formulario */}
             <select 
               className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs text-slate-400"
               value={editando?.rol || nuevo.rol}
@@ -80,26 +96,25 @@ export default function GestionEmpleados() {
           {editando && <button onClick={() => setEditando(null)} className="mt-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cancelar Edición</button>}
         </div>
 
-        {/* TABLA DE EMPLEADOS */}
         <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white/[0.02] text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                 <th className="py-6 px-8">Personal</th>
-                <th className="py-6 px-4">Rol</th> {/* AJUSTE: Nueva columna de Rol */}
+                <th className="py-6 px-4">Rol</th>
                 <th className="py-6 px-4">Credenciales</th>
                 <th className="py-6 px-4 text-center">Estado</th>
                 <th className="py-6 px-8 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
-              {empleados.map((emp) => (
+              {empleadosFiltrados.map((emp) => (
                 <tr key={emp.id} className="group hover:bg-white/[0.01] transition-all">
                   <td className="py-5 px-8">
                     <p className="font-bold text-sm uppercase">{emp.nombre}</p>
-                    <span className="text-[10px] font-black text-blue-500/50 uppercase tracking-widest">{emp.documento_id}</span>
+                    {/* MODIFICACIÓN: Cambiar el color del documento en las filas a amarillo (text-yellow-400) */}
+                    <span className="text-[10px] font-black text-yellow-400/60 uppercase tracking-widest">{emp.documento_id}</span>
                   </td>
-                  {/* AJUSTE: Visualización del Rol en la columna */}
                   <td className="py-5 px-4">
                     <span className="text-[10px] font-black uppercase bg-slate-800 px-3 py-1 rounded-md text-slate-300">
                       {emp.rol}
@@ -109,7 +124,8 @@ export default function GestionEmpleados() {
                     <p className="text-xs text-slate-400">{emp.email}</p>
                     <div className="relative h-4 overflow-hidden">
                       <p className="text-[10px] font-black text-blue-500 uppercase transition-all duration-300 group-hover:-translate-y-full">PIN OCULTO</p>
-                      <p className="text-[10px] font-black text-emerald-500 uppercase transition-all duration-300 translate-y-full group-hover:translate-y-0 absolute top-0">PIN: {emp.pin_seguridad}</p>
+                      {/* MODIFICACIÓN: Cambiar color de PIN a amarillo (text-yellow-400) al pasar el mouse */}
+                      <p className="text-[10px] font-black text-yellow-400 uppercase transition-all duration-300 translate-y-full group-hover:translate-y-0 absolute top-0">PIN: {emp.pin_seguridad}</p>
                     </div>
                   </td>
                   <td className="py-5 px-4 text-center">
@@ -118,7 +134,10 @@ export default function GestionEmpleados() {
                     </button>
                   </td>
                   <td className="py-5 px-8 text-center">
-                    <button onClick={() => setEditando(emp)} className="text-blue-500 hover:text-blue-400 font-black text-[10px] uppercase tracking-widest p-2">Editar</button>
+                    {/* MODIFICACIÓN: Se agrega emoji de lápiz ✏️ al lado de "EDITAR" */}
+                    <button onClick={() => setEditando(emp)} className="text-blue-500 hover:text-blue-400 font-black text-[10px] uppercase tracking-widest p-2 flex items-center justify-center gap-2 mx-auto">
+                      <span>✏️</span> EDITAR
+                    </button>
                   </td>
                 </tr>
               ))}
