@@ -130,7 +130,6 @@ export default function SupervisorPage() {
           } catch (e) {}
         }
         
-        // 🔄 CONSULTA DIRECTA DE EMPLEADO
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, estado, pin_seguridad, documento_id, email')
@@ -139,8 +138,7 @@ export default function SupervisorPage() {
         
         if (empError || !emp) throw new Error("Empleado no encontrado");
 
-        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE CAMPO BOOLEANO
-        // Si 'estado' es false, null o undefined, se deniega el acceso.
+        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE CAMPO BOOLEANO (true/false)
         if (emp.estado !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
@@ -159,7 +157,7 @@ export default function SupervisorPage() {
             empleado_id: emp.id,
             nombre_empleado: emp.nombre,
             hora_entrada: new Date().toISOString(),
-            estado: 'activo' // Esto es el estado de la jornada (texto), no el del empleado
+            estado: 'activo'
           }]);
           await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
         } else {
@@ -182,7 +180,7 @@ export default function SupervisorPage() {
         prepararSiguienteEmpleado();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
-        prepararSiguienteEmpleado(); // Limpia buffer y vuelve al inicio del proceso
+        prepararSiguienteEmpleado(); 
       }
     }, () => { 
       alert("GPS Obligatorio"); 
@@ -190,7 +188,6 @@ export default function SupervisorPage() {
     }, { enableHighAccuracy: true });
   };
 
-  // ... (Resto del componente visual se mantiene igual)
   if (sesionDuplicada) {
     return (
       <main className="h-screen bg-black flex items-center justify-center p-10 text-center text-white">
@@ -240,17 +237,17 @@ export default function SupervisorPage() {
                   {!lecturaLista ? (
                     <>
                       <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>
-                      {modo === 'camara' && <div id=\"reader\" className=\"w-full h-full\"></div>}
+                      {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
                     </>
-                  ) : <p className=\"text-emerald-500 font-black text-[9px] uppercase\">Identificado ✅</p>}
+                  ) : <p className="text-emerald-500 font-black text-[9px] uppercase">Identificado ✅</p>}
                 </div>
-                {lecturaLista && <input ref={pinRef} type=\"password\" placeholder=\"PIN Supervisor\" className=\"w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10\" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
+                {lecturaLista && <input ref={pinRef} type="password" placeholder="PIN Supervisor" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
               </div>
             )}
-            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className=\"w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30\">
+            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30">
               {animar ? 'PROCESANDO...' : 'Registrar'}
             </button>
-            <button onClick={volverAtras} className=\"w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em]\">✕ Cancelar</button>
+            <button onClick={volverAtras} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em]">✕ Cancelar</button>
           </div>
         )}
       </div>
