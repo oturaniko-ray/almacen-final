@@ -21,17 +21,18 @@ export default function ReportesPage() {
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
-      router.push('/');
+      router.replace('/');
       return;
     }
     const currentUser = JSON.parse(sessionData);
+    // Validación estricta de roles para acceso
     if (!['admin', 'administrador', 'supervisor'].includes(currentUser.rol)) {
-      router.push('/');
+      router.replace('/');
       return;
     }
     setUser(currentUser);
 
-    // Control de sesión única
+    // Control de sesión única (Regla de Oro)
     const canalSesion = supabase.channel('reportes-session-control');
     canalSesion
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
@@ -51,7 +52,6 @@ export default function ReportesPage() {
     setLoading(true);
     try {
       let query = supabase.from('reporte_jornadas').select('*');
-      
       if (fechaInicio) query = query.gte('hora_entrada', fechaInicio);
       if (fechaFin) query = query.lte('hora_entrada', fechaFin);
       if (filtroNombre) query = query.ilike('nombre_empleado', `%${filtroNombre}%`);
@@ -73,16 +73,14 @@ export default function ReportesPage() {
       Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'PENDIENTE',
       'Horas Totales': r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0'
     }));
-
     const ws = XLSX.utils.json_to_sheet(datosExcel);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
     XLSX.writeFile(wb, `Reporte_RAY_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // Cálculos rápidos para los widgets
   const totalHorasFlota = reportes.reduce((acc, curr) => acc + (curr.horas_trabajadas || 0), 0);
-  const promedioPorEmpleado = reportes.length > 0 ? totalHorasFlota / [...new Set(reportes.map(r => r.empleado_id))].size : 0;
+  const promedioPorEmpleado = reportes.length > 0 ? totalHorasFlota / [...new Set(reportes.map(r => r.empleado_id))].length : 0;
 
   if (sesionDuplicada) {
     return (
@@ -97,7 +95,6 @@ export default function ReportesPage() {
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">
@@ -106,16 +103,11 @@ export default function ReportesPage() {
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Análisis de productividad RAY</p>
           </div>
           <div className="flex gap-3">
-            <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">
-              📥 Exportar Excel
-            </button>
-            <button onClick={() => router.push('/')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">
-              Volver
-            </button>
+            <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">📥 Exportar Excel</button>
+            <button onClick={() => router.push('/')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">Volver</button>
           </div>
         </div>
 
-        {/* Widgets de Resumen */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Horas Flota</p>
@@ -131,7 +123,6 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* Filtros */}
         <div className="bg-[#0f172a] p-6 rounded-[35px] border border-white/5 mb-8 flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Buscar Empleado</label>
@@ -148,7 +139,6 @@ export default function ReportesPage() {
           <button onClick={cargarDatos} className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-black text-xs uppercase h-[46px]">Filtrar</button>
         </div>
 
-        {/* Tabla de Resultados */}
         <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
