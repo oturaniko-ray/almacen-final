@@ -119,17 +119,27 @@ export default function SupervisorPage() {
     setAnimar(true);
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
+        // 🔐 RESTAURACIÓN DEL ALGORITMO DE DECODIFICACIÓN QR
         let docIdOrEmail = qrData.trim();
+        
+        // Si no es manual, intentamos decodificar el Base64 (Algoritmo establecido)
         if (modo !== 'manual') {
           try {
             const decoded = atob(docIdOrEmail).split('|');
             if (decoded.length === 2) {
-              docIdOrEmail = decoded[0];
-              if (Date.now() - parseInt(decoded[1]) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
+              docIdOrEmail = decoded[0]; // Extraemos el ID
+              const timestamp = parseInt(decoded[1]);
+              if (Date.now() - timestamp > TIEMPO_MAX_TOKEN_MS) {
+                throw new Error("TOKEN EXPIRADO");
+              }
             }
-          } catch (e) {}
+          } catch (e: any) {
+            // Si falla el atob, asumimos que es lectura directa de ID (ej. USB) y seguimos
+            if (e.message === "TOKEN EXPIRADO") throw e;
+          }
         }
         
+        // 🔄 CONSULTA EN TIEMPO REAL
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, estado, pin_seguridad, documento_id, email')
@@ -138,7 +148,7 @@ export default function SupervisorPage() {
         
         if (empError || !emp) throw new Error("Empleado no encontrado");
 
-        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE CAMPO BOOLEANO (true/false)
+        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE CAMPO BOOLEANO
         if (emp.estado !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
