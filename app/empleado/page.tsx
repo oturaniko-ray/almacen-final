@@ -6,114 +6,171 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONFIGURACIÓN DE ALGORITMO ORIGINAL
-const ALMACEN_LAT = 40.59682191301211; 
-const ALMACEN_LON = -3.5952475579699485;
+// 📍 CONFIGURACIÓN
+const ALMACEN_LAT = 40.59665469156573; 
+const ALMACEN_LON = -3.5953966013026935;
 const RADIO_MAXIMO_METROS = 50; 
-const TIEMPO_EXPIRACION_QR_MS = 120000; // 2 minutos
+const TIEMPO_EXPIRACION_QR_MS = 120000; // 2 minutos en milisegundos
 
-export default function EmpleadoQRPage() {
+export default function EmpleadoPage() {
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState('');
   const [ubicacionOk, setUbicacionOk] = useState(false);
+  const [errorGps, setErrorGps] = useState('');
   const [distancia, setDistancia] = useState<number | null>(null);
+  const [sesionDuplicada, setSesionDuplicada] = useState(false);
+  
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
+  // --- LÓGICA DE CONTROL Y SEGURIDAD ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { router.replace('/'); return; }
+    if (!sessionData) {
+      router.push('/');
+      return;
+    }
     const currentUser = JSON.parse(sessionData);
     setUser(currentUser);
+    validarUbicacion();
 
-    // Algoritmo de Geolocalización
-    const watchId = navigator.geolocation.watchPosition(
+    // 1. CANAL PARA SESIÓN ÚNICA
+    const canalSesion = supabase.channel('empleado-session-monitor');
+    canalSesion
+      .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
+        if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
+          setSesionDuplicada(true);
+          localStorage.removeItem('user_session');
+          setTimeout(() => router.push('/'), 3000);
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await canalSesion.send({
+            type: 'broadcast',
+            event: 'nueva-sesion',
+            payload: { sid: sessionId.current, userEmail: currentUser.email },
+          });
+        }
+      });
+
+    return () => { supabase.removeChannel(canalSesion); };
+  }, [router]);
+
+  // --- TEMPORIZADOR DE 2 MINUTOS PARA EL QR ---
+  useEffect(() => {
+    if (ubicacionOk) {
+      const timer = setTimeout(() => {
+        localStorage.removeItem('user_session');
+        router.push('/');
+      }, TIEMPO_EXPIRACION_QR_MS);
+
+      return () => clearTimeout(timer);
+    }
+  }, [ubicacionOk, router]);
+
+  const validarUbicacion = () => {
+    if (!navigator.geolocation) {
+      setErrorGps("El navegador no soporta GPS");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
         const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ALMACEN_LAT, ALMACEN_LON);
         setDistancia(Math.round(d));
-        setUbicacionOk(d <= RADIO_MAXIMO_METROS);
+        
+        if (d <= RADIO_MAXIMO_METROS) {
+          setUbicacionOk(true);
+          const current = JSON.parse(localStorage.getItem('user_session')!);
+          generarToken(current);
+        } else {
+          setUbicacionOk(false);
+          setErrorGps(`Fuera de rango: Estás a ${Math.round(d)}m.`);
+        }
       },
-      (err) => console.error("Error GPS:", err),
+      () => { setErrorGps("Acceso denegado: GPS desactivado."); },
       { enableHighAccuracy: true }
     );
-
-    // Generador de Token QR cada 2 min
-    const interval = setInterval(() => generarToken(currentUser), 2000);
-    generarToken(currentUser);
-
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-      clearInterval(interval);
-    };
-  }, []);
+  };
 
   const calcularDistancia = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3;
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
   };
 
-  const generarToken = (u: any) => {
-    const data = {
-      id: u.id,
-      email: u.email,
-      ts: Date.now(),
-      sid: sessionId.current
-    };
-    setToken(btoa(JSON.stringify(data)));
+  const generarToken = (userData: any) => {
+    const rawString = `${userData.documento_id}|${Date.now()}`;
+    setToken(btoa(rawString)); 
   };
+
+  if (sesionDuplicada) {
+    return (
+      <main className="h-screen bg-black flex items-center justify-center p-10 text-center text-white">
+        <div className="bg-red-600/20 border-2 border-red-600 p-10 rounded-[40px] shadow-[0_0_50px_rgba(220,38,38,0.3)] animate-pulse">
+          <h2 className="text-4xl font-black text-red-500 mb-4 uppercase italic tracking-tighter">Acceso Denegado</h2>
+          <p className="text-white text-xl font-bold">Sesión abierta en otro dispositivo.</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
-      <div className="w-full max-w-md text-center">
-        <header className="mb-10">
-          <h1 className="text-3xl font-black uppercase tracking-tighter">Acceso Personal</h1>
-          <p className="text-blue-500 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">{user?.nombre}</p>
-        </header>
-
-        {/* ÁREA DEL QR */}
-        <div className={`relative p-8 rounded-[45px] border-2 transition-all duration-500 ${ubicacionOk ? 'border-emerald-500 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5'}`}>
-          {!ubicacionOk ? (
-            <div className="py-12">
-              <span className="text-4xl block mb-4">📍</span>
-              <p className="text-xs font-black uppercase text-red-500">Fuera de Rango</p>
-              <p className="text-[10px] text-slate-500 mt-2 uppercase">Debes estar a menos de {RADIO_MAXIMO_METROS}m del almacén.<br/>Distancia actual: {distancia ?? '--'}m</p>
-            </div>
-          ) : (
-            <>
-              <div className="bg-white p-6 rounded-[30px] inline-block shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-                {token && <QRCodeSVG value={token} size={220} level="H" />}
-              </div>
-              <div className="mt-6">
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">● QR Dinámico Activo</p>
-                <p className="text-[8px] text-slate-500 uppercase mt-1">Expira y se regenera cada 2 min</p>
-              </div>
-            </>
-          )}
+      <div className="w-full max-w-sm bg-[#0f172a] p-8 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden text-center">
+        
+        <div className="mb-8">
+          <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
+            <span className="text-2xl">👤</span>
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-tight">{user?.nombre}</h2>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">{user?.rol}</p>
         </div>
 
-        <div className="mt-12 space-y-6">
-          <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest leading-relaxed">
-            Presente este código al supervisor para registrar <br/> su entrada o salida del recinto.
+        {!ubicacionOk ? (
+          <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-[30px] mb-6">
+            <p className="text-red-500 font-bold text-xs uppercase mb-2">⚠️ Ubicación Requerida</p>
+            <p className="text-[10px] text-slate-400 leading-relaxed">{errorGps}</p>
+            <button onClick={validarUbicacion} className="mt-4 text-[10px] font-black uppercase text-white bg-red-600 px-4 py-2 rounded-full">Reintentar GPS</button>
+          </div>
+        ) : (
+          <div className="bg-white p-6 rounded-[35px] shadow-[0_0_50px_rgba(37,99,235,0.2)] mb-8 inline-block animate-in zoom-in duration-500">
+            {token && <QRCodeSVG value={token} size={200} level="H" includeMargin={false} />}
+            <div className="mt-4 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+              ID: {user?.documento_id} • EXPIRA EN 2 MIN
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">
+            Presente este código al supervisor <br/> 
+            {ubicacionOk ? "La sesión se cerrará automáticamente en 2 minutos." : `Estás a ${distancia ?? '--'}m del área.`}
           </p>
           
           <button 
             onClick={() => { localStorage.removeItem('user_session'); router.push('/'); }} 
-            className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all border-b border-transparent hover:border-white"
+            className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
           >
-            ← Cerrar Sesión y Salir
+            ← Salir y Cerrar Sesión
           </button>
         </div>
+
+        {ubicacionOk && (
+          <div className="absolute top-0 left-0 w-full h-1 bg-blue-500/50 shadow-[0_0_15px_#3b82f6] animate-[scan_3s_linear_infinite]"></div>
+        )}
       </div>
-      
-      {/* Indicador de posición plana (sin itálica) */}
-      <div className="fixed bottom-6 text-[8px] font-black text-slate-700 uppercase tracking-[0.5em]">
-        Status: {ubicacionOk ? 'Localización Verificada' : 'Buscando Señal GPS'}
-      </div>
+
+      <style jsx global>{`
+        @keyframes scan {
+          0% { transform: translateY(0); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(600px); opacity: 0; }
+        }
+      `}</style>
     </main>
   );
 }
