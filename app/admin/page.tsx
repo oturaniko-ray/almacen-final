@@ -1,17 +1,9 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-export default function AdminPanel() {
+export default function PanelAdminHub() {
   const [user, setUser] = useState<any>(null);
-  const [vista, setVista] = useState<'menu' | 'empleados' | 'movimientos'>('menu');
-  const [empleados, setEmpleados] = useState<any[]>([]);
-  const [movimientos, setMovimientos] = useState<any[]>([]);
-  const [sesionDuplicada, setSesionDuplicada] = useState(false);
-  const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
   useEffect(() => {
@@ -20,50 +12,41 @@ export default function AdminPanel() {
     const currentUser = JSON.parse(sessionData);
     if (!['admin', 'administrador'].includes(currentUser.rol)) { router.replace('/'); return; }
     setUser(currentUser);
-
-    const canal = supabase.channel('admin-session').on('broadcast', { event: 'nueva-sesion' }, (payload) => {
-      if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
-        setSesionDuplicada(true);
-        localStorage.removeItem('user_session');
-        setTimeout(() => router.push('/'), 3000);
-      }
-    }).subscribe();
-    return () => { supabase.removeChannel(canal); };
   }, [router]);
 
-  if (sesionDuplicada) return <div className="h-screen bg-black flex items-center justify-center text-red-500 font-black italic uppercase">Sesión Duplicada</div>;
-
   return (
-    <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
-      <div className="max-w-5xl mx-auto">
-        <header className="flex justify-between items-center mb-12">
-          <div>
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter">CONSOLA <span className="text-blue-500">ADMIN</span></h1>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Gestión Maestra del Sistema</p>
-          </div>
-          <button onClick={() => router.push('/')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">← Volver al Menú</button>
+    <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans flex items-center justify-center">
+      <div className="max-w-4xl w-full">
+        <header className="text-center mb-16">
+          <h1 className="text-5xl font-black italic uppercase tracking-tighter">CONSOLA <span className="text-blue-500">ADMIN</span></h1>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mt-3">Gestión de Infraestructura Maestra</p>
         </header>
 
-        {vista === 'menu' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <button onClick={() => setVista('empleados')} className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-blue-500/50 transition-all text-left group">
-              <h3 className="text-2xl font-black uppercase italic group-hover:text-blue-500 transition-colors">👥 Empleados</h3>
-              <p className="text-slate-500 text-xs mt-2 uppercase font-bold tracking-widest">Altas, bajas y edición de PINs</p>
-            </button>
-            
-            {/* NUEVO VÍNCULO AL ARCHIVO DE PERSONAL */}
-            <button onClick={() => router.push('/admin/personal')} className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-emerald-500/50 transition-all text-left group">
-              <h3 className="text-2xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">🏪 Presencia</h3>
-              <p className="text-slate-500 text-xs mt-2 uppercase font-bold tracking-widest">Quién está en el almacén ahora</p>
-            </button>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <button onClick={() => router.push('/admin/empleados')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl">
+            <span className="text-3xl block mb-6">👥</span>
+            <h3 className="text-xl font-black uppercase italic group-hover:text-blue-500 transition-colors">Empleados</h3>
+            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Base de datos y pins</p>
+          </button>
+          
+          <button onClick={() => router.push('/admin/presencia')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-emerald-500 transition-all text-left group shadow-2xl">
+            <span className="text-3xl block mb-6">🏪</span>
+            <h3 className="text-xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">Presencia</h3>
+            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Estado en tiempo real</p>
+          </button>
 
-            <button onClick={() => setVista('movimientos')} className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-amber-500/50 transition-all text-left group">
-              <h3 className="text-2xl font-black uppercase italic group-hover:text-amber-500 transition-colors">📑 Auditoría</h3>
-              <p className="text-slate-500 text-xs mt-2 uppercase font-bold tracking-widest">Historial completo de accesos</p>
-            </button>
-          </div>
-        )}
-        {/* Aquí iría la lógica de tablas de empleados/movimientos que ya tienes */}
+          <button onClick={() => router.push('/admin/auditoria')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl opacity-50 cursor-not-allowed">
+            <span className="text-3xl block mb-6">📑</span>
+            <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
+            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Logs de movimientos</p>
+          </button>
+        </div>
+
+        <div className="mt-16 text-center">
+          <button onClick={() => router.push('/')} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800">
+            ← Volver al Selector Principal
+          </button>
+        </div>
       </div>
     </main>
   );
