@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -29,11 +29,10 @@ export default function ReportesPage() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      // MODIFICACIÓN 2: Asegurar que consultamos la tabla correcta para permitir updates
       let query = supabase.from('reporte_jornadas').select('*');
+      if (filtroNombre) query = query.ilike('nombre_empleado', `%${filtroNombre}%`);
       if (fechaInicio) query = query.gte('hora_entrada', fechaInicio);
       if (fechaFin) query = query.lte('hora_entrada', fechaFin);
-      if (filtroNombre) query = query.ilike('nombre_empleado', `%${filtroNombre}%`);
 
       const { data, error } = await query.order('hora_entrada', { ascending: false });
       if (error) throw error;
@@ -47,124 +46,113 @@ export default function ReportesPage() {
 
   const guardarCambiosManuales = async () => {
     if (!editandoRow) return;
-
-    // MODIFICACIÓN 2: Corrección de lógica de grabado. Se usa .toISOString() para asegurar formato compatible.
+    
     const entrada = new Date(editandoRow.hora_entrada);
     const salida = new Date(editandoRow.hora_salida);
     const nuevasHoras = (salida.getTime() - entrada.getTime()) / (1000 * 60 * 60);
 
     const { error } = await supabase
-      .from('reporte_jornadas')
+      .from('registros_acceso') 
       .update({
         hora_entrada: entrada.toISOString(),
         hora_salida: salida.toISOString(),
         horas_trabajadas: nuevasHoras,
-        editado_por: user.nombre // Auditoría
+        editado_por: user.nombre
       })
       .eq('id', editandoRow.id);
 
     if (!error) {
       setEditandoRow(null);
+      alert("Registro actualizado correctamente.");
       cargarDatos();
     } else {
-      alert("Error al guardar: " + error.message);
+      alert("Error: " + error.message);
     }
   };
 
   const exportarExcel = () => {
     const ahora = new Date();
-    // MODIFICACIÓN 4: Membrete en la exportación con datos del responsable
-    const encabezado = [
-      ["REPORTE DE OPERACIONES"],
-      [`RESPONSABLE: ${user?.nombre} (${user?.rol})`],
-      [`FECHA DE EXPORTACIÓN: ${ahora.toLocaleString()}`],
+    const membrete = [
+      ["REPORTE DE PERSONAL - RAY"],
+      ["Responsable de Exportación:", user?.nombre],
+      ["Fecha y Hora:", ahora.toLocaleString()],
       [],
-      ["Empleado", "Entrada", "Salida", "Horas Totales", "Auditado por"]
+      ["Empleado", "Entrada", "Salida", "Horas Totales", "Auditado Por"]
     ];
 
     const filas = reportes.map(r => [
       r.nombre_empleado,
       new Date(r.hora_entrada).toLocaleString(),
-      r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'PENDIENTE',
-      r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0',
+      r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'EN TURNO',
+      (r.horas_trabajadas || 0).toFixed(2),
       r.editado_por || 'Original'
     ]);
 
-    const ws = XLSX.utils.aoa_to_sheet([...encabezado, ...filas]);
+    const ws = XLSX.utils.aoa_to_sheet([...membrete, ...filas]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
-    XLSX.writeFile(wb, `Reporte_Operaciones_${ahora.getTime()}.xlsx`);
+    XLSX.writeFile(wb, `Reporte_RAY_${ahora.getTime()}.xlsx`);
   };
 
   let fechaCabeceraActual = "";
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-4 md:p-8 font-sans">
-      {/* Modal de Edición (Ventana emergente) */}
+      {/* MODAL DE EDICIÓN */}
       {editandoRow && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#0f172a] border border-white/10 p-8 rounded-[40px] max-w-md w-full shadow-2xl">
-            <h2 className="text-xl font-black uppercase text-blue-500 italic mb-2">Ajuste de Registro</h2>
-            <p className="text-[10px] text-red-400 font-black uppercase mb-6">⚠️ REQUIERE REVISIÓN ESTRICTA - AUDITORÍA ACTIVA</p>
+            <h2 className="text-xl font-black uppercase text-blue-500 italic mb-2">Ajuste Manual</h2>
+            <p className="text-[10px] text-red-400 font-black uppercase mb-6">⚠️ Auditoría activa para: {user?.nombre}</p>
             
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Entrada</label>
-                <input type="datetime-local" className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm text-white" 
+                <label className="text-[9px] font-black uppercase text-slate-500 ml-2">Entrada</label>
+                <input type="datetime-local" className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-white text-sm" 
                   value={editandoRow.hora_entrada.slice(0, 16)} 
                   onChange={(e) => setEditandoRow({...editandoRow, hora_entrada: e.target.value})} />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Salida</label>
-                <input type="datetime-local" className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm text-white" 
+                <label className="text-[9px] font-black uppercase text-slate-500 ml-2">Salida</label>
+                <input type="datetime-local" className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-white text-sm" 
                   value={editandoRow.hora_salida?.slice(0, 16) || ''} 
                   onChange={(e) => setEditandoRow({...editandoRow, hora_salida: e.target.value})} />
               </div>
             </div>
 
             <div className="flex gap-3 mt-8">
-              <button onClick={guardarCambiosManuales} className="flex-1 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-500">Confirmar Cambios</button>
-              <button onClick={() => setEditandoRow(null)} className="bg-slate-800 p-4 rounded-2xl font-black text-[10px] uppercase tracking-widest">Cancelar</button>
+              <button onClick={guardarCambiosManuales} className="flex-1 bg-blue-600 p-4 rounded-2xl font-black text-[10px] uppercase">Guardar</button>
+              <button onClick={() => setEditandoRow(null)} className="bg-slate-800 p-4 rounded-2xl font-black text-[10px] uppercase">Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
+        <header className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter">
-              REPORTES DE <span className="text-blue-500">OPERACIÓN</span>
-            </h1>
-            {/* MODIFICACIÓN 3: Nombre y rol del empleado logueado bajo el título */}
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-              SISTEMA ACCEDIDO POR: <span className="text-blue-400">{user?.nombre}</span> | ROL: <span className="text-blue-400">{user?.rol}</span>
-            </p>
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter">REPORTES DE <span className="text-blue-500">OPERACIÓN</span></h1>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">ADMIN: {user?.nombre}</p>
           </div>
           <div className="flex gap-3">
-            <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">📥 Exportar</button>
-            <button onClick={() => router.push('/admin')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">Volver</button>
+            <button onClick={exportarExcel} className="bg-emerald-600 px-6 py-3 rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-emerald-500">📥 Exportar</button>
+            <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-3 rounded-2xl font-black text-xs uppercase">Volver</button>
           </div>
-        </div>
+        </header>
 
-        <div className="bg-[#0f172a] p-6 rounded-[35px] border border-white/5 mb-8 flex flex-wrap gap-4 items-end">
+        {/* FILTROS */}
+        <div className="bg-[#0f172a] p-6 rounded-[35px] border border-white/5 mb-8 flex flex-wrap gap-4 items-end shadow-xl">
           <div className="flex-1 min-w-[200px]">
-            <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Filtro por Nombre</label>
-            <input type="text" value={filtroNombre} onChange={(e) => setFiltroNombre(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm" placeholder="Buscar..." />
+            <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Empleado</label>
+            <input type="text" value={filtroNombre} onChange={(e) => setFiltroNombre(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm outline-none" placeholder="Buscar..." />
           </div>
-          <div>
-            <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Desde</label>
-            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm" />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Hasta</label>
-            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm" />
-          </div>
+          <input type="datetime-local" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm text-white" />
+          <input type="datetime-local" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="bg-[#050a14] border border-white/5 p-3 rounded-xl text-sm text-white" />
           <button onClick={cargarDatos} className="bg-blue-600 px-8 py-3 rounded-xl font-black text-xs uppercase h-[46px]">Actualizar</button>
         </div>
 
-        <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
-          <table className="w-full text-left border-collapse">
+        <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden">
+          <table className="w-full text-left">
             <thead>
               <tr className="bg-white/[0.02] text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
                 <th className="p-6">Empleado</th>
@@ -184,25 +172,16 @@ export default function ReportesPage() {
                   <React.Fragment key={i}>
                     {mostrarSeparador && (
                       <tr className="bg-blue-500/5">
-                        <td colSpan={5} className="p-3 text-center text-[10px] font-black text-blue-400 uppercase tracking-[0.6em] border-y border-white/5">
-                          --- {fechaFila} ---
-                        </td>
+                        <td colSpan={5} className="p-3 text-center text-[10px] font-black text-blue-400 uppercase tracking-[0.6em]">--- {fechaFila} ---</td>
                       </tr>
                     )}
-                    <tr className="hover:bg-white/[0.01] transition-colors group">
+                    <tr className="hover:bg-white/[0.01] transition-colors">
                       <td className="p-6 font-bold uppercase text-sm">{r.nombre_empleado}</td>
                       <td className="p-6 text-xs text-slate-400 font-mono">{new Date(r.hora_entrada).toLocaleString()}</td>
                       <td className="p-6 text-xs text-slate-400 font-mono">{r.hora_salida ? new Date(r.hora_salida).toLocaleString() : <span className="text-blue-500 italic">ACTIVO</span>}</td>
-                      <td className="p-6">
-                        <span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full font-black text-xs">
-                          {r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0.00'} H
-                        </span>
-                      </td>
-                      {/* MODIFICACIÓN 1: Botón de edición con icono de lápiz a la derecha */}
+                      <td className="p-6"><span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full font-black text-xs">{(r.horas_trabajadas || 0).toFixed(2)} H</span></td>
                       <td className="p-6 text-center">
-                        <button onClick={() => setEditandoRow(r)} className="p-2 hover:bg-blue-500/20 rounded-lg transition-all text-blue-500">
-                          ✏️
-                        </button>
+                        <button onClick={() => setEditandoRow(r)} className="p-2 hover:bg-blue-500/20 rounded-lg text-blue-500 transition-all text-xl">✏️</button>
                       </td>
                     </tr>
                   </React.Fragment>
