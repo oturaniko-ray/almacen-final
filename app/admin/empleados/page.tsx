@@ -10,7 +10,6 @@ export default function GestionEmpleados() {
   const [user, setUser] = useState<any>(null);
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [editando, setEditando] = useState<any>(null);
-  // MODIFICACIÓN: Se añade estado 'filtro' para la barra de búsqueda solicitada
   const [filtro, setFiltro] = useState(''); 
   const [nuevo, setNuevo] = useState({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
   const router = useRouter();
@@ -44,7 +43,6 @@ export default function GestionEmpleados() {
     if (!error) fetchEmpleados();
   };
 
-  // MODIFICACIÓN: Lógica de filtrado reactiva para la barra de búsqueda
   const empleadosFiltrados = empleados.filter(emp => 
     emp.nombre.toLowerCase().includes(filtro.toLowerCase()) || 
     emp.documento_id.includes(filtro)
@@ -56,7 +54,6 @@ export default function GestionEmpleados() {
         <header className="flex justify-between items-center mb-12">
           <h2 className="text-4xl font-black uppercase italic tracking-tighter">Gestión de <span className="text-blue-500">Personal</span></h2>
           <div className="flex gap-4">
-            {/* MODIFICACIÓN: Agregar barra de búsqueda que filtra por caracteres introducidos */}
             <input 
               type="text" 
               placeholder="BUSCAR EMPLEADO..." 
@@ -68,7 +65,6 @@ export default function GestionEmpleados() {
           </div>
         </header>
 
-        {/* MODIFICACIÓN: Se añade 'sticky top-4 z-20' para que el membrete de datos quede fijo */}
         <div className="sticky top-4 z-20 bg-[#0f172a] p-8 rounded-[35px] border border-white/5 mb-12 shadow-2xl">
           <h3 className="text-sm font-black uppercase text-blue-500 mb-6 tracking-[0.3em]">
             {editando ? 'Modificar Ficha' : 'Registro de Nuevo Personal'}
@@ -109,11 +105,11 @@ export default function GestionEmpleados() {
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
               {empleadosFiltrados.map((emp) => (
-                <tr key={emp.id} className="group hover:bg-white/[0.01] transition-all">
+                <tr key={emp.id} className="hover:bg-white/[0.01] transition-all">
                   <td className="py-5 px-8">
                     <p className="font-bold text-sm uppercase">{emp.nombre}</p>
-                    {/* MODIFICACIÓN: Cambiar el color del documento en las filas a amarillo (text-yellow-400) */}
-                    <span className="text-[10px] font-black text-yellow-400/60 uppercase tracking-widest">{emp.documento_id}</span>
+                    {/* MODIFICACIÓN: Amarillo del documento más intenso (text-yellow-400 sin opacidad baja) */}
+                    <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">{emp.documento_id}</span>
                   </td>
                   <td className="py-5 px-4">
                     <span className="text-[10px] font-black uppercase bg-slate-800 px-3 py-1 rounded-md text-slate-300">
@@ -122,9 +118,10 @@ export default function GestionEmpleados() {
                   </td>
                   <td className="py-5 px-4">
                     <p className="text-xs text-slate-400">{emp.email}</p>
-                    <div className="relative h-4 overflow-hidden">
+                    {/* MODIFICACIÓN: Se añade 'group' al contenedor del PIN para que el hover sea específico de este elemento */}
+                    <div className="relative h-4 overflow-hidden group w-fit cursor-help">
                       <p className="text-[10px] font-black text-blue-500 uppercase transition-all duration-300 group-hover:-translate-y-full">PIN OCULTO</p>
-                      {/* MODIFICACIÓN: Cambiar color de PIN a amarillo (text-yellow-400) al pasar el mouse */}
+                      {/* MODIFICACIÓN: El PIN ahora solo sube si el ratón está sobre el div 'group' (el texto de PIN OCULTO) */}
                       <p className="text-[10px] font-black text-yellow-400 uppercase transition-all duration-300 translate-y-full group-hover:translate-y-0 absolute top-0">PIN: {emp.pin_seguridad}</p>
                     </div>
                   </td>
@@ -134,7 +131,6 @@ export default function GestionEmpleados() {
                     </button>
                   </td>
                   <td className="py-5 px-8 text-center">
-                    {/* MODIFICACIÓN: Se agrega emoji de lápiz ✏️ al lado de "EDITAR" */}
                     <button onClick={() => setEditando(emp)} className="text-blue-500 hover:text-blue-400 font-black text-[10px] uppercase tracking-widest p-2 flex items-center justify-center gap-2 mx-auto">
                       <span>✏️</span> EDITAR
                     </button>
