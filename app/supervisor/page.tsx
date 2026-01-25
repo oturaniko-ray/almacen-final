@@ -119,41 +119,43 @@ export default function SupervisorPage() {
     setAnimar(true);
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        // 🔐 ALGORITMO DE DECODIFICACIÓN Y BÚSQUEDA RESTAURADO
+        // 🔐 ALGORITMO DE DECODIFICACIÓN ROBUSTO REINSTALADO
         let identificadorFinal = qrData.trim();
         
         if (modo !== 'manual') {
           try {
-            // Intentamos decodificar el token Base64 (formato: documento|timestamp)
-            const decoded = atob(identificadorFinal).split('|');
-            if (decoded.length === 2) {
-              const docId = decoded[0];
-              const timestamp = parseInt(decoded[1]);
-              
-              // Validación estricta de tiempo
-              if (Date.now() - timestamp > TIEMPO_MAX_TOKEN_MS) {
+            // Decodificación Base64 (formato: documento|timestamp)
+            const decodedString = atob(identificadorFinal);
+            const partes = decodedString.split('|');
+            
+            if (partes.length >= 2) {
+              const docId = partes[0].replace(/[^a-zA-Z0-9]/g, ''); // Limpieza de caracteres extra
+              const timestamp = parseInt(partes[1]);
+              const ahora = Date.now();
+
+              // RUTINA DE TIEMPO FLEXIBLE: Solo bloquea si es pasado y excedió el margen.
+              // Permite tiempos futuros (evita errores por desfases de reloj del sistema)
+              if (ahora > timestamp && (ahora - timestamp) > TIEMPO_MAX_TOKEN_MS) {
                 throw new Error("TOKEN EXPIRADO");
               }
-              // Si el token es válido y fresco, este es nuestro identificador para la DB
               identificadorFinal = docId;
             }
           } catch (e: any) {
-            // Si el error es específicamente de expiración, lo lanzamos
             if (e.message === "TOKEN EXPIRADO") throw e;
-            // Si el error es de decodificación (atob), identificadorFinal mantiene el valor original (USB/Directo)
+            // Si falla atob, identificadorFinal mantiene el valor original (ej. USB directo)
           }
         }
         
-        // 🔄 CONSULTA EN TIEMPO REAL CON IDENTIFICADOR LIMPIO
+        // 🔄 CONSULTA CON IDENTIFICADOR LIMPIO
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, estado, pin_seguridad, documento_id, email')
           .or(`documento_id.eq.${identificadorFinal},email.eq.${identificadorFinal}`)
           .maybeSingle();
         
-        if (empError || !emp) throw new Error("Empleado no encontrado");
+        if (empError || !emp) throw new Error(`Empleado no encontrado (${identificadorFinal})`);
 
-        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE CAMPO BOOLEANO (true/false)
+        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE ESTADO BOOLEANO
         if (emp.estado !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
@@ -161,7 +163,7 @@ export default function SupervisorPage() {
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         
         const { data: autorizador } = await supabase.from('empleados').select('nombre, rol').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
-        if (!autorizador) throw new Error(modo === 'manual' ? "PIN de Administrador inválido" : "PIN de Supervisor inválido");
+        if (!autorizador) throw new Error("PIN de Supervisor/Administrador inválido");
 
         const { data: jornadaActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
