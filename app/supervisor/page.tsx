@@ -119,36 +119,41 @@ export default function SupervisorPage() {
     setAnimar(true);
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        // 🔐 RESTAURACIÓN DEL ALGORITMO DE DECODIFICACIÓN QR
-        let docIdOrEmail = qrData.trim();
+        // 🔐 ALGORITMO DE DECODIFICACIÓN Y BÚSQUEDA RESTAURADO
+        let identificadorFinal = qrData.trim();
         
-        // Si no es manual, intentamos decodificar el Base64 (Algoritmo establecido)
         if (modo !== 'manual') {
           try {
-            const decoded = atob(docIdOrEmail).split('|');
+            // Intentamos decodificar el token Base64 (formato: documento|timestamp)
+            const decoded = atob(identificadorFinal).split('|');
             if (decoded.length === 2) {
-              docIdOrEmail = decoded[0]; // Extraemos el ID
+              const docId = decoded[0];
               const timestamp = parseInt(decoded[1]);
+              
+              // Validación estricta de tiempo
               if (Date.now() - timestamp > TIEMPO_MAX_TOKEN_MS) {
                 throw new Error("TOKEN EXPIRADO");
               }
+              // Si el token es válido y fresco, este es nuestro identificador para la DB
+              identificadorFinal = docId;
             }
           } catch (e: any) {
-            // Si falla el atob, asumimos que es lectura directa de ID (ej. USB) y seguimos
+            // Si el error es específicamente de expiración, lo lanzamos
             if (e.message === "TOKEN EXPIRADO") throw e;
+            // Si el error es de decodificación (atob), identificadorFinal mantiene el valor original (USB/Directo)
           }
         }
         
-        // 🔄 CONSULTA EN TIEMPO REAL
+        // 🔄 CONSULTA EN TIEMPO REAL CON IDENTIFICADOR LIMPIO
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, estado, pin_seguridad, documento_id, email')
-          .or(`documento_id.eq.${docIdOrEmail},email.eq.${docIdOrEmail}`)
+          .or(`documento_id.eq.${identificadorFinal},email.eq.${identificadorFinal}`)
           .maybeSingle();
         
         if (empError || !emp) throw new Error("Empleado no encontrado");
 
-        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE CAMPO BOOLEANO
+        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE CAMPO BOOLEANO (true/false)
         if (emp.estado !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
