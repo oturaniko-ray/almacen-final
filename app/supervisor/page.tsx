@@ -130,13 +130,17 @@ export default function SupervisorPage() {
           } catch (e) {}
         }
         
-        const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${docIdOrEmail},email.eq.${docIdOrEmail}`).maybeSingle();
+        // 🔄 CONSULTA DIRECTA PARA VALIDAR ESTADO EN TIEMPO REAL
+        const { data: emp, error: empError } = await supabase
+          .from('empleados')
+          .select('*')
+          .or(`documento_id.eq.${docIdOrEmail},email.eq.${docIdOrEmail}`)
+          .maybeSingle();
         
-        if (!emp) throw new Error("Empleado no encontrado");
+        if (empError || !emp) throw new Error("Empleado no encontrado");
 
-        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE ESTADO ACTIVO
-        // Verificamos si el empleado tiene permiso de acceso según su estado en la tabla
-        if (emp.estado !== 'activo' && emp.estado !== 'Activo') {
+        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE ESTADO ACTIVO ACTUALIZADO
+        if (emp.estado?.toLowerCase() !== 'activo') {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
 
@@ -177,10 +181,13 @@ export default function SupervisorPage() {
         prepararSiguienteEmpleado();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
-        setPinAutorizador(''); 
-        setAnimar(false); 
+        // 🧹 AJUSTE 1: BORRAR BUFFER Y REINICIAR AL PRINCIPIO
+        prepararSiguienteEmpleado(); 
       }
-    }, () => { alert("GPS Obligatorio"); setAnimar(false); }, { enableHighAccuracy: true });
+    }, () => { 
+      alert("GPS Obligatorio"); 
+      prepararSiguienteEmpleado(); 
+    }, { enableHighAccuracy: true });
   };
 
   if (sesionDuplicada) {
