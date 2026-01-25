@@ -15,19 +15,16 @@ export default function ReportesPage() {
   const [fechaFin, setFechaFin] = useState('');
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
   
-  // Estados para la edición
   const [editandoRow, setEditandoRow] = useState<any>(null);
   const [guardando, setGuardando] = useState(false);
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
+  // 1. Efecto inicial y Control de Sesión
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) {
-      router.replace('/');
-      return;
-    }
+    if (!sessionData) { router.replace('/'); return; }
     const currentUser = JSON.parse(sessionData);
     if (!['admin', 'administrador', 'supervisor'].includes(currentUser.rol)) {
       router.replace('/');
@@ -47,13 +44,26 @@ export default function ReportesPage() {
       .subscribe();
 
     cargarDatos();
-    return () => { supabase.removeChannel(canalSesion); };
+
+    // 2. ACTUALIZACIÓN EN TIEMPO REAL (Realtime)
+    const canalRealtime = supabase
+      .channel('cambios-jornadas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => {
+        cargarDatos(); // Recargar datos automáticamente ante cualquier cambio
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(canalSesion); 
+      supabase.removeChannel(canalRealtime);
+    };
   }, [router]);
 
   const cargarDatos = async () => {
-    setLoading(true);
+    // Solo mostramos el loading la primera vez para no interrumpir la vista en tiempo real
+    if (reportes.length === 0) setLoading(true);
     try {
-      let query = supabase.from('jornadas').select('*'); // Usamos la tabla base para permitir edición
+      let query = supabase.from('jornadas').select('*');
       if (fechaInicio) query = query.gte('hora_entrada', `${fechaInicio}T00:00:00`);
       if (fechaFin) query = query.lte('hora_entrada', `${fechaFin}T23:59:59`);
       if (filtroNombre) query = query.ilike('nombre_empleado', `%${filtroNombre}%`);
@@ -74,11 +84,8 @@ export default function ReportesPage() {
     try {
       const hEntrada = new Date(editandoRow.hora_entrada);
       const hSalida = editandoRow.hora_salida ? new Date(editandoRow.hora_salida) : null;
-      
       let nuevasHoras = 0;
-      if (hSalida) {
-        nuevasHoras = (hSalida.getTime() - hEntrada.getTime()) / (1000 * 60 * 60);
-      }
+      if (hSalida) nuevasHoras = (hSalida.getTime() - hEntrada.getTime()) / (1000 * 60 * 60);
 
       const { error } = await supabase
         .from('jornadas')
@@ -86,33 +93,44 @@ export default function ReportesPage() {
           hora_entrada: editandoRow.hora_entrada,
           hora_salida: editandoRow.hora_salida,
           horas_trabajadas: nuevasHoras > 0 ? nuevasHoras : 0,
-          editado_por: user.nombre // Auditoría de quién hizo el cambio
+          editado_por: user.nombre
         })
         .eq('id', editandoRow.id);
 
       if (error) throw error;
-      
       setEditandoRow(null);
       await cargarDatos();
-      alert("Registro actualizado correctamente");
+      alert("Registro actualizado");
     } catch (err: any) {
-      alert("Error al actualizar: " + err.message);
+      alert("Error: " + err.message);
     } finally {
       setGuardando(false);
     }
   };
 
+  // 3. EXPORTACIÓN CON ENCABEZADO PERSONALIZADO
   const exportarExcel = () => {
-    const datosExcel = reportes.map(r => ({
-      Empleado: r.nombre_empleado,
-      Entrada: new Date(r.hora_entrada).toLocaleString(),
-      Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'PENDIENTE',
-      'Horas Totales': r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0'
-    }));
-    const ws = XLSX.utils.json_to_sheet(datosExcel);
+    const ahora = new Date();
+    
+    // Encabezados informativos del exportador
+    const infoExportacion = [
+      ["REPORTE GENERADO POR:", `${user?.nombre} (${user?.rol?.toUpperCase()})`],
+      ["FECHA Y HORA:", ahora.toLocaleString()],
+      [], // Línea en blanco
+      ["Empleado", "Entrada", "Salida", "Horas Totales"] // Encabezados de tabla
+    ];
+
+    const datosCuerpo = reportes.map(r => [
+      r.nombre_empleado,
+      new Date(r.hora_entrada).toLocaleString(),
+      r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'EN CURSO',
+      r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0.00'
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([...infoExportacion, ...datosCuerpo]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
-    XLSX.writeFile(wb, `Reporte_RAY_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `Reporte_RAY_${ahora.toISOString().split('T')[0]}.xlsx`);
   };
 
   const totalHorasFlota = reportes.reduce((acc, curr) => acc + (curr.horas_trabajadas || 0), 0);
@@ -135,7 +153,7 @@ export default function ReportesPage() {
       {editandoRow && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0f172a] border border-white/10 p-8 rounded-[40px] w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
-            <h2 className="text-xl font-black italic uppercase mb-6 text-amber-500">Ajuste de Jornada</h2>
+            <h2 className="text-xl font-black italic uppercase mb-6 text-blue-500">Ajuste de Jornada</h2>
             <div className="space-y-4">
               <div>
                 <label className="text-[10px] font-black uppercase text-slate-500 ml-2">Empleado</label>
@@ -147,7 +165,7 @@ export default function ReportesPage() {
                   type="datetime-local" 
                   value={editandoRow.hora_entrada ? editandoRow.hora_entrada.slice(0,16) : ''}
                   onChange={(e) => setEditandoRow({...editandoRow, hora_entrada: e.target.value})}
-                  className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 text-sm"
+                  className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-blue-500 text-sm"
                 />
               </div>
               <div>
@@ -156,7 +174,7 @@ export default function ReportesPage() {
                   type="datetime-local" 
                   value={editandoRow.hora_salida ? editandoRow.hora_salida.slice(0,16) : ''}
                   onChange={(e) => setEditandoRow({...editandoRow, hora_salida: e.target.value})}
-                  className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 text-sm"
+                  className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-blue-500 text-sm"
                 />
               </div>
             </div>
@@ -168,33 +186,26 @@ export default function ReportesPage() {
               >
                 {guardando ? 'Guardando...' : '💾 Guardar'}
               </button>
-              <button 
-                onClick={() => setEditandoRow(null)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-2xl font-black text-xs uppercase transition-all"
-              >
-                Cancelar
-              </button>
+              <button onClick={() => setEditandoRow(null)} className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-2xl font-black text-xs uppercase transition-all">Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
       <div className="max-w-6xl mx-auto">
-        {/* Cabecera y Filtros (Se mantiene igual que tu original) */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter">
-              REPORTES DE <span className="text-amber-500">OPERACIÓN</span>
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">
+              REPORTES DE <span className="text-blue-500">OPERACIÓN</span>
             </h1>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Análisis de productividad RAY</p>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Análisis en tiempo real RAY</p>
           </div>
           <div className="flex gap-3">
             <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">📥 Exportar Excel</button>
-            <button onClick={() => router.push('/')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">Volver</button>
+            <button onClick={() => router.push('/admin')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">Volver</button>
           </div>
         </div>
 
-        {/* Widgets de Stats (Se mantiene igual) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Horas Flota</p>
@@ -202,7 +213,7 @@ export default function ReportesPage() {
           </div>
           <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Promedio por Persona</p>
-            <p className="text-4xl font-black text-amber-500">{promedioPorEmpleado.toFixed(1)} <span className="text-sm text-slate-400">HRS</span></p>
+            <p className="text-4xl font-black text-blue-500">{promedioPorEmpleado.toFixed(1)} <span className="text-sm text-slate-400">HRS</span></p>
           </div>
           <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5">
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Registros en Rango</p>
@@ -210,24 +221,22 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* Filtros */}
         <div className="bg-[#0f172a] p-6 rounded-[35px] border border-white/5 mb-8 flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Buscar Empleado</label>
-            <input type="text" value={filtroNombre} onChange={(e) => setFiltroNombre(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 transition-all text-sm" placeholder="Nombre..." />
+            <input type="text" value={filtroNombre} onChange={(e) => setFiltroNombre(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-blue-500 transition-all text-sm" placeholder="Nombre..." />
           </div>
           <div>
             <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Desde</label>
-            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 transition-all text-sm" />
+            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-blue-500 transition-all text-sm" />
           </div>
           <div>
             <label className="text-[10px] font-black uppercase ml-2 text-slate-500">Hasta</label>
-            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-amber-500 transition-all text-sm" />
+            <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="w-full bg-[#050a14] border border-white/5 p-3 rounded-xl outline-none focus:border-blue-500 transition-all text-sm" />
           </div>
           <button onClick={cargarDatos} className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-black text-xs uppercase h-[46px]">Filtrar</button>
         </div>
 
-        {/* TABLA CON ACCIÓN DE EDICIÓN */}
         <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -248,20 +257,16 @@ export default function ReportesPage() {
                 ) : (
                   reportes.map((r, i) => (
                     <tr key={i} className="hover:bg-white/[0.01] transition-colors group">
-                      <td className="p-6 font-bold group-hover:text-amber-500 transition-colors">{r.nombre_empleado}</td>
+                      <td className="p-6 font-bold group-hover:text-blue-500 transition-colors">{r.nombre_empleado}</td>
                       <td className="p-6 text-xs text-slate-400 font-mono">{new Date(r.hora_entrada).toLocaleString()}</td>
-                      <td className="p-6 text-xs text-slate-400 font-mono">{r.hora_salida ? new Date(r.hora_salida).toLocaleString() : <span className="text-blue-500 italic">EN CURSO</span>}</td>
+                      <td className="p-6 text-xs text-slate-400 font-mono">{r.hora_salida ? new Date(r.hora_salida).toLocaleString() : <span className="text-emerald-500 italic font-bold">● ACTIVO</span>}</td>
                       <td className="p-6">
                         <span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full font-black text-xs">
                           {r.horas_trabajadas ? r.horas_trabajadas.toFixed(2) : '0.00'} H
                         </span>
                       </td>
                       <td className="p-6 text-center">
-                        <button 
-                          onClick={() => setEditandoRow(r)}
-                          className="text-slate-500 hover:text-amber-500 transition-colors"
-                          title="Editar Registro"
-                        >
+                        <button onClick={() => setEditandoRow(r)} className="text-slate-500 hover:text-blue-500 transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
