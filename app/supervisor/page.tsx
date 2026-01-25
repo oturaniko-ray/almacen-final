@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONSTANTES 
+// 📍 CONSTANTES DE SEGURIDAD MANTENIDAS
 const ALMACEN_LAT = 40.59682191301211; 
 const ALMACEN_LON = -3.5952475579699485;
 const RADIO_MAXIMO_METROS = 80; 
@@ -84,6 +84,7 @@ export default function SupervisorPage() {
     if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 100);
   };
 
+  // --- RUTINA ESCÁNER USB ---
   useEffect(() => {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
@@ -97,6 +98,7 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [modo, direccion, qrData]);
 
+  // --- RUTINA CÁMARA MÓVIL ---
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData) {
       const iniciarCamara = async () => {
@@ -115,6 +117,7 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
   }, [modo, direccion, qrData]);
 
+  // --- RUTINA DE REGISTRO CONSOLIDADA (TABLA JORNADAS) ---
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
@@ -130,21 +133,48 @@ export default function SupervisorPage() {
             }
           } catch (e) {}
         }
+        
+        // 1. Identificación
         const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${docIdOrEmail},email.eq.${docIdOrEmail}`).maybeSingle();
         if (!emp) throw new Error("Empleado no encontrado");
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
+        
         const { data: autorizador } = await supabase.from('empleados').select('nombre, rol').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
         if (!autorizador) throw new Error(modo === 'manual' ? "PIN de Administrador inválido" : "PIN de Supervisor inválido");
 
-        await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
-        await supabase.from('registros_acceso').insert([{
-          empleado_id: emp.id, nombre_empleado: emp.nombre, tipo_movimiento: direccion,
-          detalles: `${modo === 'manual' ? 'ADMINISTRADOR' : 'SUPERVISOR'} ${modo.toUpperCase()} - Autoriza: ${autorizador.nombre}`
-        }]);
+        // 2. Lógica de Jornada Consolidada
+        const { data: jornadaActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
+
+        if (direccion === 'entrada') {
+          if (jornadaActiva) throw new Error(`El empleado ya tiene una entrada activa (${new Date(jornadaActiva.hora_entrada).toLocaleTimeString()})`);
+          
+          await supabase.from('jornadas').insert([{
+            empleado_id: emp.id,
+            nombre_empleado: emp.nombre,
+            hora_entrada: new Date().toISOString(),
+            estado: 'activo'
+          }]);
+          await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
+        } else {
+          if (!jornadaActiva) throw new Error("No hay entrada previa registrada para marcar salida.");
+
+          const ahora = new Date();
+          const horas = (ahora.getTime() - new Date(jornadaActiva.hora_entrada).getTime()) / 3600000;
+
+          await supabase.from('jornadas').update({
+            hora_salida: ahora.toISOString(),
+            horas_trabajadas: horas,
+            estado: 'finalizado',
+            editado_por: `Autoriza: ${autorizador.nombre} (${modo.toUpperCase()})`
+          }).eq('id', jornadaActiva.id);
+          
+          await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
+        }
+
         alert(`✅ Éxito: ${emp.nombre}`);
         prepararSiguienteEmpleado();
       } catch (err: any) { alert(`❌ ${err.message}`); setPinAutorizador(''); setAnimar(false); }
-    }, () => { alert("GPS Obligatorio"); setAnimar(false); });
+    }, () => { alert("GPS Obligatorio"); setAnimar(false); }, { enableHighAccuracy: true });
   };
 
   if (sesionDuplicada) {
