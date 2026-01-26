@@ -22,13 +22,13 @@ export default function GestionEmpleados() {
     // Carga inicial
     fetchEmpleados();
 
-    // 🟢 SUSCRIPCIÓN TIEMPO REAL: Actualiza la lista ante cualquier cambio en la tabla
+    // 🟢 ACTIVACIÓN DE TIEMPO REAL
     const channel = supabase
-      .channel('realtime-empleados-gestion')
+      .channel('db-changes-empleados')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'empleados' }, 
         () => {
-          fetchEmpleados(); 
+          fetchEmpleados(); // Recarga los datos automáticamente al detectar cambios
         }
       )
       .subscribe();
@@ -59,7 +59,6 @@ export default function GestionEmpleados() {
     }
     setEditando(null);
     setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
-    // fetchEmpleados se llamará automáticamente por el canal de tiempo real
   };
 
   const toggleEstado = async (emp: any) => {
