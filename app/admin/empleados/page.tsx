@@ -63,7 +63,7 @@ export default function GestionEmpleados() {
     const ws = XLSX.utils.json_to_sheet(empleados);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Empleados");
-    XLSX.writeFile(wb, "Listado_Empleados_RAY.xlsx");
+    XLSX.writeFile(wb, "Empleados.xlsx");
   };
 
   const empleadosFiltrados = empleados.filter(e => 
@@ -95,7 +95,7 @@ export default function GestionEmpleados() {
               <input type="email" placeholder="EMAIL" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value})} required />
               <input type="text" placeholder="PIN SEGURIDAD" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
               <select className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
-                <option value="empleado">OPERATIVO / EMPLEADO</option>
+                <option value="empleado">EMPLEADO</option>
                 <option value="supervisor">SUPERVISOR</option>
                 <option value="admin">ADMINISTRADOR</option>
               </select>

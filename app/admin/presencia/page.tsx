@@ -52,7 +52,7 @@ export default function PresenciaPage() {
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-center mb-12">
           <div>
-            <h2 className="text-4xl font-black uppercase italic tracking-tighter">Estado de <span className="text-emerald-500">Presencia</span></h2>
+            <h2 className="text-4xl font-black uppercase italic tracking-tighter">Estado de <span className="text-blue-500">Presencia</span></h2>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2">Monitoreo de Personal en Tiempo Real</p>
           </div>
           <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all">← Volver</button>
