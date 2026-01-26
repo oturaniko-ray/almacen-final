@@ -6,8 +6,8 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-const ALMACEN_LAT = 40.59682191301211; 
-const ALMACEN_LON = -3.5952475579699485;
+const ALMACEN_LAT = 40.59680101005673; 
+const ALMACEN_LON = -3.595251665548761;
 const RADIO_MAXIMO_METROS = 80; 
 const TIEMPO_MAX_TOKEN_MS = 120000;
 
