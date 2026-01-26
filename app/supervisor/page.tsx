@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'export default function SupervisorPage()';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -31,30 +31,51 @@ export default function SupervisorPage() {
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { router.push('/'); return; }
+    if (!sessionData) {
+      router.push('/');
+      return;
+    }
     const currentUser = JSON.parse(sessionData);
     setUser(currentUser);
 
     const canalSesion = supabase.channel('supervisor-session-control');
+
     canalSesion
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
         if (payload.payload.email === currentUser.email && payload.payload.id !== sessionId.current) {
           setSesionDuplicada(true);
-          setTimeout(() => { localStorage.removeItem('user_session'); router.push('/'); }, 3000);
+          setTimeout(() => {
+            localStorage.removeItem('user_session');
+            router.push('/');
+          }, 3000);
         }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await canalSesion.send({ type: 'broadcast', event: 'nueva-sesion', payload: { id: sessionId.current, email: currentUser.email } });
+          await canalSesion.send({
+            type: 'broadcast',
+            event: 'nueva-sesion',
+            payload: { id: sessionId.current, email: currentUser.email },
+          });
         }
       });
+
     return () => { supabase.removeChannel(canalSesion); };
   }, [router]);
 
   const volverAtras = async () => {
-    try { if (scannerRef.current?.isScanning) { await scannerRef.current.stop(); scannerRef.current = null; } } catch (e) {}
-    if (direccion) { setDireccion(null); setQrData(''); setPinAutorizador(''); setPinEmpleadoManual(''); setLecturaLista(false); } 
-    else if (modo !== 'menu') { setModo('menu'); }
+    try {
+      if (scannerRef.current?.isScanning) {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+      }
+    } catch (e) { console.warn("Error deteniendo cámara:", e); }
+
+    if (direccion) {
+      setDireccion(null); setQrData(''); setPinAutorizador(''); setPinEmpleadoManual(''); setLecturaLista(false);
+    } else if (modo !== 'menu') { 
+      setModo('menu'); 
+    }
   };
 
   const prepararSiguienteEmpleado = () => {
@@ -86,7 +107,7 @@ export default function SupervisorPage() {
             scanner.stop().then(() => { scannerRef.current = null; });
             setTimeout(() => pinRef.current?.focus(), 200);
           }, () => {});
-        } catch (err) {}
+        } catch (err) { console.error("Error cámara:", err); }
       };
       setTimeout(iniciarCamara, 300); 
     }
@@ -96,12 +117,10 @@ export default function SupervisorPage() {
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
-    
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
         let identificadorFinal = qrData.trim();
         
-        // --- TU ALGORITMO ORIGINAL ---
         if (modo !== 'manual') {
           try {
             const decoded = atob(identificadorFinal).split('|');
@@ -112,11 +131,9 @@ export default function SupervisorPage() {
               }
               identificadorFinal = docId;
             }
-          } catch (e: any) {
-            if (e.message === "TOKEN EXPIRADO") throw e;
-          }
+          } catch (e: any) {}
         }
-
+        
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, estado, pin_seguridad, documento_id, email')
@@ -125,7 +142,7 @@ export default function SupervisorPage() {
         
         if (empError || !emp) throw new Error("Empleado no encontrado");
 
-        // 🛡️ REGLA DE ESTADO SOLICITADA
+        // 🛡️ REGLA: VALIDACIÓN DE ESTADO BOOLEAN
         if (emp.estado !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
@@ -138,14 +155,30 @@ export default function SupervisorPage() {
         const { data: jornadaActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
         if (direccion === 'entrada') {
-          if (jornadaActiva) throw new Error(`Entrada ya activa (${new Date(jornadaActiva.hora_entrada).toLocaleTimeString()})`);
-          await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: new Date().toISOString(), estado: 'activo' }]);
+          if (jornadaActiva) throw new Error(`Entrada activa (${new Date(jornadaActiva.hora_entrada).toLocaleTimeString()})`);
+          
+          // 📝 AJUSTE TABLA JORNADAS: INSERT
+          await supabase.from('jornadas').insert([{
+            empleado_id: emp.id,
+            nombre_empleado: emp.nombre,
+            hora_entrada: new Date().toISOString(),
+            estado: 'activo'
+          }]);
           await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
         } else {
-          if (!jornadaActiva) throw new Error("No hay entrada registrada");
+          if (!jornadaActiva) throw new Error("No hay entrada registrada.");
+
           const ahora = new Date();
           const horas = (ahora.getTime() - new Date(jornadaActiva.hora_entrada).getTime()) / 3600000;
-          await supabase.from('jornadas').update({ hora_salida: ahora.toISOString(), horas_trabajadas: horas, estado: 'finalizado', editado_por: `Autoriza: ${autorizador.nombre}` }).eq('id', jornadaActiva.id);
+
+          // 📝 AJUSTE TABLA JORNADAS: UPDATE
+          await supabase.from('jornadas').update({
+            hora_salida: ahora.toISOString(),
+            horas_trabajadas: horas,
+            estado: 'finalizado',
+            editado_por: `Autoriza: ${autorizador.nombre} (${modo.toUpperCase()})`
+          }).eq('id', jornadaActiva.id);
+          
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
 
@@ -155,7 +188,10 @@ export default function SupervisorPage() {
         alert(`❌ ${err.message}`); 
         setAnimar(false); 
       }
-    }, () => { alert("GPS Obligatorio"); setAnimar(false); }, { enableHighAccuracy: true });
+    }, () => { 
+      alert("GPS Obligatorio"); 
+      setAnimar(false); 
+    }, { enableHighAccuracy: true });
   };
 
   if (sesionDuplicada) {
@@ -187,8 +223,8 @@ export default function SupervisorPage() {
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl">SALIDA</button>
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl hover:scale-[1.02] transition-transform">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl hover:scale-[1.02] transition-transform">SALIDA</button>
             <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest">← Cambiar Modo</button>
           </div>
         ) : (
@@ -212,7 +248,7 @@ export default function SupervisorPage() {
                 {lecturaLista && <input ref={pinRef} type="password" placeholder="PIN Supervisor" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
               </div>
             )}
-            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg">
+            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30">
               {animar ? 'PROCESANDO...' : 'Registrar'}
             </button>
             <button onClick={volverAtras} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em]">✕ Cancelar</button>
