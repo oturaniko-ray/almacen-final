@@ -6,11 +6,11 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONFIGURACIÓN UNIFICADA
+// 📍 CONFIGURACIÓN UNIFICADA - 🔴 COORDENADAS CORREGIDAS
 const ALMACEN_LAT = 40.59680101005673; 
 const ALMACEN_LON = -3.595251665548761;
 const RADIO_MAXIMO_METROS = 50; 
-const TIEMPO_EXPIRACION_QR_MS = 120000;
+const TIEMPO_EXPIRACION_QR_MS = 120000; // 2 minutos
 
 export default function EmpleadoPage() {
   const [user, setUser] = useState<any>(null);
@@ -22,6 +22,9 @@ export default function EmpleadoPage() {
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
+  // 🔴 CAMBIO INICIO: Referencia para el temporizador de salida
+  const timerSalidaRef = useRef<NodeJS.Timeout | null>(null);
+  // 🔴 CAMBIO FIN
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -43,7 +46,10 @@ export default function EmpleadoPage() {
         }
       });
 
-    return () => { supabase.removeChannel(canalSesion); };
+    return () => { 
+        supabase.removeChannel(canalSesion);
+        if (timerSalidaRef.current) clearTimeout(timerSalidaRef.current);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -57,13 +63,23 @@ export default function EmpleadoPage() {
         if (dist <= RADIO_MAXIMO_METROS) {
           setUbicacionOk(true);
           setErrorGps('');
-          // 🔴 CAMBIO INICIO: Token simplificado (ID|Timestamp)
-          const nuevoToken = btoa(`${user.documento_id}|${Date.now()}`);
-          // 🔴 CAMBIO FIN
-          setToken(nuevoToken);
+          
+          if (!token) {
+            // 🔴 CAMBIO INICIO: Token simplificado e inicio de cuenta regresiva para logout
+            const nuevoToken = btoa(`${user.documento_id}|${Date.now()}`);
+            setToken(nuevoToken);
+
+            if (timerSalidaRef.current) clearTimeout(timerSalidaRef.current);
+            timerSalidaRef.current = setTimeout(() => {
+                localStorage.removeItem('user_session');
+                router.push('/');
+            }, TIEMPO_EXPIRACION_QR_MS);
+            // 🔴 CAMBIO FIN
+          }
         } else {
           setUbicacionOk(false);
           setToken('');
+          if (timerSalidaRef.current) clearTimeout(timerSalidaRef.current);
           setErrorGps(`Fuera de rango (${Math.round(dist)}m)`);
         }
       },
@@ -72,7 +88,7 @@ export default function EmpleadoPage() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [user, sesionDuplicada]);
+  }, [user, sesionDuplicada, token, router]);
 
   function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371e3;
@@ -114,7 +130,7 @@ export default function EmpleadoPage() {
           <div className="p-6 bg-white rounded-[35px] shadow-[0_0_40px_rgba(37,99,235,0.2)] mb-8 inline-block animate-in zoom-in duration-500">
             {token && <QRCodeSVG value={token} size={200} level="H" includeMargin={false} />}
             <div className="mt-4 text-[8px] font-black text-slate-400 uppercase tracking-widest">
-              ID: {user?.documento_id} • EXPIRA EN 2 MIN
+              ID: {user?.documento_id} • SE CERRARÁ EN 2 MIN
             </div>
           </div>
         )}

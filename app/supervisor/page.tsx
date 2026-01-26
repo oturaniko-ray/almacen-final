@@ -6,20 +6,22 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// 📍 🔴 COORDENADAS CORREGIDAS
 const ALMACEN_LAT = 40.59680101005673; 
 const ALMACEN_LON = -3.595251665548761;
 const RADIO_MAXIMO_METROS = 80; 
 const TIEMPO_MAX_TOKEN_MS = 120000;
 
+// 🔴 CAMBIO: Fórmula de distancia optimizada (Haversine completo)
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3;
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-            Math.cos(phi1) * Math.cos(phi2) +
-            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
+  const dPhi = (lat2 - lat1) * Math.PI / 180;
+  const dLambda = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) +
+            Math.cos(p1) * Math.cos(p2) *
+            Math.sin(dLambda/2) * Math.sin(dLambda/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -69,13 +71,11 @@ export default function SupervisorPage() {
     else if (modo !== 'menu') { setModo('menu'); }
   };
 
-  // 🔴 CAMBIO INICIO: Rutina de limpieza automática de buffer y reposicionamiento
   const prepararSiguienteEmpleado = () => {
     setQrData(''); setPinEmpleadoManual(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
     if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 100);
     if (modo === 'camara') reiniciarCamara();
   };
-  // 🔴 CAMBIO FIN
 
   const reiniciarCamara = async () => {
     if (modo === 'camara' && direccion) {
@@ -106,9 +106,7 @@ export default function SupervisorPage() {
   }, [modo, direccion, qrData]);
 
   useEffect(() => {
-    if (modo === 'camara' && direccion && !qrData) {
-      reiniciarCamara();
-    }
+    if (modo === 'camara' && direccion && !qrData) { reiniciarCamara(); }
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
   }, [modo, direccion, qrData]);
 
@@ -123,56 +121,39 @@ export default function SupervisorPage() {
           throw new Error(`FUERA DE RANGO: Estás a ${Math.round(dist)}m.`);
         }
 
-        let identificadorFinal = qrData.trim();
-        
+        let idFinal = qrData.trim();
         if (modo !== 'manual') {
           try {
-            // 🔴 CAMBIO INICIO: Decodificación simplificada (ID|Timestamp)
-            const decoded = atob(identificadorFinal).split('|');
+            const decoded = atob(idFinal).split('|');
             if (decoded.length === 2) {
               const [docId, timestamp] = decoded;
-              if (Date.now() - parseInt(timestamp) > TIEMPO_MAX_TOKEN_MS) {
-                throw new Error("TOKEN EXPIRADO");
-              }
-              identificadorFinal = docId;
+              if (Date.now() - parseInt(timestamp) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
+              idFinal = docId;
             }
-            // 🔴 CAMBIO FIN
           } catch (e: any) {
             if (e.message === "TOKEN EXPIRADO") throw e;
           }
         }
 
-        const { data: emp, error: empError } = await supabase
-          .from('empleados')
-          .select('id, nombre, estado, pin_seguridad, documento_id, email')
-          .or(`documento_id.eq.${identificadorFinal},email.eq.${identificadorFinal}`)
-          .maybeSingle();
+        const { data: emp, error: empError } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
+        if (empError || !emp) throw new Error(`Empleado no encontrado (ID: ${idFinal})`);
+        if (emp.estado !== true) throw new Error("Acceso denegado: Empleado inactivo.");
+        if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN Empleado incorrecto");
         
-        // 🔴 CAMBIO INICIO: Validación de existencia con ID procesado
-        if (empError) throw new Error("Error en base de datos.");
-        if (!emp) throw new Error(`Empleado no encontrado (ID: ${identificadorFinal})`);
-        // 🔴 CAMBIO FIN
+        const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
+        if (!aut) throw new Error("PIN Supervisor inválido");
 
-        if (emp.estado !== true) {
-          throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
-        }
-
-        if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
-        
-        const { data: autorizador } = await supabase.from('empleados').select('nombre, rol').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
-        if (!autorizador) throw new Error("PIN de Supervisor/Admin inválido");
-
-        const { data: jornadaActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
+        const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
         if (direccion === 'entrada') {
-          if (jornadaActiva) throw new Error(`Entrada activa (${new Date(jornadaActiva.hora_entrada).toLocaleTimeString()})`);
+          if (jActiva) throw new Error("Ya tiene una entrada activa.");
           await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: new Date().toISOString(), estado: 'activo' }]);
           await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
         } else {
-          if (!jornadaActiva) throw new Error("No hay entrada registrada.");
+          if (!jActiva) throw new Error("No hay entrada registrada.");
           const ahora = new Date();
-          const horas = (ahora.getTime() - new Date(jornadaActiva.hora_entrada).getTime()) / 3600000;
-          await supabase.from('jornadas').update({ hora_salida: ahora.toISOString(), horas_trabajadas: horas, estado: 'finalizado', editado_por: `Autoriza: ${autorizador.nombre} (${modo.toUpperCase()})` }).eq('id', jornadaActiva.id);
+          const horas = (ahora.getTime() - new Date(jActiva.hora_entrada).getTime()) / 3600000;
+          await supabase.from('jornadas').update({ hora_salida: ahora.toISOString(), horas_trabajadas: horas, estado: 'finalizado', editado_por: `Aut: ${aut.nombre}` }).eq('id', jActiva.id);
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
 
@@ -180,22 +161,10 @@ export default function SupervisorPage() {
         prepararSiguienteEmpleado();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
-        // 🔴 CAMBIO INICIO: Limpieza automática tras error
-        prepararSiguienteEmpleado();
-        // 🔴 CAMBIO FIN
+        prepararSiguienteEmpleado(); 
       }
     }, () => { alert("GPS Obligatorio"); prepararSiguienteEmpleado(); }, { enableHighAccuracy: true });
   };
-
-  if (sesionDuplicada) {
-    return (
-      <main className="h-screen bg-black flex items-center justify-center p-10 text-center text-white">
-        <div className="bg-red-600/20 border-2 border-red-600 p-10 rounded-[40px] shadow-[0_0_50px_rgba(220,38,38,0.3)] animate-pulse">
-          <h2 className="text-4xl font-black text-red-500 mb-4 uppercase italic tracking-tighter">Sesión Duplicada</h2>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
