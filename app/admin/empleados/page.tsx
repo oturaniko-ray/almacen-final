@@ -22,14 +22,12 @@ export default function GestionEmpleados() {
     // Carga inicial
     fetchEmpleados();
 
-    // 🟢 ACTIVACIÓN DE TIEMPO REAL
+    // 🟢 LÓGICA TIEMPO REAL: Sin alterar componentes visuales
     const channel = supabase
-      .channel('db-changes-empleados')
+      .channel('realtime-empleados')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'empleados' }, 
-        () => {
-          fetchEmpleados(); // Recarga los datos automáticamente al detectar cambios
-        }
+        () => fetchEmpleados()
       )
       .subscribe();
 
@@ -45,28 +43,27 @@ export default function GestionEmpleados() {
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Rutina de seguridad: No desactivar si está en almacén
-    if (editando && editando.en_almacen && editando.activo === true && nuevo.activo === false) {
-      alert("⚠️ BLOQUEO DE SEGURIDAD: El empleado está dentro del almacén.");
-      return;
-    }
-
     if (editando) {
+      if (editando.en_almacen && editando.activo === true && nuevo.activo === false) {
+        alert("⚠️ BLOQUEO DE SEGURIDAD: No se puede desactivar a un empleado que está en el almacén.");
+        return;
+      }
       await supabase.from('empleados').update(nuevo).eq('id', editando.id);
     } else {
       await supabase.from('empleados').insert([nuevo]);
     }
     setEditando(null);
     setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
+    fetchEmpleados();
   };
 
   const toggleEstado = async (emp: any) => {
     if (emp.en_almacen && emp.activo === true) {
-      alert(`⚠️ ACCIÓN DENEGADA: ${emp.nombre} tiene una jornada activa en curso.`);
+      alert(`⚠️ ACCIÓN DENEGADA: ${emp.nombre} está en el almacén.`);
       return;
     }
-    await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id);
+    const { error } = await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id);
+    if (!error) fetchEmpleados();
   };
 
   const exportarExcel = () => {
@@ -84,98 +81,82 @@ export default function GestionEmpleados() {
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto">
-        
-        {/* CABECERA ESTILO MENÚ PRINCIPAL */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-1 bg-blue-500 rounded-full hidden md:block"></div>
-            <div>
-              <h1 className="text-4xl font-black italic uppercase tracking-tighter">
-                GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">SESIÓN:</p>
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] italic">{user?.nombre || '---'}</p>
-              </div>
+        <div className="flex justify-between items-center mb-12">
+          <div>
+            <h1 className="text-4xl font-black italic uppercase tracking-tighter">
+              GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">SESIÓN:</p>
+              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] italic">{user?.nombre || '---'}</p>
             </div>
           </div>
-          <div className="flex gap-4 w-full md:w-auto">
-            <button onClick={exportarExcel} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 px-6 py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg">📥 EXPORTAR</button>
-            <button onClick={() => router.push('/admin')} className="flex-1 md:flex-none bg-slate-800 hover:bg-slate-700 px-6 py-4 rounded-2xl font-black text-[10px] uppercase transition-all">VOLVER</button>
+          <div className="flex gap-4">
+            <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">Exportar Excel</button>
+            <button onClick={() => router.push('/admin')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">Volver</button>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-10">
-          {/* FORMULARIO */}
+          {/* FORMULARIO RESTAURADO */}
           <div className="bg-[#0f172a] p-8 rounded-[40px] border border-white/5 h-fit shadow-2xl">
-            <h2 className="text-xl font-black italic uppercase mb-6 text-white">
-              {editando ? 'EDITAR' : 'NUEVO'} <span className="text-blue-500">REGISTRO</span>
-            </h2>
+            <h2 className="text-xl font-black italic uppercase mb-6 text-blue-500">{editando ? 'Editar Empleado' : 'Nuevo Registro'}</h2>
             <form onSubmit={handleGuardar} className="space-y-4">
-              <input type="text" placeholder="NOMBRE COMPLETO" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value.toUpperCase()})} required />
-              <input type="text" placeholder="DOCUMENTO ID" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
-              <input type="email" placeholder="EMAIL" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value})} required />
-              <input type="text" placeholder="PIN SEGURIDAD" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
-              <select className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
+              <input type="text" placeholder="NOMBRE COMPLETO" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value.toUpperCase()})} required />
+              <input type="text" placeholder="DOCUMENTO ID" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
+              <input type="email" placeholder="EMAIL" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value})} required />
+              <input type="text" placeholder="PIN SEGURIDAD" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
+              <select className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
                 <option value="empleado">OPERATIVO / EMPLEADO</option>
                 <option value="supervisor">SUPERVISOR</option>
                 <option value="admin">ADMINISTRADOR</option>
               </select>
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2">
                 <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20">{editando ? 'Actualizar' : 'Registrar'}</button>
                 {editando && <button type="button" onClick={() => { setEditando(null); setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true }); }} className="bg-slate-800 px-6 rounded-2xl font-black text-xs uppercase">X</button>}
               </div>
             </form>
           </div>
 
-          {/* LISTADO TIEMPO REAL */}
+          {/* LISTADO RESTAURADO CON TIEMPO REAL */}
           <div className="lg:col-span-2 bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-white/5 bg-white/[0.02] flex items-center gap-4">
-              <input type="text" placeholder="FILTRAR PERSONAL..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-6 py-3 text-[10px] font-black tracking-widest uppercase" value={filtro} onChange={e => setFiltro(e.target.value)} />
+            <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+              <input type="text" placeholder="FILTRAR POR NOMBRE O DOCUMENTO..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-6 py-3 text-[10px] font-black tracking-widest" value={filtro} onChange={e => setFiltro(e.target.value)} />
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 bg-white/[0.01]">
-                    <th className="py-6 px-8">Empleado</th>
-                    <th className="py-6 px-4 text-center">Pin</th>
-                    <th className="py-6 px-4 text-center">Estado</th>
-                    <th className="py-6 px-8 text-center">Acción</th>
+                  <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
+                    <th className="py-5 px-8">Empleado / Rol</th>
+                    <th className="py-5 px-4">Pin / ID</th>
+                    <th className="py-5 px-4 text-center">Estado</th>
+                    <th className="py-5 px-8 text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {empleadosFiltrados.map((emp) => (
                     <tr key={emp.id} className="group hover:bg-white/[0.01] transition-colors">
-                      <td className="py-6 px-8">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <div className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_#10b981]' : 'bg-slate-700'}`}></div>
-                          </div>
-                          <div>
-                            <div className="font-bold text-sm uppercase flex items-center gap-2">
-                              {emp.nombre}
-                              {emp.en_almacen && <span className="text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full border border-emerald-500/20 tracking-tighter">EN ALMACÉN</span>}
-                            </div>
-                            <div className="text-[9px] font-black text-slate-500 uppercase tracking-tighter italic">{emp.rol} • ID: {emp.documento_id}</div>
-                          </div>
+                      <td className="py-5 px-8">
+                        <div className="font-bold text-sm group-hover:text-blue-500 transition-colors flex items-center gap-2">
+                          {emp.nombre}
+                          {emp.en_almacen && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]" title="En Almacén"></span>}
                         </div>
+                        <div className="text-[9px] font-black text-slate-500 uppercase">{emp.rol}</div>
                       </td>
-                      <td className="py-6 px-4 text-center">
-                        <div className="relative h-6 group/pin overflow-hidden cursor-pointer w-24 mx-auto">
-                          <p className="text-[10px] font-black text-blue-500/40 uppercase transition-all duration-300 group-hover/pin:-translate-y-full italic">Oculto</p>
-                          <p className="text-[10px] font-black text-yellow-400 uppercase transition-all duration-300 translate-y-full group-hover/pin:translate-y-0 absolute top-0 w-full font-mono">{emp.pin_seguridad}</p>
-                        </div>
+                      <td className="py-5 px-4">
+                        <div className="text-xs font-mono text-slate-400">{emp.documento_id}</div>
+                        <div className="text-[9px] font-black text-blue-500/50 uppercase">PIN: {emp.pin_seguridad}</div>
                       </td>
-                      <td className="py-6 px-4 text-center">
+                      <td className="py-5 px-4 text-center">
                         <button 
                           onClick={() => toggleEstado(emp)} 
-                          className={`px-5 py-2 rounded-xl font-black text-[9px] uppercase transition-all ${emp.activo ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-red-600 text-white shadow-lg shadow-red-900/20'}`}
+                          className={`px-5 py-2 rounded-xl font-black text-[9px] uppercase transition-all ${emp.activo ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-600 text-white'}`}
                         >
                           {emp.activo ? 'Activo' : 'Inactivo'}
                         </button>
                       </td>
-                      <td className="py-6 px-8 text-center">
-                        <button onClick={() => { setEditando(emp); setNuevo(emp); }} className="bg-white/5 hover:bg-white/10 text-slate-400 hover:text-blue-500 px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all">Editar</button>
+                      <td className="py-5 px-8 text-center">
+                        <button onClick={() => { setEditando(emp); setNuevo(emp); }} className="text-slate-500 hover:text-white font-black text-[10px] uppercase tracking-widest">Editar</button>
                       </td>
                     </tr>
                   ))}
