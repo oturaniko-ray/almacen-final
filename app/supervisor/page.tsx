@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONSTANTES DE SEGURIDAD MANTENIDAS
+// 📍 CONSTANTES DE SEGURIDAD
 const ALMACEN_LAT = 40.59682191301211; 
 const ALMACEN_LON = -3.5952475579699485;
 const RADIO_MAXIMO_METROS = 80; 
@@ -119,22 +119,18 @@ export default function SupervisorPage() {
     setAnimar(true);
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        // 🔐 ALGORITMO DE DECODIFICACIÓN ROBUSTO REINSTALADO
         let identificadorFinal = qrData.trim();
         
         if (modo !== 'manual') {
           try {
-            // Decodificación Base64 (formato: documento|timestamp)
             const decodedString = atob(identificadorFinal);
             const partes = decodedString.split('|');
             
             if (partes.length >= 2) {
-              const docId = partes[0].replace(/[^a-zA-Z0-9]/g, ''); // Limpieza de caracteres extra
+              const docId = partes[0].replace(/[^a-zA-Z0-9]/g, ''); 
               const timestamp = parseInt(partes[1]);
               const ahora = Date.now();
 
-              // RUTINA DE TIEMPO FLEXIBLE: Solo bloquea si es pasado y excedió el margen.
-              // Permite tiempos futuros (evita errores por desfases de reloj del sistema)
               if (ahora > timestamp && (ahora - timestamp) > TIEMPO_MAX_TOKEN_MS) {
                 throw new Error("TOKEN EXPIRADO");
               }
@@ -142,11 +138,9 @@ export default function SupervisorPage() {
             }
           } catch (e: any) {
             if (e.message === "TOKEN EXPIRADO") throw e;
-            // Si falla atob, identificadorFinal mantiene el valor original (ej. USB directo)
           }
         }
         
-        // 🔄 CONSULTA CON IDENTIFICADOR LIMPIO
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, estado, pin_seguridad, documento_id, email')
@@ -155,7 +149,6 @@ export default function SupervisorPage() {
         
         if (empError || !emp) throw new Error(`Empleado no encontrado (${identificadorFinal})`);
 
-        // 🛡️ REGLA DE NEGOCIO: VALIDACIÓN DE ESTADO BOOLEANO
         if (emp.estado !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
@@ -210,7 +203,6 @@ export default function SupervisorPage() {
       <main className="h-screen bg-black flex items-center justify-center p-10 text-center text-white">
         <div className="bg-red-600/20 border-2 border-red-600 p-10 rounded-[40px] shadow-[0_0_50px_rgba(220,38,38,0.3)] animate-pulse">
           <h2 className="text-4xl font-black text-red-500 mb-4 uppercase italic tracking-tighter">Sesión Duplicada</h2>
-          <p className="text-white text-xl font-bold">El usuario {user?.email} ha iniciado sesión en otro dispositivo.</p>
         </div>
       </main>
     );
@@ -226,7 +218,6 @@ export default function SupervisorPage() {
       `}</style>
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
         <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-1 text-center tracking-tighter">Panel de Supervisión</h2>
-        {modo === 'manual' && <p className="text-amber-500 font-bold text-center text-[12px] uppercase tracking-widest mb-6 animate-blink">Control Manual Administrador</p>}
         {modo === 'menu' ? (
           <div className="grid gap-4 text-center">
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
