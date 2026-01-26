@@ -7,10 +7,8 @@ import { QRCodeSVG } from 'qrcode.react';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 // 📍 CONFIGURACIÓN UNIFICADA
-// 🔴 CAMBIO INICIO: Coordenadas unificadas con Supervisor
 const ALMACEN_LAT = 40.59682191301211; 
 const ALMACEN_LON = -3.5952475579699485;
-// 🔴 CAMBIO FIN
 const RADIO_MAXIMO_METROS = 50; 
 const TIEMPO_EXPIRACION_QR_MS = 120000;
 
@@ -59,8 +57,8 @@ export default function EmpleadoPage() {
         if (dist <= RADIO_MAXIMO_METROS) {
           setUbicacionOk(true);
           setErrorGps('');
-          // 🔴 CAMBIO INICIO: Estructura de token unificada (Nombre|ID|Timestamp)
-          const nuevoToken = btoa(`${user.nombre}|${user.documento_id}|${Date.now()}`);
+          // 🔴 CAMBIO INICIO: Token simplificado (ID|Timestamp)
+          const nuevoToken = btoa(`${user.documento_id}|${Date.now()}`);
           // 🔴 CAMBIO FIN
           setToken(nuevoToken);
         } else {
@@ -91,7 +89,6 @@ export default function EmpleadoPage() {
       <main className="h-screen bg-black flex items-center justify-center p-10 text-center">
         <div className="bg-red-600/20 border-2 border-red-600 p-10 rounded-[40px] animate-pulse">
           <h2 className="text-4xl font-black text-red-500 mb-4 uppercase italic">Sesión Duplicada</h2>
-          <p className="text-white">Se ha iniciado sesión en otro dispositivo.</p>
         </div>
       </main>
     );
@@ -123,11 +120,6 @@ export default function EmpleadoPage() {
         )}
 
         <div className="space-y-3">
-          <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">
-            Presente este código al supervisor <br/> 
-            {ubicacionOk ? "La sesión se cerrará automáticamente en 2 minutos." : `Estás a ${distancia ?? '--'}m del área.`}
-          </p>
-          
           <button 
             onClick={() => { localStorage.removeItem('user_session'); router.push('/'); }} 
             className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"

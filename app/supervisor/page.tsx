@@ -6,7 +6,6 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONSTANTES DE SEGURIDAD MANTENIDAS
 const ALMACEN_LAT = 40.59682191301211; 
 const ALMACEN_LON = -3.5952475579699485;
 const RADIO_MAXIMO_METROS = 80; 
@@ -19,7 +18,7 @@ function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: numbe
   const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
   const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
   const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-            Math.cos(phi1) * Math.cos(phi2) *
+            Math.cos(phi1) * Math.cos(phi2) +
             Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
@@ -70,21 +69,11 @@ export default function SupervisorPage() {
     else if (modo !== 'menu') { setModo('menu'); }
   };
 
-  // 🔴 CAMBIO INICIO: Rutina de limpieza unificada para errores y éxitos
+  // 🔴 CAMBIO INICIO: Rutina de limpieza automática de buffer y reposicionamiento
   const prepararSiguienteEmpleado = () => {
-    setQrData(''); 
-    setPinEmpleadoManual(''); 
-    setPinAutorizador(''); 
-    setLecturaLista(false); 
-    setAnimar(false);
-    
-    // Reposicionamiento según el modo
-    if (modo === 'manual') {
-      setTimeout(() => docInputRef.current?.focus(), 100);
-    } else if (modo === 'camara') {
-      reiniciarCamara();
-    }
-    // En modo USB, el listener de window sigue activo esperando buffer vacío
+    setQrData(''); setPinEmpleadoManual(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
+    if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 100);
+    if (modo === 'camara') reiniciarCamara();
   };
   // 🔴 CAMBIO FIN
 
@@ -108,11 +97,7 @@ export default function SupervisorPage() {
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
-        if (buffer.trim()) { 
-          setQrData(buffer.trim()); 
-          setLecturaLista(true); 
-          setTimeout(() => pinRef.current?.focus(), 100); 
-        }
+        if (buffer.trim()) { setQrData(buffer.trim()); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 100); }
         buffer = "";
       } else if (e.key.length === 1) { buffer += e.key; }
     };
@@ -142,26 +127,18 @@ export default function SupervisorPage() {
         
         if (modo !== 'manual') {
           try {
-            // 🔴 CAMBIO INICIO: Corrección algoritmo de decodificación QR
-            const decodedString = atob(identificadorFinal);
-            const partes = decodedString.split('|');
-            
-            // Esperamos [Nombre, DocumentoID, Timestamp]
-            if (partes.length === 3) {
-              const [nombre, docId, timestamp] = partes;
+            // 🔴 CAMBIO INICIO: Decodificación simplificada (ID|Timestamp)
+            const decoded = atob(identificadorFinal).split('|');
+            if (decoded.length === 2) {
+              const [docId, timestamp] = decoded;
               if (Date.now() - parseInt(timestamp) > TIEMPO_MAX_TOKEN_MS) {
-                throw new Error("TOKEN EXPIRADO: El código QR ha caducado.");
+                throw new Error("TOKEN EXPIRADO");
               }
-              identificadorFinal = docId; // Usamos el ID para la DB
-            } else if (partes.length === 2) {
-              // Compatibilidad con versiones que solo enviaban ID|Timestamp
-              const [docId, timestamp] = partes;
               identificadorFinal = docId;
             }
             // 🔴 CAMBIO FIN
           } catch (e: any) {
-            if (e.message.includes("TOKEN")) throw e;
-            // Si falla atob, asumimos que es un ID directo (ej. código de barras USB)
+            if (e.message === "TOKEN EXPIRADO") throw e;
           }
         }
 
@@ -171,9 +148,9 @@ export default function SupervisorPage() {
           .or(`documento_id.eq.${identificadorFinal},email.eq.${identificadorFinal}`)
           .maybeSingle();
         
-        // 🔴 CAMBIO INICIO: Validación robusta de existencia
-        if (empError) throw new Error("Error en base de datos al buscar empleado");
-        if (!emp) throw new Error(`Empleado no encontrado con ID: ${identificadorFinal}`);
+        // 🔴 CAMBIO INICIO: Validación de existencia con ID procesado
+        if (empError) throw new Error("Error en base de datos.");
+        if (!emp) throw new Error(`Empleado no encontrado (ID: ${identificadorFinal})`);
         // 🔴 CAMBIO FIN
 
         if (emp.estado !== true) {
@@ -189,26 +166,13 @@ export default function SupervisorPage() {
 
         if (direccion === 'entrada') {
           if (jornadaActiva) throw new Error(`Entrada activa (${new Date(jornadaActiva.hora_entrada).toLocaleTimeString()})`);
-          
-          await supabase.from('jornadas').insert([{
-            empleado_id: emp.id,
-            nombre_empleado: emp.nombre,
-            hora_entrada: new Date().toISOString(),
-            estado: 'activo'
-          }]);
+          await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: new Date().toISOString(), estado: 'activo' }]);
           await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
         } else {
           if (!jornadaActiva) throw new Error("No hay entrada registrada.");
           const ahora = new Date();
           const horas = (ahora.getTime() - new Date(jornadaActiva.hora_entrada).getTime()) / 3600000;
-
-          await supabase.from('jornadas').update({
-            hora_salida: ahora.toISOString(),
-            horas_trabajadas: horas,
-            estado: 'finalizado',
-            editado_por: `Autoriza: ${autorizador.nombre} (${modo.toUpperCase()})`
-          }).eq('id', jornadaActiva.id);
-          
+          await supabase.from('jornadas').update({ hora_salida: ahora.toISOString(), horas_trabajadas: horas, estado: 'finalizado', editado_por: `Autoriza: ${autorizador.nombre} (${modo.toUpperCase()})` }).eq('id', jornadaActiva.id);
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
 
@@ -216,14 +180,11 @@ export default function SupervisorPage() {
         prepararSiguienteEmpleado();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
-        // 🔴 CAMBIO INICIO: Limpieza de buffer tras error para nueva lectura
+        // 🔴 CAMBIO INICIO: Limpieza automática tras error
         prepararSiguienteEmpleado();
         // 🔴 CAMBIO FIN
       }
-    }, () => { 
-      alert("GPS Obligatorio"); 
-      prepararSiguienteEmpleado(); 
-    }, { enableHighAccuracy: true });
+    }, () => { alert("GPS Obligatorio"); prepararSiguienteEmpleado(); }, { enableHighAccuracy: true });
   };
 
   if (sesionDuplicada) {
