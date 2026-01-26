@@ -6,6 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// 📍 CONSTANTES DE SEGURIDAD MANTENIDAS
 const ALMACEN_LAT = 40.59682191301211; 
 const ALMACEN_LON = -3.5952475579699485;
 const RADIO_MAXIMO_METROS = 80; 
@@ -69,9 +70,37 @@ export default function SupervisorPage() {
     else if (modo !== 'menu') { setModo('menu'); }
   };
 
+  // 🔴 CAMBIO INICIO: Rutina de limpieza unificada para errores y éxitos
   const prepararSiguienteEmpleado = () => {
-    setQrData(''); setPinEmpleadoManual(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
-    if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 100);
+    setQrData(''); 
+    setPinEmpleadoManual(''); 
+    setPinAutorizador(''); 
+    setLecturaLista(false); 
+    setAnimar(false);
+    
+    // Reposicionamiento según el modo
+    if (modo === 'manual') {
+      setTimeout(() => docInputRef.current?.focus(), 100);
+    } else if (modo === 'camara') {
+      reiniciarCamara();
+    }
+    // En modo USB, el listener de window sigue activo esperando buffer vacío
+  };
+  // 🔴 CAMBIO FIN
+
+  const reiniciarCamara = async () => {
+    if (modo === 'camara' && direccion) {
+      try {
+        if (scannerRef.current?.isScanning) await scannerRef.current.stop();
+        const scanner = new Html5Qrcode("reader");
+        scannerRef.current = scanner;
+        await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+          setQrData(text); setLecturaLista(true);
+          scanner.stop().then(() => { scannerRef.current = null; });
+          setTimeout(() => pinRef.current?.focus(), 200);
+        }, () => {});
+      } catch (err) {}
+    }
   };
 
   useEffect(() => {
@@ -79,7 +108,11 @@ export default function SupervisorPage() {
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
-        if (buffer.trim()) { setQrData(buffer.trim()); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 100); }
+        if (buffer.trim()) { 
+          setQrData(buffer.trim()); 
+          setLecturaLista(true); 
+          setTimeout(() => pinRef.current?.focus(), 100); 
+        }
         buffer = "";
       } else if (e.key.length === 1) { buffer += e.key; }
     };
@@ -89,18 +122,7 @@ export default function SupervisorPage() {
 
   useEffect(() => {
     if (modo === 'camara' && direccion && !qrData) {
-      const iniciarCamara = async () => {
-        try {
-          const scanner = new Html5Qrcode("reader");
-          scannerRef.current = scanner;
-          await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-            setQrData(text); setLecturaLista(true);
-            scanner.stop().then(() => { scannerRef.current = null; });
-            setTimeout(() => pinRef.current?.focus(), 200);
-          }, () => {});
-        } catch (err) {}
-      };
-      setTimeout(iniciarCamara, 300); 
+      reiniciarCamara();
     }
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
   }, [modo, direccion, qrData]);
@@ -120,18 +142,26 @@ export default function SupervisorPage() {
         
         if (modo !== 'manual') {
           try {
-            const decoded = atob(identificadorFinal).split('|');
-            // 🔴 CAMBIO INICIO: Decodificación unificada (Nombre|ID|Timestamp)
-            if (decoded.length === 3) {
-              const [nombre, docId, timestamp] = decoded;
+            // 🔴 CAMBIO INICIO: Corrección algoritmo de decodificación QR
+            const decodedString = atob(identificadorFinal);
+            const partes = decodedString.split('|');
+            
+            // Esperamos [Nombre, DocumentoID, Timestamp]
+            if (partes.length === 3) {
+              const [nombre, docId, timestamp] = partes;
               if (Date.now() - parseInt(timestamp) > TIEMPO_MAX_TOKEN_MS) {
-                throw new Error("TOKEN EXPIRADO");
+                throw new Error("TOKEN EXPIRADO: El código QR ha caducado.");
               }
+              identificadorFinal = docId; // Usamos el ID para la DB
+            } else if (partes.length === 2) {
+              // Compatibilidad con versiones que solo enviaban ID|Timestamp
+              const [docId, timestamp] = partes;
               identificadorFinal = docId;
             }
             // 🔴 CAMBIO FIN
           } catch (e: any) {
-            if (e.message === "TOKEN EXPIRADO") throw e;
+            if (e.message.includes("TOKEN")) throw e;
+            // Si falla atob, asumimos que es un ID directo (ej. código de barras USB)
           }
         }
 
@@ -141,20 +171,20 @@ export default function SupervisorPage() {
           .or(`documento_id.eq.${identificadorFinal},email.eq.${identificadorFinal}`)
           .maybeSingle();
         
-        if (empError || !emp) throw new Error("Empleado no encontrado");
+        // 🔴 CAMBIO INICIO: Validación robusta de existencia
+        if (empError) throw new Error("Error en base de datos al buscar empleado");
+        if (!emp) throw new Error(`Empleado no encontrado con ID: ${identificadorFinal}`);
+        // 🔴 CAMBIO FIN
 
-        // 🔴 CAMBIO INICIO: Validación estado boolean
         if (emp.estado !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
-        // 🔴 CAMBIO FIN
 
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
         
         const { data: autorizador } = await supabase.from('empleados').select('nombre, rol').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
         if (!autorizador) throw new Error("PIN de Supervisor/Admin inválido");
 
-        // 🔴 CAMBIO INICIO: Búsqueda en tabla jornadas
         const { data: jornadaActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
         if (direccion === 'entrada') {
@@ -181,15 +211,19 @@ export default function SupervisorPage() {
           
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
-        // 🔴 CAMBIO FIN
 
         alert(`✅ Éxito: ${emp.nombre}`);
         prepararSiguienteEmpleado();
       } catch (err: any) { 
         alert(`❌ ${err.message}`); 
-        setAnimar(false); 
+        // 🔴 CAMBIO INICIO: Limpieza de buffer tras error para nueva lectura
+        prepararSiguienteEmpleado();
+        // 🔴 CAMBIO FIN
       }
-    }, () => { alert("GPS Obligatorio"); setAnimar(false); }, { enableHighAccuracy: true });
+    }, () => { 
+      alert("GPS Obligatorio"); 
+      prepararSiguienteEmpleado(); 
+    }, { enableHighAccuracy: true });
   };
 
   if (sesionDuplicada) {
@@ -244,7 +278,7 @@ export default function SupervisorPage() {
                 {lecturaLista && <input ref={pinRef} type="password" placeholder="PIN Supervisor" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
               </div>
             )}
-            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg">
+            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30">
               {animar ? 'PROCESANDO...' : 'Registrar'}
             </button>
             <button onClick={volverAtras} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em]">✕ Cancelar</button>
