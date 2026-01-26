@@ -28,117 +28,130 @@ export default function GestionEmpleados() {
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = editando || nuevo;
-    const { error } = await supabase.from('empleados').upsert([payload]);
-    
-    if (!error) {
-      setEditando(null);
-      setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
-      fetchEmpleados();
+    if (editando) {
+      // 🔴 RUTINA DE SEGURIDAD EN EDICIÓN
+      if (editando.en_almacen && editando.activo === true && nuevo.activo === false) {
+        alert("⚠️ BLOQUEO DE SEGURIDAD: No se puede desactivar a un empleado que está en el almacén. Debe registrar su salida primero.");
+        return;
+      }
+      await supabase.from('empleados').update(nuevo).eq('id', editando.id);
+    } else {
+      await supabase.from('empleados').insert([nuevo]);
     }
+    setEditando(null);
+    setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
+    fetchEmpleados();
   };
 
+  // 🔴 RUTINA DE SEGURIDAD: Cambio rápido de estado (Toggle)
   const toggleEstado = async (emp: any) => {
-    const { error } = await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id);
+    // Si el empleado está en el almacén y lo intentamos desactivar
+    if (emp.en_almacen && emp.activo === true) {
+      alert(`⚠️ ACCIÓN DENEGADA: ${emp.nombre} tiene una jornada activa en el almacén. No puede ser desactivado hasta que marque su salida.`);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('empleados')
+      .update({ activo: !emp.activo })
+      .eq('id', emp.id);
+
     if (!error) fetchEmpleados();
   };
 
-  const empleadosFiltrados = empleados.filter(emp => 
-    emp.nombre.toLowerCase().includes(filtro.toLowerCase()) || 
-    emp.documento_id.includes(filtro)
+  const exportarExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(empleados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Empleados");
+    XLSX.writeFile(wb, "Listado_Empleados_RAY.xlsx");
+  };
+
+  const empleadosFiltrados = empleados.filter(e => 
+    e.nombre.toLowerCase().includes(filtro.toLowerCase()) || 
+    e.documento_id.includes(filtro)
   );
 
   return (
-    <main className="min-h-screen bg-[#050a14] p-4 md:p-12 text-white font-sans">
+    <main className="min-h-screen bg-[#050a14] text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto">
-        <header className="flex justify-between items-center mb-12">
-          <h2 className="text-4xl font-black uppercase italic tracking-tighter">Gestión de <span className="text-blue-500">Personal</span></h2>
-          <div className="flex gap-4">
-            <input 
-              type="text" 
-              placeholder="BUSCAR EMPLEADO..." 
-              className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 w-64"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
-            />
-            <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700">← Volver</button>
+        <div className="flex justify-between items-center mb-12">
+          <div>
+            <h1 className="text-4xl font-black italic uppercase tracking-tighter">Gestión de <span className="text-blue-500">Personal</span></h1>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Panel Administrativo RAY</p>
           </div>
-        </header>
-
-        <div className="sticky top-4 z-20 bg-[#0f172a] p-8 rounded-[35px] border border-white/5 mb-12 shadow-2xl">
-          <h3 className="text-sm font-black uppercase text-blue-500 mb-6 tracking-[0.3em]">
-            {editando ? 'Modificar Ficha' : 'Registro de Nuevo Personal'}
-          </h3>
-          <form onSubmit={handleGuardar} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
-            <input placeholder="Nombre Completo" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.nombre || nuevo.nombre} onChange={e => editando ? setEditando({...editando, nombre: e.target.value}) : setNuevo({...nuevo, nombre: e.target.value})} required />
-            <input placeholder="Documento ID" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.documento_id || nuevo.documento_id} onChange={e => editando ? setEditando({...editando, documento_id: e.target.value}) : setNuevo({...nuevo, documento_id: e.target.value})} required />
-            <input placeholder="Email" type="email" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.email || nuevo.email} onChange={e => editando ? setEditando({...editando, email: e.target.value}) : setNuevo({...nuevo, email: e.target.value})} required />
-            <input placeholder="PIN (4-6 dígitos)" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.pin_seguridad || nuevo.pin_seguridad} onChange={e => editando ? setEditando({...editando, pin_seguridad: e.target.value}) : setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
-            
-            <select 
-              className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs text-slate-400"
-              value={editando?.rol || nuevo.rol}
-              onChange={e => editando ? setEditando({...editando, rol: e.target.value}) : setNuevo({...nuevo, rol: e.target.value})}
-            >
-              <option value="empleado">Empleado</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="admin">Administrador</option>
-            </select>
-
-            <button type="submit" className="bg-blue-600 p-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-500 transition-all">
-              {editando ? 'Actualizar' : 'Registrar'}
-            </button>
-          </form>
-          {editando && <button onClick={() => setEditando(null)} className="mt-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cancelar Edición</button>}
+          <div className="flex gap-4">
+            <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all shadow-lg">Exportar Excel</button>
+            <button onClick={() => router.push('/admin')} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase transition-all">Volver</button>
+          </div>
         </div>
 
-        <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-white/[0.02] text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                <th className="py-6 px-8">Personal</th>
-                <th className="py-6 px-4">Rol</th>
-                <th className="py-6 px-4">Credenciales</th>
-                <th className="py-6 px-4 text-center">Estado</th>
-                <th className="py-6 px-8 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.05]">
-              {empleadosFiltrados.map((emp) => (
-                <tr key={emp.id} className="hover:bg-white/[0.01] transition-all">
-                  <td className="py-5 px-8">
-                    <p className="font-bold text-sm uppercase">{emp.nombre}</p>
-                    {/* MODIFICACIÓN: Amarillo del documento más intenso (text-yellow-400 sin opacidad baja) */}
-                    <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">{emp.documento_id}</span>
-                  </td>
-                  <td className="py-5 px-4">
-                    <span className="text-[10px] font-black uppercase bg-slate-800 px-3 py-1 rounded-md text-slate-300">
-                      {emp.rol}
-                    </span>
-                  </td>
-                  <td className="py-5 px-4">
-                    <p className="text-xs text-slate-400">{emp.email}</p>
-                    {/* MODIFICACIÓN: Se añade 'group' al contenedor del PIN para que el hover sea específico de este elemento */}
-                    <div className="relative h-4 overflow-hidden group w-fit cursor-help">
-                      <p className="text-[10px] font-black text-blue-500 uppercase transition-all duration-300 group-hover:-translate-y-full">PIN OCULTO</p>
-                      {/* MODIFICACIÓN: El PIN ahora solo sube si el ratón está sobre el div 'group' (el texto de PIN OCULTO) */}
-                      <p className="text-[10px] font-black text-yellow-400 uppercase transition-all duration-300 translate-y-full group-hover:translate-y-0 absolute top-0">PIN: {emp.pin_seguridad}</p>
-                    </div>
-                  </td>
-                  <td className="py-5 px-4 text-center">
-                    <button onClick={() => toggleEstado(emp)} className={`px-5 py-1.5 rounded-lg font-black text-[9px] uppercase transition-all shadow-lg ${emp.activo ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white' : 'bg-red-600 text-white shadow-red-900/40 hover:bg-red-500'}`}>
-                      {emp.activo ? 'Activo' : 'Inactivo'}
-                    </button>
-                  </td>
-                  <td className="py-5 px-8 text-center">
-                    <button onClick={() => setEditando(emp)} className="text-blue-500 hover:text-blue-400 font-black text-[10px] uppercase tracking-widest p-2 flex items-center justify-center gap-2 mx-auto">
-                      <span>✏️</span> EDITAR
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid lg:grid-cols-3 gap-10">
+          {/* FORMULARIO */}
+          <div className="bg-[#0f172a] p-8 rounded-[40px] border border-white/5 h-fit">
+            <h2 className="text-xl font-black italic uppercase mb-6 text-blue-500">{editando ? 'Editar Empleado' : 'Nuevo Registro'}</h2>
+            <form onSubmit={handleGuardar} className="space-y-4">
+              <input type="text" placeholder="NOMBRE COMPLETO" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value.toUpperCase()})} required />
+              <input type="text" placeholder="DOCUMENTO ID" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
+              <input type="email" placeholder="EMAIL" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value})} required />
+              <input type="text" placeholder="PIN SEGURIDAD" className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
+              <select className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
+                <option value="empleado">OPERATIVO / EMPLEADO</option>
+                <option value="supervisor">SUPERVISOR</option>
+                <option value="admin">ADMINISTRADOR</option>
+              </select>
+              <div className="flex gap-2">
+                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20">{editando ? 'Actualizar' : 'Registrar'}</button>
+                {editando && <button type="button" onClick={() => { setEditando(null); setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true }); }} className="bg-slate-800 px-6 rounded-2xl font-black text-xs uppercase">X</button>}
+              </div>
+            </form>
+          </div>
+
+          {/* LISTADO */}
+          <div className="lg:col-span-2 bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+              <input type="text" placeholder="FILTRAR POR NOMBRE O DOCUMENTO..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-6 py-3 text-[10px] font-black tracking-widest" value={filtro} onChange={e => setFiltro(e.target.value)} />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
+                    <th className="py-5 px-8">Empleado / Rol</th>
+                    <th className="py-5 px-4">Pin / ID</th>
+                    <th className="py-5 px-4 text-center">Estado</th>
+                    <th className="py-5 px-8 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {empleadosFiltrados.map((emp) => (
+                    <tr key={emp.id} className="group hover:bg-white/[0.01] transition-colors">
+                      <td className="py-5 px-8">
+                        <div className="font-bold text-sm group-hover:text-blue-500 transition-colors flex items-center gap-2">
+                          {emp.nombre}
+                          {emp.en_almacen && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" title="En Almacén"></span>}
+                        </div>
+                        <div className="text-[9px] font-black text-slate-500 uppercase">{emp.rol}</div>
+                      </td>
+                      <td className="py-5 px-4">
+                        <div className="text-xs font-mono text-slate-400">{emp.documento_id}</div>
+                        <div className="text-[9px] font-black text-blue-500/50">PIN: {emp.pin_seguridad}</div>
+                      </td>
+                      <td className="py-5 px-4 text-center">
+                        <button 
+                          onClick={() => toggleEstado(emp)} 
+                          className={`px-5 py-2 rounded-xl font-black text-[9px] uppercase transition-all ${emp.activo ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-600 text-white'}`}
+                        >
+                          {emp.activo ? 'Activo' : 'Inactivo'}
+                        </button>
+                      </td>
+                      <td className="py-5 px-8 text-center">
+                        <button onClick={() => { setEditando(emp); setNuevo(emp); }} className="text-slate-500 hover:text-white font-black text-[10px] uppercase tracking-widest">Editar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </main>
