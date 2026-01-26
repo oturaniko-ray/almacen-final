@@ -1,156 +1,95 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-export default function GestionEmpleados() {
+export default function PanelAdminHub() {
   const [user, setUser] = useState<any>(null);
-  const [empleados, setEmpleados] = useState<any[]>([]);
-  const [editando, setEditando] = useState<any>(null);
-  const [filtro, setFiltro] = useState(''); 
-  const [nuevo, setNuevo] = useState({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
   const router = useRouter();
 
   useEffect(() => {
+    // 1. Validar Sesión y Obtener Datos
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
-    setUser(JSON.parse(sessionData));
-    fetchEmpleados();
+    const currentUser = JSON.parse(sessionData);
+    if (!['admin', 'administrador'].includes(currentUser.rol)) { router.replace('/'); return; }
+    setUser(currentUser);
 
-    const channel = supabase.channel('realtime-gestion')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchEmpleados())
-      .subscribe();
-    
-    return () => { supabase.removeChannel(channel); };
+    // 2. Lógica de Inactividad (2 Minutos)
+    let timeout: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        localStorage.removeItem('user_session'); // Limpiar buffer de datos
+        router.replace('/'); // Regresar al menú principal
+      }, 120000); // 2 minutos en milisegundos
+    };
+
+    // Eventos para detectar actividad
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    window.addEventListener('click', resetTimer);
+
+    resetTimer(); // Iniciar contador al cargar
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', resetTimer);
+    };
   }, [router]);
 
-  const fetchEmpleados = async () => {
-    const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
-    if (data) setEmpleados(data);
-  };
-
-  const handleGuardar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload = editando || nuevo;
-    const { error } = await supabase.from('empleados').upsert([payload]);
-    
-    if (!error) {
-      setEditando(null);
-      setNuevo({ nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true });
-      fetchEmpleados();
-    }
-  };
-
-  const toggleEstado = async (emp: any) => {
-    const { error } = await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id);
-    if (!error) fetchEmpleados();
-  };
-
-  const empleadosFiltrados = empleados.filter(emp => 
-    emp.nombre.toLowerCase().includes(filtro.toLowerCase()) || 
-    emp.documento_id.includes(filtro)
-  );
-
   return (
-    <main className="min-h-screen bg-[#050a14] p-4 md:p-12 text-white font-sans">
-      <div className="max-w-7xl mx-auto">
-        <header className="flex justify-between items-center mb-12">
-          <h2 className="text-4xl font-black uppercase italic tracking-tighter">Gestión de <span className="text-blue-500">Personal</span></h2>
-          <div className="flex gap-4">
-            <input 
-              type="text" 
-              placeholder="BUSCAR EMPLEADO..." 
-              className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 w-64"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
-            />
-            <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700">← Volver</button>
-          </div>
+    <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans flex items-center justify-center">
+      <div className="max-w-4xl w-full">
+        <header className="text-center mb-16">
+          <h1 className="text-5xl font-black italic uppercase tracking-tighter">
+            CONSOLA <span className="text-blue-500">ADMIN</span>
+          </h1>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mt-3">
+            Gestión de Infraestructura Maestra
+          </p>
+
+          {/* 🟢 IDENTIFICACIÓN DE USUARIO LOGUEADO */}
+          {user && (
+            <div className="mt-6 flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">USUARIO:</span>
+                <span className="text-[11px] font-black text-white uppercase italic">{user.nombre}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">ROL:</span>
+                <span className="text-[11px] font-black text-blue-400 uppercase italic">{user.rol}</span>
+              </div>
+            </div>
+          )}
         </header>
 
-        {/* MENÚ DE REGISTRO SUPERIOR FIJO */}
-        <div className="sticky top-4 z-20 bg-[#0f172a] p-8 rounded-[35px] border border-white/5 mb-12 shadow-2xl">
-          <h3 className="text-sm font-black uppercase text-blue-500 mb-6 tracking-[0.3em]">
-            {editando ? 'Modificar Ficha' : 'Registro de Nuevo Personal'}
-          </h3>
-          <form onSubmit={handleGuardar} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
-            <input placeholder="Nombre Completo" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs uppercase" value={editando?.nombre || nuevo.nombre} onChange={e => editando ? setEditando({...editando, nombre: e.target.value.toUpperCase()}) : setNuevo({...nuevo, nombre: e.target.value.toUpperCase()})} required />
-            <input placeholder="Documento ID" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.documento_id || nuevo.documento_id} onChange={e => editando ? setEditando({...editando, documento_id: e.target.value}) : setNuevo({...nuevo, documento_id: e.target.value})} required />
-            <input placeholder="Email" type="email" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.email || nuevo.email} onChange={e => editando ? setEditando({...editando, email: e.target.value}) : setNuevo({...nuevo, email: e.target.value})} required />
-            <input placeholder="PIN (4-6 dígitos)" className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs" value={editando?.pin_seguridad || nuevo.pin_seguridad} onChange={e => editando ? setEditando({...editando, pin_seguridad: e.target.value}) : setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
-            
-            <select 
-              className="bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs text-slate-400"
-              value={editando?.rol || nuevo.rol}
-              onChange={e => editando ? setEditando({...editando, rol: e.target.value}) : setNuevo({...nuevo, rol: e.target.value})}
-            >
-              <option value="empleado">Empleado</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="admin">Administrador</option>
-            </select>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <button onClick={() => router.push('/admin/empleados')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl">
+            <span className="text-3xl block mb-6">👥</span>
+            <h3 className="text-xl font-black uppercase italic group-hover:text-blue-500 transition-colors">Empleados</h3>
+            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Base de datos y pins</p>
+          </button>
+          
+          <button onClick={() => router.push('/admin/presencia')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-emerald-500 transition-all text-left group shadow-2xl">
+            <span className="text-3xl block mb-6">🏪</span>
+            <h3 className="text-xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">Presencia</h3>
+            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Estado en tiempo real</p>
+          </button>
 
-            <button type="submit" className="bg-blue-600 p-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-500 transition-all">
-              {editando ? 'Actualizar' : 'Registrar'}
-            </button>
-          </form>
-          {editando && <button onClick={() => setEditando(null)} className="mt-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cancelar Edición</button>}
+          <button onClick={() => router.push('/admin/auditoria')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl opacity-50 cursor-not-allowed">
+            <span className="text-3xl block mb-6">📑</span>
+            <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
+            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Logs de movimientos</p>
+          </button>
         </div>
 
-        <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-white/[0.02] text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                <th className="py-6 px-8">Nombre / Documento</th>
-                <th className="py-6 px-4">Correo / Seguridad</th>
-                <th className="py-6 px-4">Rol</th>
-                <th className="py-6 px-4 text-center">Estado</th>
-                <th className="py-6 px-8 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.05]">
-              {empleadosFiltrados.map((emp) => (
-                <tr key={emp.id} className="hover:bg-white/[0.01] transition-all">
-                  {/* COLUMNA 1: Nombre y Documento debajo */}
-                  <td className="py-5 px-8">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-sm uppercase">{emp.nombre}</p>
-                      <span className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]' : 'bg-white/10'}`}></span>
-                    </div>
-                    <span className="text-[14.4px] font-normal text-white uppercase tracking-widest">{emp.documento_id}</span>
-                  </td>
-                  {/* COLUMNA 2: Correo y PIN oculto debajo */}
-                  <td className="py-5 px-4">
-                    <p className="text-xs text-slate-400 mb-1">{emp.email}</p>
-                    <div className="relative h-4 overflow-hidden group w-fit cursor-help">
-                      <p className="text-[10px] font-black text-blue-500 uppercase transition-all duration-300 group-hover:-translate-y-full">PIN OCULTO</p>
-                      <p className="text-[10px] font-black text-yellow-400 uppercase transition-all duration-300 translate-y-full group-hover:translate-y-0 absolute top-0">PIN: {emp.pin_seguridad}</p>
-                    </div>
-                  </td>
-                  {/* COLUMNA 3: Rol */}
-                  <td className="py-5 px-4">
-                    <span className="text-[10px] font-black uppercase bg-slate-800 px-3 py-1 rounded-md text-slate-300">
-                      {emp.rol}
-                    </span>
-                  </td>
-                  {/* COLUMNA 4: Estado */}
-                  <td className="py-5 px-4 text-center">
-                    <button onClick={() => toggleEstado(emp)} className={`px-5 py-1.5 rounded-lg font-black text-[9px] uppercase transition-all shadow-lg ${emp.activo ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white' : 'bg-red-600 text-white shadow-red-900/40 hover:bg-red-500'}`}>
-                      {emp.activo ? 'Activo' : 'Inactivo'}
-                    </button>
-                  </td>
-                  {/* COLUMNA 5: Acción de Edición */}
-                  <td className="py-5 px-8 text-center">
-                    <button onClick={() => setEditando(emp)} className="text-blue-500 hover:text-blue-400 font-black text-[10px] uppercase tracking-widest p-2 flex items-center justify-center gap-2 mx-auto">
-                      <span>✏️</span> EDITAR
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-16 text-center">
+          <button onClick={() => router.push('/')} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800">
+            ← Volver al Selector Principal
+          </button>
         </div>
       </div>
     </main>
