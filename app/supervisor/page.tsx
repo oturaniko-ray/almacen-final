@@ -6,13 +6,12 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 🔴 COORDENADAS CORREGIDAS
+// 📍 COORDENADAS PROPORCIONADAS
 const ALMACEN_LAT = 40.59680101005673; 
 const ALMACEN_LON = -3.595251665548761;
 const RADIO_MAXIMO_METROS = 80; 
 const TIEMPO_MAX_TOKEN_MS = 120000;
 
-// 🔴 CAMBIO: Fórmula de distancia optimizada (Haversine completo)
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3;
   const p1 = lat1 * Math.PI / 180;
@@ -135,9 +134,20 @@ export default function SupervisorPage() {
           }
         }
 
-        const { data: emp, error: empError } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
+        // 🔴 CAMBIO: Se ajusta la selección de columna de 'estado' a 'activo'
+        const { data: emp, error: empError } = await supabase
+          .from('empleados')
+          .select('id, nombre, activo, pin_seguridad, documento_id, email')
+          .or(`documento_id.eq.${idFinal},email.eq.${idFinal}`)
+          .maybeSingle();
+
         if (empError || !emp) throw new Error(`Empleado no encontrado (ID: ${idFinal})`);
-        if (emp.estado !== true) throw new Error("Acceso denegado: Empleado inactivo.");
+        
+        // 🔴 CAMBIO: Validación sobre la columna 'activo' (boolean)
+        if (emp.activo !== true) {
+          throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
+        }
+
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN Empleado incorrecto");
         
         const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
