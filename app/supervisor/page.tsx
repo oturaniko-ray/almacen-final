@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// 📍 CONSTANTES DE SEGURIDAD
+// 📍 CONSTANTES 
 const ALMACEN_LAT = 40.59682191301211; 
 const ALMACEN_LON = -3.5952475579699485;
 const RADIO_MAXIMO_METROS = 80; 
@@ -29,6 +29,7 @@ export default function SupervisorPage() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // --- LÓGICA DE SESIÓN ÚNICA SEGMENTADA ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
@@ -119,83 +120,31 @@ export default function SupervisorPage() {
     setAnimar(true);
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        let identificadorFinal = qrData.trim();
-        
+        let docIdOrEmail = qrData.trim();
         if (modo !== 'manual') {
           try {
-            const decodedString = atob(identificadorFinal);
-            const partes = decodedString.split('|');
-            
-            if (partes.length >= 2) {
-              const docId = partes[0].replace(/[^a-zA-Z0-9]/g, ''); 
-              const timestamp = parseInt(partes[1]);
-              const ahora = Date.now();
-
-              if (ahora > timestamp && (ahora - timestamp) > TIEMPO_MAX_TOKEN_MS) {
-                throw new Error("TOKEN EXPIRADO");
-              }
-              identificadorFinal = docId;
+            const decoded = atob(docIdOrEmail).split('|');
+            if (decoded.length === 2) {
+              docIdOrEmail = decoded[0];
+              if (Date.now() - parseInt(decoded[1]) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
             }
-          } catch (e: any) {
-            if (e.message === "TOKEN EXPIRADO") throw e;
-          }
+          } catch (e) {}
         }
-        
-        const { data: emp, error: empError } = await supabase
-          .from('empleados')
-          .select('id, nombre, estado, pin_seguridad, documento_id, email')
-          .or(`documento_id.eq.${identificadorFinal},email.eq.${identificadorFinal}`)
-          .maybeSingle();
-        
-        if (empError || !emp) throw new Error(`Empleado no encontrado (${identificadorFinal})`);
-
-        if (emp.estado !== true) {
-          throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
-        }
-
+        const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${docIdOrEmail},email.eq.${docIdOrEmail}`).maybeSingle();
+        if (!emp) throw new Error("Empleado no encontrado");
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN del Empleado incorrecto");
-        
         const { data: autorizador } = await supabase.from('empleados').select('nombre, rol').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
-        if (!autorizador) throw new Error("PIN de Supervisor/Administrador inválido");
+        if (!autorizador) throw new Error(modo === 'manual' ? "PIN de Administrador inválido" : "PIN de Supervisor inválido");
 
-        const { data: jornadaActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
-
-        if (direccion === 'entrada') {
-          if (jornadaActiva) throw new Error(`El empleado ya tiene una entrada activa (${new Date(jornadaActiva.hora_entrada).toLocaleTimeString()})`);
-          
-          await supabase.from('jornadas').insert([{
-            empleado_id: emp.id,
-            nombre_empleado: emp.nombre,
-            hora_entrada: new Date().toISOString(),
-            estado: 'activo'
-          }]);
-          await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
-        } else {
-          if (!jornadaActiva) throw new Error("No hay entrada previa registrada para marcar salida.");
-
-          const ahora = new Date();
-          const horas = (ahora.getTime() - new Date(jornadaActiva.hora_entrada).getTime()) / 3600000;
-
-          await supabase.from('jornadas').update({
-            hora_salida: ahora.toISOString(),
-            horas_trabajadas: horas,
-            estado: 'finalizado',
-            editado_por: `Autoriza: ${autorizador.nombre} (${modo.toUpperCase()})`
-          }).eq('id', jornadaActiva.id);
-          
-          await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
-        }
-
+        await supabase.from('empleados').update({ en_almacen: direccion === 'entrada' }).eq('id', emp.id);
+        await supabase.from('registros_acceso').insert([{
+          empleado_id: emp.id, nombre_empleado: emp.nombre, tipo_movimiento: direccion,
+          detalles: `${modo === 'manual' ? 'ADMINISTRADOR' : 'SUPERVISOR'} ${modo.toUpperCase()} - Autoriza: ${autorizador.nombre}`
+        }]);
         alert(`✅ Éxito: ${emp.nombre}`);
         prepararSiguienteEmpleado();
-      } catch (err: any) { 
-        alert(`❌ ${err.message}`); 
-        prepararSiguienteEmpleado(); 
-      }
-    }, () => { 
-      alert("GPS Obligatorio"); 
-      prepararSiguienteEmpleado(); 
-    }, { enableHighAccuracy: true });
+      } catch (err: any) { alert(`❌ ${err.message}`); setPinAutorizador(''); setAnimar(false); }
+    }, () => { alert("GPS Obligatorio"); setAnimar(false); });
   };
 
   if (sesionDuplicada) {
@@ -203,6 +152,7 @@ export default function SupervisorPage() {
       <main className="h-screen bg-black flex items-center justify-center p-10 text-center text-white">
         <div className="bg-red-600/20 border-2 border-red-600 p-10 rounded-[40px] shadow-[0_0_50px_rgba(220,38,38,0.3)] animate-pulse">
           <h2 className="text-4xl font-black text-red-500 mb-4 uppercase italic tracking-tighter">Sesión Duplicada</h2>
+          <p className="text-white text-xl font-bold">El usuario {user?.email} ha iniciado sesión en otro dispositivo.</p>
         </div>
       </main>
     );
@@ -218,6 +168,7 @@ export default function SupervisorPage() {
       `}</style>
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
         <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-1 text-center tracking-tighter">Panel de Supervisión</h2>
+        {modo === 'manual' && <p className="text-amber-500 font-bold text-center text-[12px] uppercase tracking-widest mb-6 animate-blink">Control Manual Administrador</p>}
         {modo === 'menu' ? (
           <div className="grid gap-4 text-center">
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
