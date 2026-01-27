@@ -22,6 +22,7 @@ export default function GestionEmpleados() {
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
+  // 1. CARGA DE SESIÓN Y DATOS INICIALES
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
@@ -34,6 +35,7 @@ export default function GestionEmpleados() {
     fetchConfig();
     fetchEmpleados();
 
+    // ESCUCHA DE SESIÓN GLOBAL
     const canalSession = supabase.channel('global-session-control');
     canalSession.on('broadcast', { event: 'nueva-sesion' }, (payload) => {
       if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
@@ -45,7 +47,23 @@ export default function GestionEmpleados() {
         await canalSession.send({ type: 'broadcast', event: 'nueva-sesion', payload: { sid: sessionId.current, userEmail: currentUser.email } });
       }
     });
-    return () => { supabase.removeChannel(canalSession); };
+
+    // SUSCRIPCIÓN REALTIME PARA CAMBIOS EN TIEMPO REAL
+    const canalEmpleados = supabase
+      .channel('realtime-empleados')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'empleados' },
+        () => {
+          fetchEmpleados(); 
+        }
+      )
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(canalSession);
+      supabase.removeChannel(canalEmpleados);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -130,7 +148,6 @@ export default function GestionEmpleados() {
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans relative">
       <div className="max-w-7xl mx-auto">
         
-        {/* CABECERA CON USUARIO Y EXPORTACIÓN */}
         <div className="sticky top-0 z-50 pt-2 pb-8 bg-[#050a14]">
           <div className={`p-8 rounded-[40px] border-2 transition-all duration-500 shadow-2xl ${editando ? 'bg-blue-950/40 border-blue-500' : 'bg-[#0f172a] border-white/5'}`}>
             <div className="flex justify-between items-start mb-6">
@@ -189,7 +206,6 @@ export default function GestionEmpleados() {
           </div>
         </div>
 
-        {/* TABLA CON INDICADOR DE PRESENCIA (PUNTO JUNTO AL NOMBRE) */}
         <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="p-6 bg-white/[0.02] border-b border-white/5">
             <input type="text" placeholder="BUSCAR POR NOMBRE O ID..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-8 py-4 text-[11px] font-black uppercase outline-none focus:border-blue-500 transition-all" value={filtro} onChange={e => setFiltro(e.target.value)} />
@@ -209,7 +225,6 @@ export default function GestionEmpleados() {
                   <tr key={emp.id} className="group hover:bg-white/[0.01] transition-colors">
                     <td className="py-6 px-10">
                       <div className="flex items-center gap-3">
-                        {/* PUNTO DE PRESENCIA AL LADO DEL NOMBRE */}
                         <div className="relative flex h-3 w-3">
                           {emp.en_almacen && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
                           <span className={`relative inline-flex rounded-full h-3 w-3 ${emp.en_almacen ? 'bg-emerald-500' : 'bg-white/10'}`}></span>
