@@ -40,7 +40,6 @@ export default function LoginPage() {
   useEffect(() => {
     if (!tempUser) return;
 
-    // Lógica de Inactividad basada en Base de Datos
     let timeout: NodeJS.Timeout;
     const resetTimer = () => {
       if (timeout) clearTimeout(timeout);
@@ -52,9 +51,9 @@ export default function LoginPage() {
 
     window.addEventListener('mousemove', resetTimer);
     window.addEventListener('keydown', resetTimer);
+    window.addEventListener('click', resetTimer);
     resetTimer();
 
-    // Broadcast para evitar sesiones simultáneas
     const canalSession = supabase.channel('global-session-control');
     canalSession
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
@@ -80,6 +79,7 @@ export default function LoginPage() {
       clearTimeout(timeout);
       window.removeEventListener('mousemove', resetTimer);
       window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', resetTimer);
       supabase.removeChannel(canalSession);
     };
   }, [tempUser, config.timer_inactividad]);
@@ -88,6 +88,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      // Búsqueda sin forzar mayúsculas en el identificador
       const { data, error } = await supabase
         .from('empleados')
         .select('*')
@@ -123,26 +124,34 @@ export default function LoginPage() {
           <div className="bg-[#0f172a] p-10 rounded-[40px] border border-red-500/30 text-center max-w-sm animate-in zoom-in duration-300">
             <div className="text-5xl mb-4">⚠️</div>
             <h2 className="text-xl font-black uppercase italic text-red-500 mb-2">Sesión Duplicada</h2>
-            <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase">Se ha detectado un nuevo inicio de sesión con esta cuenta. Serás redirigido.</p>
+            <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase">Se ha detectado un nuevo inicio de sesión con esta cuenta.</p>
           </div>
         </div>
       )}
 
-      <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10 transition-all duration-500">
+      <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10">
         <header className="mb-10 text-center">
           <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
             {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
           </h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-3 italic">Gestión de Almacén</p>
+          {/* Nombre y Rol debajo del título cuando hay sesión activa */}
+          {tempUser && paso === 'selector' ? (
+            <div className="mt-4 animate-in fade-in duration-700">
+              <p className="text-xs font-black uppercase text-white tracking-widest">{tempUser.nombre}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.3em] mt-1 italic">{tempUser.rol}</p>
+            </div>
+          ) : (
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-3 italic">Gestión de Almacén</p>
+          )}
         </header>
 
         {paso === 'login' ? (
-          <form onSubmit={handleLogin} className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-4">
               <input 
                 type="text" 
                 placeholder="ID DE EMPLEADO O EMAIL" 
-                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold uppercase tracking-widest focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
+                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold tracking-widest focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
                 required
@@ -158,23 +167,13 @@ export default function LoginPage() {
             </div>
             <button 
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20 active:scale-95 disabled:opacity-50"
+              className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20 disabled:opacity-50"
             >
               {loading ? 'Validando...' : 'Entrar al Sistema'}
             </button>
           </form>
         ) : (
           <div className="space-y-3 animate-in fade-in zoom-in duration-500">
-            <div className="bg-white/5 p-5 rounded-[30px] mb-6 border border-white/5 flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-black italic text-lg shadow-lg">
-                {tempUser?.nombre?.charAt(0)}
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Usuario Activo</p>
-                <p className="text-xs font-black uppercase italic">{tempUser?.nombre}</p>
-              </div>
-            </div>
-
             <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
               🏃 Acceso Empleado
             </button>
@@ -192,7 +191,7 @@ export default function LoginPage() {
             )}
 
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'tecnico') && (
-              <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-5 rounded-[22px] font-bold text-md transition-all shadow-xl text-left pl-8">
+              <button onClick={() => irARuta('/admin')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
                 ⚙️ Gestión Administrativa
               </button>
             )}
