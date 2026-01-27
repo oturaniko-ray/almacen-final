@@ -134,7 +134,6 @@ export default function SupervisorPage() {
           }
         }
 
-        // 🔴 CAMBIO: Se ajusta la selección de columna de 'estado' a 'activo'
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, activo, pin_seguridad, documento_id, email')
@@ -143,7 +142,6 @@ export default function SupervisorPage() {
 
         if (empError || !emp) throw new Error(`Empleado no encontrado (ID: ${idFinal})`);
         
-        // 🔴 CAMBIO: Validación sobre la columna 'activo' (boolean)
         if (emp.activo !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
@@ -176,29 +174,59 @@ export default function SupervisorPage() {
     }, () => { alert("GPS Obligatorio"); prepararSiguienteEmpleado(); }, { enableHighAccuracy: true });
   };
 
+  // Helper para mostrar el título según el modo
+  const getTituloModo = () => {
+    switch (modo) {
+      case 'usb': return 'Lectura USB';
+      case 'camara': return 'Lectura Cámara';
+      case 'manual': return 'Entrada Manual';
+      default: return 'Lectura QR';
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
       <style jsx global>{`
         @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
         .animate-laser { animation: laser 2s infinite linear; }
       `}</style>
+      
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-1 text-center tracking-tighter">Panel de Supervisión</h2>
+        
+        {/* MEMBRETE INTEGRADO EN TODAS LAS PANTALLAS */}
+        <header className="mb-8 text-center">
+          <h2 className="text-2xl font-black uppercase italic tracking-tighter">
+            <span className="text-white">LECTURA</span> <span className="text-blue-500">QR</span>
+          </h2>
+          {user && (
+            <div className="mt-2">
+              <p className="text-[11px] font-black uppercase text-slate-400 tracking-widest leading-none">
+                {user.nombre}
+              </p>
+              <p className="text-[9px] font-bold text-blue-400/80 uppercase tracking-[0.2em] mt-1">
+                {user.rol}
+              </p>
+            </div>
+          )}
+        </header>
+
         {modo === 'menu' ? (
           <div className="grid gap-4 text-center">
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
             <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-emerald-500 transition-all uppercase tracking-widest">📱 Cámara Móvil</button>
             <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-slate-400 transition-all uppercase tracking-widest">🖋️ Entrada Manual</button>
-            <button onClick={() => router.push('/')} className="mt-6 text-slate-500 font-bold uppercase text-[11px] tracking-[0.3em] hover:text-blue-400">← Volver al Inicio</button>
+            <button onClick={() => router.push('/')} className="mt-6 text-slate-500 font-bold uppercase text-[11px] tracking-[0.3em] hover:text-blue-400">← Volver</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
+            <h3 className="text-center font-black uppercase italic text-blue-500 text-xl tracking-tighter mb-2">{getTituloModo()}</h3>
             <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl">SALIDA</button>
-            <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest">← Cambiar Modo</button>
+            <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest">← Volver</button>
           </div>
         ) : (
           <div className="space-y-6">
+            <h3 className="text-center font-black uppercase italic text-blue-500 text-xl tracking-tighter mb-2">{getTituloModo()} - {direccion.toUpperCase()}</h3>
             {modo === 'manual' ? (
               <div className="space-y-6">
                 <input ref={docInputRef} type="text" autoFocus className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-bold border border-white/10" placeholder="ID Empleado" value={qrData} onChange={(e) => setQrData(e.target.value)} />
@@ -221,7 +249,7 @@ export default function SupervisorPage() {
             <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30">
               {animar ? 'PROCESANDO...' : 'Registrar'}
             </button>
-            <button onClick={volverAtras} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em]">✕ Cancelar</button>
+            <button onClick={volverAtras} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em]">✕ Volver</button>
           </div>
         )}
       </div>
