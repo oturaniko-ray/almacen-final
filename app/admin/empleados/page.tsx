@@ -22,10 +22,13 @@ export default function GestionEmpleados() {
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
+  // 1. CARGA DE SESIÓN Y SEGURIDAD (INCLUYE TÉCNICO)
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
     const currentUser = JSON.parse(sessionData);
+    
+    // Acceso permitido para admin, administrador y tecnico
     if (!['admin', 'administrador', 'tecnico'].includes(currentUser.rol.toLowerCase())) {
       router.replace('/'); return;
     }
@@ -47,7 +50,7 @@ export default function GestionEmpleados() {
     return () => { supabase.removeChannel(canalSession); };
   }, [router]);
 
-  // CORRECCIÓN: INACTIVIDAD MEJORADA
+  // 2. LÓGICA DE INACTIVIDAD
   useEffect(() => {
     if (!user) return;
     let timeout: NodeJS.Timeout;
@@ -59,10 +62,8 @@ export default function GestionEmpleados() {
       }, parseInt(config.timer_inactividad));
     };
 
-    // Eventos para detectar actividad real
     const eventos = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     eventos.forEach(e => window.addEventListener(e, resetTimer));
-    
     resetTimer();
 
     return () => {
@@ -84,10 +85,10 @@ export default function GestionEmpleados() {
     if (data) setEmpleados(data);
   };
 
+  // 3. PERSISTENCIA CON VALIDACIÓN DE PIN ÚNICO
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Validación de PIN único
       const { data: existente } = await supabase
         .from('empleados')
         .select('id, nombre')
@@ -95,11 +96,10 @@ export default function GestionEmpleados() {
         .maybeSingle();
 
       if (existente && (!editando || existente.id !== editando.id)) {
-        alert(`SEGURIDAD: El PIN ya pertenece a ${existente.nombre}.`);
+        alert(`¡ALERTA DE SEGURIDAD! El PIN ya está asignado a: ${existente.nombre}.`);
         return; 
       }
 
-      // El rol se envía en minúsculas para respetar el CONSTRAINT
       const payload = { ...nuevo, rol: nuevo.rol.toLowerCase() };
 
       if (editando) {
@@ -114,27 +114,33 @@ export default function GestionEmpleados() {
       setNuevo(estadoInicial);
       fetchEmpleados();
     } catch (error: any) {
-      alert(`Error al guardar: ${error.message}`);
+      alert(`Error crítico: ${error.message}`);
       setEditando(null);
       setNuevo(estadoInicial);
     }
+  };
+
+  const exportarExcel = () => {
+    const dataExport = empleados.map(e => ({ Nombre: e.nombre, Documento: e.documento_id, Email: e.email, Rol: e.rol }));
+    const ws = XLSX.utils.json_to_sheet(dataExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Personal");
+    XLSX.writeFile(wb, `Personal_${config.empresa_nombre}.xlsx`);
   };
 
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans relative">
       <div className="max-w-7xl mx-auto">
         
-        {/* MEMBRETE RAY CON TÍTULO AZUL */}
+        {/* CABECERA CON TÍTULO AZUL */}
         <div className="sticky top-0 z-50 pt-2 pb-8 bg-[#050a14]">
           <div className={`p-8 rounded-[40px] border-2 transition-all duration-500 shadow-2xl ${editando ? 'bg-blue-950/40 border-blue-500' : 'bg-[#0f172a] border-white/5'}`}>
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h1 className="text-4xl font-black italic uppercase tracking-tighter">
+                <h1 className="text-4xl font-black italic uppercase tracking-tighter text-white">
                   GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
                 </h1>
-                <p className="text-[10px] font-bold text-slate-500 uppercase mt-1 tracking-widest italic">
-                  Control de Identidad y Roles
-                </p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase mt-1 tracking-[0.3em] italic">Seguridad de Acceso</p>
               </div>
               <div className="flex gap-3">
                 {(editando || nuevo.nombre !== '' || nuevo.pin_seguridad !== '') && (
@@ -142,6 +148,7 @@ export default function GestionEmpleados() {
                     Cancelar ✕
                   </button>
                 )}
+                <button onClick={exportarExcel} className="bg-emerald-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-900/20">📊 Excel</button>
                 <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-white/5">← Volver</button>
               </div>
             </div>
@@ -149,10 +156,10 @@ export default function GestionEmpleados() {
             <form onSubmit={handleGuardar} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Nombre</label>
-                <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
+                <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500 transition-all" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">ID Documento</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Documento ID</label>
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
               </div>
               <div>
@@ -160,7 +167,7 @@ export default function GestionEmpleados() {
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value.toLowerCase()})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Pin Único</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Pin Seguridad</label>
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
               </div>
               <div>
@@ -168,6 +175,7 @@ export default function GestionEmpleados() {
                 <select className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-[10px] font-black outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
                   <option value="empleado">EMPLEADO</option>
                   <option value="supervisor">SUPERVISOR</option>
+                  <option value="tecnico">TÉCNICO</option>
                   <option value="admin">ADMINISTRADOR</option>
                 </select>
               </div>
@@ -184,14 +192,14 @@ export default function GestionEmpleados() {
           </div>
         </div>
 
-        {/* LISTADO CON HOVER PIN CORREGIDO */}
+        {/* LISTADO CON HOVER PIN REPARADO */}
         <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] border-b border-white/5 bg-black/20">
                   <th className="py-8 px-10">Colaborador</th>
-                  <th className="py-8 px-6">Seguridad / PIN</th>
+                  <th className="py-8 px-6">Contacto / PIN</th>
                   <th className="py-8 px-6 text-center">Rol</th>
                   <th className="py-8 px-10 text-center">Acciones</th>
                 </tr>
@@ -205,8 +213,6 @@ export default function GestionEmpleados() {
                     </td>
                     <td className="py-6 px-6">
                       <p className="text-[11px] text-slate-400 mb-1">{emp.email}</p>
-                      
-                      {/* CONTENEDOR DE PIN CORREGIDO */}
                       <div className="relative h-5 overflow-hidden w-32 cursor-help group/pin">
                         <div className="flex flex-col transition-transform duration-300 ease-in-out transform group-hover/pin:-translate-y-5">
                           <div className="h-5 flex items-center">
@@ -217,7 +223,6 @@ export default function GestionEmpleados() {
                           </div>
                         </div>
                       </div>
-
                     </td>
                     <td className="py-6 px-6 text-center">
                       <span className="text-[10px] font-black uppercase bg-slate-800 px-4 py-1.5 rounded-lg text-slate-400 border border-white/5">{emp.rol}</span>
