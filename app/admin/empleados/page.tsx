@@ -22,7 +22,6 @@ export default function GestionEmpleados() {
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
-  // 1. CARGA INICIAL Y SEGURIDAD
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
@@ -50,7 +49,6 @@ export default function GestionEmpleados() {
     return () => { supabase.removeChannel(canalSession); };
   }, [router]);
 
-  // 2. INACTIVIDAD DINÁMICA
   useEffect(() => {
     if (!user) return;
     let timeout: NodeJS.Timeout;
@@ -84,13 +82,9 @@ export default function GestionEmpleados() {
     } else {
       await supabase.from('empleados').insert([nuevo]);
     }
-    cancelarEdicion();
-    fetchEmpleados();
-  };
-
-  const cancelarEdicion = () => {
     setEditando(null);
     setNuevo(estadoInicial);
+    fetchEmpleados();
   };
 
   const exportarExcel = () => {
@@ -111,50 +105,48 @@ export default function GestionEmpleados() {
 
       <div className="max-w-7xl mx-auto">
         
-        {/* PANEL DE EDICIÓN FIJO (STICKY) */}
+        {/* CABECERA FIJA CON FORMULARIO */}
         <div className="sticky top-0 z-50 pt-2 pb-6 bg-[#050a14]">
           <div className={`p-6 rounded-[30px] border transition-all duration-500 shadow-2xl ${editando ? 'bg-blue-900/20 border-blue-500' : 'bg-[#0f172a] border-white/5'}`}>
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-6">
               <div>
+                <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">GESTIÓN DE PERSONAL</h1>
                 {user && (
-                  <div className="mb-1">
-                    <p className="text-[10px] font-black uppercase text-white tracking-widest">{user.nombre}</p>
-                    <p className="text-[8px] font-bold text-blue-400 uppercase italic tracking-[0.2em]">
+                  <div className="mt-1">
+                    <p className="text-[11px] font-black uppercase text-blue-500 tracking-widest">{user.nombre}</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase italic">
                       {user.rol === 'admin' ? 'administrador' : user.rol}
                     </p>
                   </div>
                 )}
-                <h2 className="text-[10px] font-black uppercase italic tracking-widest text-slate-500">
-                  {editando ? '⚠️ Modificando Registro' : '📝 Gestión de Personal'}
-                </h2>
               </div>
               <div className="flex gap-2">
-                {editando && <button onClick={cancelarEdicion} className="bg-red-500/10 text-red-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-red-500/20 hover:bg-red-500 hover:text-white transition-all">Cancelar ✕</button>}
-                <button onClick={exportarExcel} className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all shadow-lg">Excel</button>
-                <button onClick={() => router.push('/admin')} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-white/5">Volver</button>
+                {editando && <button onClick={() => {setEditando(null); setNuevo(estadoInicial);}} className="bg-red-500/10 text-red-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-red-500/20">Cancelar Edición ✕</button>}
+                <button onClick={exportarExcel} className="bg-emerald-600 px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-lg">Excel</button>
+                <button onClick={() => router.push('/admin')} className="bg-slate-800 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-white/5">Volver</button>
               </div>
             </div>
             
             <form onSubmit={handleGuardar} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end">
               <div>
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block">Nombre</label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block italic">Nombre</label>
                 <input className="w-full bg-[#050a14] p-3 rounded-xl border border-white/10 text-[11px] uppercase outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value.toUpperCase()})} required />
               </div>
               <div>
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block">Documento</label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block italic">Documento</label>
                 <input className="w-full bg-[#050a14] p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
               </div>
               <div>
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block">Email</label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block italic">Email</label>
                 <input className="w-full bg-[#050a14] p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value.toLowerCase()})} required />
               </div>
               <div>
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block">PIN</label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block italic">PIN</label>
                 <input className="w-full bg-[#050a14] p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
               </div>
               <div>
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block">Rol</label>
-                <select className="w-full bg-[#050a14] p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2 mb-1 block italic">Rol</label>
+                <select className="w-full bg-[#050a14] p-3 rounded-xl border border-white/10 text-[11px] outline-none" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
                   <option value="empleado">EMPLEADO</option>
                   <option value="supervisor">SUPERVISOR</option>
                   <option value="admin">ADMINISTRADOR</option>
@@ -162,11 +154,11 @@ export default function GestionEmpleados() {
                 </select>
               </div>
               <div>
-                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block text-center">Reportes</label>
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block text-center italic">Reportes</label>
                 <button type="button" onClick={() => setNuevo({...nuevo, permiso_reportes: !nuevo.permiso_reportes})} className={`w-full p-3 rounded-xl border font-black text-[9px] uppercase transition-all ${nuevo.permiso_reportes ? 'bg-blue-600/20 border-blue-500 text-blue-500' : 'bg-[#050a14] border-white/10 text-slate-500'}`}>{nuevo.permiso_reportes ? 'SÍ' : 'NO'}</button>
               </div>
               <button type="submit" className={`${editando ? 'bg-amber-600' : 'bg-blue-600'} p-3 rounded-xl font-black text-[10px] uppercase shadow-lg active:scale-95 transition-all`}>
-                {editando ? 'Guardar' : 'Añadir'}
+                {editando ? 'Actualizar' : 'Registrar'}
               </button>
             </form>
           </div>
@@ -175,13 +167,13 @@ export default function GestionEmpleados() {
         {/* LISTADO DE REGISTROS */}
         <div className="bg-[#0f172a] rounded-[35px] border border-white/5 overflow-hidden shadow-2xl mt-4">
           <div className="p-5 bg-white/[0.02] border-b border-white/5">
-            <input type="text" placeholder="BUSCAR PERSONAL..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-6 py-3 text-[10px] font-black uppercase outline-none focus:border-blue-500 transition-all placeholder:text-slate-700" value={filtro} onChange={e => setFiltro(e.target.value)} />
+            <input type="text" placeholder="FILTRAR PERSONAL POR NOMBRE O ID..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-6 py-3 text-[10px] font-black uppercase outline-none focus:border-blue-500 placeholder:text-slate-700" value={filtro} onChange={e => setFiltro(e.target.value)} />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] border-b border-white/5">
-                  <th className="py-6 px-8">Empleado</th>
+                  <th className="py-6 px-8">Identificación</th>
                   <th className="py-6 px-4">Contacto / PIN</th>
                   <th className="py-6 px-4 text-center">Rol</th>
                   <th className="py-6 px-4 text-center">Estado</th>
@@ -193,7 +185,7 @@ export default function GestionEmpleados() {
                   <tr key={emp.id} className="group hover:bg-white/[0.01]">
                     <td className="py-5 px-8">
                       <p className="font-bold text-sm uppercase">{emp.nombre}</p>
-                      <p className="text-[11px] text-slate-500 font-mono mt-1">{emp.documento_id}</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-1 tracking-tighter">{emp.documento_id}</p>
                     </td>
                     <td className="py-5 px-4">
                       <p className="text-xs text-slate-400">{emp.email}</p>
@@ -206,7 +198,7 @@ export default function GestionEmpleados() {
                       <span className="text-[9px] font-black uppercase bg-slate-800 px-3 py-1 rounded-md text-slate-400">{emp.rol === 'admin' ? 'administrador' : emp.rol}</span>
                     </td>
                     <td className="py-5 px-4 text-center">
-                      <button onClick={async () => await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id).then(() => fetchEmpleados())} className={`px-4 py-1.5 rounded-lg font-black text-[9px] uppercase transition-all ${emp.activo ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/10' : 'bg-red-600 text-white'}`}>{emp.activo ? 'Activo' : 'Inactivo'}</button>
+                      <button onClick={async () => await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id).then(() => fetchEmpleados())} className={`px-4 py-1.5 rounded-lg font-black text-[9px] uppercase transition-all ${emp.activo ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/10' : 'bg-red-600 text-white shadow-lg shadow-red-900/40'}`}>{emp.activo ? 'Activo' : 'Inactivo'}</button>
                     </td>
                     <td className="py-5 px-8 text-center">
                       <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[10px] uppercase tracking-widest transition-colors">EDITAR</button>
