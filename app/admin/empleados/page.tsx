@@ -47,17 +47,28 @@ export default function GestionEmpleados() {
     return () => { supabase.removeChannel(canalSession); };
   }, [router]);
 
+  // CORRECCIÓN: INACTIVIDAD MEJORADA
   useEffect(() => {
     if (!user) return;
     let timeout: NodeJS.Timeout;
     const resetTimer = () => {
       if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => { localStorage.removeItem('user_session'); router.replace('/'); }, parseInt(config.timer_inactividad));
+      timeout = setTimeout(() => {
+        localStorage.removeItem('user_session');
+        router.replace('/');
+      }, parseInt(config.timer_inactividad));
     };
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('keydown', resetTimer);
+
+    // Eventos para detectar actividad real
+    const eventos = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    eventos.forEach(e => window.addEventListener(e, resetTimer));
+    
     resetTimer();
-    return () => { clearTimeout(timeout); window.removeEventListener('mousemove', resetTimer); window.removeEventListener('keydown', resetTimer); };
+
+    return () => {
+      clearTimeout(timeout);
+      eventos.forEach(e => window.removeEventListener(e, resetTimer));
+    };
   }, [user, config.timer_inactividad, router]);
 
   const fetchConfig = async () => {
@@ -76,56 +87,44 @@ export default function GestionEmpleados() {
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // 1. VALIDACIÓN DE PIN ÚNICO
-      const { data: existente, error: errorCheck } = await supabase
+      // Validación de PIN único
+      const { data: existente } = await supabase
         .from('empleados')
         .select('id, nombre')
         .eq('pin_seguridad', nuevo.pin_seguridad)
         .maybeSingle();
 
       if (existente && (!editando || existente.id !== editando.id)) {
-        alert(`¡ERROR DE SEGURIDAD! El PIN ya está asignado a: ${existente.nombre}. Debe ser único.`);
-        return; // Detener aquí para que no se limpie el formulario y el usuario pueda corregir el PIN
+        alert(`SEGURIDAD: El PIN ya pertenece a ${existente.nombre}.`);
+        return; 
       }
 
+      // El rol se envía en minúsculas para respetar el CONSTRAINT
+      const payload = { ...nuevo, rol: nuevo.rol.toLowerCase() };
+
       if (editando) {
-        const { error } = await supabase.from('empleados').update(nuevo).eq('id', editando.id);
+        const { error } = await supabase.from('empleados').update(payload).eq('id', editando.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('empleados').insert([nuevo]);
+        const { error } = await supabase.from('empleados').insert([payload]);
         if (error) throw error;
       }
       
       setEditando(null);
       setNuevo(estadoInicial);
-      await fetchEmpleados();
+      fetchEmpleados();
     } catch (error: any) {
-      console.error("Error:", error);
-      alert(`Error crítico: ${error.message}`);
+      alert(`Error al guardar: ${error.message}`);
       setEditando(null);
       setNuevo(estadoInicial);
     }
   };
 
-  const exportarExcel = () => {
-    const dataExport = empleados.map(e => ({ Nombre: e.nombre, Documento: e.documento_id, Email: e.email, Rol: e.rol }));
-    const ws = XLSX.utils.json_to_sheet(dataExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Personal");
-    XLSX.writeFile(wb, `Personal_${config.empresa_nombre}.xlsx`);
-  };
-
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans relative">
-      {sesionExpulsada && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center">
-          <div className="text-red-500 font-black uppercase italic animate-pulse">Sesión Duplicada</div>
-        </div>
-      )}
-
       <div className="max-w-7xl mx-auto">
         
-        {/* MEMBRETE FIJO (STICKY) */}
+        {/* MEMBRETE RAY CON TÍTULO AZUL */}
         <div className="sticky top-0 z-50 pt-2 pb-8 bg-[#050a14]">
           <div className={`p-8 rounded-[40px] border-2 transition-all duration-500 shadow-2xl ${editando ? 'bg-blue-950/40 border-blue-500' : 'bg-[#0f172a] border-white/5'}`}>
             <div className="flex justify-between items-start mb-6">
@@ -133,51 +132,43 @@ export default function GestionEmpleados() {
                 <h1 className="text-4xl font-black italic uppercase tracking-tighter">
                   GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
                 </h1>
-                {user && (
-                  <div className="mt-2">
-                    <p className="text-xs font-black uppercase text-blue-500 tracking-widest">{user.nombre}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase italic">
-                      {user.rol === 'admin' ? 'administrador' : user.rol}
-                    </p>
-                  </div>
-                )}
+                <p className="text-[10px] font-bold text-slate-500 uppercase mt-1 tracking-widest italic">
+                  Control de Identidad y Roles
+                </p>
               </div>
               <div className="flex gap-3">
-                {/* Botón cancelar visible si hay datos o es edición */}
-                {(editando || nuevo.nombre !== '' || nuevo.documento_id !== '' || nuevo.pin_seguridad !== '') && (
+                {(editando || nuevo.nombre !== '' || nuevo.pin_seguridad !== '') && (
                   <button onClick={() => {setEditando(null); setNuevo(estadoInicial);}} className="bg-red-600/20 text-red-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-red-500/30 hover:bg-red-600 hover:text-white transition-all">
                     Cancelar ✕
                   </button>
                 )}
-                <button onClick={exportarExcel} className="bg-emerald-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-900/20">📊 Excel</button>
                 <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-white/5">← Volver</button>
               </div>
             </div>
             
             <form onSubmit={handleGuardar} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-2 block italic">Nombre</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Nombre</label>
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-2 block italic">Documento</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">ID Documento</label>
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-2 block italic">Email</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Email</label>
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value.toLowerCase()})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-2 block italic">PIN</label>
-                <input type="password" placeholder="PIN ÚNICO" className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Pin Único</label>
+                <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-2 block italic">Rol</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Rol</label>
                 <select className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-[10px] font-black outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
                   <option value="empleado">EMPLEADO</option>
                   <option value="supervisor">SUPERVISOR</option>
                   <option value="admin">ADMINISTRADOR</option>
-                  <option value="tecnico">TÉCNICO</option>
                 </select>
               </div>
               <div>
@@ -186,56 +177,56 @@ export default function GestionEmpleados() {
                   {nuevo.permiso_reportes ? 'SÍ' : 'NO'}
                 </button>
               </div>
-              <button type="submit" className={`${editando ? 'bg-amber-500 shadow-amber-900/40' : 'bg-blue-600 shadow-blue-900/40'} p-4 rounded-xl font-black text-xs uppercase shadow-xl transition-all active:scale-95`}>
+              <button type="submit" className={`${editando ? 'bg-amber-500 shadow-amber-900/40' : 'bg-blue-600 shadow-blue-900/40'} p-4 rounded-xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all`}>
                 {editando ? 'Actualizar' : 'Registrar'}
               </button>
             </form>
           </div>
         </div>
 
-        {/* LISTADO */}
-        <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl mt-4">
-          <div className="p-6 bg-white/[0.02] border-b border-white/5">
-            <input type="text" placeholder="BUSCAR PERSONAL..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-8 py-4 text-[11px] font-black uppercase outline-none focus:border-blue-500 transition-all placeholder:text-slate-700" value={filtro} onChange={e => setFiltro(e.target.value)} />
-          </div>
+        {/* LISTADO CON HOVER PIN CORREGIDO */}
+        <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] border-b border-white/5 bg-black/20">
-                  <th className="py-8 px-10">Empleado</th>
-                  <th className="py-8 px-6">Contacto / PIN</th>
+                  <th className="py-8 px-10">Colaborador</th>
+                  <th className="py-8 px-6">Seguridad / PIN</th>
                   <th className="py-8 px-6 text-center">Rol</th>
-                  <th className="py-8 px-6 text-center">Estado</th>
                   <th className="py-8 px-10 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {empleados.filter(e => e.nombre.toLowerCase().includes(filtro.toLowerCase()) || e.documento_id.includes(filtro)).map((emp) => (
-                  <tr key={emp.id} className="group hover:bg-blue-500/[0.02] transition-colors">
+                {empleados.filter(e => e.nombre.toLowerCase().includes(filtro.toLowerCase())).map((emp) => (
+                  <tr key={emp.id} className="group hover:bg-white/[0.01] transition-colors">
                     <td className="py-6 px-10">
-                      <p className="font-black text-sm uppercase text-white group-hover:text-blue-400 transition-colors">{emp.nombre}</p>
-                      <p className="text-[11px] text-slate-500 font-mono mt-1 tracking-widest">{emp.documento_id}</p>
+                      <p className="font-black text-sm uppercase text-white">{emp.nombre}</p>
+                      <p className="text-[10px] text-slate-500 font-mono tracking-widest">{emp.documento_id}</p>
                     </td>
                     <td className="py-6 px-6">
-                      <p className="text-xs text-slate-400 mb-1">{emp.email}</p>
-                      {/* Corrección Hover PIN */}
-                      <div className="relative group/pin h-5 overflow-hidden cursor-help w-fit">
-                         <div className="transition-all duration-300 transform group-hover/pin:-translate-y-full">
-                            <p className="text-[11px] font-black text-blue-500/40 uppercase tracking-widest">••••••••</p>
-                         </div>
-                         <div className="absolute top-0 left-0 transition-all duration-300 transform translate-y-full group-hover/pin:translate-y-0">
-                            <p className="text-[11px] font-black text-yellow-400 uppercase italic tracking-tighter">PIN: {emp.pin_seguridad}</p>
-                         </div>
+                      <p className="text-[11px] text-slate-400 mb-1">{emp.email}</p>
+                      
+                      {/* CONTENEDOR DE PIN CORREGIDO */}
+                      <div className="relative h-5 overflow-hidden w-32 cursor-help group/pin">
+                        <div className="flex flex-col transition-transform duration-300 ease-in-out transform group-hover/pin:-translate-y-5">
+                          <div className="h-5 flex items-center">
+                            <span className="text-blue-500/30 font-black tracking-[0.3em] text-[10px]">••••••••</span>
+                          </div>
+                          <div className="h-5 flex items-center">
+                            <span className="text-yellow-400 font-black italic text-[11px] tracking-tighter">PIN: {emp.pin_seguridad}</span>
+                          </div>
+                        </div>
                       </div>
+
                     </td>
                     <td className="py-6 px-6 text-center">
                       <span className="text-[10px] font-black uppercase bg-slate-800 px-4 py-1.5 rounded-lg text-slate-400 border border-white/5">{emp.rol}</span>
                     </td>
-                    <td className="py-6 px-6 text-center">
-                      <button onClick={async () => await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id).then(() => fetchEmpleados())} className={`px-5 py-2 rounded-xl font-black text-[10px] uppercase transition-all shadow-lg ${emp.activo ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-600 text-white shadow-red-900/40'}`}>{emp.activo ? 'Activo' : 'Inactivo'}</button>
-                    </td>
-                    <td className="py-6 px-10 text-center">
-                      <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase tracking-[0.2em] transition-all px-4 py-2 rounded-xl">EDITAR</button>
+                    <td className="py-6 px-10 text-center flex gap-4 justify-center">
+                      <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase transition-all px-4 py-2 rounded-xl border border-blue-500/20 hover:bg-blue-600">EDITAR</button>
+                      <button onClick={async () => await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id).then(() => fetchEmpleados())} className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all ${emp.activo ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-600 text-white'}`}>
+                        {emp.activo ? 'Activo' : 'Inactivo'}
+                      </button>
                     </td>
                   </tr>
                 ))}
