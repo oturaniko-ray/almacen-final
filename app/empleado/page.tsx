@@ -14,7 +14,6 @@ export default function EmpleadoPage() {
   const [distancia, setDistancia] = useState<number | null>(null);
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
   
-  // Configuración dinámica unificada
   const [config, setConfig] = useState<any>({ 
     timer_inactividad: '120000', 
     timer_token: '120000',
@@ -27,7 +26,6 @@ export default function EmpleadoPage() {
   const router = useRouter();
   const timerSalidaRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -35,22 +33,35 @@ export default function EmpleadoPage() {
     setUser(currentUser);
     fetchConfig();
 
-    const canalSesion = supabase.channel('empleado-session-control');
-    canalSesion
+    // 1. CANAL DE SESIÓN Y ACTUALIZACIONES DE CONFIGURACIÓN (REALTIME)
+    const canalRealtime = supabase.channel('empleado-global-sync');
+    
+    canalRealtime
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
         if (payload.payload.email === currentUser.email && payload.payload.id !== sessionId.current) {
           setSesionDuplicada(true);
           setTimeout(() => { localStorage.removeItem('user_session'); router.push('/'); }, 3000);
         }
       })
+      // Escuchar cambios en la configuración (coordenadas, tiempos, etc)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sistema_config' }, () => {
+        fetchConfig();
+      })
+      // Escuchar si el admin desactiva al usuario actual
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'empleados', filter: `id=eq.${currentUser.id}` }, (payload) => {
+        if (payload.new.activo === false) {
+          localStorage.removeItem('user_session');
+          router.push('/');
+        }
+      })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await canalSesion.send({ type: 'broadcast', event: 'nueva-sesion', payload: { id: sessionId.current, email: currentUser.email } });
+          await canalRealtime.send({ type: 'broadcast', event: 'nueva-sesion', payload: { id: sessionId.current, email: currentUser.email } });
         }
       });
 
     return () => { 
-        supabase.removeChannel(canalSesion);
+        supabase.removeChannel(canalRealtime);
         if (timerSalidaRef.current) clearTimeout(timerSalidaRef.current);
     };
   }, [router]);
@@ -69,7 +80,6 @@ export default function EmpleadoPage() {
     }
   };
 
-  // 2. LÓGICA DE INACTIVIDAD DINÁMICA
   useEffect(() => {
     if (!user || sesionDuplicada) return;
     let timeoutInactividad: NodeJS.Timeout;
@@ -92,7 +102,6 @@ export default function EmpleadoPage() {
     };
   }, [user, config.timer_inactividad, sesionDuplicada, router]);
 
-  // 3. GEOLOCALIZACIÓN Y GENERACIÓN DE TOKEN CONFIGURABLE
   useEffect(() => {
     if (!user || sesionDuplicada) return;
 
@@ -110,7 +119,6 @@ export default function EmpleadoPage() {
             setToken(nuevoToken);
 
             if (timerSalidaRef.current) clearTimeout(timerSalidaRef.current);
-            // Uso del nuevo campo timer_token
             timerSalidaRef.current = setTimeout(() => {
                 setToken(''); 
             }, parseInt(config.timer_token)); 
@@ -153,7 +161,6 @@ export default function EmpleadoPage() {
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative">
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-sm border border-white/5 shadow-2xl text-center relative z-10">
         
-        {/* TÍTULO BLANCO Y AZUL */}
         <h1 className="text-xl font-black uppercase italic text-white mb-6 tracking-tighter">
           Acceso <span className="text-blue-500">Personal</span>
         </h1>
