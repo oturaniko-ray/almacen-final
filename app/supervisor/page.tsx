@@ -48,6 +48,22 @@ export default function SupervisorPage() {
     const currentUser = JSON.parse(sessionData);
     setUser(currentUser);
 
+    // --- LÓGICA DE INACTIVIDAD (2 MINUTOS) ---
+    let timeout: NodeJS.Timeout;
+    const resetTimer = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        localStorage.clear();
+        router.replace('/');
+      }, 120000);
+    };
+
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    window.addEventListener('click', resetTimer);
+    resetTimer();
+    // -----------------------------------------
+
     const canalSesion = supabase.channel('supervisor-session-control');
     canalSesion
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
@@ -61,7 +77,14 @@ export default function SupervisorPage() {
           await canalSesion.send({ type: 'broadcast', event: 'nueva-sesion', payload: { id: sessionId.current, email: currentUser.email } });
         }
       });
-    return () => { supabase.removeChannel(canalSesion); };
+
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', resetTimer);
+      supabase.removeChannel(canalSesion);
+    };
   }, [router]);
 
   const volverAtras = async () => {
@@ -174,7 +197,6 @@ export default function SupervisorPage() {
     }, () => { alert("GPS Obligatorio"); prepararSiguienteEmpleado(); }, { enableHighAccuracy: true });
   };
 
-  // Helper para mostrar el título según el modo
   const getTituloModo = () => {
     switch (modo) {
       case 'usb': return 'Lectura USB';
@@ -193,7 +215,6 @@ export default function SupervisorPage() {
       
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
         
-        {/* MEMBRETE INTEGRADO EN TODAS LAS PANTALLAS */}
         <header className="mb-8 text-center">
           <h2 className="text-2xl font-black uppercase italic tracking-tighter">
             <span className="text-white">LECTURA</span> <span className="text-blue-500">QR</span>
