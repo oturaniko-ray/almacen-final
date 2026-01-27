@@ -22,7 +22,6 @@ export default function GestionEmpleados() {
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
-  // 1. CARGA DE SESIÓN Y SEGURIDAD
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
@@ -49,7 +48,6 @@ export default function GestionEmpleados() {
     return () => { supabase.removeChannel(canalSession); };
   }, [router]);
 
-  // 2. LÓGICA DE INACTIVIDAD
   useEffect(() => {
     if (!user) return;
     let timeout: NodeJS.Timeout;
@@ -92,7 +90,7 @@ export default function GestionEmpleados() {
         .maybeSingle();
 
       if (existente && (!editando || existente.id !== editando.id)) {
-        alert(`¡ALERTA DE SEGURIDAD! El PIN ya está asignado a: ${existente.nombre}.`);
+        alert(`¡ERROR SEGURIDAD! El PIN ya lo tiene: ${existente.nombre}.`);
         return; 
       }
 
@@ -108,17 +106,31 @@ export default function GestionEmpleados() {
       setNuevo(estadoInicial);
       fetchEmpleados();
     } catch (error: any) {
-      alert(`Error crítico: ${error.message}`);
+      alert(`Error: ${error.message}`);
       setEditando(null);
       setNuevo(estadoInicial);
     }
+  };
+
+  const exportarExcel = () => {
+    const dataExport = empleados.map(e => ({ 
+      Nombre: e.nombre, 
+      Documento: e.documento_id, 
+      Email: e.email, 
+      Rol: e.rol,
+      Estado: e.en_almacen ? 'DENTRO' : 'FUERA'
+    }));
+    const ws = XLSX.utils.json_to_sheet(dataExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Personal");
+    XLSX.writeFile(wb, `Personal_${config.empresa_nombre}.xlsx`);
   };
 
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans relative">
       <div className="max-w-7xl mx-auto">
         
-        {/* CABECERA RAY */}
+        {/* CABECERA CON USUARIO Y EXPORTACIÓN */}
         <div className="sticky top-0 z-50 pt-2 pb-8 bg-[#050a14]">
           <div className={`p-8 rounded-[40px] border-2 transition-all duration-500 shadow-2xl ${editando ? 'bg-blue-950/40 border-blue-500' : 'bg-[#0f172a] border-white/5'}`}>
             <div className="flex justify-between items-start mb-6">
@@ -137,7 +149,8 @@ export default function GestionEmpleados() {
                 {(editando || nuevo.nombre !== '' || nuevo.pin_seguridad !== '') && (
                   <button onClick={() => {setEditando(null); setNuevo(estadoInicial);}} className="bg-red-600/20 text-red-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-red-500/30 hover:bg-red-600 hover:text-white transition-all">Cancelar ✕</button>
                 )}
-                <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-white/5">← Volver</button>
+                <button onClick={exportarExcel} className="bg-emerald-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-900/20 hover:scale-105 transition-all">📊 Excel</button>
+                <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-white/5 hover:bg-slate-700 transition-all">← Volver</button>
               </div>
             </div>
             
@@ -147,7 +160,7 @@ export default function GestionEmpleados() {
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Documento ID</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">ID Documento</label>
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
               </div>
               <div>
@@ -155,7 +168,7 @@ export default function GestionEmpleados() {
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value.toLowerCase()})} required />
               </div>
               <div>
-                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Pin Seguridad</label>
+                <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block italic">Pin Único</label>
                 <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
               </div>
               <div>
@@ -169,15 +182,18 @@ export default function GestionEmpleados() {
               </div>
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase mb-2 block text-center italic">Reportes</label>
-                <button type="button" onClick={() => setNuevo({...nuevo, permiso_reportes: !nuevo.permiso_reportes})} className={`w-full p-4 rounded-xl border font-black text-[10px] uppercase transition-all ${nuevo.permiso_reportes ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/30' : 'bg-[#050a14] border-white/10 text-slate-500'}`}>{nuevo.permiso_reportes ? 'SÍ' : 'NO'}</button>
+                <button type="button" onClick={() => setNuevo({...nuevo, permiso_reportes: !nuevo.permiso_reportes})} className={`w-full p-4 rounded-xl border font-black text-[10px] uppercase transition-all ${nuevo.permiso_reportes ? 'bg-blue-600 border-blue-400 text-white' : 'bg-[#050a14] border-white/10 text-slate-500'}`}>{nuevo.permiso_reportes ? 'SÍ' : 'NO'}</button>
               </div>
-              <button type="submit" className={`${editando ? 'bg-amber-500 shadow-amber-900/40' : 'bg-blue-600 shadow-blue-900/40'} p-4 rounded-xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all`}>{editando ? 'Actualizar' : 'Registrar'}</button>
+              <button type="submit" className={`${editando ? 'bg-amber-500 shadow-amber-900/40' : 'bg-blue-600 shadow-blue-900/40'} p-4 rounded-xl font-black text-xs uppercase shadow-xl transition-all`}>{editando ? 'Actualizar' : 'Registrar'}</button>
             </form>
           </div>
         </div>
 
-        {/* LISTADO */}
+        {/* TABLA CON INDICADOR DE PRESENCIA (PUNTO JUNTO AL NOMBRE) */}
         <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl">
+          <div className="p-6 bg-white/[0.02] border-b border-white/5">
+            <input type="text" placeholder="BUSCAR POR NOMBRE O ID..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-8 py-4 text-[11px] font-black uppercase outline-none focus:border-blue-500 transition-all" value={filtro} onChange={e => setFiltro(e.target.value)} />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
@@ -185,7 +201,6 @@ export default function GestionEmpleados() {
                   <th className="py-8 px-10">Colaborador</th>
                   <th className="py-8 px-6">Contacto / PIN</th>
                   <th className="py-8 px-6 text-center">Rol</th>
-                  <th className="py-8 px-6 text-center">Almacén</th>
                   <th className="py-8 px-10 text-center">Acciones</th>
                 </tr>
               </thead>
@@ -193,8 +208,17 @@ export default function GestionEmpleados() {
                 {empleados.filter(e => e.nombre.toLowerCase().includes(filtro.toLowerCase())).map((emp) => (
                   <tr key={emp.id} className="group hover:bg-white/[0.01] transition-colors">
                     <td className="py-6 px-10">
-                      <p className="font-black text-sm uppercase text-white">{emp.nombre}</p>
-                      <p className="text-[10px] text-slate-500 font-mono tracking-widest">{emp.documento_id}</p>
+                      <div className="flex items-center gap-3">
+                        {/* PUNTO DE PRESENCIA AL LADO DEL NOMBRE */}
+                        <div className="relative flex h-3 w-3">
+                          {emp.en_almacen && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                          <span className={`relative inline-flex rounded-full h-3 w-3 ${emp.en_almacen ? 'bg-emerald-500' : 'bg-white/10'}`}></span>
+                        </div>
+                        <div>
+                          <p className="font-black text-sm uppercase text-white leading-none">{emp.nombre}</p>
+                          <p className="text-[10px] text-slate-500 font-mono tracking-widest mt-1">{emp.documento_id}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-6 px-6">
                       <p className="text-[11px] text-slate-400 mb-1">{emp.email}</p>
@@ -208,14 +232,7 @@ export default function GestionEmpleados() {
                     <td className="py-6 px-6 text-center">
                       <span className="text-[10px] font-black uppercase bg-slate-800 px-4 py-1.5 rounded-lg text-slate-400 border border-white/5">{emp.rol}</span>
                     </td>
-                    {/* INDICADOR DE PRESENCIA RE-AGREGADO */}
-                    <td className="py-6 px-6 text-center">
-                      <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${emp.en_almacen ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${emp.en_almacen ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                        {emp.en_almacen ? 'Dentro' : 'Fuera'}
-                      </div>
-                    </td>
-                    <td className="py-6 px-10 text-center flex gap-4 justify-center">
+                    <td className="py-6 px-10 text-center flex gap-3 justify-center">
                       <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase transition-all px-4 py-2 rounded-xl border border-blue-500/20 hover:bg-blue-600">EDITAR</button>
                       <button onClick={async () => await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id).then(() => fetchEmpleados())} className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all ${emp.activo ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-600 text-white'}`}>{emp.activo ? 'Activo' : 'Inactivo'}</button>
                     </td>
