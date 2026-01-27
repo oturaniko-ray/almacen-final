@@ -13,6 +13,7 @@ export default function EmpleadoPage() {
   const [errorGps, setErrorGps] = useState('');
   const [distancia, setDistancia] = useState<number | null>(null);
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
+  const [reintentos, setReintentos] = useState(0);
   
   const [config, setConfig] = useState<any>({ 
     timer_inactividad: '120000', 
@@ -26,6 +27,7 @@ export default function EmpleadoPage() {
   const router = useRouter();
   const timerSalidaRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN REALTIME
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -33,7 +35,6 @@ export default function EmpleadoPage() {
     setUser(currentUser);
     fetchConfig();
 
-    // 1. CANAL DE SESIÓN Y ACTUALIZACIONES DE CONFIGURACIÓN (REALTIME)
     const canalRealtime = supabase.channel('empleado-global-sync');
     
     canalRealtime
@@ -43,11 +44,9 @@ export default function EmpleadoPage() {
           setTimeout(() => { localStorage.removeItem('user_session'); router.push('/'); }, 3000);
         }
       })
-      // Escuchar cambios en la configuración (coordenadas, tiempos, etc)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sistema_config' }, () => {
         fetchConfig();
       })
-      // Escuchar si el admin desactiva al usuario actual
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'empleados', filter: `id=eq.${currentUser.id}` }, (payload) => {
         if (payload.new.activo === false) {
           localStorage.removeItem('user_session');
@@ -80,6 +79,7 @@ export default function EmpleadoPage() {
     }
   };
 
+  // 2. INACTIVIDAD DINÁMICA
   useEffect(() => {
     if (!user || sesionDuplicada) return;
     let timeoutInactividad: NodeJS.Timeout;
@@ -102,6 +102,7 @@ export default function EmpleadoPage() {
     };
   }, [user, config.timer_inactividad, sesionDuplicada, router]);
 
+  // 3. GEOLOCALIZACIÓN ALTA PRECISIÓN
   useEffect(() => {
     if (!user || sesionDuplicada) return;
 
@@ -130,12 +131,14 @@ export default function EmpleadoPage() {
           setErrorGps(`Fuera de rango (${Math.round(dist)}m)`);
         }
       },
-      (err) => setErrorGps("GPS no disponible"),
-      { enableHighAccuracy: true }
+      (err) => {
+        setErrorGps(err.code === 1 ? "GPS Denegado" : "Buscando señal...");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [user, sesionDuplicada, token, config]);
+  }, [user, sesionDuplicada, token, config, reintentos]);
 
   function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371e3;
@@ -173,10 +176,16 @@ export default function EmpleadoPage() {
         {!ubicacionOk ? (
           <div className="py-12 px-6 bg-red-500/5 rounded-[35px] border border-red-500/20 mb-8 transition-all">
             <div className="text-red-500 text-4xl mb-4">📍</div>
-            <div className="text-red-500 font-black text-xs uppercase mb-2">Fuera de Zona</div>
-            <div className="text-slate-400 text-[10px] leading-relaxed italic uppercase">
-              {errorGps || "Acércate al almacén."}
+            <div className="text-red-500 font-black text-xs uppercase mb-2">Error Ubicación</div>
+            <div className="text-slate-400 text-[10px] leading-relaxed italic uppercase mb-6">
+              {errorGps || "Iniciando sensor..."}
             </div>
+            <button 
+              onClick={() => setReintentos(p => p + 1)}
+              className="bg-red-500/20 text-red-500 px-6 py-3 rounded-2xl text-[9px] font-black uppercase border border-red-500/30 hover:bg-red-500 hover:text-white transition-all"
+            >
+              🔄 Recalibrar GPS
+            </button>
           </div>
         ) : (
           <div className="p-6 bg-white rounded-[35px] shadow-[0_0_40px_rgba(37,99,235,0.2)] mb-8 inline-block animate-in zoom-in duration-300">
