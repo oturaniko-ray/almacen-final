@@ -22,7 +22,6 @@ export default function GestionEmpleados() {
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
-  // 1. CARGA DE SESIÓN Y SEGURIDAD DE LOGIN DUPLICADO
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
@@ -50,7 +49,6 @@ export default function GestionEmpleados() {
     return () => { supabase.removeChannel(canalSession); };
   }, [router]);
 
-  // 2. LÓGICA DE INACTIVIDAD (RECUERDA CERRAR SESIÓN)
   useEffect(() => {
     if (!user) return;
     let timeout: NodeJS.Timeout;
@@ -88,22 +86,25 @@ export default function GestionEmpleados() {
     if (data) setEmpleados(data);
   };
 
-  // 3. PERSISTENCIA DE DATOS (REGISTRO Y EDICIÓN CORREGIDA)
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { ...nuevo, nombre: nuevo.nombre.toUpperCase() };
-
-    if (editando) {
-      const { error } = await supabase.from('empleados').update(payload).eq('id', editando.id);
-      if (error) { alert("Error al actualizar"); return; }
-    } else {
-      const { error } = await supabase.from('empleados').insert([payload]);
-      if (error) { alert("Error al registrar"); return; }
+    try {
+      if (editando) {
+        const { error } = await supabase.from('empleados').update(nuevo).eq('id', editando.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('empleados').insert([nuevo]);
+        if (error) throw error;
+      }
+      setEditando(null);
+      setNuevo(estadoInicial);
+      fetchEmpleados();
+    } catch (error) {
+      console.error("Error en operación:", error);
+      setEditando(null);
+      setNuevo(estadoInicial);
+      alert("Error al procesar el registro. El formulario se ha restablecido.");
     }
-
-    setEditando(null);
-    setNuevo(estadoInicial);
-    fetchEmpleados();
   };
 
   const exportarExcel = () => {
@@ -124,12 +125,13 @@ export default function GestionEmpleados() {
 
       <div className="max-w-7xl mx-auto">
         
-        {/* CABECERA Y FORMULARIO (STICKY) */}
         <div className="sticky top-0 z-50 pt-2 pb-8 bg-[#050a14]">
           <div className={`p-8 rounded-[40px] border-2 transition-all duration-500 shadow-2xl ${editando ? 'bg-blue-950/40 border-blue-500' : 'bg-[#0f172a] border-white/5'}`}>
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h1 className="text-4xl font-black italic uppercase tracking-tighter text-white">GESTIÓN DE PERSONAL</h1>
+                <h1 className="text-4xl font-black italic uppercase tracking-tighter text-white">
+                  GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
+                </h1>
                 {user && (
                   <div className="mt-2">
                     <p className="text-xs font-black uppercase text-blue-500 tracking-[0.2em]">{user.nombre}</p>
@@ -140,7 +142,15 @@ export default function GestionEmpleados() {
                 )}
               </div>
               <div className="flex gap-3">
-                {editando && <button onClick={() => {setEditando(null); setNuevo(estadoInicial);}} className="bg-red-600/20 text-red-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-red-500/30">Cancelar ✕</button>}
+                {/* Botón cancelar ahora siempre visible si hay datos o edición */}
+                {(editando || nuevo.nombre || nuevo.documento_id) && (
+                  <button 
+                    onClick={() => {setEditando(null); setNuevo(estadoInicial);}} 
+                    className="bg-red-600/20 text-red-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-red-500/30 hover:bg-red-600 hover:text-white transition-all"
+                  >
+                    Cancelar ✕
+                  </button>
+                )}
                 <button onClick={exportarExcel} className="bg-emerald-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-900/20">📊 Excel</button>
                 <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-3 rounded-2xl text-[10px] font-black uppercase border border-white/5">← Volver</button>
               </div>
@@ -149,7 +159,7 @@ export default function GestionEmpleados() {
             <form onSubmit={handleGuardar} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
               <div className="lg:col-span-1">
                 <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-2 block italic text-shadow-glow">Nombre</label>
-                <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs uppercase outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value.toUpperCase()})} required />
+                <input className="w-full bg-[#050a14] p-4 rounded-xl border border-white/10 text-xs outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
               </div>
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase ml-2 mb-2 block italic">Documento</label>
@@ -185,7 +195,6 @@ export default function GestionEmpleados() {
           </div>
         </div>
 
-        {/* LISTADO */}
         <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl mt-4">
           <div className="p-6 bg-white/[0.02] border-b border-white/5">
             <input type="text" placeholder="BUSCAR PERSONAL..." className="w-full bg-[#050a14] border border-white/10 rounded-2xl px-8 py-4 text-[11px] font-black uppercase outline-none focus:border-blue-500 transition-all placeholder:text-slate-700" value={filtro} onChange={e => setFiltro(e.target.value)} />
@@ -210,9 +219,14 @@ export default function GestionEmpleados() {
                     </td>
                     <td className="py-6 px-6">
                       <p className="text-xs text-slate-400 mb-1">{emp.email}</p>
+                      {/* Efecto PIN corregido */}
                       <div className="relative group/pin h-5 overflow-hidden cursor-help w-fit">
-                         <p className="text-[11px] font-black text-blue-500/40 uppercase transition-all duration-500 group-hover/pin:-translate-y-full tracking-widest">••••••••</p>
-                         <p className="text-[11px] font-black text-yellow-400 uppercase transition-all duration-500 translate-y-full group-hover/pin:translate-y-0 absolute top-0 italic tracking-tighter">PIN: {emp.pin_seguridad}</p>
+                         <div className="transition-all duration-300 transform group-hover/pin:-translate-y-full">
+                            <p className="text-[11px] font-black text-blue-500/40 uppercase tracking-widest">••••••••</p>
+                         </div>
+                         <div className="absolute top-0 left-0 transition-all duration-300 transform translate-y-full group-hover/pin:translate-y-0">
+                            <p className="text-[11px] font-black text-yellow-400 uppercase italic tracking-tighter">PIN: {emp.pin_seguridad}</p>
+                         </div>
                       </div>
                     </td>
                     <td className="py-6 px-6 text-center">
