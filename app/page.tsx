@@ -12,185 +12,202 @@ export default function LoginPage() {
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
   const [sesionExpulsada, setSesionExpulsada] = useState(false);
+  const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA RAY', timer_inactividad: '120000' });
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const router = useRouter();
 
+  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN
   useEffect(() => {
+    const fetchConfig = async () => {
+      const { data } = await supabase.from('sistema_config').select('clave, valor');
+      if (data) {
+        const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        setConfig((prev: any) => ({ ...prev, ...cfgMap }));
+      }
+    };
+    fetchConfig();
+
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) return;
+    if (sessionData) {
+      const currentUser = JSON.parse(sessionData);
+      setTempUser(currentUser);
+      setPaso('selector');
+    }
+  }, []);
 
-    const currentUser = JSON.parse(sessionData);
-    setTempUser(currentUser);
-    setPaso('selector');
+  // 2. CONTROL DE SESIONES DUPLICADAS E INACTIVIDAD
+  useEffect(() => {
+    if (!tempUser) return;
 
+    // Lógica de Inactividad basada en Base de Datos
+    let timeout: NodeJS.Timeout;
+    const resetTimer = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        localStorage.removeItem('user_session');
+        window.location.reload(); 
+      }, parseInt(config.timer_inactividad));
+    };
+
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    resetTimer();
+
+    // Broadcast para evitar sesiones simultáneas
     const canalSession = supabase.channel('global-session-control');
     canalSession
       .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
-        if (payload.payload.userEmail === currentUser.email && payload.payload.sid !== sessionId.current) {
+        if (payload.payload.userEmail === tempUser.email && payload.payload.sid !== sessionId.current) {
           setSesionExpulsada(true);
-          localStorage.removeItem('user_session');
           setTimeout(() => {
+            localStorage.removeItem('user_session');
             window.location.reload();
           }, 3000);
         }
       })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(canalSession);
-    };
-  }, []);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const entrada = identificador.trim();
-      const pinLimpio = pin.trim();
-      const esEmail = entrada.includes('@');
-      let empleadoData = null;
-
-      if (esEmail) {
-        const { data: directo } = await supabase.from('empleados').select('*').eq('email', entrada).eq('pin_seguridad', pinLimpio).maybeSingle();
-        if (directo) {
-          empleadoData = directo;
-        } else {
-          const { data: perfil } = await supabase.from('profiles').select('id').eq('email', entrada).maybeSingle();
-          if (perfil) {
-            const { data: relacional } = await supabase.from('empleados').select('*').eq('id', perfil.id).eq('pin_seguridad', pinLimpio).maybeSingle();
-            empleadoData = relacional;
-          }
-        }
-      } else {
-        const { data: documento } = await supabase.from('empleados').select('*').eq('documento_id', entrada).eq('pin_seguridad', pinLimpio).maybeSingle();
-        empleadoData = documento;
-      }
-
-      if (!empleadoData) {
-        alert("Credenciales incorrectas.");
-        setLoading(false);
-        return;
-      }
-
-      if (!empleadoData.activo) {
-        alert("Usuario inactivo.");
-        setLoading(false);
-        return;
-      }
-
-      const rolLimpio = empleadoData.rol?.toLowerCase().trim();
-      const userSession = { ...empleadoData, rol: rolLimpio };
-      
-      localStorage.setItem('user_session', JSON.stringify(userSession));
-      setTempUser(userSession);
-
-      const canalSession = supabase.channel('global-session-control');
-      await canalSession.subscribe(async (status) => {
+      .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           await canalSession.send({
             type: 'broadcast',
             event: 'nueva-sesion',
-            payload: { sid: sessionId.current, userEmail: userSession.email },
+            payload: { sid: sessionId.current, userEmail: tempUser.email }
           });
         }
       });
 
-      if (rolLimpio === 'admin' || rolLimpio === 'administrador' || rolLimpio === 'supervisor') {
-        setPaso('selector');
-      } else {
-        router.push('/empleado');
-      }
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      supabase.removeChannel(canalSession);
+    };
+  }, [tempUser, config.timer_inactividad]);
 
-    } catch (err) {
-      alert("Error de conexión.");
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('empleados')
+        .select('*')
+        .or(`documento_id.eq.${identificador},email.eq.${identificador.toLowerCase()}`)
+        .eq('pin_seguridad', pin)
+        .eq('activo', true)
+        .maybeSingle();
+
+      if (error || !data) throw new Error("Credenciales inválidas o usuario inactivo");
+
+      localStorage.setItem('user_session', JSON.stringify(data));
+      setTempUser(data);
+      setPaso('selector');
+    } catch (err: any) {
+      alert(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Función de navegación optimizada
   const irARuta = (ruta: string) => {
-    router.replace(ruta); // Usamos replace para evitar que el historial mantenga el bucle
+    router.push(ruta);
   };
 
-  if (sesionExpulsada) {
-    return (
-      <main className="min-h-screen bg-black flex items-center justify-center p-6 text-center text-white">
-        <div className="bg-red-600/10 border-2 border-red-600 p-10 rounded-[45px] animate-pulse">
-          <h2 className="text-3xl font-black text-red-500 uppercase italic">Sesión Cerrada</h2>
-          <p className="mt-4">Iniciada en otro dispositivo.</p>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 font-sans text-white">
-      <div className="w-full max-w-[360px] bg-[#0f172a] p-8 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden transition-all duration-500">
-        
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-black italic uppercase tracking-tighter">
-            SISTEMA <span className="text-blue-500">RAY</span>
-          </h1>
-          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-500 mt-2">
-            {paso === 'login' ? 'GESTIÓN DE ALMACÉN' : 'SELECCIONE EL ROL'}
-          </p>
+    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
+      {/* BACKGROUND DECORATION */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/10 blur-[120px] rounded-full"></div>
+
+      {sesionExpulsada && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-[#0f172a] p-10 rounded-[40px] border border-red-500/30 text-center max-w-sm animate-in zoom-in duration-300">
+            <div className="text-5xl mb-4">⚠️</div>
+            <h2 className="text-xl font-black uppercase italic text-red-500 mb-2">Sesión Duplicada</h2>
+            <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase">Se ha detectado un nuevo inicio de sesión con esta cuenta. Serás redirigido.</p>
+          </div>
         </div>
+      )}
+
+      <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10 transition-all duration-500">
+        <header className="mb-10 text-center">
+          <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
+            {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
+          </h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-3 italic">Gestión de Almacén</p>
+        </header>
 
         {paso === 'login' ? (
-          <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in duration-500">
-            <div className="space-y-1">
-              <label className="text-[9px] font-black uppercase ml-4 text-slate-400">Identificador</label>
+          <form onSubmit={handleLogin} className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-4">
               <input 
                 type="text" 
-                className="w-full bg-[#050a14] border border-white/5 p-4 rounded-[22px] outline-none focus:border-blue-500 transition-all font-bold text-sm"
+                placeholder="ID DE EMPLEADO O EMAIL" 
+                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold uppercase tracking-widest focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
-                placeholder="Email o DNI"
                 required
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-black uppercase ml-4 text-slate-400">PIN de Seguridad</label>
               <input 
                 type="password" 
-                className="w-full bg-[#050a14] border border-white/5 p-4 rounded-[22px] outline-none focus:border-blue-500 transition-all text-center text-2xl font-black"
+                placeholder="PIN DE SEGURIDAD" 
+                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.5em] focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                placeholder="****"
                 required
               />
             </div>
-            <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[22px] font-black uppercase italic mt-4 transition-all shadow-lg text-sm">
-              {loading ? 'Validando...' : 'Entrar'}
+            <button 
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20 active:scale-95 disabled:opacity-50"
+            >
+              {loading ? 'Validando...' : 'Entrar al Sistema'}
             </button>
           </form>
         ) : (
-          <div className="space-y-3 animate-in slide-in-from-bottom duration-500">
-            <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-emerald-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
+          <div className="space-y-3 animate-in fade-in zoom-in duration-500">
+            <div className="bg-white/5 p-5 rounded-[30px] mb-6 border border-white/5 flex items-center gap-4">
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-black italic text-lg shadow-lg">
+                {tempUser?.nombre?.charAt(0)}
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Usuario Activo</p>
+                <p className="text-xs font-black uppercase italic">{tempUser?.nombre}</p>
+              </div>
+            </div>
+
+            <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
               🏃 Acceso Empleado
             </button>
             
-            <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
-              🛡️ Panel Supervisor
-            </button>
+            {(tempUser?.rol === 'supervisor' || tempUser?.rol === 'admin' || tempUser?.rol === 'tecnico') && (
+              <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
+                🛡️ Panel Supervisor
+              </button>
+            )}
 
-            {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador' || tempUser?.rol === 'supervisor') && (
+            {(tempUser?.rol === 'admin' || tempUser?.rol === 'tecnico' || tempUser?.permiso_reportes === true) && (
               <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {(tempUser?.rol === 'admin' || tempUser?.rol === 'administrador') && (
+            {(tempUser?.rol === 'admin' || tempUser?.rol === 'tecnico') && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-blue-700 hover:bg-blue-500 p-5 rounded-[22px] font-bold text-md transition-all shadow-xl text-left pl-8">
-                ⚙️ Gestión Adminstrativa"
+                ⚙️ Gestión Administrativa
+              </button>
+            )}
+
+            {tempUser?.rol === 'tecnico' && (
+              <button onClick={() => irARuta('/admin/configuracion')} className="w-full bg-slate-100 text-slate-900 hover:bg-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8">
+                🛠️ Configuración Maestra
               </button>
             )}
             
-            <button onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); setTempUser(null); }} className="w-full p-2 text-[9px] font-black text-slate-500 uppercase mt-4 hover:text-white transition-colors">
-              Cerrar Sesión
+            <button 
+              onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); setTempUser(null); }} 
+              className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-4 hover:text-white transition-all text-center"
+            >
+              ✕ Cerrar Sesión
             </button>
           </div>
         )}
