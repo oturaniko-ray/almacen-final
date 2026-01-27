@@ -88,7 +88,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Búsqueda sin forzar mayúsculas en el identificador
       const { data, error } = await supabase
         .from('empleados')
         .select('*')
@@ -134,11 +133,13 @@ export default function LoginPage() {
           <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
             {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
           </h1>
-          {/* Nombre y Rol debajo del título cuando hay sesión activa */}
+          
           {tempUser && paso === 'selector' ? (
             <div className="mt-4 animate-in fade-in duration-700">
               <p className="text-xs font-black uppercase text-white tracking-widest">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.3em] mt-1 italic">{tempUser.rol}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.3em] mt-1 italic">
+                {tempUser.rol === 'admin' ? 'administrador' : tempUser.rol}
+              </p>
             </div>
           ) : (
             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mt-3 italic">Gestión de Almacén</p>
