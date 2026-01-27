@@ -13,7 +13,6 @@ export default function PresenciaPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // 1. Validar Sesión y Obtener Datos
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
     const currentUser = JSON.parse(sessionData);
@@ -21,23 +20,20 @@ export default function PresenciaPage() {
     
     fetchData();
 
-    // 2. Lógica de Inactividad (2 Minutos)
+    // Lógica de Inactividad (2 Minutos)
     let timeout: NodeJS.Timeout;
-
     const resetTimer = () => {
       if (timeout) clearTimeout(timeout);
       timeout = setTimeout(() => {
-        localStorage.clear(); // Limpiar buffer de datos
-        router.replace('/'); // Regresar al menú principal
-      }, 120000); // 120 segundos
+        localStorage.clear();
+        router.replace('/');
+      }, 120000);
     };
 
-    // Eventos para detectar actividad
     window.addEventListener('mousemove', resetTimer);
     window.addEventListener('keydown', resetTimer);
     window.addEventListener('click', resetTimer);
-
-    resetTimer(); // Iniciar contador
+    resetTimer();
 
     const channel = supabase.channel('presencia-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchData)
@@ -61,15 +57,12 @@ export default function PresenciaPage() {
 
   const calcularTiempo = (empleadoId: string, tipo: 'entrada' | 'salida') => {
     const ultMov = movimientos.find(m => m.empleado_id === empleadoId && m.tipo_movimiento === tipo);
-    if (!ultMov) return '--:--';
-
+    if (!ultMov) return '0h 0m';
     const inicio = new Date(ultMov.fecha_hora).getTime();
     const ahora = new Date().getTime();
     const difMs = ahora - inicio;
-
     const horas = Math.floor(difMs / 3600000);
     const minutos = Math.floor((difMs % 3600000) / 60000);
-
     return `${horas}h ${minutos}m`;
   };
 
@@ -78,67 +71,57 @@ export default function PresenciaPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-start mb-12">
           <div>
             <h2 className="text-4xl font-black uppercase italic tracking-tighter">Estado de <span className="text-blue-500">Presencia</span></h2>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2">Monitoreo de Personal en Tiempo Real</p>
-            
-            {/* IDENTIFICACIÓN DE USUARIO EN SESIÓN */}
             {user && (
-              <div className="mt-4 flex items-center gap-3">
-                <div className="h-1 w-8 bg-blue-500 rounded-full"></div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  SESIÓN: <span className="text-white italic">{user.nombre}</span> • <span className="text-blue-400">{user.rol}</span>
-                </p>
-              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2">
+                SESIÓN: <span className="text-white italic">{user.nombre}</span> • <span className="text-blue-400">{user.rol}</span>
+              </p>
             )}
           </div>
           <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all">← Volver</button>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* COLUMNA PRESENTES */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-black uppercase text-emerald-500 ml-4 tracking-widest flex justify-between">
-              <span>✓ En Almacén ({presentes.length})</span>
-              <span className="text-slate-500">Tiempo Dentro</span>
+          
+          {/* COLUMNA PRESENTES (VERDE) */}
+          <div>
+            <h3 className="text-xs font-black uppercase text-emerald-500 mb-6 tracking-[0.3em] flex items-center gap-2">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              En Almacén ({presentes.length})
             </h3>
-            {presentes.map(emp => (
-              <div key={emp.id} className="bg-[#0f172a] p-5 rounded-[25px] border border-white/5 flex justify-between items-center group">
-                <div>
-                  <h4 className="font-bold text-sm uppercase">{emp.nombre}</h4>
-                  <p className="text-[9px] text-slate-500 uppercase font-black">{emp.rol}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {presentes.map(emp => (
+                <div key={emp.id} className="bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-[30px] text-center flex flex-col items-center justify-center transition-all hover:bg-emerald-500/20">
+                  <p className="text-xs font-black uppercase text-emerald-400 leading-tight mb-2">{emp.nombre}</p>
+                  <div className="h-[1px] w-8 bg-emerald-500/30 mb-2"></div>
+                  <p className="text-[10px] font-bold text-white/70 uppercase tracking-tighter">En Almacén:</p>
+                  <p className="text-sm font-black text-white">{calcularTiempo(emp.id, 'entrada')}</p>
                 </div>
-                <div className="text-right">
-                  <span className="bg-emerald-500/20 text-emerald-500 px-3 py-1 rounded-lg text-xs font-black">
-                    {calcularTiempo(emp.id, 'entrada')}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          {/* COLUMNA AUSENTES */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-black uppercase text-red-500 ml-4 tracking-widest flex justify-between">
-              <span>✗ Ausentes ({ausentes.length})</span>
-              <span className="text-slate-500">Tiempo Out</span>
+          {/* COLUMNA AUSENTES (ROJO) */}
+          <div>
+            <h3 className="text-xs font-black uppercase text-red-500 mb-6 tracking-[0.3em] flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+              Ausentes ({ausentes.length})
             </h3>
-            {ausentes.map(emp => (
-              <div key={emp.id} className="bg-red-500/5 p-5 rounded-[25px] border border-red-500/10 flex justify-between items-center opacity-70 group">
-                <div>
-                  <h4 className="font-bold text-sm uppercase">{emp.nombre}</h4>
-                  <p className="text-[9px] text-slate-500 uppercase font-black">{emp.rol}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {ausentes.map(emp => (
+                <div key={emp.id} className="bg-red-500/5 border border-red-500/10 p-6 rounded-[30px] text-center flex flex-col items-center justify-center transition-all hover:bg-red-500/10">
+                  <p className="text-xs font-black uppercase text-red-400/80 leading-tight mb-2">{emp.nombre}</p>
+                  <div className="h-[1px] w-8 bg-red-500/20 mb-2"></div>
+                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-tighter">Tiempo Fuera:</p>
+                  <p className="text-sm font-black text-white/80">{calcularTiempo(emp.id, 'salida')}</p>
                 </div>
-                <div className="text-right">
-                  <span className="bg-red-500/20 text-red-500 px-3 py-1 rounded-lg text-xs font-black">
-                    {calcularTiempo(emp.id, 'salida')}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+
         </div>
       </div>
     </main>
