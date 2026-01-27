@@ -71,7 +71,7 @@ export default function PresenciaPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         <header className="flex justify-between items-start mb-12">
           <div>
             <h2 className="text-4xl font-black uppercase italic tracking-tighter">Estado de <span className="text-blue-500">Presencia</span></h2>
@@ -84,39 +84,39 @@ export default function PresenciaPage() {
           <button onClick={() => router.push('/admin')} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all">← Volver</button>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="grid grid-cols-1 gap-16">
           
-          {/* COLUMNA PRESENTES (VERDE) */}
+          {/* SECCIÓN PRESENTES (VERDE) - GRID 4 COLUMNAS */}
           <div>
             <h3 className="text-xs font-black uppercase text-emerald-500 mb-6 tracking-[0.3em] flex items-center gap-2">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
               En Almacén ({presentes.length})
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
               {presentes.map(emp => (
-                <div key={emp.id} className="bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-[30px] text-center flex flex-col items-center justify-center transition-all hover:bg-emerald-500/20">
-                  <p className="text-xs font-black uppercase text-emerald-400 leading-tight mb-2">{emp.nombre}</p>
-                  <div className="h-[1px] w-8 bg-emerald-500/30 mb-2"></div>
-                  <p className="text-[10px] font-bold text-white/70 uppercase tracking-tighter">En Almacén:</p>
-                  <p className="text-sm font-black text-white">{calcularTiempo(emp.id, 'entrada')}</p>
+                <div key={emp.id} className="bg-emerald-500/10 border border-emerald-500/20 p-8 rounded-[35px] text-center flex flex-col items-center justify-center transition-all hover:bg-emerald-500/20 shadow-lg shadow-emerald-900/10">
+                  <p className="text-sm font-black uppercase text-emerald-400 leading-tight mb-2">{emp.nombre}</p>
+                  <div className="h-[1px] w-12 bg-emerald-500/30 mb-3"></div>
+                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-tighter mb-1">En Almacén:</p>
+                  <p className="text-lg font-black text-white">{calcularTiempo(emp.id, 'entrada')}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* COLUMNA AUSENTES (ROJO) */}
+          {/* SECCIÓN AUSENTES (ROJO) - GRID 4 COLUMNAS */}
           <div>
             <h3 className="text-xs font-black uppercase text-red-500 mb-6 tracking-[0.3em] flex items-center gap-2">
               <span className="w-2 h-2 bg-red-500 rounded-full"></span>
               Ausentes ({ausentes.length})
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
               {ausentes.map(emp => (
-                <div key={emp.id} className="bg-red-500/5 border border-red-500/10 p-6 rounded-[30px] text-center flex flex-col items-center justify-center transition-all hover:bg-red-500/10">
-                  <p className="text-xs font-black uppercase text-red-400/80 leading-tight mb-2">{emp.nombre}</p>
-                  <div className="h-[1px] w-8 bg-red-500/20 mb-2"></div>
-                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-tighter">Tiempo Fuera:</p>
-                  <p className="text-sm font-black text-white/80">{calcularTiempo(emp.id, 'salida')}</p>
+                <div key={emp.id} className="bg-red-500/5 border border-red-500/10 p-8 rounded-[35px] text-center flex flex-col items-center justify-center transition-all hover:bg-red-500/10 shadow-lg">
+                  <p className="text-sm font-black uppercase text-red-400/80 leading-tight mb-2">{emp.nombre}</p>
+                  <div className="h-[1px] w-12 bg-red-500/20 mb-3"></div>
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-tighter mb-1">Tiempo Fuera:</p>
+                  <p className="text-lg font-black text-white/70">{calcularTiempo(emp.id, 'salida')}</p>
                 </div>
               ))}
             </div>
