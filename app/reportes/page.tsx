@@ -71,29 +71,34 @@ export default function ReportesPage() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // --- EXPORTACIÓN CON MEMBRETE Y DOCUMENTO ---
   const exportarExcel = () => {
+    // 1. Definir membrete
     const encabezadoInfo = [
       [`EXPORTADO POR: ${user?.nombre} (${formatearRol(user?.rol)})`],
       [`FECHA Y HORA DE EXPORTACIÓN: ${new Date().toLocaleString()}`],
       ["REPORTE DE JORNADAS"],
-      [] // Fila vacía para separar
+      [] // Fila vacía
     ];
 
+    // 2. Preparar datos del cuerpo
     const cuerpoData = reportes.map(r => ({
       Empleado: r.nombre_empleado,
-      Documento: r.documento_id, // Agregado después del nombre
+      Documento: r.documento_id,
       Rol: formatearRol(r.empleados?.rol),
       Entrada: new Date(r.hora_entrada).toLocaleString(),
       Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'ACTIVO',
       'Tiempo Total': formatearTiempoHMS(r.hora_entrada, r.hora_salida)
     }));
 
-    const ws = XLSX.utils.json_to_sheet(cuerpoData, { origin: "A5" });
-    XLSX.utils.sheet_add_aoa(ws, encabezadoInfo, { origin: "A1" });
+    // 3. Crear WorkSheet empezando con el membrete (AOE)
+    const ws = XLSX.utils.aoa_to_sheet(encabezadoInfo);
 
+    // 4. Añadir los datos JSON justo debajo del membrete (Fila 5, que es índice 4)
+    XLSX.utils.sheet_add_json(ws, cuerpoData, { origin: "A5" });
+
+    // 5. Crear libro y descargar
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte_Jornadas");
+    XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
     XLSX.writeFile(wb, `Reporte_Jornadas_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
@@ -115,7 +120,6 @@ export default function ReportesPage() {
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto">
-        
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
           <div className="flex items-center gap-4">
             <div className="h-16 w-1 bg-blue-500 rounded-full"></div>
