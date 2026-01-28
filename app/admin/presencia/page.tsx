@@ -9,7 +9,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 export default function PresenciaPage() {
   const [user, setUser] = useState<any>(null);
   const [empleados, setEmpleados] = useState<any[]>([]);
-  const [ahora, setAhora] = useState(new Date()); // Para actualización en tiempo real
+  const [ahora, setAhora] = useState(new Date());
   const router = useRouter();
 
   useEffect(() => {
@@ -19,13 +19,12 @@ export default function PresenciaPage() {
     
     fetchData();
 
-    // Actualización cada minuto para refrescar los contadores de tiempo
+    // Actualización de relojes cada minuto
     const timer = setInterval(() => setAhora(new Date()), 60000);
 
-    // Auditoría Realtime: Escuchamos cambios en empleados y jornadas
+    // Realtime para cambios inmediatos
     const channel = supabase.channel('presencia-global')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, fetchData)
       .subscribe();
 
     return () => { 
@@ -35,56 +34,79 @@ export default function PresenciaPage() {
   }, [router]);
 
   const fetchData = async () => {
-    // Traemos empleados y sus jornadas relacionadas para el cálculo exacto
+    // Consulta simplificada para asegurar que los registros se vean
     const { data, error } = await supabase
       .from('empleados')
-      .select(`
-        *,
-        jornadas (
-          entrada,
-          salida,
-          duracion_minutos
-        )
-      `)
+      .select('*')
       .eq('activo', true)
       .order('nombre', { ascending: true });
 
+    if (error) console.error("Error auditoría:", error);
     if (data) setEmpleados(data);
   };
 
-  // AJUSTE 1 y 3: Cálculo preciso basado en la tabla jornadas
-  const calcularTiempoReal = (emp: any) => {
-    if (emp.en_almacen) {
-      // Si está presente, calculamos desde su último ingreso registrado
-      if (!emp.ultimo_ingreso) return '0h 0m';
-      const inicio = new Date(emp.ultimo_ingreso).getTime();
-      const difMs = ahora.getTime() - inicio;
-      const horas = Math.floor(difMs / 3600000);
-      const minutos = Math.floor((difMs % 3600000) / 60000);
-      return `${horas}h ${minutos}m`;
-    } else {
-      // Si está ausente, calculamos el tiempo transcurrido desde su última salida
-      if (!emp.ultima_salida) return '---';
-      const fin = new Date(emp.ultima_salida).getTime();
-      const difMs = ahora.getTime() - fin;
-      const horas = Math.floor(difMs / 3600000);
-      const minutos = Math.floor((difMs % 3600000) / 60000);
-      return `${horas}h ${minutos}m`;
-    }
+  const calcularTiempoReal = (timestamp: string | null) => {
+    if (!timestamp) return '0h 0m';
+    const inicio = new Date(timestamp).getTime();
+    const difMs = ahora.getTime() - inicio;
+    const horas = Math.floor(difMs / 3600000);
+    const minutos = Math.floor((difMs % 3600000) / 60000);
+    return `${horas}h ${minutos}m`;
   };
 
   const exportarExcel = () => {
-    const reporte = empleados.map(e => ({
-      Nombre: e.nombre,
-      Estado: e.en_almacen ? 'PRESENTE' : 'AUSENTE',
-      'Último Ingreso': e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleString() : 'N/A',
-      'Última Salida': e.ultima_salida ? new Date(e.ultima_salida).toLocaleString() : 'N/A',
-      'Tiempo en Estado': calcularTiempoReal(e)
-    }));
-    const ws = XLSX.utils.json_to_sheet(reporte);
+    const fechaActual = new Date();
+    const fechaStr = fechaActual.toLocaleDateString().replace(/\//g, '-');
+    const horaStr = fechaActual.getHours() + "-" + fechaActual.getMinutes();
+    
+    // 1. Encabezados y Metadatos
+    const encabezado = [
+      ["Reporte presencial del personal"],
+      [`Reporte creado por: ${user?.nombre} - ${user?.rol === 'admin' ? 'ADMINISTRADOR' : user?.rol}`],
+      [], // Espacio
+      ["PRESENTES"],
+      ["Nombre", "Documento", "Fecha Entrada", "Hora Entrada", "Tiempo en Almacén"]
+    ];
+
+    // 2. Datos de Presentes
+    const presentesData = empleados
+      .filter(e => e.en_almacen)
+      .map(e => [
+        e.nombre,
+        e.documento || 'N/A',
+        e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleDateString() : 'N/A',
+        e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleTimeString() : 'N/A',
+        calcularTiempoReal(e.ultimo_ingreso)
+      ]);
+
+    // 3. Datos de Ausentes
+    const ausentesEncabezado = [
+      [],
+      ["AUSENTES"],
+      ["Nombre", "Documento", "Fecha Salida", "Hora Salida", "Inactividad"]
+    ];
+
+    const ausentesData = empleados
+      .filter(e => !e.en_almacen)
+      .map(e => [
+        e.nombre,
+        e.documento || 'N/A',
+        e.ultima_salida ? new Date(e.ultima_salida).toLocaleDateString() : 'N/A',
+        e.ultima_salida ? new Date(e.ultima_salida).toLocaleTimeString() : 'N/A',
+        calcularTiempoReal(e.ultima_salida)
+      ]);
+
+    // Unificar todo en una matriz para Excel
+    const dataFinal = [...encabezado, ...presentesData, ...ausentesEncabezado, ...ausentesData];
+
+    const ws = XLSX.utils.aoa_to_sheet(dataFinal);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Presencia");
-    XLSX.writeFile(wb, `Auditoria_Presencia_${new Date().toLocaleDateString()}.xlsx`);
+    
+    // Nombre de la hoja: presencial+fecha+hora
+    const nombreHoja = `presencial${fechaStr}${horaStr}`;
+    XLSX.utils.book_append_sheet(wb, ws, nombreHoja.substring(0, 31)); // Límite Excel 31 chars
+    
+    XLSX.writeFile(wb, `Reporte_Presencia_${fechaStr}.xlsx`);
   };
 
   const presentes = empleados.filter(e => e.en_almacen);
@@ -98,7 +120,8 @@ export default function PresenciaPage() {
             <h2 className="text-4xl font-black uppercase italic tracking-tighter">Estado de <span className="text-blue-500">Presencia</span></h2>
             {user && (
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2">
-                MODO: <span className="text-white italic">MONITOREO TIEMPO REAL</span> • <span className="text-blue-400">AUDITORÍA JORNADAS</span>
+                USER: <span className="text-white italic">{user.nombre}</span> • 
+                ROL: <span className="text-blue-400">{user.rol === 'admin' ? 'ADMINISTRADOR' : user.rol}</span>
               </p>
             )}
           </div>
@@ -116,7 +139,7 @@ export default function PresenciaPage() {
               {presentes.map(emp => (
                 <div key={emp.id} className="flex flex-col group">
                   <span className="text-sm font-black uppercase text-emerald-500 italic mb-1 group-hover:text-white transition-colors">{emp.nombre}</span>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase">Jornada actual: <span className="text-white font-black">{calcularTiempoReal(emp)}</span></span>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase">Tiempo: <span className="text-white font-black">{calcularTiempoReal(emp.ultimo_ingreso)}</span></span>
                 </div>
               ))}
             </div>
@@ -129,7 +152,7 @@ export default function PresenciaPage() {
               {ausentes.map(emp => (
                 <div key={emp.id} className="flex flex-col group">
                   <span className="text-sm font-black uppercase text-red-600 italic mb-1 group-hover:text-white transition-colors">{emp.nombre}</span>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase">Tiempo fuera: <span className="text-white/70">{calcularTiempoReal(emp)}</span></span>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase">Inactividad: <span className="text-white/70">{calcularTiempoReal(emp.ultima_salida)}</span></span>
                 </div>
               ))}
             </div>
