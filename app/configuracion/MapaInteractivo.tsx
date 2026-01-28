@@ -1,15 +1,9 @@
 'use client';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet'; // Después de instalar @types/leaflet esto funcionará perfecto
+import L from 'leaflet';
 
-interface Props {
-  lat: number;
-  lng: number;
-  onLocationChange: (lat: number, lng: number) => void;
-}
-
-// Fix para los iconos de Leaflet en Next.js
+// Fix para iconos de Leaflet en Next.js
 const customIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
@@ -18,13 +12,19 @@ const customIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
+interface Props {
+  lat: number;
+  lng: number;
+  onLocationChange: (lat: number, lng: number) => void;
+}
+
 function MapEvents({ onLocationChange }: { onLocationChange: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(e) {
       onLocationChange(e.latlng.lat, e.latlng.lng);
     },
     contextmenu(e) {
-      alert(`COORDENADAS PRECISAS:\nLat: ${e.latlng.lat}\nLon: ${e.latlng.lng}`);
+      alert(`COORDENADAS TÉCNICAS:\nLat: ${e.latlng.lat}\nLon: ${e.latlng.lng}`);
     }
   });
   return null;
@@ -34,13 +34,13 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: Props) {
   return (
     <MapContainer 
       center={[lat, lng]} 
-      zoom={17} 
-      style={{ height: '100%', width: '100%' }}
+      zoom={18} 
+      style={{ height: '100%', width: '100%', minHeight: '400px' }}
     >
       <TileLayer
         url="https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
         subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-        attribution='&copy; Google Maps'
+        attribution='&copy; Google Maps Satellite'
       />
       <Marker position={[lat, lng]} icon={customIcon} />
       <MapEvents onLocationChange={onLocationChange} />
