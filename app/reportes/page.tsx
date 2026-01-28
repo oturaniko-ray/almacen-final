@@ -13,21 +13,15 @@ export default function ReportesPage() {
   const [filtroNombre, setFiltroNombre] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  
-  const [config, setConfig] = useState<any>({
-    empresa_nombre: 'SISTEMA RAY'
-  });
-  
+  const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA RAY' });
   const [editandoRow, setEditandoRow] = useState<any>(null);
   const [guardando, setGuardando] = useState(false);
-  
   const router = useRouter();
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
     const currentUser = JSON.parse(sessionData);
-    
     if (!['admin', 'administrador', 'supervisor'].includes(currentUser.rol.toLowerCase())) {
       router.replace('/');
       return;
@@ -36,10 +30,9 @@ export default function ReportesPage() {
     fetchConfig();
     fetchReportes();
 
-    const canalRealtime = supabase.channel('reportes-precise-v2')
+    const canalRealtime = supabase.channel('reportes-final-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchReportes())
       .subscribe();
-
     return () => { supabase.removeChannel(canalRealtime); };
   }, [router, fechaInicio, fechaFin]);
 
@@ -61,14 +54,12 @@ export default function ReportesPage() {
     setLoading(false);
   };
 
-  // FORMATEO DE ROL PARA VISUALIZACIÓN
   const formatearRol = (rol: string) => {
     const r = rol?.toLowerCase();
     if (r === 'admin' || r === 'administrador') return 'ADMINISTRATIVO';
     return rol?.toUpperCase() || 'EMPLEADO';
   };
 
-  // LÓGICA DE TIEMPO HMS
   const formatearTiempoHMS = (entradaStr: string, salidaStr: string | null) => {
     if (!entradaStr || !salidaStr) return "00:00:00";
     const diffMs = new Date(salidaStr).getTime() - new Date(entradaStr).getTime();
@@ -80,42 +71,51 @@ export default function ReportesPage() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  // --- EXPORTACIÓN CON MEMBRETE Y DOCUMENTO ---
+  const exportarExcel = () => {
+    const encabezadoInfo = [
+      [`EXPORTADO POR: ${user?.nombre} (${formatearRol(user?.rol)})`],
+      [`FECHA Y HORA DE EXPORTACIÓN: ${new Date().toLocaleString()}`],
+      ["REPORTE DE JORNADAS"],
+      [] // Fila vacía para separar
+    ];
+
+    const cuerpoData = reportes.map(r => ({
+      Empleado: r.nombre_empleado,
+      Documento: r.documento_id, // Agregado después del nombre
+      Rol: formatearRol(r.empleados?.rol),
+      Entrada: new Date(r.hora_entrada).toLocaleString(),
+      Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'ACTIVO',
+      'Tiempo Total': formatearTiempoHMS(r.hora_entrada, r.hora_salida)
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(cuerpoData, { origin: "A5" });
+    XLSX.utils.sheet_add_aoa(ws, encabezadoInfo, { origin: "A1" });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte_Jornadas");
+    XLSX.writeFile(wb, `Reporte_Jornadas_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
   const guardarEdicion = async () => {
     if (!editandoRow) return;
     setGuardando(true);
     const inicio = new Date(editandoRow.hora_entrada).getTime();
     const fin = editandoRow.hora_salida ? new Date(editandoRow.hora_salida).getTime() : 0;
     const horasDecimal = fin > inicio ? (fin - inicio) / (1000 * 60 * 60) : 0;
-
     const { error } = await supabase.from('jornadas').update({ 
       hora_entrada: new Date(editandoRow.hora_entrada).toISOString(),
       hora_salida: editandoRow.hora_salida ? new Date(editandoRow.hora_salida).toISOString() : null,
       horas_trabajadas: horasDecimal
     }).eq('id', editandoRow.id);
-
     if (!error) setEditandoRow(null);
     setGuardando(false);
-  };
-
-  const exportarExcel = () => {
-    const dataExport = reportes.map(r => ({
-      Empleado: r.nombre_empleado,
-      Rol: formatearRol(r.empleados?.rol),
-      Entrada: new Date(r.hora_entrada).toLocaleString(),
-      Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'ACTIVO',
-      'Tiempo Total': formatearTiempoHMS(r.hora_entrada, r.hora_salida)
-    }));
-    const ws = XLSX.utils.json_to_sheet(dataExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
-    XLSX.writeFile(wb, `Reporte_RAY_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* CABECERA */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
           <div className="flex items-center gap-4">
             <div className="h-16 w-1 bg-blue-500 rounded-full"></div>
@@ -137,7 +137,6 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* FILTROS */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 bg-[#0f172a] p-6 rounded-[30px] border border-white/5 shadow-xl">
           <input type="text" placeholder="BUSCAR EMPLEADO..." className="bg-[#050a14] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-blue-500" value={filtroNombre} onChange={e => setFiltroNombre(e.target.value)} />
           <input type="date" className="bg-[#050a14] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black outline-none focus:border-blue-500" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
@@ -145,7 +144,6 @@ export default function ReportesPage() {
           <button onClick={fetchReportes} className="bg-blue-600 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-blue-900/40">Actualizar</button>
         </div>
 
-        {/* TABLA */}
         <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -193,7 +191,6 @@ export default function ReportesPage() {
         </div>
       </div>
 
-      {/* MODAL EDICIÓN */}
       {editandoRow && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
           <div className="bg-[#0f172a] border border-white/10 p-10 rounded-[45px] w-full max-w-md animate-in zoom-in duration-200 shadow-2xl">
