@@ -19,10 +19,11 @@ export default function PresenciaPage() {
     
     fetchData();
 
-    // Actualización de relojes cada minuto
-    const timer = setInterval(() => setAhora(new Date()), 60000);
+    // Actualización de estado para forzar re-render de los cronómetros cada minuto
+    const timer = setInterval(() => {
+      setAhora(new Date());
+    }, 60000);
 
-    // Realtime para cambios inmediatos
     const channel = supabase.channel('presencia-global')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchData)
       .subscribe();
@@ -34,7 +35,6 @@ export default function PresenciaPage() {
   }, [router]);
 
   const fetchData = async () => {
-    // Consulta simplificada para asegurar que los registros se vean
     const { data, error } = await supabase
       .from('empleados')
       .select('*')
@@ -45,68 +45,72 @@ export default function PresenciaPage() {
     if (data) setEmpleados(data);
   };
 
-  const calcularTiempoReal = (timestamp: string | null) => {
+  // Función de cálculo unificada para pantalla y Excel
+  const calcularTiempoTranscurrido = (timestamp: string | null) => {
     if (!timestamp) return '0h 0m';
     const inicio = new Date(timestamp).getTime();
     const difMs = ahora.getTime() - inicio;
+    
+    if (difMs < 0) return '0h 0m'; // Evita tiempos negativos por desajuste de reloj
+
     const horas = Math.floor(difMs / 3600000);
     const minutos = Math.floor((difMs % 3600000) / 60000);
     return `${horas}h ${minutos}m`;
   };
 
   const exportarExcel = () => {
-    const fechaActual = new Date();
-    const fechaStr = fechaActual.toLocaleDateString().replace(/\//g, '-');
-    const horaStr = fechaActual.getHours() + "-" + fechaActual.getMinutes();
+    const fActual = new Date();
+    const fechaStamp = fActual.toLocaleDateString().replace(/\//g, '-');
+    const horaStamp = fActual.getHours() + "h" + fActual.getMinutes();
     
-    // 1. Encabezados y Metadatos
+    // 1. Estructura de Encabezado con Fecha y Hora de Creación (Requerimiento 1)
     const encabezado = [
-      ["Reporte presencial del personal"],
+      ["REPORTE PRESENCIAL DEL PERSONAL"],
       [`Reporte creado por: ${user?.nombre} - ${user?.rol === 'admin' ? 'ADMINISTRADOR' : user?.rol}`],
-      [], // Espacio
+      [`Fecha de creación: ${fActual.toLocaleDateString()}`],
+      [`Hora de creación: ${fActual.toLocaleTimeString()}`],
+      [], 
       ["PRESENTES"],
-      ["Nombre", "Documento", "Fecha Entrada", "Hora Entrada", "Tiempo en Almacén"]
+      ["Nombre", "Documento ID", "Última Entrada (Fecha)", "Última Entrada (Hora)", "Tiempo en Almacén"]
     ];
 
-    // 2. Datos de Presentes
+    // 2. Datos de Presentes (Requerimiento 2 y 3)
     const presentesData = empleados
       .filter(e => e.en_almacen)
       .map(e => [
         e.nombre,
-        e.documento || 'N/A',
-        e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleDateString() : 'N/A',
-        e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleTimeString() : 'N/A',
-        calcularTiempoReal(e.ultimo_ingreso)
+        e.documento_id || 'N/A',
+        e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleDateString() : '---',
+        e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleTimeString() : '---',
+        calcularTiempoTranscurrido(e.ultimo_ingreso)
       ]);
 
-    // 3. Datos de Ausentes
+    // 3. Datos de Ausentes (Requerimiento 2 y 3)
     const ausentesEncabezado = [
       [],
       ["AUSENTES"],
-      ["Nombre", "Documento", "Fecha Salida", "Hora Salida", "Inactividad"]
+      ["Nombre", "Documento ID", "Última Salida (Fecha)", "Última Salida (Hora)", "Tiempo de Ausencia"]
     ];
 
     const ausentesData = empleados
       .filter(e => !e.en_almacen)
       .map(e => [
         e.nombre,
-        e.documento || 'N/A',
-        e.ultima_salida ? new Date(e.ultima_salida).toLocaleDateString() : 'N/A',
-        e.ultima_salida ? new Date(e.ultima_salida).toLocaleTimeString() : 'N/A',
-        calcularTiempoReal(e.ultima_salida)
+        e.documento_id || 'N/A',
+        e.ultima_salida ? new Date(e.ultima_salida).toLocaleDateString() : '---',
+        e.ultima_salida ? new Date(e.ultima_salida).toLocaleTimeString() : '---',
+        calcularTiempoTranscurrido(e.ultima_salida)
       ]);
 
-    // Unificar todo en una matriz para Excel
     const dataFinal = [...encabezado, ...presentesData, ...ausentesEncabezado, ...ausentesData];
-
     const ws = XLSX.utils.aoa_to_sheet(dataFinal);
     const wb = XLSX.utils.book_new();
     
-    // Nombre de la hoja: presencial+fecha+hora
-    const nombreHoja = `presencial${fechaStr}${horaStr}`;
-    XLSX.utils.book_append_sheet(wb, ws, nombreHoja.substring(0, 31)); // Límite Excel 31 chars
+    // Nombre de la hoja: presencial+fecha+hora (Requerimiento 1)
+    const nombreHoja = `presencial${fechaStamp}${horaStamp}`.substring(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
     
-    XLSX.writeFile(wb, `Reporte_Presencia_${fechaStr}.xlsx`);
+    XLSX.writeFile(wb, `Reporte_Presencia_${fechaStamp}.xlsx`);
   };
 
   const presentes = empleados.filter(e => e.en_almacen);
@@ -139,7 +143,8 @@ export default function PresenciaPage() {
               {presentes.map(emp => (
                 <div key={emp.id} className="flex flex-col group">
                   <span className="text-sm font-black uppercase text-emerald-500 italic mb-1 group-hover:text-white transition-colors">{emp.nombre}</span>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase">Tiempo: <span className="text-white font-black">{calcularTiempoReal(emp.ultimo_ingreso)}</span></span>
+                  <span className="text-[10px] text-slate-400 font-bold mb-1">{emp.documento_id}</span>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase">Tiempo: <span className="text-white font-black">{calcularTiempoTranscurrido(emp.ultimo_ingreso)}</span></span>
                 </div>
               ))}
             </div>
@@ -152,7 +157,8 @@ export default function PresenciaPage() {
               {ausentes.map(emp => (
                 <div key={emp.id} className="flex flex-col group">
                   <span className="text-sm font-black uppercase text-red-600 italic mb-1 group-hover:text-white transition-colors">{emp.nombre}</span>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase">Inactividad: <span className="text-white/70">{calcularTiempoReal(emp.ultima_salida)}</span></span>
+                  <span className="text-[10px] text-slate-400 font-bold mb-1">{emp.documento_id}</span>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase">Inactividad: <span className="text-white/70">{calcularTiempoTranscurrido(emp.ultima_salida)}</span></span>
                 </div>
               ))}
             </div>
