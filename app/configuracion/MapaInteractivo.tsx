@@ -16,7 +16,7 @@ function MapUpdater({ lat, lng }: { lat: number, lng: number }) {
   const map = useMap();
   useEffect(() => {
     if (lat && lng && lat !== 0) {
-      map.setView([lat, lng], map.getZoom());
+      map.setView([lat, lng], 18);
     }
   }, [lat, lng, map]);
   return null;
@@ -60,8 +60,7 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
       <MapContainer 
         center={[nLat, nLng]} 
         zoom={18} 
-        scrollWheelZoom={true}
-        className="h-full w-full"
+        style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

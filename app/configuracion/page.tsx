@@ -28,9 +28,7 @@ export default function ConfigMaestraPage() {
     try {
       const { data, error } = await supabase.from('sistema_config').select('clave, valor');
       if (error) throw error;
-
       if (data) {
-        // Restaurada la transformación original
         const transformado = data.reduce((acc: any, curr: any) => ({
           ...acc,
           [curr.clave]: curr.valor
@@ -48,25 +46,21 @@ export default function ConfigMaestraPage() {
   const guardarModulo = async (claves: string[]) => {
     setGuardando(true);
     try {
-      // Actualización paralela para evitar bloqueos
+      // Actualización paralela para asegurar persistencia
       const promesas = claves.map(clave => 
         supabase
           .from('sistema_config')
           .update({ valor: String(config[clave]) })
           .eq('clave', clave)
       );
-
       await Promise.all(promesas);
 
-      // Sincronización de respaldo
       const nuevoRespaldo = { ...configOriginal };
       claves.forEach(c => nuevoRespaldo[c] = config[c]);
       setConfigOriginal(nuevoRespaldo);
-      
-      alert("SISTEMA ACTUALIZADO");
+      alert("✅ SISTEMA SINCRONIZADO");
     } catch (error) {
-      console.error('Error al guardar:', error);
-      alert("ERROR CRÍTICO EN DB");
+      alert("❌ FALLO EN LA COMUNICACIÓN");
     } finally {
       setGuardando(false);
     }
@@ -88,7 +82,7 @@ export default function ConfigMaestraPage() {
     <div className="min-h-screen bg-black text-white p-8 font-sans selection:bg-blue-500">
       <div className="max-w-6xl mx-auto">
         
-        {/* HEADER TÉCNICO */}
+        {/* HEADER TÉCNICO ORIGINAL */}
         <header className="mb-12 flex justify-between items-end border-b border-white/10 pb-6">
           <div>
             <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none">
@@ -106,7 +100,7 @@ export default function ConfigMaestraPage() {
 
         <div className="grid grid-cols-12 gap-8">
           
-          {/* NAVEGACIÓN LATERAL */}
+          {/* NAVEGACIÓN LATERAL ORIGINAL */}
           <nav className="col-span-3 flex flex-col gap-2">
             {['geolocalizacion', 'seguridad', 'interfaz'].map((tab) => (
               <button
@@ -124,12 +118,12 @@ export default function ConfigMaestraPage() {
             ))}
           </nav>
 
-          {/* ÁREA DE CONFIGURACIÓN */}
+          {/* ÁREA DE TRABAJO ORIGINAL */}
           <main className="col-span-9 bg-slate-900/50 rounded-[40px] border border-white/5 p-8 backdrop-blur-xl">
             
             <div className="min-h-[400px]">
               {tabActual === 'geolocalizacion' && (
-                <div className="space-y-8">
+                <div className="space-y-8 animate-in fade-in">
                   <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-6">
                       <div>
@@ -175,7 +169,7 @@ export default function ConfigMaestraPage() {
                       </div>
                     </div>
 
-                    <div className="h-[350px] rounded-[30px] overflow-hidden border-4 border-white/5 shadow-2xl">
+                    <div className="h-[350px] rounded-[30px] overflow-hidden border-4 border-white/5 shadow-2xl relative">
                       <MapaInteractivo 
                         lat={config.gps_latitud} 
                         lng={config.gps_longitud} 
@@ -189,7 +183,7 @@ export default function ConfigMaestraPage() {
               )}
 
               {tabActual === 'seguridad' && (
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 gap-6 animate-in fade-in">
                   <div className="bg-white/5 p-8 rounded-[35px] border border-white/5">
                     <span className="text-[10px] font-black text-blue-500 uppercase italic">Control de Acceso</span>
                     <h3 className="text-2xl font-black mt-2 mb-6 italic">EXPIRACIÓN QR</h3>
@@ -200,12 +194,12 @@ export default function ConfigMaestraPage() {
                         onChange={(e) => setConfig({...config, qr_expiracion: e.target.value})}
                         className="bg-black/60 p-5 rounded-2xl text-3xl font-black w-32 border border-white/10 outline-none"
                       />
-                      <span className="text-slate-500 font-bold uppercase text-xs italic">Segundos de<br/>validez</span>
+                      <span className="text-slate-500 font-bold uppercase text-xs italic">Valor en<br/>milisegundos</span>
                     </div>
                   </div>
 
                   <div className="bg-white/5 p-8 rounded-[35px] border border-white/5">
-                    <span className="text-[10px] font-black text-red-500 uppercase italic">Sesión</span>
+                    <span className="text-[10px] font-black text-red-500 uppercase italic">Gestión de Sesión</span>
                     <h3 className="text-2xl font-black mt-2 mb-6 italic">TIMEOUT IDLE</h3>
                     <div className="flex items-center gap-6">
                       <input 
@@ -214,16 +208,16 @@ export default function ConfigMaestraPage() {
                         onChange={(e) => setConfig({...config, timer_inactividad: e.target.value})}
                         className="bg-black/60 p-5 rounded-2xl text-3xl font-black w-32 border border-white/10 outline-none"
                       />
-                      <span className="text-slate-500 font-bold uppercase text-xs italic">Minutos de<br/>espera</span>
+                      <span className="text-slate-500 font-bold uppercase text-xs italic">Valor en<br/>milisegundos</span>
                     </div>
                   </div>
                 </div>
               )}
 
               {tabActual === 'interfaz' && (
-                <div className="max-w-xl">
+                <div className="max-w-xl animate-in fade-in">
                   <div className="bg-white/5 p-8 rounded-[35px] border border-white/5">
-                    <label className="text-[10px] font-black text-blue-500 uppercase italic block mb-4">Nombre del Sistema</label>
+                    <label className="text-[10px] font-black text-blue-500 uppercase italic block mb-4">Branding Corporativo</label>
                     <input 
                       type="text" 
                       value={config.empresa_nombre || ''}
@@ -235,7 +229,7 @@ export default function ConfigMaestraPage() {
               )}
             </div>
 
-            {/* BARRA DE ACCIONES LOCALES */}
+            {/* BOTONES ORIGINALES */}
             <div className="mt-8 pt-8 border-t border-white/5 flex gap-4">
               <button 
                 onClick={() => {
