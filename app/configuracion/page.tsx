@@ -4,18 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), { 
   ssr: false,
-  loading: () => (
-    <div className="h-full w-full bg-slate-900 animate-pulse flex items-center justify-center text-blue-500 font-black italic">
-      CONECTANDO CON SATÉLITE...
-    </div>
-  )
+  loading: () => <div className="h-full w-full bg-slate-900 animate-pulse flex items-center justify-center text-blue-500 font-black italic">CONECTANDO CON SATÉLITE...</div>
 });
 
 export default function ConfigMaestraPage() {
@@ -37,6 +30,7 @@ export default function ConfigMaestraPage() {
       if (error) throw error;
 
       if (data) {
+        // Restaurada la transformación original
         const transformado = data.reduce((acc: any, curr: any) => ({
           ...acc,
           [curr.clave]: curr.valor
@@ -54,7 +48,7 @@ export default function ConfigMaestraPage() {
   const guardarModulo = async (claves: string[]) => {
     setGuardando(true);
     try {
-      // Ejecución en paralelo de todas las actualizaciones
+      // Actualización paralela para evitar bloqueos
       const promesas = claves.map(clave => 
         supabase
           .from('sistema_config')
@@ -62,23 +56,17 @@ export default function ConfigMaestraPage() {
           .eq('clave', clave)
       );
 
-      const resultados = await Promise.all(promesas);
+      await Promise.all(promesas);
+
+      // Sincronización de respaldo
+      const nuevoRespaldo = { ...configOriginal };
+      claves.forEach(c => nuevoRespaldo[c] = config[c]);
+      setConfigOriginal(nuevoRespaldo);
       
-      // Verificar si hubo algún error en las respuestas
-      const errorEncontrado = resultados.find(r => r.error);
-      if (errorEncontrado) throw errorEncontrado.error;
-
-      // Sincronizar el estado de respaldo con lo recién guardado
-      const nuevaConfigOriginal = { ...configOriginal };
-      claves.forEach(clave => {
-        nuevaConfigOriginal[clave] = config[clave];
-      });
-      setConfigOriginal(nuevaConfigOriginal);
-
-      alert("✅ CONFIGURACIÓN ACTUALIZADA CORRECTAMENTE");
-    } catch (error: any) {
+      alert("SISTEMA ACTUALIZADO");
+    } catch (error) {
       console.error('Error al guardar:', error);
-      alert("❌ ERROR AL GUARDAR: " + (error.message || "Error desconocido"));
+      alert("ERROR CRÍTICO EN DB");
     } finally {
       setGuardando(false);
     }
@@ -86,9 +74,7 @@ export default function ConfigMaestraPage() {
 
   const cancelarModulo = (claves: string[]) => {
     const restaurado = { ...config };
-    claves.forEach(clave => {
-      restaurado[clave] = configOriginal[clave];
-    });
+    claves.forEach(c => restaurado[c] = configOriginal[c]);
     setConfig(restaurado);
   };
 
@@ -99,7 +85,7 @@ export default function ConfigMaestraPage() {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8 font-sans selection:bg-blue-500">
+    <div className="min-h-screen bg-black text-white p-8 font-sans selection:bg-blue-500">
       <div className="max-w-6xl mx-auto">
         
         {/* HEADER TÉCNICO */}
@@ -118,37 +104,33 @@ export default function ConfigMaestraPage() {
           </button>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-12 gap-8">
           
           {/* NAVEGACIÓN LATERAL */}
-          <nav className="lg:col-span-3 flex flex-col gap-2">
-            {[
-              { id: 'geolocalizacion', label: 'Geolocalización', icon: '📡' },
-              { id: 'seguridad', label: 'Seguridad', icon: '🔒' },
-              { id: 'interfaz', label: 'Interfaz', icon: '🎨' }
-            ].map((tab) => (
+          <nav className="col-span-3 flex flex-col gap-2">
+            {['geolocalizacion', 'seguridad', 'interfaz'].map((tab) => (
               <button
-                key={tab.id}
-                onClick={() => setTabActual(tab.id)}
+                key={tab}
+                onClick={() => setTabActual(tab)}
                 className={`p-4 rounded-[20px] text-left transition-all flex items-center gap-3 ${
-                  tabActual === tab.id 
+                  tabActual === tab 
                   ? 'bg-blue-600 text-white shadow-[0_10px_30px_rgba(37,99,235,0.3)] scale-105' 
                   : 'bg-white/5 text-slate-400 hover:bg-white/10'
                 }`}
               >
-                <span className="text-xl">{tab.icon}</span>
-                <span className="font-black uppercase text-[11px] italic">{tab.label}</span>
+                <div className={`w-2 h-2 rounded-full ${tabActual === tab ? 'bg-white animate-pulse' : 'bg-slate-600'}`}></div>
+                <span className="font-black uppercase text-[11px] italic">{tab}</span>
               </button>
             ))}
           </nav>
 
           {/* ÁREA DE CONFIGURACIÓN */}
-          <main className="lg:col-span-9 bg-slate-900/50 rounded-[40px] border border-white/5 p-8 backdrop-blur-xl">
+          <main className="col-span-9 bg-slate-900/50 rounded-[40px] border border-white/5 p-8 backdrop-blur-xl">
             
             <div className="min-h-[400px]">
               {tabActual === 'geolocalizacion' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-8">
+                  <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-6">
                       <div>
                         <label className="text-[10px] font-black text-slate-500 uppercase block mb-3 italic">Coordenadas de Operación</label>
@@ -193,7 +175,7 @@ export default function ConfigMaestraPage() {
                       </div>
                     </div>
 
-                    <div className="h-[350px] rounded-[30px] overflow-hidden border-4 border-white/5 shadow-2xl relative">
+                    <div className="h-[350px] rounded-[30px] overflow-hidden border-4 border-white/5 shadow-2xl">
                       <MapaInteractivo 
                         lat={config.gps_latitud} 
                         lng={config.gps_longitud} 
@@ -207,8 +189,8 @@ export default function ConfigMaestraPage() {
               )}
 
               {tabActual === 'seguridad' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-white/5 p-8 rounded-[35px] border border-white/5 group hover:border-blue-500/30 transition-all">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-white/5 p-8 rounded-[35px] border border-white/5">
                     <span className="text-[10px] font-black text-blue-500 uppercase italic">Control de Acceso</span>
                     <h3 className="text-2xl font-black mt-2 mb-6 italic">EXPIRACIÓN QR</h3>
                     <div className="flex items-center gap-6">
@@ -216,35 +198,34 @@ export default function ConfigMaestraPage() {
                         type="number" 
                         value={config.qr_expiracion || ''}
                         onChange={(e) => setConfig({...config, qr_expiracion: e.target.value})}
-                        className="bg-black/60 p-5 rounded-2xl text-3xl font-black w-32 border border-white/10 outline-none focus:border-blue-600"
+                        className="bg-black/60 p-5 rounded-2xl text-3xl font-black w-32 border border-white/10 outline-none"
                       />
-                      <span className="text-slate-500 font-bold uppercase text-xs italic">Segundos por<br/>frecuencia de refresco</span>
+                      <span className="text-slate-500 font-bold uppercase text-xs italic">Segundos de<br/>validez</span>
                     </div>
                   </div>
 
-                  <div className="bg-white/5 p-8 rounded-[35px] border border-white/5 group hover:border-red-500/30 transition-all">
-                    <span className="text-[10px] font-black text-red-500 uppercase italic">Gestión de Sesión</span>
+                  <div className="bg-white/5 p-8 rounded-[35px] border border-white/5">
+                    <span className="text-[10px] font-black text-red-500 uppercase italic">Sesión</span>
                     <h3 className="text-2xl font-black mt-2 mb-6 italic">TIMEOUT IDLE</h3>
                     <div className="flex items-center gap-6">
                       <input 
                         type="number" 
                         value={config.timer_inactividad || ''}
                         onChange={(e) => setConfig({...config, timer_inactividad: e.target.value})}
-                        className="bg-black/60 p-5 rounded-2xl text-3xl font-black w-32 border border-white/10 outline-none focus:border-red-600"
+                        className="bg-black/60 p-5 rounded-2xl text-3xl font-black w-32 border border-white/10 outline-none"
                       />
-                      <span className="text-slate-500 font-bold uppercase text-xs italic">Minutos de inactividad<br/>antes de cierre forzado</span>
+                      <span className="text-slate-500 font-bold uppercase text-xs italic">Minutos de<br/>espera</span>
                     </div>
                   </div>
                 </div>
               )}
 
               {tabActual === 'interfaz' && (
-                <div className="max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="max-w-xl">
                   <div className="bg-white/5 p-8 rounded-[35px] border border-white/5">
-                    <label className="text-[10px] font-black text-blue-500 uppercase italic block mb-4">Branding Corporativo</label>
+                    <label className="text-[10px] font-black text-blue-500 uppercase italic block mb-4">Nombre del Sistema</label>
                     <input 
                       type="text" 
-                      placeholder="Nombre de la Empresa"
                       value={config.empresa_nombre || ''}
                       onChange={(e) => setConfig({...config, empresa_nombre: e.target.value})}
                       className="bg-black/40 p-6 rounded-2xl text-2xl font-black w-full border border-white/10 outline-none focus:border-white transition-all italic uppercase"
@@ -268,7 +249,7 @@ export default function ConfigMaestraPage() {
                 disabled={guardando}
                 className="flex-1 bg-white text-black p-5 rounded-[22px] font-black text-[11px] uppercase italic transition-all hover:bg-blue-600 hover:text-white disabled:opacity-50"
               >
-                {guardando ? 'SINCRONIZANDO DB...' : `APLICAR CAMBIOS EN ${tabActual.toUpperCase()}`}
+                {guardando ? 'SINCRONIZANDO...' : `APLICAR CAMBIOS EN ${tabActual.toUpperCase()}`}
               </button>
               <button 
                 onClick={() => {
