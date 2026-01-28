@@ -6,7 +6,10 @@ import dynamic from 'next/dynamic';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), { ssr: false });
+const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), { 
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-slate-900 animate-pulse flex items-center justify-center text-blue-500 font-black text-xs italic">CALIBRANDO REFERENCIAS...</div>
+});
 
 export default function ConfigMaestraPage() {
   const [user, setUser] = useState<any>(null);
@@ -29,22 +32,19 @@ export default function ConfigMaestraPage() {
   const fetchConfig = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('sistema_config').select('*');
-    if (error) {
-      console.error("Error cargando config:", error);
-    } else if (data) {
+    if (data) {
       const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-      // Aseguramos que los valores existan para evitar errores de undefined en inputs
-      const defaults = {
-        gps_latitud: '0',
-        gps_longitud: '0',
-        gps_radio: '80',
-        qr_expiracion: '60000',
-        timer_inactividad: '120000',
-        empresa_nombre: 'SISTEMA'
+      
+      // Sanitización de datos para asegurar que el mapa reciba números
+      const cleanConfig = {
+        ...cfgMap,
+        gps_latitud: cfgMap.gps_latitud || '0',
+        gps_longitud: cfgMap.gps_longitud || '0',
+        gps_radio: cfgMap.gps_radio || '80'
       };
-      const finalConfig = { ...defaults, ...cfgMap };
-      setConfig(finalConfig);
-      setConfigOriginal({ ...finalConfig });
+
+      setConfig(cleanConfig);
+      setConfigOriginal(cleanConfig);
     }
     setLoading(false);
   };
@@ -56,24 +56,15 @@ export default function ConfigMaestraPage() {
   const guardarModulo = async (claves: string[]) => {
     setGuardando(true);
     try {
-      // Ejecutamos los updates uno por uno para asegurar escritura
       for (const clave of claves) {
-        const { error } = await supabase
-          .from('sistema_config')
-          .update({ valor: String(config[clave]) })
-          .eq('clave', clave);
-        
-        if (error) throw error;
+        await supabase.from('sistema_config').update({ valor: String(config[clave]) }).eq('clave', clave);
       }
-      
-      // Actualizar respaldo local
       const nuevoRespaldo = { ...configOriginal };
       claves.forEach(c => nuevoRespaldo[c] = config[c]);
       setConfigOriginal(nuevoRespaldo);
-      
-      alert("✅ BASE DE DATOS ACTUALIZADA");
-    } catch (err: any) {
-      alert("❌ ERROR AL ESCRIBIR: " + err.message);
+      alert("✅ VALORES SINCRONIZADOS EN TABLA");
+    } catch (err) {
+      alert("❌ ERROR DE ESCRITURA");
     } finally {
       setGuardando(false);
     }
@@ -88,48 +79,42 @@ export default function ConfigMaestraPage() {
   const msAMinutos = (ms: any) => Math.floor(parseInt(ms || '0') / 60000);
   const minutosAMs = (min: any) => (parseInt(min || '0') * 60000).toString();
 
-  if (loading) return <div className="min-h-screen bg-[#050a14] flex items-center justify-center text-red-600 font-black italic animate-pulse uppercase tracking-widest">Sincronizando Kernel...</div>;
+  if (loading) return <div className="min-h-screen bg-[#050a14] flex items-center justify-center font-black text-red-600 italic uppercase">Cargando Kernel...</div>;
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8">
       <div className="max-w-6xl mx-auto">
-        <header className="flex justify-between items-center mb-10">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-1 bg-red-600 shadow-[0_0_15px_red]"></div>
-            <h1 className="text-2xl font-black italic uppercase italic">Configuración <span className="text-red-600">Maestra</span></h1>
-          </div>
-          <button onClick={() => router.back()} className="bg-slate-800 px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-white/5 hover:bg-red-600 transition-all">Cancelar y Salir</button>
+        <header className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
+          <h1 className="text-2xl font-black italic uppercase italic">Configuración <span className="text-red-600">Maestra</span></h1>
+          <button onClick={() => router.back()} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">Salir</button>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* SIDEBAR */}
+          {/* MENU */}
           <div className="md:col-span-3 space-y-2">
-            {[
-              { id: 'geolocalizacion', label: '📡 Geocerca GPS' },
-              { id: 'seguridad', label: '🛡️ Tiempos de Red' },
-              { id: 'interfaz', label: '🖥️ Interfaz' }
-            ].map((tab) => (
-              <button key={tab.id} onClick={() => setTabActual(tab.id)} className={`w-full text-left p-6 rounded-[25px] border transition-all ${tabActual === tab.id ? 'bg-white/5 border-white/20' : 'border-transparent text-slate-500'}`}>
-                <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
+            {['geolocalizacion', 'seguridad', 'interfaz'].map((t) => (
+              <button key={t} onClick={() => setTabActual(t)} className={`w-full text-left p-6 rounded-[25px] border transition-all ${tabActual === t ? 'bg-white/5 border-white/20' : 'border-transparent text-slate-500'}`}>
+                <span className="text-[10px] font-black uppercase tracking-widest">{t}</span>
               </button>
             ))}
           </div>
 
-          {/* CONTENT */}
-          <div className="md:col-span-9 bg-[#0f172a] rounded-[45px] border border-white/5 p-10 shadow-2xl min-h-[600px] flex flex-col">
+          {/* PANEL */}
+          <div className="md:col-span-9 bg-[#0f172a] rounded-[45px] border border-white/5 p-10 shadow-2xl flex flex-col min-h-[600px]">
             <div className="flex-1">
               {tabActual === 'geolocalizacion' && (
-                <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="space-y-6 animate-in fade-in">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 font-black mb-1">LATITUD EN TABLA</p>
-                      <input type="text" value={config.gps_latitud} readOnly className="w-full bg-transparent font-mono text-xs text-blue-400 outline-none" />
+                      <p className="text-[8px] text-slate-500 font-black mb-1">LATITUD GUARDADA</p>
+                      <p className="font-mono text-xs text-blue-400">{config.gps_latitud}</p>
                     </div>
                     <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 font-black mb-1">LONGITUD EN TABLA</p>
-                      <input type="text" value={config.gps_longitud} readOnly className="w-full bg-transparent font-mono text-xs text-blue-400 outline-none" />
+                      <p className="text-[8px] text-slate-500 font-black mb-1">LONGITUD GUARDADA</p>
+                      <p className="font-mono text-xs text-blue-400">{config.gps_longitud}</p>
                     </div>
                   </div>
+
                   <div className="h-[350px] rounded-[35px] overflow-hidden border border-white/10 relative">
                     <MapaInteractivo 
                       lat={parseFloat(config.gps_latitud)} 
@@ -140,58 +125,55 @@ export default function ConfigMaestraPage() {
                       }}
                     />
                   </div>
+
                   <div className="bg-[#050a14] p-6 rounded-3xl border border-white/5">
-                    <label className="text-[9px] font-black text-blue-500 uppercase block mb-3">Radio de Geocerca: {config.gps_radio}m</label>
+                    <label className="text-[9px] font-black text-blue-500 uppercase block mb-3">Radio Actual: {config.gps_radio}m</label>
                     <input type="range" min="10" max="500" value={config.gps_radio} onChange={e => actualizarCampo('gps_radio', e.target.value)} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none accent-blue-600" />
                   </div>
                 </div>
               )}
 
               {tabActual === 'seguridad' && (
-                <div className="space-y-8 animate-in fade-in duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Expiración QR (Minutos)</p>
-                      <input type="number" value={msAMinutos(config.qr_expiracion)} onChange={e => actualizarCampo('qr_expiracion', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
-                      <p className="text-[8px] text-slate-600 mt-4 font-mono">Valor real: {config.qr_expiracion} ms</p>
-                    </div>
-                    <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Inactividad (Minutos)</p>
-                      <input type="number" value={msAMinutos(config.timer_inactividad)} onChange={e => actualizarCampo('timer_inactividad', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
-                      <p className="text-[8px] text-slate-600 mt-4 font-mono">Valor real: {config.timer_inactividad} ms</p>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
+                  <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
+                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Expiración QR (Minutos)</p>
+                    <input type="number" value={msAMinutos(config.qr_expiracion)} onChange={e => actualizarCampo('qr_expiracion', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
+                    <p className="text-[8px] text-slate-600 mt-2 italic font-mono">Tabla: {config.qr_expiracion}ms</p>
+                  </div>
+                  <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
+                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Inactividad (Minutos)</p>
+                    <input type="number" value={msAMinutos(config.timer_inactividad)} onChange={e => actualizarCampo('timer_inactividad', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
+                    <p className="text-[8px] text-slate-600 mt-2 italic font-mono">Tabla: {config.timer_inactividad}ms</p>
                   </div>
                 </div>
               )}
 
               {tabActual === 'interfaz' && (
-                <div className="animate-in fade-in duration-300">
-                  <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-4">Nombre de la Empresa</label>
-                    <input type="text" value={config.empresa_nombre} onChange={e => actualizarCampo('empresa_nombre', e.target.value)} className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic" />
-                  </div>
+                <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5 animate-in fade-in">
+                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-4">Nombre en Tabla</label>
+                  <input type="text" value={config.empresa_nombre} onChange={e => actualizarCampo('empresa_nombre', e.target.value)} className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic" />
                 </div>
               )}
             </div>
 
-            {/* ACTION BAR */}
+            {/* BOTONES DE ACCIÓN LOCALES */}
             <div className="mt-8 pt-8 border-t border-white/5 flex gap-4">
               <button 
                 onClick={() => {
-                  const map: any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
-                  guardarModulo(map[tabActual]);
+                  const m:any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
+                  guardarModulo(m[tabActual]);
                 }}
                 disabled={guardando}
-                className="flex-1 bg-white text-black p-5 rounded-[22px] font-black text-[11px] uppercase italic hover:bg-blue-500 hover:text-white transition-all disabled:opacity-50"
+                className="flex-1 bg-white text-black p-5 rounded-[22px] font-black text-[11px] uppercase italic transition-all hover:bg-blue-600 hover:text-white"
               >
-                {guardando ? 'Guardando...' : `Aplicar Cambios en ${tabActual}`}
+                {guardando ? 'Escribiendo...' : `Guardar cambios en ${tabActual}`}
               </button>
               <button 
                 onClick={() => {
-                  const map: any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
-                  cancelarModulo(map[tabActual]);
+                  const m:any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
+                  cancelarModulo(m[tabActual]);
                 }}
-                className="px-8 bg-slate-800 text-slate-400 p-5 rounded-[22px] font-black text-[11px] uppercase border border-white/5 hover:bg-slate-700 transition-all"
+                className="px-8 bg-slate-800 text-slate-500 p-5 rounded-[22px] font-black text-[11px] uppercase border border-white/5"
               >
                 Anular
               </button>

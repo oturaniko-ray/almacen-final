@@ -18,20 +18,25 @@ interface Props {
   onLocationChange: (lat: number, lng: number) => void;
 }
 
+// Este sub-componente controla el movimiento de la cámara
+function MapUpdater({ lat, lng }: { lat: number, lng: number }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (lat !== 0 && lng !== 0) {
+      map.setView([lat, lng], 18); // Salta a la ubicación guardada
+    }
+  }, [lat, lng, map]);
+
+  return null;
+}
+
 function MapController({ lat, lng, onLocationChange }: Props) {
   const map = useMap();
-
-  // Forzar al mapa a centrarse si cambian las coordenadas externamente
-  useEffect(() => {
-    map.setView([lat, lng]);
-  }, [lat, lng, map]);
 
   useMapEvents({
     click(e) {
       onLocationChange(e.latlng.lat, e.latlng.lng);
-    },
-    contextmenu(e) {
-      alert(`COORDENADAS: ${e.latlng.lat}, ${e.latlng.lng}`);
     }
   });
 
@@ -49,7 +54,7 @@ function MapController({ lat, lng, onLocationChange }: Props) {
         }}
         className="absolute bottom-4 right-4 z-[1000] bg-white text-black px-4 py-2 rounded-full shadow-2xl border-2 border-blue-600 font-black text-[10px] hover:bg-blue-50"
       >
-        📍 UBICACIÓN DISPOSITIVO
+        📍 MI UBICACIÓN ACTUAL
       </button>
     </>
   );
@@ -58,7 +63,7 @@ function MapController({ lat, lng, onLocationChange }: Props) {
 export default function MapaInteractivo({ lat, lng, onLocationChange }: Props) {
   return (
     <MapContainer 
-      center={[lat, lng]} 
+      center={[lat || 0, lng || 0]} 
       zoom={18} 
       style={{ height: '100%', width: '100%' }}
     >
@@ -66,6 +71,7 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: Props) {
         url="https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
         subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
       />
+      <MapUpdater lat={lat} lng={lng} />
       <MapController lat={lat} lng={lng} onLocationChange={onLocationChange} />
     </MapContainer>
   );
