@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [tempUser, setTempUser] = useState<any>(null);
   const [sesionExpulsada, setSesionExpulsada] = useState(false);
   
-  // Estado de configuración cargado desde la base de datos
   const [config, setConfig] = useState<any>({ 
     empresa_nombre: 'CARGANDO...', 
     timer_inactividad: '5' 
@@ -23,7 +22,6 @@ export default function LoginPage() {
   const router = useRouter();
   const timerInactividad = useRef<any>(null);
 
-  // 1. CARGA DE CONFIGURACIÓN INICIAL
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -35,7 +33,6 @@ export default function LoginPage() {
     fetchConfig();
   }, []);
 
-  // 2. MONITOREO DE INACTIVIDAD (Sincronizado con DB)
   useEffect(() => {
     if (paso === 'selector') {
       const reiniciarTimer = () => {
@@ -62,26 +59,31 @@ export default function LoginPage() {
     localStorage.removeItem('user_session');
     setTempUser(null);
     setPaso('login');
+    // Limpieza de datos al cerrar sesión
+    setIdentificador('');
+    setPin('');
   };
 
-  // 3. LÓGICA DE ACCESO CORREGIDA
   const manejarLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setSesionExpulsada(false);
 
     try {
-      // Búsqueda simplificada para asegurar el acceso por documento_id o nombre
+      // AJUSTE 2: Consulta simplificada sin comillas excesivas para evitar el error de acceso
       const { data: empleado, error } = await supabase
         .from('empleados')
         .select('*')
-        .or(`documento_id.eq."${identificador}",nombre.eq."${identificador}"`)
+        .or(`documento_id.eq.${identificador},nombre.eq.${identificador}`)
         .eq('pin', pin)
         .eq('activo', true)
         .maybeSingle();
 
       if (error || !empleado) {
         alert('ACCESO DENEGADO: Verifique ID y PIN');
+        // AJUSTE 1: Limpieza de datos tras error
+        setIdentificador('');
+        setPin('');
         setLoading(false);
         return;
       }
@@ -99,9 +101,16 @@ export default function LoginPage() {
 
       setTempUser(nuevaSesion);
       setPaso('selector');
+      
+      // AJUSTE 1: Limpieza de datos tras éxito al pasar al selector
+      setIdentificador('');
+      setPin('');
+
     } catch (err) {
       console.error(err);
       alert('Error de conexión con el servidor');
+      setIdentificador('');
+      setPin('');
     } finally {
       setLoading(false);
     }
@@ -117,7 +126,6 @@ export default function LoginPage() {
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 font-sans selection:bg-blue-500">
         <div className="w-full max-w-md space-y-6">
           <header className="text-center mb-10">
-            {/* Título reducido un 65% (de text-6xl a text-2xl aprox) */}
             <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">
               {config.empresa_nombre} <span className="text-blue-600">.</span>
             </h1>
@@ -165,7 +173,6 @@ export default function LoginPage() {
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 font-sans">
       <div className="w-full max-w-sm space-y-10">
         <header className="text-center">
-          {/* Título de Login reducido un 65% (de text-6xl a text-2xl) */}
           <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">
             {config.empresa_nombre} <span className="text-blue-600">.</span>
           </h1>
