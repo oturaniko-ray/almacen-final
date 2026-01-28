@@ -51,6 +51,7 @@ function MapController({ lat, lng, onLocationChange }: any) {
 }
 
 export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
+  // Conversión forzada de Texto (DB) a Número (Leaflet)
   const nLat = parseFloat(lat) || 0;
   const nLng = parseFloat(lng) || 0;
 
