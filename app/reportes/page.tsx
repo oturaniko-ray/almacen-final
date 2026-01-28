@@ -15,9 +15,7 @@ export default function ReportesPage() {
   const [fechaFin, setFechaFin] = useState('');
   
   const [config, setConfig] = useState<any>({
-    empresa_nombre: 'SISTEMA RAY',
-    timer_token: '120000',
-    timer_inactividad: '120000'
+    empresa_nombre: 'SISTEMA RAY'
   });
   
   const [editandoRow, setEditandoRow] = useState<any>(null);
@@ -38,9 +36,8 @@ export default function ReportesPage() {
     fetchConfig();
     fetchReportes();
 
-    const canalRealtime = supabase.channel('reportes-sync-stable')
+    const canalRealtime = supabase.channel('reportes-precise-v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchReportes())
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sistema_config' }, () => fetchConfig())
       .subscribe();
 
     return () => { supabase.removeChannel(canalRealtime); };
@@ -56,34 +53,46 @@ export default function ReportesPage() {
 
   const fetchReportes = async () => {
     setLoading(true);
-    let query = supabase.from('jornadas').select(`
-      *,
-      empleados ( rol )
-    `).order('hora_entrada', { ascending: false });
-
+    let query = supabase.from('jornadas').select(`*, empleados ( rol )`).order('hora_entrada', { ascending: false });
     if (fechaInicio) query = query.gte('hora_entrada', `${fechaInicio}T00:00:00`);
     if (fechaFin) query = query.lte('hora_entrada', `${fechaFin}T23:59:59`);
-    
     const { data, error } = await query;
     if (!error) setReportes(data || []);
     setLoading(false);
   };
 
-  const calcularHorasExactas = (entradaStr: string, salidaStr: string | null) => {
-    if (!entradaStr || !salidaStr) return 0;
+  // FORMATEO DE ROL PARA VISUALIZACIÓN
+  const formatearRol = (rol: string) => {
+    const r = rol?.toLowerCase();
+    if (r === 'admin' || r === 'administrador') return 'ADMINISTRATIVO';
+    return rol?.toUpperCase() || 'EMPLEADO';
+  };
+
+  // LÓGICA DE TIEMPO HMS
+  const formatearTiempoHMS = (entradaStr: string, salidaStr: string | null) => {
+    if (!entradaStr || !salidaStr) return "00:00:00";
     const diffMs = new Date(salidaStr).getTime() - new Date(entradaStr).getTime();
-    return diffMs > 0 ? diffMs / (1000 * 60 * 60) : 0;
+    if (diffMs <= 0) return "00:00:00";
+    const totalSeg = Math.floor(diffMs / 1000);
+    const h = Math.floor(totalSeg / 3600);
+    const m = Math.floor((totalSeg % 3600) / 60);
+    const s = totalSeg % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   const guardarEdicion = async () => {
     if (!editandoRow) return;
     setGuardando(true);
-    const horas = calcularHorasExactas(editandoRow.hora_entrada, editandoRow.hora_salida);
+    const inicio = new Date(editandoRow.hora_entrada).getTime();
+    const fin = editandoRow.hora_salida ? new Date(editandoRow.hora_salida).getTime() : 0;
+    const horasDecimal = fin > inicio ? (fin - inicio) / (1000 * 60 * 60) : 0;
+
     const { error } = await supabase.from('jornadas').update({ 
       hora_entrada: new Date(editandoRow.hora_entrada).toISOString(),
       hora_salida: editandoRow.hora_salida ? new Date(editandoRow.hora_salida).toISOString() : null,
-      horas_trabajadas: horas
+      horas_trabajadas: horasDecimal
     }).eq('id', editandoRow.id);
+
     if (!error) setEditandoRow(null);
     setGuardando(false);
   };
@@ -91,10 +100,10 @@ export default function ReportesPage() {
   const exportarExcel = () => {
     const dataExport = reportes.map(r => ({
       Empleado: r.nombre_empleado,
-      Rol: r.empleados?.rol || 'N/A',
+      Rol: formatearRol(r.empleados?.rol),
       Entrada: new Date(r.hora_entrada).toLocaleString(),
       Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'ACTIVO',
-      Horas: calcularHorasExactas(r.hora_entrada, r.hora_salida).toFixed(2)
+      'Tiempo Total': formatearTiempoHMS(r.hora_entrada, r.hora_salida)
     }));
     const ws = XLSX.utils.json_to_sheet(dataExport);
     const wb = XLSX.utils.book_new();
@@ -117,19 +126,14 @@ export default function ReportesPage() {
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-300 uppercase">{user?.nombre}</span>
                 <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest italic bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
-                  {user?.rol}
+                  {formatearRol(user?.rol)}
                 </span>
               </div>
             </div>
           </div>
           <div className="flex gap-4">
-            <button onClick={exportarExcel} className="bg-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-900/20 transition-all hover:scale-105">
-              📥 EXPORTAR
-            </button>
-            {/* CORRECCIÓN: Vuelve al menú anterior exacto */}
-            <button onClick={() => router.back()} className="bg-slate-800 px-6 py-4 rounded-2xl font-black text-[10px] uppercase transition-all hover:bg-slate-700">
-              VOLVER
-            </button>
+            <button onClick={exportarExcel} className="bg-emerald-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-900/20 transition-all hover:scale-105">📥 EXPORTAR</button>
+            <button onClick={() => router.back()} className="bg-slate-800 px-6 py-4 rounded-2xl font-black text-[10px] uppercase transition-all hover:bg-slate-700">VOLVER</button>
           </div>
         </div>
 
@@ -138,9 +142,7 @@ export default function ReportesPage() {
           <input type="text" placeholder="BUSCAR EMPLEADO..." className="bg-[#050a14] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-blue-500" value={filtroNombre} onChange={e => setFiltroNombre(e.target.value)} />
           <input type="date" className="bg-[#050a14] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black outline-none focus:border-blue-500" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
           <input type="date" className="bg-[#050a14] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black outline-none focus:border-blue-500" value={fechaFin} onChange={e => setFechaFin(e.target.value)} />
-          <button onClick={fetchReportes} className="bg-blue-600 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-blue-900/40 hover:bg-blue-500 transition-all">
-            Actualizar Filtros
-          </button>
+          <button onClick={fetchReportes} className="bg-blue-600 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-blue-900/40">Actualizar</button>
         </div>
 
         {/* TABLA */}
@@ -152,7 +154,7 @@ export default function ReportesPage() {
                   <th className="py-6 px-8">Empleado</th>
                   <th className="py-6 px-4 text-center">Entrada</th>
                   <th className="py-6 px-4 text-center">Salida</th>
-                  <th className="py-6 px-4 text-center">Horas</th>
+                  <th className="py-6 px-4 text-center">Tiempo (HH:MM:SS)</th>
                   <th className="py-6 px-8 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -162,22 +164,18 @@ export default function ReportesPage() {
                     <td className="py-6 px-8">
                       <div className="font-bold text-sm uppercase">{r.nombre_empleado}</div>
                       <div className="text-[9px] font-black text-blue-500 italic uppercase tracking-widest mt-0.5">
-                        {r.empleados?.rol || 'EMPLEADO'}
+                        {formatearRol(r.empleados?.rol)}
                       </div>
                     </td>
                     <td className="py-6 px-4 text-center text-xs font-mono text-slate-400">
                       {new Date(r.hora_entrada).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
                     </td>
                     <td className="py-6 px-4 text-center text-xs font-mono text-slate-400">
-                      {r.hora_salida ? (
-                        new Date(r.hora_salida).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
-                      ) : (
-                        <span className="text-emerald-500 font-black animate-pulse">ACTIVO</span>
-                      )}
+                      {r.hora_salida ? new Date(r.hora_salida).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : <span className="text-emerald-500 font-black animate-pulse uppercase text-[10px]">● Activo</span>}
                     </td>
                     <td className="py-6 px-4 text-center">
-                      <span className="bg-blue-600/10 text-blue-400 px-4 py-1.5 rounded-full font-black text-xs border border-blue-400/20">
-                        {calcularHorasExactas(r.hora_entrada, r.hora_salida).toFixed(2)}H
+                      <span className="bg-blue-600/10 text-blue-400 px-5 py-2 rounded-full font-mono font-black text-xs border border-blue-400/20">
+                        {formatearTiempoHMS(r.hora_entrada, r.hora_salida)}
                       </span>
                     </td>
                     <td className="py-6 px-8 text-right">
@@ -198,11 +196,11 @@ export default function ReportesPage() {
       {/* MODAL EDICIÓN */}
       {editandoRow && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
-          <div className="bg-[#0f172a] border border-white/10 p-10 rounded-[45px] w-full max-w-md animate-in zoom-in duration-200">
-            <h2 className="text-xl font-black italic text-white mb-6 uppercase tracking-tighter">Corregir <span className="text-blue-500">Jornada</span></h2>
+          <div className="bg-[#0f172a] border border-white/10 p-10 rounded-[45px] w-full max-w-md animate-in zoom-in duration-200 shadow-2xl">
+            <h2 className="text-xl font-black italic text-white mb-6 uppercase tracking-tighter">Ajustar <span className="text-blue-500">Tiempo</span></h2>
             <div className="space-y-4">
-              <input type="datetime-local" value={editandoRow.hora_entrada.slice(0, 16)} onChange={e => setEditandoRow({...editandoRow, hora_entrada: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-blue-400" />
-              <input type="datetime-local" value={editandoRow.hora_salida?.slice(0, 16) || ''} onChange={e => setEditandoRow({...editandoRow, hora_salida: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-emerald-400" />
+              <input type="datetime-local" value={editandoRow.hora_entrada.slice(0, 16)} onChange={e => setEditandoRow({...editandoRow, hora_entrada: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-blue-400 outline-none" />
+              <input type="datetime-local" value={editandoRow.hora_salida?.slice(0, 16) || ''} onChange={e => setEditandoRow({...editandoRow, hora_salida: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-emerald-400 outline-none" />
               <div className="flex gap-4 mt-6">
                 <button onClick={guardarEdicion} className="flex-1 bg-blue-600 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-600/20">Guardar</button>
                 <button onClick={() => setEditandoRow(null)} className="px-6 bg-slate-800 rounded-2xl font-black text-[10px] uppercase">Cerrar</button>
