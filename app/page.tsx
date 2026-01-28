@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA RAY', timer_inactividad: '120000' });
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
-  const inputRef = useRef<HTMLInputElement>(null); // Ref para el foco del cursor
+  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   // 1. CARGA DE CONFIGURACIÓN Y SESIÓN
@@ -36,30 +36,10 @@ export default function LoginPage() {
     }
   }, []);
 
-  // 2. CONTROL DE SESIÓN E INACTIVIDAD
-  useEffect(() => {
-    if (!tempUser) return;
-    let timeout: NodeJS.Timeout;
-    const resetTimer = () => {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => finalizarSesion(), parseInt(config.timer_inactividad));
-    };
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('keydown', resetTimer);
-    window.addEventListener('click', resetTimer);
-    resetTimer();
-    return () => {
-      clearTimeout(timeout);
-      window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('keydown', resetTimer);
-      window.removeEventListener('click', resetTimer);
-    };
-  }, [tempUser, config.timer_inactividad]);
-
-  // LÓGICA DE PERMISOS POR NIVEL (Jerárquica)
-  const tieneAcceso = (nivelRequerido: number) => {
-    const nivelUsuario = parseInt(tempUser?.nivel_acceso) || 0;
-    return nivelUsuario >= nivelRequerido;
+  // 2. FUNCIÓN MAESTRA DE ACCESO (SOLO NÚMEROS)
+  const tieneAcceso = (nivelMinimo: number) => {
+    const nivelActual = parseInt(tempUser?.nivel_acceso) || 0;
+    return nivelActual >= nivelMinimo;
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -74,18 +54,18 @@ export default function LoginPage() {
         .eq('activo', true)
         .maybeSingle();
 
-      if (error || !data) throw new Error("Acceso Denegado: Verifique ID y PIN");
+      if (error || !data) throw new Error("Credenciales inválidas");
 
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
       
-      // Limpieza de buffer tras éxito
+      // LIMPIEZA DE BUFFER TRAS ÉXITO
       setIdentificador('');
       setPin('');
     } catch (err: any) {
       alert(err.message);
-      // Limpieza de buffer y retorno de foco tras error
+      // LIMPIEZA DE BUFFER Y FOCO TRAS ERROR
       setIdentificador('');
       setPin('');
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -103,10 +83,6 @@ export default function LoginPage() {
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  const irARuta = (ruta: string) => {
-    router.push(ruta);
-  };
-
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
@@ -118,9 +94,9 @@ export default function LoginPage() {
             {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
           </h1>
           {tempUser && paso === 'selector' && (
-            <div className="mt-4 animate-in fade-in duration-700">
+            <div className="mt-4 animate-in fade-in">
               <p className="text-xs font-black uppercase text-white tracking-widest">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.3em] mt-1 italic">Nivel de Acceso: {tempUser.nivel_acceso}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.3em] mt-1 italic">NIVEL DE ACCESO: {tempUser.nivel_acceso}</p>
             </div>
           )}
         </header>
@@ -131,8 +107,8 @@ export default function LoginPage() {
               <input 
                 ref={inputRef}
                 type="text" 
-                placeholder="DOCUMENTO O EMAIL" 
-                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold tracking-widest focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 uppercase"
+                placeholder="DOCUMENTO O CORREO" 
+                className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 uppercase"
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
                 required
@@ -146,42 +122,40 @@ export default function LoginPage() {
                 required
               />
             </div>
-            <button 
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20 disabled:opacity-50"
-            >
-              {loading ? 'Validando...' : 'Entrar'}
+            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20">
+              {loading ? 'VALIDANDO...' : 'ENTRAR AL SISTEMA'}
             </button>
           </form>
         ) : (
           <div className="space-y-3 animate-in fade-in zoom-in duration-500">
-            <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+            {/* NIVEL 1 EN ADELANTE (EMPLEADOS, SUP, ADMIN, TEC) */}
+            <button onClick={() => router.push('/empleado')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
               🏃 Acceso Empleado
             </button>
             
-            {/* NIVEL 3+ (Supervisor, Admin, Técnico) */}
+            {/* NIVEL 3 EN ADELANTE (SUPERVISOR NIVEL 3, ADMIN 4, TEC 8) */}
             {tieneAcceso(3) && (
-              <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+              <button onClick={() => router.push('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* NIVEL 4+ (Admin y Técnico) */}
+            {/* NIVEL 4 EN ADELANTE (ADMIN 4 Y TECNICO 8) */}
             {tieneAcceso(4) && (
               <>
-                <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+                <button onClick={() => router.push('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                   📊 Análisis y Reportes
                 </button>
-                <button onClick={() => irARuta('/admin')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+                <button onClick={() => router.push('/admin')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                   ⚙️ Gestión Administrativa
                 </button>
               </>
             )}
 
-            {/* NIVEL 8+ (Solo Técnico) */}
+            {/* NIVEL 8 EN ADELANTE (SOLO TÉCNICO) */}
             {tieneAcceso(8) && (
               <button 
-                onClick={() => irARuta('/configuracion')} 
+                onClick={() => router.push('/configuracion')} 
                 className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8 group italic"
               >
                 <span className="mr-2 group-hover:animate-spin inline-block text-xl">⚙️</span> Configuración Maestra
