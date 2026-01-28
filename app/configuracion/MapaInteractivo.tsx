@@ -18,26 +18,20 @@ interface Props {
   onLocationChange: (lat: number, lng: number) => void;
 }
 
-// Este sub-componente controla el movimiento de la cámara
 function MapUpdater({ lat, lng }: { lat: number, lng: number }) {
   const map = useMap();
-  
   useEffect(() => {
-    if (lat !== 0 && lng !== 0) {
-      map.setView([lat, lng], 18); // Salta a la ubicación guardada
+    if (!isNaN(lat) && !isNaN(lng) && lat !== 0) {
+      map.setView([lat, lng], 18);
     }
   }, [lat, lng, map]);
-
   return null;
 }
 
 function MapController({ lat, lng, onLocationChange }: Props) {
   const map = useMap();
-
   useMapEvents({
-    click(e) {
-      onLocationChange(e.latlng.lat, e.latlng.lng);
-    }
+    click(e) { onLocationChange(e.latlng.lat, e.latlng.lng); }
   });
 
   return (
@@ -61,18 +55,14 @@ function MapController({ lat, lng, onLocationChange }: Props) {
 }
 
 export default function MapaInteractivo({ lat, lng, onLocationChange }: Props) {
+  const centerLat = !isNaN(lat) ? lat : 0;
+  const centerLng = !isNaN(lng) ? lng : 0;
+
   return (
-    <MapContainer 
-      center={[lat || 0, lng || 0]} 
-      zoom={18} 
-      style={{ height: '100%', width: '100%' }}
-    >
-      <TileLayer
-        url="https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
-        subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-      />
-      <MapUpdater lat={lat} lng={lng} />
-      <MapController lat={lat} lng={lng} onLocationChange={onLocationChange} />
+    <MapContainer center={[centerLat, centerLng]} zoom={18} style={{ height: '100%', width: '100%' }}>
+      <TileLayer url="https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}" subdomains={['mt0', 'mt1', 'mt2', 'mt3']} />
+      <MapUpdater lat={centerLat} lng={centerLng} />
+      <MapController lat={centerLat} lng={centerLng} onLocationChange={onLocationChange} />
     </MapContainer>
   );
 }

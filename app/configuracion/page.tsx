@@ -8,7 +8,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), { 
   ssr: false,
-  loading: () => <div className="h-full w-full bg-slate-900 animate-pulse flex items-center justify-center text-blue-500 font-black text-xs italic">CALIBRANDO REFERENCIAS...</div>
+  loading: () => <div className="h-full w-full bg-[#050a14] flex items-center justify-center text-blue-500 font-black text-xs italic">CALIBRANDO DESDE BASE DE DATOS...</div>
 });
 
 export default function ConfigMaestraPage() {
@@ -24,27 +24,23 @@ export default function ConfigMaestraPage() {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
     const currentUser = JSON.parse(sessionData);
-    if (currentUser.rol?.toLowerCase() !== 'tecnico') { router.replace('/'); return; }
+    // Permitir acceso a técnicos y admins
+    if (currentUser.rol?.toLowerCase() !== 'tecnico' && currentUser.rol?.toLowerCase() !== 'admin') { 
+      router.replace('/'); 
+      return; 
+    }
     setUser(currentUser);
     fetchConfig();
   }, [router]);
 
   const fetchConfig = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('sistema_config').select('*');
+    const { data, error } = await supabase.from('sistema_config').select('clave, valor');
     if (data) {
+      // Mapeo dinámico de todas las claves presentes en la captura
       const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-      
-      // Sanitización de datos para asegurar que el mapa reciba números
-      const cleanConfig = {
-        ...cfgMap,
-        gps_latitud: cfgMap.gps_latitud || '0',
-        gps_longitud: cfgMap.gps_longitud || '0',
-        gps_radio: cfgMap.gps_radio || '80'
-      };
-
-      setConfig(cleanConfig);
-      setConfigOriginal(cleanConfig);
+      setConfig(cfgMap);
+      setConfigOriginal(cfgMap);
     }
     setLoading(false);
   };
@@ -57,14 +53,19 @@ export default function ConfigMaestraPage() {
     setGuardando(true);
     try {
       for (const clave of claves) {
-        await supabase.from('sistema_config').update({ valor: String(config[clave]) }).eq('clave', clave);
+        const { error } = await supabase
+          .from('sistema_config')
+          .update({ valor: String(config[clave]) })
+          .eq('clave', clave);
+        if (error) throw error;
       }
+      
       const nuevoRespaldo = { ...configOriginal };
       claves.forEach(c => nuevoRespaldo[c] = config[c]);
       setConfigOriginal(nuevoRespaldo);
-      alert("✅ VALORES SINCRONIZADOS EN TABLA");
-    } catch (err) {
-      alert("❌ ERROR DE ESCRITURA");
+      alert("✅ REGISTROS ACTUALIZADOS EN SISTEMA_CONFIG");
+    } catch (err: any) {
+      alert("❌ ERROR AL ACTUALIZAR: " + err.message);
     } finally {
       setGuardando(false);
     }
@@ -79,46 +80,50 @@ export default function ConfigMaestraPage() {
   const msAMinutos = (ms: any) => Math.floor(parseInt(ms || '0') / 60000);
   const minutosAMs = (min: any) => (parseInt(min || '0') * 60000).toString();
 
-  if (loading) return <div className="min-h-screen bg-[#050a14] flex items-center justify-center font-black text-red-600 italic uppercase">Cargando Kernel...</div>;
+  if (loading) return <div className="min-h-screen bg-[#050a14] flex items-center justify-center font-black text-red-600 italic uppercase">Sincronizando...</div>;
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8">
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
-          <h1 className="text-2xl font-black italic uppercase italic">Configuración <span className="text-red-600">Maestra</span></h1>
-          <button onClick={() => router.back()} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">Salir</button>
+          <h1 className="text-2xl font-black italic uppercase italic tracking-tighter">CONFIGURACIÓN <span className="text-red-600">MAESTRA</span></h1>
+          <button onClick={() => router.back()} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5 italic">Cerrar</button>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* MENU */}
+          {/* SIDEBAR */}
           <div className="md:col-span-3 space-y-2">
-            {['geolocalizacion', 'seguridad', 'interfaz'].map((t) => (
-              <button key={t} onClick={() => setTabActual(t)} className={`w-full text-left p-6 rounded-[25px] border transition-all ${tabActual === t ? 'bg-white/5 border-white/20' : 'border-transparent text-slate-500'}`}>
-                <span className="text-[10px] font-black uppercase tracking-widest">{t}</span>
+            {[
+              { id: 'geolocalizacion', label: '📡 Geocerca GPS' },
+              { id: 'seguridad', label: '🛡️ Tiempos de Red' },
+              { id: 'interfaz', label: '🖥️ Interfaz' }
+            ].map((tab) => (
+              <button key={tab.id} onClick={() => setTabActual(tab.id)} className={`w-full text-left p-6 rounded-[25px] border transition-all ${tabActual === tab.id ? 'bg-white/5 border-white/20' : 'border-transparent text-slate-500 hover:text-white'}`}>
+                <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
               </button>
             ))}
           </div>
 
-          {/* PANEL */}
+          {/* PANEL CONTENIDO */}
           <div className="md:col-span-9 bg-[#0f172a] rounded-[45px] border border-white/5 p-10 shadow-2xl flex flex-col min-h-[600px]">
             <div className="flex-1">
               {tabActual === 'geolocalizacion' && (
                 <div className="space-y-6 animate-in fade-in">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 font-black mb-1">LATITUD GUARDADA</p>
+                      <p className="text-[8px] text-slate-500 font-black mb-1 uppercase">Latitud (gps_latitud)</p>
                       <p className="font-mono text-xs text-blue-400">{config.gps_latitud}</p>
                     </div>
                     <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 font-black mb-1">LONGITUD GUARDADA</p>
+                      <p className="text-[8px] text-slate-500 font-black mb-1 uppercase">Longitud (gps_longitud)</p>
                       <p className="font-mono text-xs text-blue-400">{config.gps_longitud}</p>
                     </div>
                   </div>
 
                   <div className="h-[350px] rounded-[35px] overflow-hidden border border-white/10 relative">
                     <MapaInteractivo 
-                      lat={parseFloat(config.gps_latitud)} 
-                      lng={parseFloat(config.gps_longitud)}
+                      lat={parseFloat(config.gps_latitud || '0')} 
+                      lng={parseFloat(config.gps_longitud || '0')}
                       onLocationChange={(lat, lng) => {
                         actualizarCampo('gps_latitud', lat.toString());
                         actualizarCampo('gps_longitud', lng.toString());
@@ -127,8 +132,8 @@ export default function ConfigMaestraPage() {
                   </div>
 
                   <div className="bg-[#050a14] p-6 rounded-3xl border border-white/5">
-                    <label className="text-[9px] font-black text-blue-500 uppercase block mb-3">Radio Actual: {config.gps_radio}m</label>
-                    <input type="range" min="10" max="500" value={config.gps_radio} onChange={e => actualizarCampo('gps_radio', e.target.value)} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none accent-blue-600" />
+                    <label className="text-[9px] font-black text-blue-500 uppercase block mb-3 tracking-widest">Radio (gps_radio): {config.gps_radio}m</label>
+                    <input type="range" min="10" max="500" value={config.gps_radio || 80} onChange={e => actualizarCampo('gps_radio', e.target.value)} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none accent-blue-600" />
                   </div>
                 </div>
               )}
@@ -136,46 +141,52 @@ export default function ConfigMaestraPage() {
               {tabActual === 'seguridad' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
                   <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
-                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Expiración QR (Minutos)</p>
-                    <input type="number" value={msAMinutos(config.qr_expiracion)} onChange={e => actualizarCampo('qr_expiracion', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
-                    <p className="text-[8px] text-slate-600 mt-2 italic font-mono">Tabla: {config.qr_expiracion}ms</p>
+                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4 tracking-widest">Expiración QR (qr_expiracion)</p>
+                    <div className="flex items-end gap-2">
+                      <input type="number" value={msAMinutos(config.qr_expiracion)} onChange={e => actualizarCampo('qr_expiracion', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-32 tracking-tighter" />
+                      <span className="text-xs font-black text-slate-400 mb-2 italic">MIN</span>
+                    </div>
+                    <p className="text-[8px] text-slate-600 mt-2 italic font-mono uppercase tracking-tighter">Actual: {config.qr_expiracion}ms</p>
                   </div>
                   <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
-                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Inactividad (Minutos)</p>
-                    <input type="number" value={msAMinutos(config.timer_inactividad)} onChange={e => actualizarCampo('timer_inactividad', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
-                    <p className="text-[8px] text-slate-600 mt-2 italic font-mono">Tabla: {config.timer_inactividad}ms</p>
+                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4 tracking-widest">Inactividad (timer_inactividad)</p>
+                    <div className="flex items-end gap-2">
+                      <input type="number" value={msAMinutos(config.timer_inactividad)} onChange={e => actualizarCampo('timer_inactividad', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-32 tracking-tighter" />
+                      <span className="text-xs font-black text-slate-400 mb-2 italic">MIN</span>
+                    </div>
+                    <p className="text-[8px] text-slate-600 mt-2 italic font-mono uppercase tracking-tighter">Actual: {config.timer_inactividad}ms</p>
                   </div>
                 </div>
               )}
 
               {tabActual === 'interfaz' && (
                 <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5 animate-in fade-in">
-                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-4">Nombre en Tabla</label>
-                  <input type="text" value={config.empresa_nombre} onChange={e => actualizarCampo('empresa_nombre', e.target.value)} className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic" />
+                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-4 tracking-widest">Nombre del Sistema (empresa_nombre)</label>
+                  <input type="text" value={config.empresa_nombre || ''} onChange={e => actualizarCampo('empresa_nombre', e.target.value)} className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic border-b border-white/10 pb-4" />
                 </div>
               )}
             </div>
 
-            {/* BOTONES DE ACCIÓN LOCALES */}
+            {/* ACTION BAR */}
             <div className="mt-8 pt-8 border-t border-white/5 flex gap-4">
               <button 
                 onClick={() => {
-                  const m:any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
-                  guardarModulo(m[tabActual]);
+                  const map: any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
+                  guardarModulo(map[tabActual]);
                 }}
                 disabled={guardando}
-                className="flex-1 bg-white text-black p-5 rounded-[22px] font-black text-[11px] uppercase italic transition-all hover:bg-blue-600 hover:text-white"
+                className="flex-1 bg-white text-black p-5 rounded-[22px] font-black text-[11px] uppercase italic transition-all hover:bg-blue-600 hover:text-white disabled:opacity-50"
               >
-                {guardando ? 'Escribiendo...' : `Guardar cambios en ${tabActual}`}
+                {guardando ? 'Sincronizando Base de Datos...' : `Actualizar registros de ${tabActual}`}
               </button>
               <button 
                 onClick={() => {
-                  const m:any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
-                  cancelarModulo(m[tabActual]);
+                  const map: any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
+                  cancelarModulo(map[tabActual]);
                 }}
-                className="px-8 bg-slate-800 text-slate-500 p-5 rounded-[22px] font-black text-[11px] uppercase border border-white/5"
+                className="px-8 bg-slate-800 text-slate-400 p-5 rounded-[22px] font-black text-[11px] uppercase border border-white/5 hover:text-white transition-all"
               >
-                Anular
+                Revertir cambios
               </button>
             </div>
           </div>
