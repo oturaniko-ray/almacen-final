@@ -37,7 +37,6 @@ function MapController({ lat, lng, onLocationChange }: any) {
         type="button"
         onClick={(e) => {
           e.preventDefault();
-          e.stopPropagation();
           map.locate().on('locationfound', (ev) => {
             map.flyTo(ev.latlng, 18);
             onLocationChange(ev.latlng.lat, ev.latlng.lng);
@@ -45,7 +44,7 @@ function MapController({ lat, lng, onLocationChange }: any) {
         }}
         className="absolute bottom-4 right-4 z-[1000] bg-white text-black px-4 py-2 rounded-full shadow-2xl border-2 border-blue-600 font-black text-[10px] hover:bg-blue-50 transition-all uppercase"
       >
-        📍 Posición Actual
+        📍 UBICARME
       </button>
     </>
   );
@@ -57,15 +56,8 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
 
   return (
     <div className="h-full w-full relative">
-      <MapContainer 
-        center={[nLat, nLng]} 
-        zoom={18} 
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+      <MapContainer center={[nLat, nLng]} zoom={18} style={{ height: '100%', width: '100%' }}>
+        <TileLayer url="https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}" subdomains={['mt0', 'mt1', 'mt2', 'mt3']} />
         <MapUpdater lat={nLat} lng={nLng} />
         <MapController lat={nLat} lng={nLng} onLocationChange={onLocationChange} />
       </MapContainer>
