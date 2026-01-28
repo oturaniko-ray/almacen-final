@@ -197,11 +197,15 @@ export default function LoginPage() {
               </button>
             )}
 
-            {tempUser?.rol === 'tecnico' && (
-              <button onClick={() => irARuta('/admin/configuracion')} className="w-full bg-slate-100 text-slate-900 hover:bg-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8">
-                🛠️ Configuración Maestra
-              </button>
-            )}
+{/* ... dentro de la lista de botones del selector ... */}
+{tempUser?.rol === 'tecnico' && (
+  <button 
+    onClick={() => irARuta('/configuracion')} 
+    className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8 group"
+  >
+    <span className="mr-2 group-hover:animate-spin inline-block text-xl">⚙️</span> Configuración Maestra
+  </button>
+)}
             
             <button 
               onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); setTempUser(null); }} 
