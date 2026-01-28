@@ -12,7 +12,6 @@ const customIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// Componente para re-centrar el mapa cuando cargan los datos
 function MapUpdater({ lat, lng }: { lat: number, lng: number }) {
   const map = useMap();
   useEffect(() => {
@@ -52,7 +51,6 @@ function MapController({ lat, lng, onLocationChange }: any) {
 }
 
 export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
-  // Conversión forzada de Texto a Número para Leaflet
   const nLat = parseFloat(lat) || 0;
   const nLng = parseFloat(lng) || 0;
 
