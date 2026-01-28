@@ -8,7 +8,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), { 
   ssr: false,
-  loading: () => <div className="h-full w-full bg-slate-900 animate-pulse flex items-center justify-center text-blue-500 font-black italic">CARGANDO SATÉLITE...</div>
+  loading: () => <div className="h-full w-full bg-[#050a14] flex items-center justify-center text-blue-500 font-black italic">ESTABLECIENDO ENLACE SATELITAL...</div>
 });
 
 export default function ConfigMaestraPage() {
@@ -43,7 +43,6 @@ export default function ConfigMaestraPage() {
     setConfig((prev: any) => ({ ...prev, [clave]: valor }));
   };
 
-  // Función de guardado por módulo
   const guardarModulo = async (claves: string[]) => {
     setGuardando(true);
     try {
@@ -52,14 +51,12 @@ export default function ConfigMaestraPage() {
       );
       await Promise.all(promesas);
       
-      // Actualizamos solo el respaldo de las claves guardadas
       const nuevoRespaldo = { ...configOriginal };
       claves.forEach(c => nuevoRespaldo[c] = config[c]);
       setConfigOriginal(nuevoRespaldo);
-      
-      alert("MÓDULO ACTUALIZADO CORRECTAMENTE");
+      alert("SISTEMA ACTUALIZADO CORRECTAMENTE");
     } catch (err) {
-      alert("ERROR AL GUARDAR");
+      alert("ERROR EN LA COMUNICACIÓN CON EL SERVIDOR");
     } finally {
       setGuardando(false);
     }
@@ -71,40 +68,45 @@ export default function ConfigMaestraPage() {
     setConfig(restaurado);
   };
 
-  const msAMinutos = (ms: string) => Math.floor(parseInt(ms || '0') / 60000);
-  const minutosAMs = (min: string) => (parseInt(min || '0') * 60000).toString();
+  const msAMinutos = (ms: any) => Math.floor(parseInt(ms || '0') / 60000);
+  const minutosAMs = (min: any) => (parseInt(min || '0') * 60000).toString();
 
-  if (loading) return <div className="min-h-screen bg-[#050a14] flex items-center justify-center font-black text-red-500 italic">INICIANDO KERNEL...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center gap-4">
+      <div className="w-12 h-1 bg-red-600 animate-pulse"></div>
+      <p className="font-black text-red-600 italic uppercase text-xs tracking-widest">Accediendo al Núcleo...</p>
+    </div>
+  );
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8 font-sans">
       <div className="max-w-6xl mx-auto">
         
-        {/* HEADER */}
-        <header className="flex justify-between items-center mb-10">
+        {/* CABECERA */}
+        <header className="flex justify-between items-center mb-10 border-b border-white/5 pb-8">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-1 bg-red-600 shadow-[0_0_15px_red]"></div>
+            <div className="h-10 w-1 bg-red-600"></div>
             <div>
-              <h1 className="text-3xl font-black italic uppercase tracking-tighter">CONFIGURACIÓN <span className="text-red-600">MAESTRA</span></h1>
-              <p className="text-[9px] font-bold text-slate-500 tracking-[0.4em] uppercase">Root: {user?.nombre}</p>
+              <h1 className="text-2xl font-black italic uppercase tracking-tighter">CONFIGURACIÓN <span className="text-red-600">MAESTRA</span></h1>
+              <p className="text-[8px] font-bold text-slate-500 tracking-[0.4em] uppercase">Auth: {user?.nombre}</p>
             </div>
           </div>
-          <button onClick={() => router.back()} className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-xl font-black text-[10px] uppercase border border-white/5 transition-all">✖ SALIR</button>
+          <button onClick={() => router.back()} className="text-[10px] font-black bg-slate-800 px-6 py-3 rounded-full hover:bg-red-600 transition-all border border-white/10 uppercase italic">Descartar y Salir</button>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
           
-          {/* MENÚ LATERAL */}
+          {/* NAVEGACIÓN */}
           <div className="md:col-span-3 space-y-2">
             {[
               { id: 'geolocalizacion', label: '📡 Geocerca GPS' },
-              { id: 'seguridad', label: '🛡️ Tiempos de Seguridad' },
-              { id: 'interfaz', label: '🖥️ Interfaz Sistema' }
+              { id: 'seguridad', label: '🛡️ Tiempos de Red' },
+              { id: 'interfaz', label: '🖥️ Interfaz' }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`w-full text-left p-6 rounded-[25px] border transition-all ${
+                className={`w-full text-left p-6 rounded-[30px] border transition-all ${
                   tabActual === tab.id ? 'bg-white/5 border-white/10 text-white' : 'border-transparent text-slate-500 hover:text-white'
                 }`}
               >
@@ -113,19 +115,30 @@ export default function ConfigMaestraPage() {
             ))}
           </div>
 
-          {/* PANEL DE CONTENIDO */}
-          <div className="md:col-span-9 bg-[#0f172a] rounded-[45px] border border-white/5 p-10 shadow-2xl relative min-h-[650px] flex flex-col">
+          {/* PANEL ACTIVO */}
+          <div className="md:col-span-9 bg-[#0f172a] rounded-[45px] border border-white/5 p-10 shadow-2xl relative flex flex-col min-h-[650px]">
             
             <div className="flex-1">
-              {/* 1. GEOLOCALIZACIÓN */}
+              {/* SECCIÓN GPS */}
               {tabActual === 'geolocalizacion' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                  <h2 className="text-xs font-black text-blue-500 uppercase italic tracking-widest">Ajuste de Geocerca</h2>
-                  <div className="grid grid-cols-2 gap-4">
-                    <input type="text" value={config.gps_latitud || ''} readOnly className="bg-[#050a14] border border-white/5 p-4 rounded-2xl font-mono text-xs text-blue-400" />
-                    <input type="text" value={config.gps_longitud || ''} readOnly className="bg-[#050a14] border border-white/5 p-4 rounded-2xl font-mono text-xs text-blue-400" />
+                <div className="space-y-6 animate-in fade-in duration-300">
+                  <div className="flex justify-between items-center px-2">
+                    <h2 className="text-xs font-black text-blue-500 uppercase italic">Referencia Geográfica</h2>
+                    <span className="text-[8px] font-mono text-slate-600 tracking-tighter uppercase italic">Valores cargados desde tabla sistema_config</span>
                   </div>
-                  <div className="h-[350px] rounded-[35px] overflow-hidden border border-white/10 relative z-0">
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
+                      <p className="text-[8px] text-slate-500 font-black mb-1">LATITUD ACTUAL</p>
+                      <input type="text" value={config.gps_latitud || ''} readOnly className="w-full bg-transparent font-mono text-xs text-blue-400 outline-none" />
+                    </div>
+                    <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
+                      <p className="text-[8px] text-slate-500 font-black mb-1">LONGITUD ACTUAL</p>
+                      <input type="text" value={config.gps_longitud || ''} readOnly className="w-full bg-transparent font-mono text-xs text-blue-400 outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="h-[380px] rounded-[35px] overflow-hidden border border-white/10 shadow-2xl z-0">
                     <MapaInteractivo 
                       lat={parseFloat(config.gps_latitud || '0')} 
                       lng={parseFloat(config.gps_longitud || '0')}
@@ -135,44 +148,76 @@ export default function ConfigMaestraPage() {
                       }}
                     />
                   </div>
-                  <div className="bg-blue-500/5 p-6 rounded-3xl border border-blue-500/10">
-                    <label className="text-[9px] font-black text-blue-500 uppercase block mb-3">Radio de Tolerancia: {config.gps_radio}m</label>
-                    <input type="range" min="10" max="500" value={config.gps_radio || 80} onChange={e => actualizarCampo('gps_radio', e.target.value)} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none accent-blue-600" />
+
+                  <div className="bg-blue-600/5 p-8 rounded-[35px] border border-blue-600/10">
+                    <div className="flex justify-between items-center mb-4">
+                      <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Radio de Tolerancia</label>
+                      <span className="bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full">{config.gps_radio || 0} Metros</span>
+                    </div>
+                    <input 
+                      type="range" min="10" max="500" 
+                      value={config.gps_radio || 80} 
+                      onChange={e => actualizarCampo('gps_radio', e.target.value)} 
+                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none accent-blue-600 cursor-pointer" 
+                    />
                   </div>
                 </div>
               )}
 
-              {/* 2. SEGURIDAD */}
+              {/* SECCIÓN SEGURIDAD */}
               {tabActual === 'seguridad' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
-                  <h2 className="text-xs font-black text-emerald-500 uppercase italic tracking-widest">Temporizadores de Red</h2>
+                <div className="space-y-8 animate-in fade-in duration-300">
+                  <h2 className="text-xs font-black text-emerald-500 uppercase italic">Configuración de Tiempos</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Expiración QR (Minutos)</p>
-                      <input type="number" value={msAMinutos(config.qr_expiracion)} onChange={e => actualizarCampo('qr_expiracion', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
+                    <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-6">Expiración QR</p>
+                      <div className="flex items-end gap-3">
+                        <input 
+                          type="number" 
+                          value={msAMinutos(config.qr_expiracion)} 
+                          onChange={e => actualizarCampo('qr_expiracion', minutosAMs(e.target.value))} 
+                          className="bg-transparent text-6xl font-black text-emerald-500 outline-none w-32 tracking-tighter" 
+                        />
+                        <span className="text-xs font-black text-slate-400 mb-2 italic">MIN</span>
+                      </div>
+                      <p className="text-[8px] font-mono text-slate-700 mt-6 uppercase tracking-tighter italic">Valor en tabla: {config.qr_expiracion} ms</p>
                     </div>
-                    <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-4">Inactividad (Minutos)</p>
-                      <input type="number" value={msAMinutos(config.timer_inactividad)} onChange={e => actualizarCampo('timer_inactividad', minutosAMs(e.target.value))} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
+                    <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-6">Inactividad Global</p>
+                      <div className="flex items-end gap-3">
+                        <input 
+                          type="number" 
+                          value={msAMinutos(config.timer_inactividad)} 
+                          onChange={e => actualizarCampo('timer_inactividad', minutosAMs(e.target.value))} 
+                          className="bg-transparent text-6xl font-black text-emerald-500 outline-none w-32 tracking-tighter" 
+                        />
+                        <span className="text-xs font-black text-slate-400 mb-2 italic">MIN</span>
+                      </div>
+                      <p className="text-[8px] font-mono text-slate-700 mt-6 uppercase tracking-tighter italic">Valor en tabla: {config.timer_inactividad} ms</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 3. INTERFAZ */}
+              {/* SECCIÓN INTERFAZ */}
               {tabActual === 'interfaz' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                  <h2 className="text-xs font-black text-purple-500 uppercase italic tracking-widest">Identidad Visual</h2>
-                  <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5">
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-4">Nombre Comercial del Sistema</label>
-                    <input type="text" value={config.empresa_nombre || ''} onChange={e => actualizarCampo('empresa_nombre', e.target.value)} className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic" />
+                <div className="space-y-8 animate-in fade-in duration-300">
+                  <h2 className="text-xs font-black text-purple-500 uppercase italic">Sistema e Imagen</h2>
+                  <div className="bg-[#050a14] p-12 rounded-[45px] border border-white/5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-6">Nombre de la Compañía</label>
+                    <input 
+                      type="text" 
+                      value={config.empresa_nombre || ''} 
+                      onChange={e => actualizarCampo('empresa_nombre', e.target.value)} 
+                      className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic border-b border-white/10 pb-4 focus:border-purple-600 transition-all" 
+                    />
                   </div>
                 </div>
               )}
             </div>
 
-            {/* BARRA DE ACCIONES POR MÓDULO (ESTÉTICA AJUSTADA) */}
-            <div className="mt-10 pt-8 border-t border-white/5 flex gap-4">
+            {/* BARRA DE ACCIONES LOCALES */}
+            <div className="mt-10 pt-10 border-t border-white/5 flex gap-4">
                <button 
                  onClick={() => {
                    const claves = tabActual === 'geolocalizacion' ? ['gps_latitud', 'gps_longitud', 'gps_radio'] : 
@@ -180,9 +225,9 @@ export default function ConfigMaestraPage() {
                    guardarModulo(claves);
                  }}
                  disabled={guardando}
-                 className="flex-1 bg-white text-black hover:bg-slate-200 p-5 rounded-[22px] font-black text-[11px] uppercase italic transition-all shadow-xl"
+                 className="flex-1 bg-white text-black hover:bg-slate-200 p-6 rounded-[25px] font-black text-[11px] uppercase italic transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 disabled:opacity-50"
                >
-                 {guardando ? 'Sincronizando...' : `Aplicar Cambios en ${tabActual}`}
+                 {guardando ? 'SINCRONIZANDO...' : `GUARDAR CAMBIOS EN ${tabActual.toUpperCase()}`}
                </button>
                <button 
                  onClick={() => {
@@ -190,9 +235,9 @@ export default function ConfigMaestraPage() {
                                   tabActual === 'seguridad' ? ['qr_expiracion', 'timer_inactividad'] : ['empresa_nombre'];
                     cancelarModulo(claves);
                  }}
-                 className="px-8 bg-slate-800 text-slate-400 hover:text-white p-5 rounded-[22px] font-black text-[11px] uppercase transition-all border border-white/5"
+                 className="px-10 bg-slate-800 text-slate-500 hover:text-white p-6 rounded-[25px] font-black text-[11px] uppercase transition-all border border-white/5 italic hover:bg-red-600/10 hover:border-red-600/20"
                >
-                 Anular
+                 ANULAR
                </button>
             </div>
 
