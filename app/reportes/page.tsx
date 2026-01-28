@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -13,7 +13,6 @@ export default function ReportesPage() {
   const [filtroNombre, setFiltroNombre] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA RAY' });
   const [editandoRow, setEditandoRow] = useState<any>(null);
   const [guardando, setGuardando] = useState(false);
   const router = useRouter();
@@ -27,7 +26,6 @@ export default function ReportesPage() {
       return;
     }
     setUser(currentUser);
-    fetchConfig();
     fetchReportes();
 
     const canalRealtime = supabase.channel('reportes-final-sync')
@@ -36,19 +34,17 @@ export default function ReportesPage() {
     return () => { supabase.removeChannel(canalRealtime); };
   }, [router, fechaInicio, fechaFin]);
 
-  const fetchConfig = async () => {
-    const { data } = await supabase.from('sistema_config').select('clave, valor');
-    if (data) {
-      const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-      setConfig(cfgMap);
-    }
-  };
-
   const fetchReportes = async () => {
     setLoading(true);
-    let query = supabase.from('jornadas').select(`*, empleados ( rol )`).order('hora_entrada', { ascending: false });
+    let query = supabase.from('jornadas').select(`
+      *,
+      documento_id,
+      empleados ( rol )
+    `).order('hora_entrada', { ascending: false });
+
     if (fechaInicio) query = query.gte('hora_entrada', `${fechaInicio}T00:00:00`);
     if (fechaFin) query = query.lte('hora_entrada', `${fechaFin}T23:59:59`);
+    
     const { data, error } = await query;
     if (!error) setReportes(data || []);
     setLoading(false);
@@ -72,34 +68,27 @@ export default function ReportesPage() {
   };
 
   const exportarExcel = () => {
-    // 1. Definir membrete
     const encabezadoInfo = [
       [`EXPORTADO POR: ${user?.nombre} (${formatearRol(user?.rol)})`],
       [`FECHA Y HORA DE EXPORTACIÓN: ${new Date().toLocaleString()}`],
       ["REPORTE DE JORNADAS"],
-      [] // Fila vacía
+      [] 
     ];
 
-    // 2. Preparar datos del cuerpo
     const cuerpoData = reportes.map(r => ({
       Empleado: r.nombre_empleado,
-      Documento: r.documento_id,
+      Documento: r.documento_id || 'N/R',
       Rol: formatearRol(r.empleados?.rol),
       Entrada: new Date(r.hora_entrada).toLocaleString(),
       Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'ACTIVO',
       'Tiempo Total': formatearTiempoHMS(r.hora_entrada, r.hora_salida)
     }));
 
-    // 3. Crear WorkSheet empezando con el membrete (AOE)
     const ws = XLSX.utils.aoa_to_sheet(encabezadoInfo);
-
-    // 4. Añadir los datos JSON justo debajo del membrete (Fila 5, que es índice 4)
     XLSX.utils.sheet_add_json(ws, cuerpoData, { origin: "A5" });
-
-    // 5. Crear libro y descargar
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
-    XLSX.writeFile(wb, `Reporte_Jornadas_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `Reporte_Jornadas_RAY.xlsx`);
   };
 
   const guardarEdicion = async () => {
@@ -120,6 +109,8 @@ export default function ReportesPage() {
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto">
+        
+        {/* CABECERA CON DOCUMENTO Y ROL */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
           <div className="flex items-center gap-4">
             <div className="h-16 w-1 bg-blue-500 rounded-full"></div>
@@ -127,11 +118,14 @@ export default function ReportesPage() {
               <h1 className="text-4xl font-black italic uppercase tracking-tighter">
                 REPORTES DE <span className="text-blue-500">JORNADA</span>
               </h1>
-              <div className="mt-1 flex items-center gap-2">
+              <div className="mt-1 flex flex-col">
                 <span className="text-xs font-bold text-slate-300 uppercase">{user?.nombre}</span>
-                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest italic bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
-                  {formatearRol(user?.rol)}
-                </span>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest">{user?.documento_id || 'SIN DOC'}</span>
+                  <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest italic bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
+                    {formatearRol(user?.rol)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -141,6 +135,7 @@ export default function ReportesPage() {
           </div>
         </div>
 
+        {/* FILTROS */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 bg-[#0f172a] p-6 rounded-[30px] border border-white/5 shadow-xl">
           <input type="text" placeholder="BUSCAR EMPLEADO..." className="bg-[#050a14] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-blue-500" value={filtroNombre} onChange={e => setFiltroNombre(e.target.value)} />
           <input type="date" className="bg-[#050a14] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black outline-none focus:border-blue-500" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
@@ -148,6 +143,7 @@ export default function ReportesPage() {
           <button onClick={fetchReportes} className="bg-blue-600 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-blue-900/40">Actualizar</button>
         </div>
 
+        {/* TABLA DE RESULTADOS */}
         <div className="bg-[#0f172a] rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -165,8 +161,12 @@ export default function ReportesPage() {
                   <tr key={r.id} className="group hover:bg-white/[0.01]">
                     <td className="py-6 px-8">
                       <div className="font-bold text-sm uppercase">{r.nombre_empleado}</div>
-                      <div className="text-[9px] font-black text-blue-500 italic uppercase tracking-widest mt-0.5">
-                        {formatearRol(r.empleados?.rol)}
+                      {/* DOCUMENTO EN BLANCO Y ROL EN AZUL */}
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[9px] font-black text-white uppercase tracking-widest">{r.documento_id}</span>
+                        <span className="text-[9px] font-black text-blue-500 italic uppercase tracking-widest">
+                          {formatearRol(r.empleados?.rol)}
+                        </span>
                       </div>
                     </td>
                     <td className="py-6 px-4 text-center text-xs font-mono text-slate-400">
@@ -195,6 +195,7 @@ export default function ReportesPage() {
         </div>
       </div>
 
+      {/* MODAL EDICIÓN */}
       {editandoRow && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-6">
           <div className="bg-[#0f172a] border border-white/10 p-10 rounded-[45px] w-full max-w-md animate-in zoom-in duration-200 shadow-2xl">
