@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA RAY', timer_inactividad: '120000' });
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
+  const inputRef = useRef<HTMLInputElement>(null); // Referencia para el foco automático
   const router = useRouter();
 
   // 1. CARGA DE CONFIGURACIÓN Y SESIÓN
@@ -33,6 +34,9 @@ export default function LoginPage() {
       const currentUser = JSON.parse(sessionData);
       setTempUser(currentUser);
       setPaso('selector');
+      // Al recuperar sesión, limpiamos el buffer de login
+      setIdentificador('');
+      setPin('');
     }
   }, []);
 
@@ -44,8 +48,7 @@ export default function LoginPage() {
     const resetTimer = () => {
       if (timeout) clearTimeout(timeout);
       timeout = setTimeout(() => {
-        localStorage.removeItem('user_session');
-        window.location.reload(); 
+        finalizarSesion();
       }, parseInt(config.timer_inactividad));
     };
 
@@ -60,8 +63,7 @@ export default function LoginPage() {
         if (payload.payload.userEmail === tempUser.email && payload.payload.sid !== sessionId.current) {
           setSesionExpulsada(true);
           setTimeout(() => {
-            localStorage.removeItem('user_session');
-            window.location.reload();
+            finalizarSesion();
           }, 3000);
         }
       })
@@ -84,6 +86,16 @@ export default function LoginPage() {
     };
   }, [tempUser, config.timer_inactividad]);
 
+  const finalizarSesion = () => {
+    localStorage.removeItem('user_session');
+    setTempUser(null);
+    setPaso('login');
+    setIdentificador('');
+    setPin('');
+    setTimeout(() => inputRef.current?.focus(), 100);
+    window.location.reload(); 
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -101,8 +113,15 @@ export default function LoginPage() {
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
+      // Limpiamos datos de ingreso tras éxito
+      setIdentificador('');
+      setPin('');
     } catch (err: any) {
       alert(err.message);
+      // Limpiamos y regresamos al input de documento/correo tras error
+      setIdentificador('');
+      setPin('');
+      inputRef.current?.focus();
     } finally {
       setLoading(false);
     }
@@ -114,7 +133,6 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
-      {/* BACKGROUND DECORATION */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/10 blur-[120px] rounded-full"></div>
 
@@ -150,8 +168,9 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-4">
               <input 
+                ref={inputRef}
                 type="text" 
-                placeholder="ID DE EMPLEADO O EMAIL" 
+                placeholder="DOCUMENTO O CORREO" 
                 className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold tracking-widest focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
@@ -185,13 +204,14 @@ export default function LoginPage() {
               </button>
             )}
 
-            {/* Cambios aplicados para incluir al rol técnico en Reportes y Gestión Administrativa */}
+            {/* Acceso para técnico en Reportes habilitado */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'tecnico' || tempUser?.permiso_reportes === true) && (
               <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
                 📊 Análisis y Reportes
               </button>
             )}
 
+            {/* Acceso para técnico en Gestión Administrativa habilitado */}
             {(tempUser?.rol === 'admin' || tempUser?.rol === 'tecnico') && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8">
                 ⚙️ Gestión Administrativa
@@ -208,7 +228,7 @@ export default function LoginPage() {
             )}
             
             <button 
-              onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); setTempUser(null); }} 
+              onClick={() => { localStorage.removeItem('user_session'); setPaso('login'); setTempUser(null); setIdentificador(''); setPin(''); setTimeout(() => inputRef.current?.focus(), 100); }} 
               className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-4 hover:text-white transition-all text-center"
             >
               ✕ Cerrar Sesión
