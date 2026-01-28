@@ -11,7 +11,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
-  const [sesionExpulsada, setSesionExpulsada] = useState(false);
   
   const [config, setConfig] = useState<any>({ 
     empresa_nombre: 'CARGANDO...', 
@@ -19,6 +18,7 @@ export default function LoginPage() {
   });
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
+  const userInputRef = useRef<HTMLInputElement>(null); // Ref para el cursor
   const router = useRouter();
   const timerInactividad = useRef<any>(null);
 
@@ -33,6 +33,7 @@ export default function LoginPage() {
     fetchConfig();
   }, []);
 
+  // Manejo de inactividad
   useEffect(() => {
     if (paso === 'selector') {
       const reiniciarTimer = () => {
@@ -42,11 +43,9 @@ export default function LoginPage() {
           finalizarSesion();
         }, ms);
       };
-
       window.addEventListener('mousemove', reiniciarTimer);
       window.addEventListener('keydown', reiniciarTimer);
       reiniciarTimer();
-
       return () => {
         window.removeEventListener('mousemove', reiniciarTimer);
         window.removeEventListener('keydown', reiniciarTimer);
@@ -59,58 +58,52 @@ export default function LoginPage() {
     localStorage.removeItem('user_session');
     setTempUser(null);
     setPaso('login');
-    // Limpieza de datos al cerrar sesión
     setIdentificador('');
     setPin('');
   };
 
+  // LÓGICA DE LOGIN REVISADA (Punto 3: documento_id o email)
   const manejarLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setSesionExpulsada(false);
 
     try {
-      // AJUSTE 2: Consulta simplificada sin comillas excesivas para evitar el error de acceso
+      // Búsqueda por documento_id O email
       const { data: empleado, error } = await supabase
         .from('empleados')
         .select('*')
-        .or(`documento_id.eq.${identificador},nombre.eq.${identificador}`)
+        .or(`documento_id.eq.${identificador},email.eq.${identificador}`)
         .eq('pin', pin)
         .eq('activo', true)
         .maybeSingle();
 
       if (error || !empleado) {
-        alert('ACCESO DENEGADO: Verifique ID y PIN');
-        // AJUSTE 1: Limpieza de datos tras error
+        alert('ACCESO DENEGADO: Datos Incorrectos');
+        
+        // PUNTO 1 y 4: Limpiar campos y posicionar cursor
         setIdentificador('');
         setPin('');
         setLoading(false);
+        setTimeout(() => userInputRef.current?.focus(), 100);
         return;
       }
-
-      const nuevaSesion = {
-        ...empleado,
-        session_id: sessionId.current,
-        login_time: new Date().getTime()
-      };
 
       await supabase
         .from('empleados')
         .update({ session_id: sessionId.current })
         .eq('id', empleado.id);
 
-      setTempUser(nuevaSesion);
+      setTempUser({ ...empleado, session_id: sessionId.current });
       setPaso('selector');
-      
-      // AJUSTE 1: Limpieza de datos tras éxito al pasar al selector
       setIdentificador('');
       setPin('');
 
     } catch (err) {
       console.error(err);
-      alert('Error de conexión con el servidor');
+      alert('Error de conexión');
       setIdentificador('');
       setPin('');
+      userInputRef.current?.focus();
     } finally {
       setLoading(false);
     }
@@ -123,10 +116,11 @@ export default function LoginPage() {
 
   if (paso === 'selector') {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 font-sans selection:bg-blue-500">
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 font-sans">
         <div className="w-full max-w-md space-y-6">
           <header className="text-center mb-10">
-            <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">
+            {/* PUNTO 2: Aumento del 10% (de text-2xl a text-[26.4px]) */}
+            <h1 className="text-[26.4px] font-black italic tracking-tighter uppercase leading-none">
               {config.empresa_nombre} <span className="text-blue-600">.</span>
             </h1>
             <p className="text-slate-500 font-bold text-[9px] uppercase tracking-[0.3em] mt-2">Módulos de Control</p>
@@ -173,7 +167,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 font-sans">
       <div className="w-full max-w-sm space-y-10">
         <header className="text-center">
-          <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">
+          <h1 className="text-[26.4px] font-black italic tracking-tighter uppercase leading-none">
             {config.empresa_nombre} <span className="text-blue-600">.</span>
           </h1>
           <p className="text-slate-500 font-bold text-[9px] uppercase tracking-[0.4em] mt-4 italic">Security Access Control</p>
@@ -182,10 +176,13 @@ export default function LoginPage() {
         <form onSubmit={manejarLogin} className="space-y-4">
           <div className="space-y-2">
             <input
+              ref={userInputRef}
               type="text"
-              placeholder="USUARIO / ID"
+              // PUNTO 5: Cambio de placeholder
+              placeholder="DOCUMENTO / EMAIL"
               value={identificador}
-              onChange={(e) => setIdentificador(e.target.value.toUpperCase())}
+              // PUNTO 1: Sin forzar mayúsculas automáticamente
+              onChange={(e) => setIdentificador(e.target.value)}
               className="w-full bg-slate-900/50 border border-white/10 p-5 rounded-[22px] text-center font-black text-xl outline-none focus:border-blue-600 focus:bg-slate-900 transition-all placeholder:text-slate-800 italic"
               required
             />
@@ -203,9 +200,10 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-white text-black p-5 rounded-[22px] font-black text-[11px] uppercase italic transition-all hover:bg-blue-600 hover:text-white disabled:opacity-50 shadow-[0_20px_40px_rgba(255,255,255,0.05)]"
+            // PUNTO 5: Botón Azul y texto "ENTRAR"
+            className="w-full bg-blue-600 text-white p-5 rounded-[22px] font-black text-sm uppercase italic transition-all hover:bg-blue-500 disabled:opacity-50 shadow-[0_20px_40px_rgba(37,99,235,0.2)]"
           >
-            {loading ? 'AUTENTICANDO...' : 'Entrar al Núcleo →'}
+            {loading ? 'VERIFICANDO...' : 'ENTRAR'}
           </button>
         </form>
 
