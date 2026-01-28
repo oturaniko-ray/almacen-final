@@ -49,7 +49,7 @@ export default function ReportesPage() {
       if (error) throw error;
       setReportes(data || []);
     } catch (err) {
-      console.error("Error cargando reportes:", err);
+      console.error("Error:", err);
     } finally {
       setLoading(false);
     }
@@ -73,9 +73,14 @@ export default function ReportesPage() {
   };
 
   const exportarExcel = () => {
+    const ahora = new Date();
+    const fechaStr = ahora.toISOString().slice(0, 10).replace(/-/g, '');
+    const horaStr = ahora.toTimeString().slice(0, 8).replace(/:/g, '');
+    const nombreArchivo = `jornada_${fechaStr}_${horaStr}.xlsx`;
+
     const encabezadoInfo = [
       [`EXPORTADO POR: ${user?.nombre} (${formatearRol(user?.rol)})`],
-      [`FECHA Y HORA DE EXPORTACIÓN: ${new Date().toLocaleString()}`],
+      [`FECHA Y HORA DE EXPORTACIÓN: ${ahora.toLocaleString()}`],
       ["REPORTE DE JORNADAS"],
       [] 
     ];
@@ -93,7 +98,7 @@ export default function ReportesPage() {
     XLSX.utils.sheet_add_json(ws, cuerpoData, { origin: "A5" });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jornadas");
-    XLSX.writeFile(wb, `Reporte_Jornadas_RAY.xlsx`);
+    XLSX.writeFile(wb, nombreArchivo);
   };
 
   const guardarEdicion = async () => {
@@ -111,11 +116,14 @@ export default function ReportesPage() {
     setGuardando(false);
   };
 
+  // Lógica para el separador de fechas
+  let fechaActualHeader = '';
+
   return (
     <main className="min-h-screen bg-[#050a14] text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* CABECERA: Nombre y Rol Juntos */}
+        {/* CABECERA */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
           <div className="flex items-center gap-4">
             <div className="h-16 w-1 bg-blue-500 rounded-full"></div>
@@ -137,14 +145,14 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* FILTROS: Propuesta 1 (Rango de Calendario Amigable) */}
+        {/* 1. PROPUESTA 1: Calendario de Rango Integrado */}
         <div className="bg-[#0f172a] p-8 rounded-[40px] border border-white/5 shadow-2xl mb-12">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
             <div className="md:col-span-4 flex flex-col gap-2">
               <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">Filtrar por Nombre</label>
               <input 
                 type="text" 
-                placeholder="EJ. JUAN PEREZ..." 
+                placeholder="BUSCAR EMPLEADO..." 
                 className="bg-[#050a14] border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold uppercase outline-none focus:border-blue-500 transition-all" 
                 value={filtroNombre} 
                 onChange={e => setFiltroNombre(e.target.value)} 
@@ -153,7 +161,7 @@ export default function ReportesPage() {
             
             <div className="md:col-span-6 grid grid-cols-2 gap-4 bg-[#050a14] p-2 rounded-3xl border border-white/5">
               <div className="flex flex-col gap-1 px-4 py-2">
-                <label className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">Fecha Inicio</label>
+                <label className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">Desde</label>
                 <input 
                   type="date" 
                   className="bg-transparent border-none text-xs font-bold text-white outline-none cursor-pointer"
@@ -162,7 +170,7 @@ export default function ReportesPage() {
                 />
               </div>
               <div className="flex flex-col gap-1 px-4 py-2 border-l border-white/5">
-                <label className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">Fecha Fin</label>
+                <label className="text-[8px] font-black text-blue-500 uppercase tracking-tighter">Hasta</label>
                 <input 
                   type="date" 
                   className="bg-transparent border-none text-xs font-bold text-white outline-none cursor-pointer"
@@ -180,13 +188,13 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* TABLA: Documento y Rol debajo del Nombre */}
+        {/* TABLA CON SEPARADORES POR FECHA */}
         <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 bg-white/[0.01]">
-                  <th className="py-7 px-10">Empleado / Detalles</th>
+                  <th className="py-7 px-10">Empleado</th>
                   <th className="py-7 px-4 text-center">Entrada</th>
                   <th className="py-7 px-4 text-center">Salida</th>
                   <th className="py-7 px-4 text-center">Jornada</th>
@@ -194,40 +202,66 @@ export default function ReportesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {reportes.filter(r => r.nombre_empleado.toLowerCase().includes(filtroNombre.toLowerCase())).map((r) => (
-                  <tr key={r.id} className="group hover:bg-white/[0.01] transition-colors">
-                    <td className="py-7 px-10">
-                      <div className="font-bold text-sm uppercase text-white tracking-tight">{r.nombre_empleado}</div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-[9px] font-black text-white/60 uppercase tracking-widest">
-                          {r.documento_id || r.empleados?.documento_id || 'SIN DOC'}
-                        </span>
-                        <span className="text-white/20 text-[9px]">—</span>
-                        <span className="text-[9px] font-black text-blue-500 italic uppercase tracking-widest">
-                          {formatearRol(r.empleados?.rol)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-7 px-4 text-center text-xs font-mono text-slate-400">
-                      {new Date(r.hora_entrada).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
-                    </td>
-                    <td className="py-7 px-4 text-center text-xs font-mono text-slate-400">
-                      {r.hora_salida ? new Date(r.hora_salida).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : <span className="text-emerald-500 font-black animate-pulse uppercase text-[10px] bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">● Activo</span>}
-                    </td>
-                    <td className="py-7 px-4 text-center">
-                      <span className="bg-blue-600/10 text-blue-400 px-5 py-2.5 rounded-full font-mono font-black text-xs border border-blue-400/20">
-                        {formatearTiempoHMS(r.hora_entrada, r.hora_salida)}
-                      </span>
-                    </td>
-                    <td className="py-7 px-10 text-right">
-                      {r.hora_salida && (
-                        <button onClick={() => setEditandoRow(r)} className="text-slate-500 hover:text-white p-3 bg-white/5 rounded-2xl border border-white/5 hover:border-blue-500 transition-all">
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {reportes
+                  .filter(r => r.nombre_empleado.toLowerCase().includes(filtroNombre.toLowerCase()))
+                  .map((r, index) => {
+                    const fechaFila = new Date(r.hora_entrada).toLocaleDateString('es-ES', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    }).toUpperCase();
+                    
+                    const mostrarHeader = fechaFila !== fechaActualHeader;
+                    if (mostrarHeader) fechaActualHeader = fechaFila;
+
+                    return (
+                      <React.Fragment key={r.id}>
+                        {/* 2. SEPARADOR DE FECHAS COLOR BLANCO */}
+                        {mostrarHeader && (
+                          <tr className="bg-white/5">
+                            <td colSpan={5} className="py-3 px-10">
+                              <span className="text-[10px] font-black text-white tracking-[0.2em]">
+                                📅 {fechaFila}
+                              </span>
+                            </td>
+                          </tr>
+                        )}
+                        <tr className="group hover:bg-white/[0.01] transition-colors">
+                          <td className="py-7 px-10">
+                            <div className="font-bold text-sm uppercase text-white">{r.nombre_empleado}</div>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-[9px] font-black text-white uppercase tracking-widest">
+                                {r.documento_id || r.empleados?.documento_id || 'SIN DOC'}
+                              </span>
+                              <span className="text-white/20 text-[9px]">—</span>
+                              <span className="text-[9px] font-black text-blue-500 italic uppercase tracking-widest">
+                                {formatearRol(r.empleados?.rol)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-7 px-4 text-center text-xs font-mono text-slate-400">
+                            {new Date(r.hora_entrada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="py-7 px-4 text-center text-xs font-mono text-slate-400">
+                            {r.hora_salida ? new Date(r.hora_salida).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : <span className="text-emerald-500 font-black animate-pulse uppercase text-[10px] bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">● Activo</span>}
+                          </td>
+                          <td className="py-7 px-4 text-center">
+                            <span className="bg-blue-600/10 text-blue-400 px-5 py-2.5 rounded-full font-mono font-black text-xs border border-blue-400/20">
+                              {formatearTiempoHMS(r.hora_entrada, r.hora_salida)}
+                            </span>
+                          </td>
+                          <td className="py-7 px-10 text-right">
+                            {r.hora_salida && (
+                              <button onClick={() => setEditandoRow(r)} className="text-slate-500 hover:text-white p-3 bg-white/5 rounded-2xl border border-white/5 hover:border-blue-500 transition-all">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -240,17 +274,11 @@ export default function ReportesPage() {
           <div className="bg-[#0f172a] border border-white/10 p-10 rounded-[45px] w-full max-w-md animate-in zoom-in duration-200 shadow-2xl">
             <h2 className="text-xl font-black italic text-white mb-6 uppercase tracking-tighter">Ajustar <span className="text-blue-500">Tiempo</span></h2>
             <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-2 block">Hora Entrada</label>
-                <input type="datetime-local" value={editandoRow.hora_entrada.slice(0, 16)} onChange={e => setEditandoRow({...editandoRow, hora_entrada: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-blue-400 outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-2 block">Hora Salida</label>
-                <input type="datetime-local" value={editandoRow.hora_salida?.slice(0, 16) || ''} onChange={e => setEditandoRow({...editandoRow, hora_salida: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-emerald-400 outline-none focus:border-emerald-500" />
-              </div>
-              <div className="flex gap-4 mt-8">
-                <button onClick={guardarEdicion} className="flex-1 bg-blue-600 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-600/20 hover:bg-blue-500 transition-all">Guardar</button>
-                <button onClick={() => setEditandoRow(null)} className="px-6 bg-slate-800 rounded-2xl font-black text-[10px] uppercase hover:bg-slate-700 transition-all">Cerrar</button>
+              <input type="datetime-local" value={editandoRow.hora_entrada.slice(0, 16)} onChange={e => setEditandoRow({...editandoRow, hora_entrada: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-blue-400 outline-none" />
+              <input type="datetime-local" value={editandoRow.hora_salida?.slice(0, 16) || ''} onChange={e => setEditandoRow({...editandoRow, hora_salida: e.target.value})} className="w-full bg-[#050a14] border border-white/10 rounded-2xl p-4 text-sm font-bold text-emerald-400 outline-none" />
+              <div className="flex gap-4 mt-6">
+                <button onClick={guardarEdicion} className="flex-1 bg-blue-600 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-600/20">Guardar</button>
+                <button onClick={() => setEditandoRow(null)} className="px-6 bg-slate-800 rounded-2xl font-black text-[10px] uppercase">Cerrar</button>
               </div>
             </div>
           </div>
