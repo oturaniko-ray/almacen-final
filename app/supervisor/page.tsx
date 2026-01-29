@@ -6,6 +6,25 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// 📍 COORDENADAS PROPORCIONADAS
+const ALMACEN_LAT = 40.59680101005673; 
+const ALMACEN_LON = -3.595251665548761;
+const RADIO_MAXIMO_METROS = 80; 
+const TIEMPO_MAX_TOKEN_MS = 120000;
+
+function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3;
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
+  const dPhi = (lat2 - lat1) * Math.PI / 180;
+  const dLambda = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) +
+            Math.cos(p1) * Math.cos(p2) *
+            Math.sin(dLambda/2) * Math.sin(dLambda/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export default function SupervisorPage() {
   const [user, setUser] = useState<any>(null);
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
@@ -16,13 +35,6 @@ export default function SupervisorPage() {
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
-
-  const [config, setConfig] = useState<any>({ 
-    almacen_lat: 40.59680101005673, 
-    almacen_lon: -3.595251665548761,
-    radio_maximo: 80,
-    timer_token: 120000 
-  });
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -34,16 +46,7 @@ export default function SupervisorPage() {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
     const currentUser = JSON.parse(sessionData);
-    
-    // VALIDACIÓN POR NIVEL: Permitir Nivel 3 o superior (Supervisor, Admin, Técnico)
-    const nivel = Number(currentUser.nivel_acceso);
-    if (nivel < 3) {
-      router.push('/');
-      return;
-    }
-
     setUser(currentUser);
-    fetchConfig();
 
     const canalSesion = supabase.channel('supervisor-session-control');
     canalSesion
@@ -53,9 +56,6 @@ export default function SupervisorPage() {
           setTimeout(() => { localStorage.removeItem('user_session'); router.push('/'); }, 3000);
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sistema_config' }, () => {
-        fetchConfig();
-      })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           await canalSesion.send({ type: 'broadcast', event: 'nueva-sesion', payload: { id: sessionId.current, email: currentUser.email } });
@@ -63,32 +63,6 @@ export default function SupervisorPage() {
       });
     return () => { supabase.removeChannel(canalSesion); };
   }, [router]);
-
-  const fetchConfig = async () => {
-    const { data } = await supabase.from('sistema_config').select('clave, valor');
-    if (data) {
-      const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-      setConfig({
-        almacen_lat: parseFloat(cfgMap.almacen_lat) || 40.59680101005673,
-        almacen_lon: parseFloat(cfgMap.almacen_lon) || -3.595251665548761,
-        radio_maximo: parseInt(cfgMap.radio_maximo) || 80,
-        timer_token: parseInt(cfgMap.timer_token) || 120000
-      });
-    }
-  };
-
-  function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 6371e3;
-    const p1 = lat1 * Math.PI / 180;
-    const p2 = lat2 * Math.PI / 180;
-    const dPhi = (lat2 - lat1) * Math.PI / 180;
-    const dLambda = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) +
-              Math.cos(p1) * Math.cos(p2) *
-              Math.sin(dLambda/2) * Math.sin(dLambda/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
 
   const volverAtras = async () => {
     try { if (scannerRef.current?.isScanning) { await scannerRef.current.stop(); scannerRef.current = null; } } catch (e) {}
@@ -141,8 +115,8 @@ export default function SupervisorPage() {
     
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
-        if (dist > config.radio_maximo) {
+        const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ALMACEN_LAT, ALMACEN_LON);
+        if (dist > RADIO_MAXIMO_METROS) {
           throw new Error(`FUERA DE RANGO: Estás a ${Math.round(dist)}m.`);
         }
 
@@ -152,7 +126,7 @@ export default function SupervisorPage() {
             const decoded = atob(idFinal).split('|');
             if (decoded.length === 2) {
               const [docId, timestamp] = decoded;
-              if (Date.now() - parseInt(timestamp) > config.timer_token) throw new Error("TOKEN EXPIRADO");
+              if (Date.now() - parseInt(timestamp) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
               idFinal = docId;
             }
           } catch (e: any) {
@@ -160,6 +134,7 @@ export default function SupervisorPage() {
           }
         }
 
+        // 🔴 CAMBIO: Se ajusta la selección de columna de 'estado' a 'activo'
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, activo, pin_seguridad, documento_id, email')
@@ -168,21 +143,15 @@ export default function SupervisorPage() {
 
         if (empError || !emp) throw new Error(`Empleado no encontrado (ID: ${idFinal})`);
         
+        // 🔴 CAMBIO: Validación sobre la columna 'activo' (boolean)
         if (emp.activo !== true) {
           throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
         }
 
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN Empleado incorrecto");
         
-        // --- CAMBIO CLAVE: VALIDACIÓN POR NIVEL PARA EL AUTORIZADOR ---
-        const { data: aut } = await supabase
-          .from('empleados')
-          .select('nombre, nivel_acceso')
-          .eq('pin_seguridad', pinAutorizador)
-          .maybeSingle();
-
-        // Si el autorizador tiene Nivel 3 o más, se permite el registro
-        if (!aut || Number(aut.nivel_acceso) < 3) throw new Error("PIN Autorizador inválido o nivel insuficiente");
+        const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
+        if (!aut) throw new Error("PIN Supervisor inválido");
 
         const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
@@ -204,10 +173,7 @@ export default function SupervisorPage() {
         alert(`❌ ${err.message}`); 
         prepararSiguienteEmpleado(); 
       }
-    }, () => { 
-      alert("Error de GPS: Asegúrate de tener la ubicación activa."); 
-      prepararSiguienteEmpleado(); 
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }, () => { alert("GPS Obligatorio"); prepararSiguienteEmpleado(); }, { enableHighAccuracy: true });
   };
 
   return (
@@ -217,24 +183,7 @@ export default function SupervisorPage() {
         .animate-laser { animation: laser 2s infinite linear; }
       `}</style>
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        
-        <div className="flex justify-between items-start mb-6">
-            <div>
-                <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter leading-none">Supervisor Hub</h2>
-                {user && (
-                    <p className="text-[10px] font-bold text-slate-500 uppercase italic mt-1">
-                        {user.nombre} | {user.rol}({user.nivel_acceso})
-                    </p>
-                )}
-            </div>
-            <button 
-                onClick={() => setRecalibrandoGps(p => p + 1)}
-                className="bg-white/5 p-2 rounded-xl border border-white/10 hover:bg-white/10 transition-all text-[9px] font-black uppercase tracking-tighter text-slate-400"
-            >
-                🔄 Calibrar GPS
-            </button>
-        </div>
-
+        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-1 text-center tracking-tighter">Panel de Supervisión</h2>
         {modo === 'menu' ? (
           <div className="grid gap-4 text-center">
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
@@ -254,7 +203,7 @@ export default function SupervisorPage() {
               <div className="space-y-6">
                 <input ref={docInputRef} type="text" autoFocus className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-bold border border-white/10" placeholder="ID Empleado" value={qrData} onChange={(e) => setQrData(e.target.value)} />
                 <input type="password" placeholder="PIN Personal" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border border-white/10" value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)} />
-                <input ref={pinRef} type="password" placeholder="PIN Autorizador" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border-2 border-blue-500/20" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
+                <input ref={pinRef} type="password" placeholder="PIN Administrador" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border-2 border-blue-500/20" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
               </div>
             ) : (
               <div className="space-y-6">
@@ -266,7 +215,7 @@ export default function SupervisorPage() {
                     </>
                   ) : <p className="text-emerald-500 font-black text-[9px] uppercase">Identificado ✅</p>}
                 </div>
-                {lecturaLista && <input ref={pinRef} type="password" placeholder="PIN Autorizador" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
+                {lecturaLista && <input ref={pinRef} type="password" placeholder="PIN Supervisor" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
               </div>
             )}
             <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30">
