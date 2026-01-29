@@ -16,6 +16,7 @@ export default function SupervisorPage() {
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
+  const [recalibrandoGps, setRecalibrandoGps] = useState(0);
 
   const [config, setConfig] = useState<any>({ 
     almacen_lat: 40.59680101005673, 
@@ -35,7 +36,7 @@ export default function SupervisorPage() {
     if (!sessionData) { router.push('/'); return; }
     const currentUser = JSON.parse(sessionData);
     
-    // VALIDACIÓN POR NIVEL: Permitir Nivel 3 o superior (Supervisor, Admin, Técnico)
+    // VALIDACIÓN POR NIVEL: Permitir Nivel 3 o superior
     const nivel = Number(currentUser.nivel_acceso);
     if (nivel < 3) {
       router.push('/');
@@ -208,7 +209,7 @@ export default function SupervisorPage() {
       alert("Error de GPS: Asegúrate de tener la ubicación activa."); 
       prepararSiguienteEmpleado(); 
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-  };
+  }, [qrData, pinAutorizador, animar, config, recalibrandoGps]); // Añadido recalibrandoGps a dependencias
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
