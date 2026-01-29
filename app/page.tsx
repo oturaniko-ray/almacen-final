@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA RAY', timer_inactividad: '120000' });
+  const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: '120000' });
   
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -33,48 +33,45 @@ export default function LoginPage() {
     }
   }, []);
 
-  // --- REVISIÓN INTEGRAL DE LA RUTINA DE ACCESO ---
+  // --- LÓGICA DE ACCESO PURAMENTE NUMÉRICA ---
   const irARuta = (ruta: string) => {
     if (!tempUser) return;
 
-    // Tomamos los valores puros de la tabla
     const nivel = Number(tempUser.nivel_acceso);
-    const tienePermisoReportes = tempUser.permiso_reportes === true;
+    const permisoReportes = tempUser.permiso_reportes === true;
 
-    // 1. SI ES NIVEL 8: ENTRADA TOTAL (Inmunidad a cualquier otra regla)
+    // REGLA MAESTRA: Nivel 8 tiene inmunidad total
     if (nivel >= 8) {
       router.push(ruta);
       return;
     }
 
-    // 2. REGLAS PARA NIVEL 4: Entra a todo excepto configuración (el nivel 8 ya pasó arriba)
-    if (nivel >= 4) {
-      if (ruta !== '/configuracion') {
+    // Validación por ruta
+    if (ruta === '/reportes') {
+      if (nivel >= 4 || (nivel === 3 && permisoReportes)) {
         router.push(ruta);
-        return;
+      } else {
+        alert("Acceso denegado a Reportes.");
+      }
+    } 
+    else if (ruta === '/admin') {
+      if (nivel >= 4) {
+        router.push(ruta);
+      } else {
+        alert("Acceso denegado a Gestión.");
       }
     }
-
-    // 3. REGLAS PARA NIVEL 3: Supervisor y Reportes (con booleano)
-    if (nivel === 3) {
-      if (ruta === '/supervisor' || ruta === '/empleado') {
+    else if (ruta === '/supervisor') {
+      if (nivel >= 3) {
         router.push(ruta);
-        return;
-      }
-      if (ruta === '/reportes' && tienePermisoReportes) {
-        router.push(ruta);
-        return;
+      } else {
+        alert("Acceso denegado a Supervisión.");
       }
     }
-
-    // 4. REGLAS PARA NIVEL 1
-    if (nivel >= 1 && ruta === '/empleado') {
+    else {
+      // Ruta empleado o general
       router.push(ruta);
-      return;
     }
-
-    // Si llegó aquí es porque no cumple la condición matemática
-    alert(`Acceso denegado. Su nivel (${nivel}) no tiene permiso para este módulo.`);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -83,7 +80,7 @@ export default function LoginPage() {
     try {
       const { data, error } = await supabase
         .from('empleados')
-        .select('*') 
+        .select('*')
         .or(`documento_id.eq.${identificador},email.eq.${identificador.toLowerCase()}`)
         .eq('pin_seguridad', pin)
         .eq('activo', true)
@@ -97,7 +94,7 @@ export default function LoginPage() {
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert("Error de autenticación");
+      alert("Error de acceso");
       setIdentificador('');
       setPin('');
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -109,16 +106,20 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
-
+      
       <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10">
         <header className="mb-10 text-center">
           <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
-            {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
+            {config.empresa_nombre ? (
+              <>
+                {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
+              </>
+            ) : 'SISTEMA'}
           </h1>
-          {tempUser && paso === 'selector' && (
+          {tempUser && (
             <div className="mt-4">
-              <p className="text-xs font-black uppercase text-white tracking-widest">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel de Acceso: {tempUser.nivel_acceso}</p>
+              <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase italic">NIVEL: {tempUser.nivel_acceso}</p>
             </div>
           )}
         </header>
@@ -149,35 +150,35 @@ export default function LoginPage() {
         ) : (
           <div className="space-y-3 animate-in zoom-in duration-300">
             
-            {/* 1. EMPLEADO: Nivel 1 o superior */}
+            {/* 1. EMPLEADO: Nivel 1+ */}
             {tempUser.nivel_acceso >= 1 && (
               <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* 2. SUPERVISOR: Nivel 3 o superior */}
+            {/* 2. SUPERVISOR: Nivel 3+ */}
             {tempUser.nivel_acceso >= 3 && (
               <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* 3. REPORTES: Nivel 4 o superior O (Nivel 3 con permiso) */}
-            {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes === true)) && (
+            {/* 3. REPORTES: Nivel 4+ O (Nivel 3 con permiso_reportes true) */}
+            {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes)) && (
               <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* 4. GESTIÓN: Nivel 4 o superior */}
+            {/* 4. GESTIÓN: Nivel 4+ */}
             {tempUser.nivel_acceso >= 4 && (
               <button onClick={() => irARuta('/admin')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* 5. TÉCNICO: Solo Nivel 8 */}
+            {/* 5. TÉCNICO: Nivel 8 */}
             {tempUser.nivel_acceso >= 8 && (
               <button 
                 onClick={() => irARuta('/configuracion')} 
