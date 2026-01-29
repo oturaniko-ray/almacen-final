@@ -16,7 +16,6 @@ export default function LoginPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN EXISTENTE
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -34,9 +33,16 @@ export default function LoginPage() {
     }
   }, []);
 
-  // 2. RUTINA DE COMPARACIÓN (La "llave" de acceso)
-  // Convertimos a Number para asegurar que la comparación sea matemática (8 >= 4)
-  const nivelUsuario = Number(tempUser?.nivel_acceso || 0);
+  // --- RUTINA QUIRÚRGICA DE ACCESO ---
+  // Comparamos directamente el valor numérico de la tabla
+  const accederAModulo = (ruta: string, nivelMinimo: number) => {
+    // Si el nivel_acceso del usuario (ej: 8) es mayor o igual al requerido (ej: 4)
+    if (tempUser?.nivel_acceso >= nivelMinimo) {
+      router.push(ruta);
+    } else {
+      alert(`Acceso denegado. Su nivel (${tempUser?.nivel_acceso}) es inferior al requerido (${nivelMinimo}).`);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,19 +58,17 @@ export default function LoginPage() {
 
       if (error || !data) throw new Error("Credenciales inválidas");
 
-      // GUARDAMOS EN LOCALSTORAGE Y EN EL ESTADO
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
       
-      // LIMPIEZA DE BUFFER (Seguridad)
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert("Error: Acceso denegado");
+      alert("Error de autenticación");
       setIdentificador('');
       setPin('');
-      setTimeout(() => inputRef.current?.focus(), 100); // Retorno de foco
+      setTimeout(() => inputRef.current?.focus(), 100);
     } finally {
       setLoading(false);
     }
@@ -79,15 +83,6 @@ export default function LoginPage() {
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  // Función de navegación que verifica el nivel antes de saltar
-  const accederAModulo = (ruta: string, nivelMinimo: number) => {
-    if (nivelUsuario >= nivelMinimo) {
-      router.push(ruta);
-    } else {
-      alert("Su nivel no tiene permiso para este módulo");
-    }
-  };
-
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
@@ -100,7 +95,7 @@ export default function LoginPage() {
           {tempUser && paso === 'selector' && (
             <div className="mt-4">
               <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel Detectado: {nivelUsuario}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel de Sistema: {tempUser.nivel_acceso}</p>
             </div>
           )}
         </header>
@@ -110,7 +105,7 @@ export default function LoginPage() {
             <input 
               ref={inputRef}
               type="text" 
-              placeholder="ID O CORREO" 
+              placeholder="DOCUMENTO O CORREO" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold focus:border-blue-500 outline-none uppercase"
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
@@ -118,49 +113,49 @@ export default function LoginPage() {
             />
             <input 
               type="password" 
-              placeholder="PIN" 
+              placeholder="PIN DE SEGURIDAD" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.5em] focus:border-blue-500 outline-none"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               required
             />
-            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all">
-              {loading ? 'VALIDANDO...' : 'ENTRAR'}
+            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20">
+              {loading ? 'Validando...' : 'Entrar'}
             </button>
           </form>
         ) : (
           <div className="space-y-3 animate-in zoom-in duration-300">
             
-            {/* DERIVACIÓN NIVEL 1+ */}
-            {nivelUsuario >= 1 && (
+            {/* NIVEL 1 O SUPERIOR */}
+            {tempUser?.nivel_acceso >= 1 && (
               <button onClick={() => accederAModulo('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* DERIVACIÓN NIVEL 3+ */}
-            {nivelUsuario >= 3 && (
+            {/* NIVEL 3 O SUPERIOR */}
+            {tempUser?.nivel_acceso >= 3 && (
               <button onClick={() => accederAModulo('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* SEPARACIÓN QUIRÚRGICA NIVEL 4: ANÁLISIS */}
-            {nivelUsuario >= 4 && (
+            {/* NIVEL 4 O SUPERIOR (Análisis) */}
+            {tempUser?.nivel_acceso >= 4 && (
               <button onClick={() => accederAModulo('/reportes', 4)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* SEPARACIÓN QUIRÚRGICA NIVEL 4: GESTIÓN */}
-            {nivelUsuario >= 4 && (
+            {/* NIVEL 4 O SUPERIOR (Gestión) */}
+            {tempUser?.nivel_acceso >= 4 && (
               <button onClick={() => accederAModulo('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* DERIVACIÓN NIVEL 8 */}
-            {nivelUsuario >= 8 && (
+            {/* NIVEL 8 O SUPERIOR */}
+            {tempUser?.nivel_acceso >= 8 && (
               <button 
                 onClick={() => accederAModulo('/configuracion', 8)} 
                 className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8 group italic"
@@ -169,8 +164,8 @@ export default function LoginPage() {
               </button>
             )}
             
-            <button onClick={finalizarSesion} className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic">
-              ✕ Cerrar Sesión
+            <button onClick={finalizarSesion} className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic transition-colors">
+              ✕ Cerrar Sesión Segura
             </button>
           </div>
         )}
