@@ -34,18 +34,27 @@ export default function ReportesPage() {
     setLoading(true);
     try {
       /**
-       * ORDEN CRÍTICO: Usamos 'updated_at' para que cualquier registro 
-       * recién guardado (entrada o salida) aparezca de primero.
+       * Intentamos ordenar por updated_at para captar la última salida.
+       * Si da error o no hay datos, es posible que la columna no exista o esté vacía.
        */
       const { data, error } = await supabase
         .from('jornadas')
         .select('*')
-        .order('updated_at', { ascending: false });
+        .order('hora_entrada', { ascending: false }); // Usamos hora_entrada como base segura para que siempre muestre datos
       
       if (error) throw error;
-      setJornadas(data || []);
+      
+      // Si quieres que el que acaba de marcar salida suba arriba, 
+      // ordenamos el array localmente por la fecha más reciente entre entrada y salida
+      const datosOrdenados = (data || []).sort((a: any, b: any) => {
+        const fechaA = new Date(a.hora_salida || a.hora_entrada).getTime();
+        const fechaB = new Date(b.hora_salida || b.hora_entrada).getTime();
+        return fechaB - fechaA;
+      });
+
+      setJornadas(datosOrdenados);
     } catch (err) {
-      console.error(err);
+      console.error("Error cargando jornadas:", err);
     } finally {
       setLoading(false);
     }
@@ -64,23 +73,29 @@ export default function ReportesPage() {
             {user && (
               <div className="mt-2">
                 <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">
-                  {user.nombre} : <span className="text-blue-400 italic">{user.rol} ({user.nivel_acceso})</span>
+                  USUARIO: {user.nombre} | ROL: <span className="text-blue-400 italic">{user.rol} ({user.nivel_acceso || 'N/A'})</span>
                 </p>
-                <p className="text-[9px] font-black text-slate-500 uppercase mt-1 italic">
-                  Sincronización de registros en tiempo real activa
+                <p className="text-[9px] font-black text-slate-500 uppercase mt-1 italic tracking-widest">
+                  ● SISTEMA OPERATIVO EN TIEMPO REAL
                 </p>
               </div>
             )}
           </div>
           
           <div className="flex gap-4">
-            <button onClick={fetchJornadas} className="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5 transition-all">Actualizar</button>
+            <button onClick={fetchJornadas} className="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5 transition-all">Refrescar</button>
             <button onClick={() => router.back()} className="bg-red-600/20 text-red-500 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-red-500/20">Cerrar</button>
           </div>
         </div>
 
         {loading && jornadas.length === 0 ? (
-          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase tracking-widest">Consultando base de datos...</div>
+          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase tracking-widest italic">
+            Buscando registros en la base de datos...
+          </div>
+        ) : jornadas.length === 0 ? (
+          <div className="text-center py-20 border border-dashed border-white/10 rounded-[40px]">
+            <p className="text-slate-600 font-black uppercase italic text-sm">No hay actividad registrada el día de hoy</p>
+          </div>
         ) : (
           <div className="overflow-hidden rounded-[35px] border border-white/5 bg-[#0f172a] shadow-2xl">
             <table className="w-full text-left border-collapse">
@@ -89,16 +104,20 @@ export default function ReportesPage() {
                   <th className="p-6 text-[10px] font-black text-slate-500 uppercase italic">Empleado</th>
                   <th className="p-6 text-[10px] font-black text-slate-500 uppercase italic">Entrada</th>
                   <th className="p-6 text-[10px] font-black text-slate-500 uppercase italic">Salida</th>
-                  <th className="p-6 text-[10px] font-black text-blue-500 uppercase italic">Total (h:m:s)</th>
+                  <th className="p-6 text-[10px] font-black text-blue-500 uppercase italic">Total Horas (H:M:S)</th>
                   <th className="p-6 text-[10px] font-black text-slate-500 uppercase italic">Estado</th>
-                  <th className="p-6 text-[10px] font-black text-slate-500 uppercase italic">Autorización</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {jornadas.map((j) => (
                   <tr key={j.id} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="p-6 text-sm font-black text-white uppercase italic group-hover:text-blue-400 transition-colors">
-                      {j.nombre_empleado}
+                    <td className="p-6">
+                      <p className="text-sm font-black text-white uppercase italic group-hover:text-blue-400 transition-colors">
+                        {j.nombre_empleado}
+                      </p>
+                      <p className="text-[8px] text-slate-600 font-bold uppercase italic">
+                        AUT: {j.editado_por || 'SISTEMA'}
+                      </p>
                     </td>
                     <td className="p-6 text-[11px] font-mono text-emerald-500/80">
                       {new Date(j.hora_entrada).toLocaleString('es-ES', { 
@@ -114,18 +133,15 @@ export default function ReportesPage() {
                     </td>
                     <td className="p-6">
                       <span className="text-xl font-black text-blue-400 italic tracking-tighter">
-                        {j.horas_trabajadas || '---'}
+                        {j.horas_trabajadas || '00:00:00'}
                       </span>
                     </td>
                     <td className="p-6">
                       <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${
-                        j.estado === 'activo' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-500/20 text-slate-500'
+                        j.estado === 'activo' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/20' : 'bg-slate-500/20 text-slate-500'
                       }`}>
                         {j.estado}
                       </span>
-                    </td>
-                    <td className="p-6 text-[9px] text-slate-500 uppercase italic font-bold">
-                      {j.editado_por || 'Registro Base'}
                     </td>
                   </tr>
                 ))}
