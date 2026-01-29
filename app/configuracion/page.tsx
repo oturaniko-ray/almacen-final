@@ -32,12 +32,12 @@ export default function ConfigMaestraPage() {
       if (data) {
         const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
         
-        // Mapeo directo sin valores quemados para evitar falsos positivos
+        // Mapeo unificado a almacen_lat y almacen_lon
         const finalData = {
-          gps_latitud: cfgMap.gps_latitud || "0",
-          gps_longitud: cfgMap.gps_longitud || "0",
-          gps_radio: cfgMap.gps_radio || "100",
-          qr_expiracion: cfgMap.qr_expiracion || "60000",
+          almacen_lat: cfgMap.almacen_lat || cfgMap.gps_latitud || "0",
+          almacen_lon: cfgMap.almacen_lon || cfgMap.gps_longitud || "0",
+          radio_maximo: cfgMap.radio_maximo || cfgMap.gps_radio || "100",
+          timer_token: cfgMap.timer_token || cfgMap.qr_expiracion || "60000",
           timer_inactividad: cfgMap.timer_inactividad || "300000",
           empresa_nombre: cfgMap.empresa_nombre || "SISTEMA"
         };
@@ -59,7 +59,6 @@ export default function ConfigMaestraPage() {
     if (!config) return;
     setGuardando(true);
     try {
-      // Usamos Promise.all para asegurar que todas las promesas se cumplan
       await Promise.all(claves.map(async (clave) => {
         const { error } = await supabase
           .from('sistema_config')
@@ -73,7 +72,7 @@ export default function ConfigMaestraPage() {
       alert("✅ REGISTROS ACTUALIZADOS EN LA NUBE");
     } catch (err: any) {
       alert("❌ ERROR DE ESCRITURA: " + err.message);
-      fetchConfig(); // Revertir a datos reales si falla
+      fetchConfig();
     } finally {
       setGuardando(false);
     }
@@ -108,28 +107,28 @@ export default function ConfigMaestraPage() {
                 <div className="space-y-6 animate-in fade-in">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 font-black mb-1 uppercase text-blue-500">Latitud DB</p>
-                      <p className="font-mono text-xs text-white">{config.gps_latitud}</p>
+                      <p className="text-[8px] text-slate-500 font-black mb-1 uppercase text-blue-500">Latitud Almacén</p>
+                      <p className="font-mono text-xs text-white">{config.almacen_lat}</p>
                     </div>
                     <div className="bg-[#050a14] p-4 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 font-black mb-1 uppercase text-blue-500">Longitud DB</p>
-                      <p className="font-mono text-xs text-white">{config.gps_longitud}</p>
+                      <p className="text-[8px] text-slate-500 font-black mb-1 uppercase text-blue-500">Longitud Almacén</p>
+                      <p className="font-mono text-xs text-white">{config.almacen_lon}</p>
                     </div>
                   </div>
 
                   <div className="h-[350px] rounded-[35px] overflow-hidden border border-white/10 relative">
                     <MapaInteractivo 
-                      lat={config.gps_latitud} 
-                      lng={config.gps_longitud}
+                      lat={config.almacen_lat} 
+                      lng={config.almacen_lon}
                       onLocationChange={(lat: number, lng: number) => {
-                        setConfig((prev: any) => ({ ...prev, gps_latitud: lat.toString(), gps_longitud: lng.toString() }));
+                        setConfig((prev: any) => ({ ...prev, almacen_lat: lat.toString(), almacen_lon: lng.toString() }));
                       }}
                     />
                   </div>
 
                   <div className="bg-[#050a14] p-6 rounded-3xl border border-white/5">
-                    <label className="text-[9px] font-black text-blue-500 uppercase block mb-3">Radio: {config.gps_radio}m</label>
-                    <input type="range" min="10" max="500" value={config.gps_radio} onChange={e => setConfig({...config, gps_radio: e.target.value})} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none accent-blue-600" />
+                    <label className="text-[9px] font-black text-blue-500 uppercase block mb-3">Radio Máximo: {config.radio_maximo}m</label>
+                    <input type="range" min="10" max="500" value={config.radio_maximo} onChange={e => setConfig({...config, radio_maximo: e.target.value})} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none accent-blue-600" />
                   </div>
                 </div>
               )}
@@ -137,11 +136,11 @@ export default function ConfigMaestraPage() {
               {tabActual === 'seguridad' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
                   <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
-                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4 tracking-widest">Expiración QR (Minutos)</p>
-                    <input type="number" value={msAMinutos(config.qr_expiracion)} onChange={e => setConfig({...config, qr_expiracion: minutosAMs(e.target.value)})} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
+                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4 tracking-widest">Expiración Token QR (Min)</p>
+                    <input type="number" value={msAMinutos(config.timer_token)} onChange={e => setConfig({...config, timer_token: minutosAMs(e.target.value)})} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
                   </div>
                   <div className="bg-[#050a14] p-8 rounded-[35px] border border-white/5">
-                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4 tracking-widest">Inactividad (Minutos)</p>
+                    <p className="text-[9px] font-black text-slate-500 uppercase mb-4 tracking-widest">Inactividad Panel (Min)</p>
                     <input type="number" value={msAMinutos(config.timer_inactividad)} onChange={e => setConfig({...config, timer_inactividad: minutosAMs(e.target.value)})} className="bg-transparent text-5xl font-black text-emerald-500 outline-none w-full" />
                   </div>
                 </div>
@@ -149,7 +148,7 @@ export default function ConfigMaestraPage() {
 
               {tabActual === 'interfaz' && (
                 <div className="bg-[#050a14] p-10 rounded-[40px] border border-white/5 animate-in fade-in">
-                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-4 tracking-widest">Nombre del Sistema</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-4 tracking-widest">Nombre del Sistema / Empresa</label>
                   <input type="text" value={config.empresa_nombre || ''} onChange={e => setConfig({...config, empresa_nombre: e.target.value})} className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic border-b border-white/10 pb-4" />
                 </div>
               )}
@@ -158,7 +157,11 @@ export default function ConfigMaestraPage() {
             <div className="mt-8 pt-8 border-t border-white/5 flex gap-4">
               <button 
                 onClick={() => {
-                  const m: any = { geolocalizacion: ['gps_latitud', 'gps_longitud', 'gps_radio'], seguridad: ['qr_expiracion', 'timer_inactividad'], interfaz: ['empresa_nombre'] };
+                  const m: any = { 
+                    geolocalizacion: ['almacen_lat', 'almacen_lon', 'radio_maximo'], 
+                    seguridad: ['timer_token', 'timer_inactividad'], 
+                    interfaz: ['empresa_nombre'] 
+                  };
                   guardarModulo(m[tabActual]);
                 }}
                 disabled={guardando}
