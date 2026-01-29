@@ -15,20 +15,14 @@ export default function PresenciaPage() {
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
-    
     const currentUser = JSON.parse(sessionData);
-    
     const nivel = Number(currentUser.nivel_acceso);
-    if (nivel < 4) {
-      router.replace('/');
-      return;
-    }
+    if (nivel < 4) { router.replace('/'); return; }
 
     setUser(currentUser);
     fetchData();
 
     const timer = setInterval(() => setAhora(new Date()), 60000);
-
     const channel = supabase.channel('presencia-global')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, fetchData)
@@ -41,6 +35,7 @@ export default function PresenciaPage() {
   }, [router]);
 
   const fetchData = async () => {
+    // Pedimos las jornadas ordenadas por fecha para capturar la última fácilmente
     const { data, error } = await supabase
       .from('empleados')
       .select(`
@@ -51,26 +46,36 @@ export default function PresenciaPage() {
       .order('nombre', { ascending: true });
 
     if (data) {
-      const procesados = data.map(emp => ({
-        ...emp,
-        jornada_activa: emp.jornadas?.find((j: any) => j.estado === 'activo') || null
-      }));
+      const procesados = data.map(emp => {
+        // Buscamos la jornada que está actualmente "activa"
+        const activa = emp.jornadas?.find((j: any) => j.estado === 'activo');
+        
+        // Buscamos la última jornada "finalizada" para obtener la hora_salida real
+        const cerradas = emp.jornadas?.filter((j: any) => j.estado === 'finalizado' && j.hora_salida);
+        const ultimaCerrada = cerradas?.length > 0 
+          ? cerradas.sort((a: any, b: any) => new Date(b.hora_salida).getTime() - new Date(a.hora_salida).getTime())[0]
+          : null;
+
+        return {
+          ...emp,
+          jornada_activa: activa || null,
+          ultima_jornada_cerrada: ultimaCerrada || null
+        };
+      });
       setEmpleados(procesados);
     }
     if (error) console.error("Error en lectura:", error);
   };
 
-  // RUTINA DE CÁLCULO AJUSTADA PARA AUSENTES
   const calcularTiempoEstado = (emp: any) => {
     let referencia: string | null = null;
 
     if (emp.en_almacen) {
-      // SI ESTÁ PRESENTE: (Hora Actual - Hora Entrada de la jornada activa)
-      referencia = emp.jornada_activa?.hora_entrada || emp.ultimo_ingreso;
+      // PRESENTE: Hora actual - hora_entrada de la jornada activa
+      referencia = emp.jornada_activa?.hora_entrada;
     } else {
-      // SI ESTÁ AUSENTE: (Hora Actual - Hora Salida)
-      // Tomamos la última salida registrada para saber cuánto tiempo lleva fuera
-      referencia = emp.ultima_salida;
+      // AUSENTE: Hora actual - hora_salida de la última jornada finalizada
+      referencia = emp.ultima_jornada_cerrada?.hora_salida;
     }
 
     if (!referencia) return '0h 0m';
@@ -101,7 +106,7 @@ export default function PresenciaPage() {
       [`Fecha y Hora de creación: ${f.toLocaleDateString()} ${f.toLocaleTimeString()}`],
       [], 
       ["PRESENTES"],
-      ["Nombre", "Documento ID", "Última Entrada (Fecha)", "Última Entrada (Hora)", "Tiempo en Almacén"]
+      ["Nombre", "Documento ID", "Entrada (Fecha)", "Entrada (Hora)", "Tiempo en Almacén"]
     ];
 
     const presentesData = empleados.filter(e => e.en_almacen).map(e => [
@@ -113,19 +118,18 @@ export default function PresenciaPage() {
 
     const ausentesEncabezado = [
       [], ["AUSENTES"],
-      ["Nombre", "Documento ID", "Última Salida (Fecha)", "Última Salida (Hora)", "Inactividad"]
+      ["Nombre", "Documento ID", "Salida (Fecha)", "Salida (Hora)", "Inactividad"]
     ];
 
     const ausentesData = empleados.filter(e => !e.en_almacen).map(e => [
       e.nombre, e.documento_id || 'N/A',
-      e.ultima_salida ? new Date(e.ultima_salida).toLocaleDateString() : '---',
-      e.ultima_salida ? new Date(e.ultima_salida).toLocaleTimeString() : '---',
+      e.ultima_jornada_cerrada?.hora_salida ? new Date(e.ultima_jornada_cerrada.hora_salida).toLocaleDateString() : '---',
+      e.ultima_jornada_cerrada?.hora_salida ? new Date(e.ultima_jornada_cerrada.hora_salida).toLocaleTimeString() : '---',
       calcularTiempoEstado(e)
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet([...encabezado, ...presentesData, ...ausentesEncabezado, ...ausentesData]);
     const wb = XLSX.utils.book_new();
-    
     const nombreHoja = `presencial${fechaStr}${horaStr}`.substring(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
     XLSX.writeFile(wb, `presencia${fechaStr}${horaStr}.xlsx`);
