@@ -40,7 +40,6 @@ export default function PresenciaPage() {
     };
   }, [router]);
 
-  // CORRECCIÓN: Ahora incluimos un select a 'jornadas' para obtener la entrada activa real
   const fetchData = async () => {
     const { data, error } = await supabase
       .from('empleados')
@@ -52,7 +51,6 @@ export default function PresenciaPage() {
       .order('nombre', { ascending: true });
 
     if (data) {
-      // Mapeamos para identificar la jornada activa de forma sencilla
       const procesados = data.map(emp => ({
         ...emp,
         jornada_activa: emp.jornadas?.find((j: any) => j.estado === 'activo') || null
@@ -62,15 +60,16 @@ export default function PresenciaPage() {
     if (error) console.error("Error en lectura:", error);
   };
 
-  // RUTINA DE CÁLCULO CORREGIDA: Toma los datos de la tabla jornadas
+  // RUTINA DE CÁLCULO AJUSTADA PARA AUSENTES
   const calcularTiempoEstado = (emp: any) => {
     let referencia: string | null = null;
 
     if (emp.en_almacen) {
-      // Si está presente, usamos la hora_entrada de su jornada activa
+      // SI ESTÁ PRESENTE: (Hora Actual - Hora Entrada de la jornada activa)
       referencia = emp.jornada_activa?.hora_entrada || emp.ultimo_ingreso;
     } else {
-      // Si está ausente, usamos su última salida registrada
+      // SI ESTÁ AUSENTE: (Hora Actual - Hora Salida)
+      // Tomamos la última salida registrada para saber cuánto tiempo lleva fuera
       referencia = emp.ultima_salida;
     }
 
