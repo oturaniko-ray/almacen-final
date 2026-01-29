@@ -18,7 +18,6 @@ export default function PresenciaPage() {
     
     const currentUser = JSON.parse(sessionData);
     
-    // --- VALIDACIÓN POR NIVEL (Mínimo Nivel 4 para ver presencia de todos) ---
     const nivel = Number(currentUser.nivel_acceso);
     if (nivel < 4) {
       router.replace('/');
@@ -28,7 +27,6 @@ export default function PresenciaPage() {
     setUser(currentUser);
     fetchData();
 
-    // Cronómetro interno para actualizar la vista cada minuto
     const timer = setInterval(() => setAhora(new Date()), 60000);
 
     const channel = supabase.channel('presencia-global')
@@ -42,19 +40,40 @@ export default function PresenciaPage() {
     };
   }, [router]);
 
+  // CORRECCIÓN: Ahora incluimos un select a 'jornadas' para obtener la entrada activa real
   const fetchData = async () => {
     const { data, error } = await supabase
       .from('empleados')
-      .select('*')
+      .select(`
+        *,
+        jornadas(hora_entrada, hora_salida, estado)
+      `)
       .eq('activo', true)
       .order('nombre', { ascending: true });
 
-    if (data) setEmpleados(data);
+    if (data) {
+      // Mapeamos para identificar la jornada activa de forma sencilla
+      const procesados = data.map(emp => ({
+        ...emp,
+        jornada_activa: emp.jornadas?.find((j: any) => j.estado === 'activo') || null
+      }));
+      setEmpleados(procesados);
+    }
     if (error) console.error("Error en lectura:", error);
   };
 
+  // RUTINA DE CÁLCULO CORREGIDA: Toma los datos de la tabla jornadas
   const calcularTiempoEstado = (emp: any) => {
-    const referencia = emp.en_almacen ? emp.ultimo_ingreso : emp.ultima_salida;
+    let referencia: string | null = null;
+
+    if (emp.en_almacen) {
+      // Si está presente, usamos la hora_entrada de su jornada activa
+      referencia = emp.jornada_activa?.hora_entrada || emp.ultimo_ingreso;
+    } else {
+      // Si está ausente, usamos su última salida registrada
+      referencia = emp.ultima_salida;
+    }
+
     if (!referencia) return '0h 0m';
 
     const inicio = new Date(referencia).getTime();
@@ -67,7 +86,6 @@ export default function PresenciaPage() {
     return `${horas}h ${minutos}m`;
   };
 
-  // Formateador para visualización uniforme
   const formatearCredencial = (u: any) => {
     if (!u) return '';
     return `${u.rol}(${u.nivel_acceso})`.toUpperCase();
@@ -89,8 +107,8 @@ export default function PresenciaPage() {
 
     const presentesData = empleados.filter(e => e.en_almacen).map(e => [
       e.nombre, e.documento_id || 'N/A',
-      e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleDateString() : '---',
-      e.ultimo_ingreso ? new Date(e.ultimo_ingreso).toLocaleTimeString() : '---',
+      e.jornada_activa?.hora_entrada ? new Date(e.jornada_activa.hora_entrada).toLocaleDateString() : '---',
+      e.jornada_activa?.hora_entrada ? new Date(e.jornada_activa.hora_entrada).toLocaleTimeString() : '---',
       calcularTiempoEstado(e)
     ]);
 
