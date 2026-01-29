@@ -16,7 +16,7 @@ export default function LoginPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN
+  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN EXISTENTE
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -34,7 +34,8 @@ export default function LoginPage() {
     }
   }, []);
 
-  // 2. VARIABLE DE NIVEL (Tratada como número puro para comparaciones matemáticas)
+  // 2. RUTINA DE COMPARACIÓN (La "llave" de acceso)
+  // Convertimos a Number para asegurar que la comparación sea matemática (8 >= 4)
   const nivelUsuario = Number(tempUser?.nivel_acceso || 0);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -51,19 +52,19 @@ export default function LoginPage() {
 
       if (error || !data) throw new Error("Credenciales inválidas");
 
+      // GUARDAMOS EN LOCALSTORAGE Y EN EL ESTADO
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
       
-      // Limpieza de buffer tras éxito
+      // LIMPIEZA DE BUFFER (Seguridad)
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert("Error: Datos incorrectos");
-      // Limpieza y foco automático tras error
+      alert("Error: Acceso denegado");
       setIdentificador('');
       setPin('');
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), 100); // Retorno de foco
     } finally {
       setLoading(false);
     }
@@ -73,24 +74,22 @@ export default function LoginPage() {
     localStorage.removeItem('user_session');
     setTempUser(null);
     setPaso('login');
-    // Limpieza total de campos
     setIdentificador('');
     setPin('');
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  // Función de derivación de módulos por nivel
-  const accederAModulo = (ruta: string, nivelRequerido: number) => {
-    if (nivelUsuario >= nivelRequerido) {
+  // Función de navegación que verifica el nivel antes de saltar
+  const accederAModulo = (ruta: string, nivelMinimo: number) => {
+    if (nivelUsuario >= nivelMinimo) {
       router.push(ruta);
     } else {
-      alert("Acceso restringido para su nivel.");
+      alert("Su nivel no tiene permiso para este módulo");
     }
   };
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
-      {/* Decoración Visual */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
 
       <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10">
@@ -99,9 +98,9 @@ export default function LoginPage() {
             {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
           </h1>
           {tempUser && paso === 'selector' && (
-            <div className="mt-4 animate-in fade-in">
+            <div className="mt-4">
               <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel de Acceso: {nivelUsuario}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel Detectado: {nivelUsuario}</p>
             </div>
           )}
         </header>
@@ -111,56 +110,56 @@ export default function LoginPage() {
             <input 
               ref={inputRef}
               type="text" 
-              placeholder="DOCUMENTO O CORREO" 
-              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold focus:border-blue-500 outline-none uppercase placeholder:text-slate-700"
+              placeholder="ID O CORREO" 
+              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold focus:border-blue-500 outline-none uppercase"
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
               required
             />
             <input 
               type="password" 
-              placeholder="PIN DE SEGURIDAD" 
-              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.5em] focus:border-blue-500 outline-none placeholder:text-slate-700"
+              placeholder="PIN" 
+              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.5em] focus:border-blue-500 outline-none"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               required
             />
-            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20">
-              {loading ? 'Entrando...' : 'Entrar'}
+            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all">
+              {loading ? 'VALIDANDO...' : 'ENTRAR'}
             </button>
           </form>
         ) : (
           <div className="space-y-3 animate-in zoom-in duration-300">
             
-            {/* OPCIÓN NIVEL 1: Empleado (Accesible para niveles 1, 3, 4, 8) */}
+            {/* DERIVACIÓN NIVEL 1+ */}
             {nivelUsuario >= 1 && (
               <button onClick={() => accederAModulo('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* OPCIÓN NIVEL 3: Supervisor (Accesible para niveles 3, 4, 8) */}
+            {/* DERIVACIÓN NIVEL 3+ */}
             {nivelUsuario >= 3 && (
               <button onClick={() => accederAModulo('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* OPCIÓN NIVEL 4: Análisis (Accesible para niveles 4, 8) */}
+            {/* SEPARACIÓN QUIRÚRGICA NIVEL 4: ANÁLISIS */}
             {nivelUsuario >= 4 && (
               <button onClick={() => accederAModulo('/reportes', 4)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* OPCIÓN NIVEL 4: Gestión (Accesible para niveles 4, 8) */}
+            {/* SEPARACIÓN QUIRÚRGICA NIVEL 4: GESTIÓN */}
             {nivelUsuario >= 4 && (
               <button onClick={() => accederAModulo('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* OPCIÓN NIVEL 8: Técnico (Solo Nivel 8) */}
+            {/* DERIVACIÓN NIVEL 8 */}
             {nivelUsuario >= 8 && (
               <button 
                 onClick={() => accederAModulo('/configuracion', 8)} 
@@ -170,8 +169,8 @@ export default function LoginPage() {
               </button>
             )}
             
-            <button onClick={finalizarSesion} className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic transition-colors">
-              ✕ Cerrar Sesión Segura
+            <button onClick={finalizarSesion} className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic">
+              ✕ Cerrar Sesión
             </button>
           </div>
         )}
