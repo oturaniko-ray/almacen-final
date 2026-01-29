@@ -16,7 +16,6 @@ export default function LoginPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 1. CARGA DE CONFIGURACIÓN DESDE TABLA sistema_config
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -34,36 +33,47 @@ export default function LoginPage() {
     }
   }, []);
 
-  // 2. ÚNICA RUTINA DE ACCESO (Coherencia Total)
-  const ejecutarAcceso = (ruta: string, nivelMinimoModulo: number, esReporte: boolean = false) => {
-    // Si no hay usuario, rebotar
+  // --- RUTINA DE ACCESO REPARADA (Lógica Matemática Directa) ---
+  const irARuta = (ruta: string) => {
     if (!tempUser) return;
 
-    // REGLA MAESTRA: Nivel 8 tiene inmunidad total y acceso directo
-    if (tempUser.nivel_acceso >= 8) {
-      router.push(ruta);
+    const nivel = tempUser.nivel_acceso;
+    const permisoReportes = tempUser.permiso_reportes;
+
+    // 1. Caso Reportes
+    if (ruta === '/reportes') {
+      if (nivel >= 4 || (nivel === 3 && permisoReportes === true) || nivel >= 8) {
+        router.push(ruta);
+      } else {
+        alert("Acceso Denegado: Requiere Nivel 4 o Nivel 3 con permisos.");
+      }
       return;
     }
 
-    // Lógica para los demás niveles
-    if (esReporte) {
-      // Caso especial Reportes: Nivel 4+ O (Nivel 3 Y permiso_reportes true)
-      if (tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes === true)) {
+    // 2. Caso Gestión Administrativa
+    if (ruta === '/admin') {
+      if (nivel >= 4 || nivel >= 8) {
         router.push(ruta);
       } else {
-        alert("Permisos de Reportes insuficientes.");
+        alert("Acceso Denegado: Módulo exclusivo para Nivel 4 o superior.");
       }
-    } else {
-      // Caso General: Nivel Usuario >= Nivel Módulo
-      if (tempUser.nivel_acceso >= nivelMinimoModulo) {
-        router.push(ruta);
-      } else {
-        alert("Nivel de acceso insuficiente para este módulo.");
-      }
+      return;
     }
+
+    // 3. Caso Configuración Maestra
+    if (ruta === '/configuracion') {
+      if (nivel >= 8) {
+        router.push(ruta);
+      } else {
+        alert("Acceso Denegado: Solo personal Técnico (Nivel 8).");
+      }
+      return;
+    }
+
+    // 4. Casos General (Empleado/Supervisor)
+    router.push(ruta);
   };
 
-  // 3. CAPTURA DE DATOS DESDE TABLA empleados
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -78,15 +88,13 @@ export default function LoginPage() {
 
       if (error || !data) throw new Error("Credenciales inválidas");
 
-      // Almacenamos el objeto completo (nivel_acceso es int, permiso_reportes es bool)
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
-      
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert("Error: Verifique sus datos.");
+      alert("Error de acceso");
       setIdentificador('');
       setPin('');
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -96,16 +104,22 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative">
-      <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl z-10">
+    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
+      
+      <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10">
         <header className="mb-10 text-center">
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter">
-            {config.empresa_nombre || 'SISTEMA'}
+          <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
+            {config.empresa_nombre ? (
+              <>
+                {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
+              </>
+            ) : 'SISTEMA'}
           </h1>
           {tempUser && paso === 'selector' && (
-            <div className="mt-4 border-t border-white/5 pt-4">
-              <p className="text-xs font-black uppercase">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-500 uppercase italic">NIVEL: {tempUser.nivel_acceso}</p>
+            <div className="mt-4">
+              <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel de Acceso: {tempUser.nivel_acceso}</p>
             </div>
           )}
         </header>
@@ -115,7 +129,7 @@ export default function LoginPage() {
             <input 
               ref={inputRef}
               type="text" 
-              placeholder="DOCUMENTO / CORREO" 
+              placeholder="DOCUMENTO O CORREO" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold focus:border-blue-500 outline-none uppercase"
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
@@ -123,51 +137,54 @@ export default function LoginPage() {
             />
             <input 
               type="password" 
-              placeholder="PIN" 
-              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.4em] focus:border-blue-500 outline-none"
+              placeholder="PIN DE SEGURIDAD" 
+              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.5em] focus:border-blue-500 outline-none"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               required
             />
-            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all">
-              {loading ? 'AUTENTICANDO...' : 'ENTRAR'}
+            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20">
+              {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 animate-in zoom-in duration-300">
             
-            {/* MÓDULO 1: EMPLEADO (Nivel 1+) */}
+            {/* 1. EMPLEADO: Nivel 1 o superior */}
             {tempUser.nivel_acceso >= 1 && (
-              <button onClick={() => ejecutarAcceso('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
+              <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* MÓDULO 2: SUPERVISOR (Nivel 3+) */}
+            {/* 2. SUPERVISOR: Nivel 3 o superior */}
             {tempUser.nivel_acceso >= 3 && (
-              <button onClick={() => ejecutarAcceso('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
+              <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* MÓDULO 3: REPORTES (Nivel 4+ O Nivel 3 con Permiso) */}
+            {/* 3. REPORTES: Nivel 4+ o (Nivel 3 con permiso) */}
             {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes)) && (
-              <button onClick={() => ejecutarAcceso('/reportes', 3, true)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
+              <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* MÓDULO 4: ADMINISTRACIÓN (Nivel 4+) */}
+            {/* 4. GESTIÓN: Nivel 4 o superior */}
             {tempUser.nivel_acceso >= 4 && (
-              <button onClick={() => ejecutarAcceso('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
+              <button onClick={() => irARuta('/admin')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* MÓDULO 5: TÉCNICO (Nivel 8+) */}
+            {/* 5. TÉCNICO: Nivel 8 */}
             {tempUser.nivel_acceso >= 8 && (
-              <button onClick={() => ejecutarAcceso('/configuracion', 8)} className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-left pl-8 italic transition-all">
-                ⚙️ Configuración Maestra
+              <button 
+                onClick={() => irARuta('/configuracion')} 
+                className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8 group italic"
+              >
+                <span className="mr-2 group-hover:animate-spin inline-block text-xl">⚙️</span> Configuración Maestra
               </button>
             )}
             
