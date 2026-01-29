@@ -6,6 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// 📍 FUNCIÓN DE CÁLCULO DE DISTANCIA (HAVERSINE)
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3;
   const p1 = lat1 * Math.PI / 180;
@@ -28,27 +29,24 @@ export default function SupervisorPage() {
   const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
-  const [sesionDuplicada, setSesionDuplicada] = useState(false);
   const [gpsReal, setGpsReal] = useState({ lat: 0, lon: 0 });
-  const [distanciaMetros, setDistanciaMetros] = useState<number | null>(null);
-
-  // 1. Estados para configuración dinámica (Sustituye coordenadas fijas)
-  const [config, setConfig] = useState({
-    almacen_lat: 0,
-    almacen_lon: 0,
+  const [distanciaAlmacen, setDistanciaAlmacen] = useState<number | null>(null);
+  
+  const [config, setConfig] = useState<any>({ 
+    almacen_lat: 0, 
+    almacen_lon: 0, 
     radio_maximo: 0,
-    timer_inactividad: 120000,
-    timer_token: 120000
+    timer_token: 120000, 
+    timer_inactividad: 120000 
   });
   
-  const sessionId = useRef(Math.random().toString(36).substring(7));
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // Carga de configuración y GPS en tiempo real
+  // --- CARGA DE SESIÓN Y CONFIGURACIÓN ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -57,13 +55,10 @@ export default function SupervisorPage() {
     fetchConfig();
 
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setGpsReal({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-      },
+      (pos) => setGpsReal({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
       () => {}, { enableHighAccuracy: true, maximumAge: 0 }
     );
-
-    return () => { navigator.geolocation.clearWatch(watchId); };
+    return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
 
   const fetchConfig = async () => {
@@ -74,20 +69,34 @@ export default function SupervisorPage() {
         almacen_lat: parseFloat(cfgMap.almacen_lat) || 0,
         almacen_lon: parseFloat(cfgMap.almacen_lon) || 0,
         radio_maximo: parseInt(cfgMap.radio_maximo) || 0,
-        timer_inactividad: parseInt(cfgMap.timer_inactividad) || 120000,
-        timer_token: parseInt(cfgMap.timer_token) || 120000
+        timer_token: parseInt(cfgMap.timer_token) || 120000,
+        timer_inactividad: parseInt(cfgMap.timer_inactividad) || 120000
       });
     }
   };
 
-  // 3. Temporizador de inactividad
+  // --- CÁLCULO DINÁMICO DE DISTANCIA ---
+  useEffect(() => {
+    if (gpsReal.lat !== 0 && config.almacen_lat !== 0) {
+      const d = calcularDistancia(gpsReal.lat, gpsReal.lon, config.almacen_lat, config.almacen_lon);
+      setDistanciaAlmacen(Math.round(d));
+    }
+  }, [gpsReal, config]);
+
+  // --- RUTINA DE RESET Y VOLVER ATRÁS ---
   const volverAtras = useCallback(async () => {
-    try { if (scannerRef.current?.isScanning) await scannerRef.current.stop(); } catch (e) {}
-    scannerRef.current = null;
-    if (direccion) { setDireccion(null); setQrData(''); setPinAutorizador(''); setPinEmpleadoManual(''); setLecturaLista(false); } 
-    else if (modo !== 'menu') { setModo('menu'); }
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop();
+      scannerRef.current = null;
+    }
+    if (direccion) {
+      setDireccion(null); setQrData(''); setPinAutorizador(''); setPinEmpleadoManual(''); setLecturaLista(false);
+    } else if (modo !== 'menu') {
+      setModo('menu');
+    }
   }, [direccion, modo]);
 
+  // --- TIMER DE INACTIVIDAD ---
   useEffect(() => {
     const resetTimer = () => {
       if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
@@ -105,17 +114,13 @@ export default function SupervisorPage() {
     };
   }, [modo, direccion, config.timer_inactividad, volverAtras]);
 
-  // 2. Cálculo de distancia en tiempo real para visualización
-  useEffect(() => {
-    if (gpsReal.lat !== 0 && config.almacen_lat !== 0) {
-      const d = calcularDistancia(gpsReal.lat, gpsReal.lon, config.almacen_lat, config.almacen_lon);
-      setDistanciaMetros(Math.round(d));
-    }
-  }, [gpsReal, config]);
-
   const prepararSiguienteEmpleado = () => {
-    setQrData(''); setPinEmpleadoManual(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
-    if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 100);
+    setQrData('');
+    setPinEmpleadoManual('');
+    setPinAutorizador('');
+    setLecturaLista(false);
+    setAnimar(false);
+    if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 150);
     if (modo === 'camara') reiniciarCamara();
   };
 
@@ -130,64 +135,52 @@ export default function SupervisorPage() {
           scanner.stop().then(() => { scannerRef.current = null; });
           setTimeout(() => pinRef.current?.focus(), 200);
         }, () => {});
-      } catch (err) {}
+      } catch (err) { console.error("Error Cámara:", err); }
     }
   };
 
+  // --- LÓGICA ESCÁNER USB ---
   useEffect(() => {
-    if (modo !== 'usb' || !direccion || qrData) return;
+    if (modo !== 'usb' || !direccion || lecturaLista) return;
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
       if (e.key === 'Enter') {
-        if (buffer.trim()) { setQrData(buffer.trim()); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 100); }
+        if (buffer.trim()) { 
+          setQrData(buffer.trim()); 
+          setLecturaLista(true); 
+          setTimeout(() => pinRef.current?.focus(), 150); 
+        }
         buffer = "";
       } else if (e.key.length === 1) { buffer += e.key; }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [modo, direccion, qrData]);
+  }, [modo, direccion, lecturaLista]);
 
-  useEffect(() => {
-    if (modo === 'camara' && direccion && !qrData) { reiniciarCamara(); }
-    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
-  }, [modo, direccion, qrData]);
-
+  // --- REGISTRO FINAL ---
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
-    
+
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
-        if (dist > config.radio_maximo) {
-          throw new Error(`FUERA DE RANGO: Estás a ${Math.round(dist)}m. Máximo permitido: ${config.radio_maximo}m`);
-        }
+        const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
+        if (Math.round(d) > config.radio_maximo) throw new Error(`Fuera de rango (${Math.round(d)}m).`);
 
         let idFinal = qrData.trim();
         if (modo !== 'manual') {
           try {
             const decoded = atob(idFinal).split('|');
             if (decoded.length === 2) {
-              const [docId, timestamp] = decoded;
-              if (Date.now() - parseInt(timestamp) > config.timer_token) throw new Error("TOKEN EXPIRADO");
-              idFinal = docId;
+              if (Date.now() - parseInt(decoded[1]) > config.timer_token) throw new Error("TOKEN EXPIRADO");
+              idFinal = decoded[0];
             }
-          } catch (e: any) {
-            if (e.message === "TOKEN EXPIRADO") throw e;
-          }
+          } catch (e: any) { if (e.message === "TOKEN EXPIRADO") throw e; }
         }
 
-        const { data: emp, error: empError } = await supabase
-          .from('empleados')
-          .select('id, nombre, activo, pin_seguridad, documento_id, email')
-          .or(`documento_id.eq.${idFinal},email.eq.${idFinal}`)
-          .maybeSingle();
-
-        if (empError || !emp) throw new Error(`Empleado no encontrado (ID: ${idFinal})`);
-        if (emp.activo !== true) throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
-
-        if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN Empleado incorrecto");
+        const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
+        if (!emp || !emp.activo) throw new Error("Acceso denegado o empleado no válido");
         
         const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
         if (!aut) throw new Error("PIN Supervisor inválido");
@@ -195,11 +188,11 @@ export default function SupervisorPage() {
         const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
         if (direccion === 'entrada') {
-          if (jActiva) throw new Error("Ya tiene una entrada activa.");
+          if (jActiva) throw new Error("Ya tiene entrada activa");
           await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: new Date().toISOString(), estado: 'activo' }]);
           await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
         } else {
-          if (!jActiva) throw new Error("No hay entrada registrada.");
+          if (!jActiva) throw new Error("No hay entrada activa");
           const ahora = new Date();
           const horas = (ahora.getTime() - new Date(jActiva.hora_entrada).getTime()) / 3600000;
           await supabase.from('jornadas').update({ hora_salida: ahora.toISOString(), horas_trabajadas: horas, estado: 'finalizado', editado_por: `Aut: ${aut.nombre}` }).eq('id', jActiva.id);
@@ -208,11 +201,8 @@ export default function SupervisorPage() {
 
         alert(`✅ Éxito: ${emp.nombre}`);
         prepararSiguienteEmpleado();
-      } catch (err: any) { 
-        alert(`❌ ${err.message}`); 
-        prepararSiguienteEmpleado(); 
-      }
-    }, () => { alert("GPS Obligatorio"); prepararSiguienteEmpleado(); }, { enableHighAccuracy: true });
+      } catch (err: any) { alert(`❌ ${err.message}`); prepararSiguienteEmpleado(); }
+    }, () => { alert("Error GPS"); setAnimar(false); }, { enableHighAccuracy: true });
   };
 
   return (
@@ -221,16 +211,22 @@ export default function SupervisorPage() {
         @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
         .animate-laser { animation: laser 2s infinite linear; }
       `}</style>
-      
+
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
         
-        {/* 4. Membrete con Nombre, Rol y Nivel */}
+        {/* Membrete con Nombre, Rol, Nivel y GPS */}
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Panel de Supervisión</h2>
           {user && (
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-              {user.nombre} : <span className="text-blue-400">{user.rol} ({user.nivel_acceso})</span>
-            </p>
+            <div className="mt-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {user.nombre} : <span className="text-blue-400">{user.rol} ({user.nivel_acceso})</span>
+              </p>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-tighter mt-1 italic">
+                GPS: {gpsReal.lat.toFixed(6)}, {gpsReal.lon.toFixed(6)} 
+                <span className="text-blue-500 ml-2">[{distanciaAlmacen ?? '--'}m al Almacén]</span>
+              </p>
+            </div>
           )}
         </div>
 
@@ -239,55 +235,46 @@ export default function SupervisorPage() {
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
             <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-emerald-500 transition-all uppercase tracking-widest">📱 Cámara Móvil</button>
             <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-slate-400 transition-all uppercase tracking-widest">🖋️ Entrada Manual</button>
-            <button onClick={() => router.push('/')} className="mt-6 text-slate-500 font-bold uppercase text-[11px] tracking-[0.3em] hover:text-blue-400">← Volver al Inicio</button>
+            <button onClick={() => router.push('/')} className="mt-6 text-slate-500 font-bold uppercase text-[11px] tracking-[0.3em]">← Volver al Inicio</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-6">
             <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl">SALIDA</button>
-            <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest">← Cambiar Modo</button>
+            <button onClick={volverAtras} className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center">← Cambiar Modo</button>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* 5. Membretes específicos por modo */}
             <p className="text-center text-[10px] font-black text-blue-400 uppercase tracking-widest">
               {modo === 'usb' ? "Lectura Qr por scanner/usb" : modo === 'camara' ? "Lectura qr cámara" : "Ingreso Manual"}
             </p>
 
-            {modo === 'manual' ? (
-              <div className="space-y-6">
-                <input ref={docInputRef} type="text" autoFocus className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-bold border border-white/10" placeholder="ID Empleado" value={qrData} onChange={(e) => setQrData(e.target.value)} />
-                <input type="password" placeholder="PIN Personal" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border border-white/10" value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)} />
-                <input ref={pinRef} type="password" placeholder="PIN Administrador" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border-2 border-blue-500/20" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative overflow-hidden h-32 flex flex-col items-center justify-center`}>
-                  {!lecturaLista ? (
-                    <>
-                      <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>
-                      {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                    </>
-                  ) : <p className="text-emerald-500 font-black text-[9px] uppercase">Identificado ✅</p>}
-                </div>
-                
-                {/* 2. Coordenadas GPS y Distancia debajo del scanner */}
-                <div className="text-center space-y-1">
-                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
-                     GPS: {gpsReal.lat.toFixed(6)}, {gpsReal.lon.toFixed(6)}
-                   </p>
-                   <p className="text-[10px] font-black text-blue-400 uppercase italic">
-                     Distancia: {distanciaMetros ?? '--'} metros
-                   </p>
-                </div>
+            <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative overflow-hidden h-32 flex flex-col items-center justify-center`}>
+              {!lecturaLista ? (
+                <>
+                  <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>
+                  {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
+                  {modo === 'usb' && <p className="text-[10px] font-black text-slate-500 uppercase animate-pulse">Esperando Escaneo USB...</p>}
+                </>
+              ) : <p className="text-emerald-500 font-black text-[9px] uppercase">Identificado ✅</p>}
+            </div>
 
-                {lecturaLista && <input ref={pinRef} type="password" placeholder="PIN Supervisor" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
+            {(lecturaLista || modo === 'manual') && (
+              <div className="space-y-4">
+                {modo === 'manual' && (
+                  <>
+                    <input ref={docInputRef} type="text" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-bold border border-white/10 text-white outline-none" placeholder="ID Empleado" value={qrData} onChange={(e) => setQrData(e.target.value)} />
+                    <input type="password" placeholder="PIN Personal" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-black border border-white/10 text-white outline-none" value={pinEmpleadoManual} onChange={(e) => setPinEmpleadoManual(e.target.value)} />
+                  </>
+                )}
+                <input ref={pinRef} type="password" placeholder="PIN Supervisor" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/20 text-white outline-none" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
               </div>
             )}
+            
             <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30">
               {animar ? 'PROCESANDO...' : 'Registrar'}
             </button>
-            <button onClick={volverAtras} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em]">✕ Cancelar</button>
+            <button onClick={volverAtras} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest">✕ Cancelar</button>
           </div>
         )}
       </div>
