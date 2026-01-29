@@ -15,7 +15,6 @@ export default function EmpleadoPage() {
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
   const [reintentos, setReintentos] = useState(0);
   
-  // Configuración inicial en 0 para forzar lectura de Supabase
   const [config, setConfig] = useState<any>({ 
     timer_inactividad: '120000', 
     timer_token: '120000',
@@ -68,7 +67,7 @@ export default function EmpleadoPage() {
   };
 
   function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 6371e3; // Radio de la Tierra en metros
+    const R = 6371e3;
     const p1 = lat1 * Math.PI / 180;
     const p2 = lat2 * Math.PI / 180;
     const dPhi = (lat2 - lat1) * Math.PI / 180;
@@ -101,22 +100,11 @@ export default function EmpleadoPage() {
           setErrorGps(`Fuera de rango: ${dEntera}m (Máx: ${config.radio_maximo}m)`);
         }
       },
-      (err) => setErrorGps("Error: GPS no disponible o señal débil."),
+      (err) => setErrorGps("Error: GPS no disponible."),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, [user, sesionDuplicada, token, config, reintentos]);
-
-  if (sesionDuplicada) {
-    return (
-      <div className="min-h-screen bg-[#050a14] flex items-center justify-center p-6 text-white">
-        <div className="bg-red-600/20 border border-red-500 p-8 rounded-[40px] text-center max-w-sm">
-          <h2 className="text-2xl font-black uppercase italic mb-4">Sesión Duplicada</h2>
-          <p className="text-xs font-bold opacity-70 uppercase tracking-widest">Se ha iniciado sesión en otro dispositivo. Cerrando esta ventana...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative">
@@ -131,32 +119,25 @@ export default function EmpleadoPage() {
         {!ubicacionOk ? (
           <div className="py-12 px-6 bg-red-500/5 rounded-[35px] border border-red-500/20 mb-8">
             <div className="text-red-500 text-4xl mb-4">📍</div>
-            <div className="text-red-500 font-black text-xs uppercase mb-2">Error Ubicación</div>
             <div className="text-slate-400 text-[10px] leading-relaxed italic uppercase mb-6">
               {errorGps || "Iniciando sensor..."}
             </div>
-            <button 
-              onClick={() => setReintentos(p => p + 1)}
-              className="bg-red-500/20 text-red-500 px-6 py-3 rounded-2xl text-[9px] font-black uppercase border border-red-500/30 hover:bg-red-500 hover:text-white transition-all"
-            >
-              🔄 Recalibrar GPS
-            </button>
+            <button onClick={() => setReintentos(p => p + 1)} className="bg-red-500/20 text-red-500 px-6 py-3 rounded-2xl text-[9px] font-black uppercase border border-red-500/30">🔄 Recalibrar GPS</button>
           </div>
         ) : (
-          <div className="p-6 bg-white rounded-[35px] shadow-[0_0_40px_rgba(37,99,235,0.2)] mb-8 inline-block animate-in zoom-in duration-300">
-            {token && <QRCodeSVG value={token} size={200} level="H" includeMargin={false} />}
+          <div className="p-6 bg-white rounded-[35px] mb-8 inline-block animate-in zoom-in">
+            {token && <QRCodeSVG value={token} size={200} level="H" />}
             <div className="mt-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">
               VÁLIDO POR {parseInt(config.timer_token) / 1000} SEG • {distancia}m
+            </div>
+            {/* VISTA DE COORDENADAS EMPLEADO */}
+            <div className="mt-1 text-[7px] text-slate-400 font-bold uppercase">
+              Ref: {config.almacen_lat.toFixed(6)}, {config.almacen_lon.toFixed(6)}
             </div>
           </div>
         )}
 
-        <button 
-          onClick={() => { localStorage.removeItem('user_session'); router.push('/'); }} 
-          className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 border border-white/5 rounded-2xl bg-black/20 hover:bg-red-600/10 hover:text-red-500 transition-all"
-        >
-          ← Finalizar Sesión
-        </button>
+        <button onClick={() => { localStorage.removeItem('user_session'); router.push('/'); }} className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 border border-white/5 rounded-2xl bg-black/20">← Finalizar Sesión</button>
       </div>
     </main>
   );
