@@ -11,15 +11,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
-  const [sesionExpulsada, setSesionExpulsada] = useState(false);
-  // Se inicializa con valores por defecto pero se sobreescribe con la tabla sistema_config
   const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: '120000' });
   
-  const sessionId = useRef(Math.random().toString(36).substring(7));
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 1. CARGA DE CONFIGURACIÓN DESDE SISTEMA_CONFIG Y SESIÓN
+  // 1. CARGA DE CONFIGURACIÓN DESDE LA TABLA sistema_config
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -37,37 +34,42 @@ export default function LoginPage() {
     }
   }, []);
 
-  // 2. CONTROL DE INACTIVIDAD USANDO VALOR DE TABLA (timer_inactividad)
-  useEffect(() => {
-    if (!tempUser || !config.timer_inactividad) return;
+  // 2. RUTINA DE NAVEGACIÓN QUIRÚRGICA (Aquí estaba el error)
+  const navegarModulo = (ruta: string, nivelMinimoRequerido: number, esModuloReportes: boolean = false) => {
+    const nivelActual = tempUser?.nivel_acceso;
+    const tienePermisoReportes = tempUser?.permiso_reportes;
 
-    let timeout: NodeJS.Timeout;
-    const resetTimer = () => {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        localStorage.removeItem('user_session');
-        window.location.reload(); 
-      }, parseInt(config.timer_inactividad));
-    };
+    // REGLA DE ORO: Si es Nivel 8, entra a TODO sin más preguntas.
+    if (nivelActual >= 8) {
+      router.push(ruta);
+      return;
+    }
 
-    const events = ['mousemove', 'keydown', 'click'];
-    events.forEach(e => window.addEventListener(e, resetTimer));
-    resetTimer();
+    // Lógica para Reportes (Nivel 4 entra siempre, Nivel 3 depende del booleano)
+    if (esModuloReportes) {
+      if (nivelActual >= 4 || (nivelActual === 3 && tienePermisoReportes)) {
+        router.push(ruta);
+      } else {
+        alert("Su nivel o permisos actuales no permiten el acceso a Reportes.");
+      }
+      return;
+    }
 
-    return () => {
-      events.forEach(e => window.removeEventListener(e, resetTimer));
-      clearTimeout(timeout);
-    };
-  }, [tempUser, config.timer_inactividad]);
+    // Lógica para el resto de módulos (Empleado, Supervisor, Gestión)
+    if (nivelActual >= nivelMinimoRequerido) {
+      router.push(ruta);
+    } else {
+      alert(`Nivel insuficiente. Requerido: ${nivelMinimoRequerido}, Actual: ${nivelActual}`);
+    }
+  };
 
-  // 3. RUTINA DE LOGIN Y CAPTURA DE NIVEL_ACCESO (Numérico)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('empleados')
-        .select('*') // Obtenemos nivel_acceso (int) y permiso_reportes (bool)
+        .select('*') 
         .or(`documento_id.eq.${identificador},email.eq.${identificador.toLowerCase()}`)
         .eq('pin_seguridad', pin)
         .eq('activo', true)
@@ -75,46 +77,20 @@ export default function LoginPage() {
 
       if (error || !data) throw new Error("Credenciales inválidas");
 
+      // Guardamos el objeto completo (incluye nivel_acceso como número)
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
       
-      // Limpieza de buffer
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert(err.message);
+      alert("Error de acceso");
       setIdentificador('');
       setPin('');
       setTimeout(() => inputRef.current?.focus(), 100);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // 4. LÓGICA DE DERIVACIÓN POR NIVELES
-  const navegarModulo = (ruta: string, nivelMinimo: number, requiereBoleano: boolean = false) => {
-    const nivel = tempUser?.nivel_acceso;
-    const tienePermisoReporte = tempUser?.permiso_reportes;
-
-    // Validación jerárquica
-    if (nivel >= 8) { // Nivel 8 entra a todo
-       router.push(ruta);
-       return;
-    }
-
-    if (nivel >= nivelMinimo) {
-      if (requiereBoleano && nivel === 3) {
-        if (tienePermisoReporte) {
-          router.push(ruta);
-        } else {
-          alert("No tiene permisos para el módulo de Reportes.");
-        }
-      } else {
-        router.push(ruta);
-      }
-    } else {
-      alert("Nivel de acceso insuficiente.");
     }
   };
 
@@ -133,8 +109,8 @@ export default function LoginPage() {
           </h1>
           {tempUser && paso === 'selector' && (
             <div className="mt-4">
-              <p className="text-xs font-black uppercase text-white tracking-widest">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-[0.3em] mt-1 italic">NIVEL: {tempUser.nivel_acceso}</p>
+              <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase italic">NIVEL ACCESO: {tempUser.nivel_acceso}</p>
             </div>
           )}
         </header>
@@ -158,41 +134,42 @@ export default function LoginPage() {
               onChange={(e) => setPin(e.target.value)}
               required
             />
-            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all">
+            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20">
               {loading ? 'VALIDANDO...' : 'ENTRAR'}
             </button>
           </form>
         ) : (
           <div className="space-y-3 animate-in zoom-in duration-300">
-            {/* MÓDULO EMPLEADO: Nivel 1+ */}
+            
+            {/* 1. EMPLEADO: Nivel 1, 3, 4, 8 */}
             {tempUser?.nivel_acceso >= 1 && (
               <button onClick={() => navegarModulo('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* MÓDULO SUPERVISOR: Nivel 3+ */}
+            {/* 2. SUPERVISOR: Nivel 3, 4, 8 */}
             {tempUser?.nivel_acceso >= 3 && (
               <button onClick={() => navegarModulo('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* MÓDULO REPORTES: Nivel 4+ o (Nivel 3 + permiso_reportes) */}
+            {/* 3. REPORTES: Nivel 4, 8 O (Nivel 3 con booleano true) */}
             {(tempUser?.nivel_acceso >= 4 || (tempUser?.nivel_acceso === 3 && tempUser?.permiso_reportes)) && (
               <button onClick={() => navegarModulo('/reportes', 3, true)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* MÓDULO GESTIÓN: Nivel 4+ */}
+            {/* 4. GESTIÓN/ADMIN: Nivel 4, 8 */}
             {tempUser?.nivel_acceso >= 4 && (
               <button onClick={() => navegarModulo('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* MÓDULO CONFIGURACIÓN: Solo Nivel 8 */}
+            {/* 5. TÉCNICO: Solo Nivel 8 */}
             {tempUser?.nivel_acceso >= 8 && (
               <button 
                 onClick={() => navegarModulo('/configuracion', 8)} 
