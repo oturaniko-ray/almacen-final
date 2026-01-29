@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -36,7 +36,6 @@ export default function SupervisorPage() {
     if (!sessionData) { router.push('/'); return; }
     const currentUser = JSON.parse(sessionData);
     
-    // VALIDACIÓN POR NIVEL: Permitir Nivel 3 o superior
     const nivel = Number(currentUser.nivel_acceso);
     if (nivel < 3) {
       router.push('/');
@@ -97,11 +96,11 @@ export default function SupervisorPage() {
     else if (modo !== 'menu') { setModo('menu'); }
   };
 
-  const prepararSiguienteEmpleado = () => {
+  const prepararSiguienteEmpleado = useCallback(() => {
     setQrData(''); setPinEmpleadoManual(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
     if (modo === 'manual') setTimeout(() => docInputRef.current?.focus(), 100);
     if (modo === 'camara') reiniciarCamara();
-  };
+  }, [modo]);
 
   const reiniciarCamara = async () => {
     if (modo === 'camara' && direccion) {
@@ -136,7 +135,8 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop().catch(() => {}); };
   }, [modo, direccion, qrData]);
 
-  const registrarAcceso = async () => {
+  // CORRECCIÓN: Envuelto en useCallback para permitir el array de dependencias al final
+  const registrarAcceso = useCallback(async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     
@@ -168,21 +168,16 @@ export default function SupervisorPage() {
           .maybeSingle();
 
         if (empError || !emp) throw new Error(`Empleado no encontrado (ID: ${idFinal})`);
-        
-        if (emp.activo !== true) {
-          throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
-        }
+        if (emp.activo !== true) throw new Error("Persona no tiene acceso.");
 
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN Empleado incorrecto");
         
-        // --- CAMBIO CLAVE: VALIDACIÓN POR NIVEL PARA EL AUTORIZADOR ---
         const { data: aut } = await supabase
           .from('empleados')
           .select('nombre, nivel_acceso')
           .eq('pin_seguridad', pinAutorizador)
           .maybeSingle();
 
-        // Si el autorizador tiene Nivel 3 o más, se permite el registro
         if (!aut || Number(aut.nivel_acceso) < 3) throw new Error("PIN Autorizador inválido o nivel insuficiente");
 
         const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
@@ -206,10 +201,10 @@ export default function SupervisorPage() {
         prepararSiguienteEmpleado(); 
       }
     }, () => { 
-      alert("Error de GPS: Asegúrate de tener la ubicación activa."); 
+      alert("Error de GPS"); 
       prepararSiguienteEmpleado(); 
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-  }, [qrData, pinAutorizador, animar, config, recalibrandoGps]); // Añadido recalibrandoGps a dependencias
+  }, [qrData, pinAutorizador, pinEmpleadoManual, animar, config, modo, direccion, prepararSiguienteEmpleado]);
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
@@ -218,7 +213,6 @@ export default function SupervisorPage() {
         .animate-laser { animation: laser 2s infinite linear; }
       `}</style>
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        
         <div className="flex justify-between items-start mb-6">
             <div>
                 <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter leading-none">Supervisor Hub</h2>
