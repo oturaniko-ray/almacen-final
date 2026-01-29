@@ -16,6 +16,7 @@ export default function LoginPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -33,30 +34,34 @@ export default function LoginPage() {
     }
   }, []);
 
-  // --- RUTINA DE ACCESO QUIRÚRGICA (SOLO NIVELES) ---
-  const ejecutarNavegacion = (ruta: string, nivelMinimo: number, esReporte: boolean = false) => {
-    const nivelUsuario = Number(tempUser?.nivel_acceso || 0);
-    const tienePermisoReporte = tempUser?.permiso_reportes;
+  // 2. RUTINA DE ACCESO QUIRÚRGICA (SIN ROLES, SOLO NIVELES)
+  const ejecutarAcceso = (ruta: string, nivelMinimo: number, esReporte: boolean = false) => {
+    if (!tempUser) return;
 
-    // Si es Nivel 8, no se evalúa nada más: entra siempre.
-    if (nivelUsuario >= 8) {
+    // EL NIVEL_ACCESO ES UN NÚMERO DIRECTO DE LA TABLA
+    const nivel = tempUser.nivel_acceso;
+    const tienePermisoReporte = tempUser.permiso_reportes;
+
+    // REGLA MAESTRA: NIVEL 8 ENTRA A TODO
+    if (nivel >= 8) {
       router.push(ruta);
       return;
     }
 
     if (esReporte) {
-      // Acceso a Reportes: Nivel 4+ O (Nivel 3 con booleano true)
-      if (nivelUsuario >= 4 || (nivelUsuario === 3 && tienePermisoReporte)) {
+      // Lógica Reportes: Nivel 4 o superior SIEMPRE entra. 
+      // Nivel 3 SOLO entra si permiso_reportes es true.
+      if (nivel >= 4 || (nivel === 3 && tienePermisoReporte === true)) {
         router.push(ruta);
       } else {
-        alert("Acceso denegado a Reportes.");
+        alert("Su nivel o permisos actuales no le permiten acceder a Reportes.");
       }
     } else {
-      // Acceso General: Nivel Usuario >= Nivel Requerido
-      if (nivelUsuario >= nivelMinimo) {
+      // Lógica General: Comparación matemática pura
+      if (nivel >= nivelMinimo) {
         router.push(ruta);
       } else {
-        alert("Su nivel de acceso es insuficiente.");
+        alert(`Acceso denegado. Se requiere nivel ${nivelMinimo}.`);
       }
     }
   };
@@ -81,7 +86,7 @@ export default function LoginPage() {
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert("Error: Datos incorrectos");
+      alert("Error de autenticación");
       setIdentificador('');
       setPin('');
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -101,7 +106,7 @@ export default function LoginPage() {
           </h1>
           {tempUser && paso === 'selector' && (
             <div className="mt-4">
-              <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
+              <p className="text-xs font-black uppercase text-white tracking-widest">{tempUser.nombre}</p>
               <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel de Acceso: {tempUser.nivel_acceso}</p>
             </div>
           )}
@@ -133,38 +138,38 @@ export default function LoginPage() {
         ) : (
           <div className="space-y-3 animate-in zoom-in duration-300">
             
-            {/* EMPLEADO: Nivel 1+ */}
+            {/* 1. MÓDULO EMPLEADO (Cualquier nivel >= 1) */}
             {tempUser.nivel_acceso >= 1 && (
-              <button onClick={() => ejecutarNavegacion('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+              <button onClick={() => ejecutarAcceso('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* SUPERVISOR: Nivel 3+ */}
+            {/* 2. MÓDULO SUPERVISOR (Cualquier nivel >= 3) */}
             {tempUser.nivel_acceso >= 3 && (
-              <button onClick={() => ejecutarNavegacion('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+              <button onClick={() => ejecutarAcceso('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* REPORTES: Nivel 4+ o (Nivel 3 con permiso) */}
-            {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes)) && (
-              <button onClick={() => ejecutarNavegacion('/reportes', 3, true)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+            {/* 3. MÓDULO REPORTES (Nivel 4+ O Nivel 3 con permiso) */}
+            {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes === true)) && (
+              <button onClick={() => ejecutarAcceso('/reportes', 3, true)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* GESTIÓN: Nivel 4+ */}
+            {/* 4. MÓDULO GESTIÓN (Cualquier nivel >= 4) */}
             {tempUser.nivel_acceso >= 4 && (
-              <button onClick={() => ejecutarNavegacion('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+              <button onClick={() => ejecutarAcceso('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* TÉCNICO: Nivel 8 */}
+            {/* 5. MÓDULO TÉCNICO (Nivel 8) */}
             {tempUser.nivel_acceso >= 8 && (
               <button 
-                onClick={() => ejecutarNavegacion('/configuracion', 8)} 
+                onClick={() => ejecutarAcceso('/configuracion', 8)} 
                 className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8 group italic"
               >
                 <span className="mr-2 group-hover:animate-spin inline-block text-xl">⚙️</span> Configuración Maestra
@@ -173,7 +178,7 @@ export default function LoginPage() {
             
             <button 
               onClick={() => { localStorage.removeItem('user_session'); setTempUser(null); setPaso('login'); }} 
-              className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic transition-all"
+              className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic transition-colors"
             >
               ✕ Cerrar Sesión Segura
             </button>
