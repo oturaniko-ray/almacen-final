@@ -12,6 +12,7 @@ export default function EmpleadoPage() {
   const [ubicacionOk, setUbicacionOk] = useState(false);
   const [errorGps, setErrorGps] = useState('');
   const [distancia, setDistancia] = useState<number | null>(null);
+  const [coordsActuales, setCoordsActuales] = useState({ lat: 0, lon: 0 }); // Estado para GPS Real
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
   const [reintentos, setReintentos] = useState(0);
   
@@ -81,7 +82,9 @@ export default function EmpleadoPage() {
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
+        const { latitude, longitude } = pos.coords;
+        setCoordsActuales({ lat: latitude, lon: longitude });
+        const d = calcularDistancia(latitude, longitude, config.almacen_lat, config.almacen_lon);
         const dEntera = Math.round(d);
         setDistancia(dEntera);
         
@@ -119,9 +122,7 @@ export default function EmpleadoPage() {
         {!ubicacionOk ? (
           <div className="py-12 px-6 bg-red-500/5 rounded-[35px] border border-red-500/20 mb-8">
             <div className="text-red-500 text-4xl mb-4">📍</div>
-            <div className="text-slate-400 text-[10px] leading-relaxed italic uppercase mb-6">
-              {errorGps || "Iniciando sensor..."}
-            </div>
+            <div className="text-slate-400 text-[10px] leading-relaxed italic uppercase mb-6">{errorGps || "Iniciando sensor..."}</div>
             <button onClick={() => setReintentos(p => p + 1)} className="bg-red-500/20 text-red-500 px-6 py-3 rounded-2xl text-[9px] font-black uppercase border border-red-500/30">🔄 Recalibrar GPS</button>
           </div>
         ) : (
@@ -130,9 +131,9 @@ export default function EmpleadoPage() {
             <div className="mt-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">
               VÁLIDO POR {parseInt(config.timer_token) / 1000} SEG • {distancia}m
             </div>
-            {/* VISTA DE COORDENADAS EMPLEADO */}
-            <div className="mt-1 text-[7px] text-slate-400 font-bold uppercase">
-              Ref: {config.almacen_lat.toFixed(6)}, {config.almacen_lon.toFixed(6)}
+            {/* COORDENADAS DEL GPS ACTUAL */}
+            <div className="mt-1 text-[7px] text-slate-400 font-bold uppercase tracking-widest">
+              GPS: {coordsActuales.lat.toFixed(6)}, {coordsActuales.lon.toFixed(6)}
             </div>
           </div>
         )}

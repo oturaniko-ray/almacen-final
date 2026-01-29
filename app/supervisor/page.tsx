@@ -15,18 +15,16 @@ export default function SupervisorPage() {
   const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
+  const [gpsReal, setGpsReal] = useState({ lat: 0, lon: 0 }); // Estado para GPS Real
+  
   const [config, setConfig] = useState<any>({ 
-    almacen_lat: 0, 
-    almacen_lon: 0,
-    radio_maximo: 0,
-    timer_token: 120000,
-    timer_inactividad: 120000 
+    almacen_lat: 0, almacen_lon: 0, radio_maximo: 0,
+    timer_token: 120000, timer_inactividad: 120000 
   });
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
-  const wakeLockRef = useRef<any>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
@@ -37,6 +35,13 @@ export default function SupervisorPage() {
     if (Number(currentUser.nivel_acceso) < 3) { router.push('/'); return; }
     setUser(currentUser);
     fetchConfig();
+
+    // Iniciar monitoreo de GPS para mostrar en tiempo real
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setGpsReal({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => {}, { enableHighAccuracy: true, maximumAge: 0 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
 
   const fetchConfig = async () => {
@@ -62,23 +67,6 @@ export default function SupervisorPage() {
       setModo('menu');
     }
   }, [direccion, modo]);
-
-  useEffect(() => {
-    const resetTimer = () => {
-      if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
-      if (modo !== 'menu') {
-        timerInactividadRef.current = setTimeout(() => volverAtras(), config.timer_inactividad);
-      }
-    };
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('keydown', resetTimer);
-    resetTimer();
-    return () => {
-      window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('keydown', resetTimer);
-      if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
-    };
-  }, [modo, config.timer_inactividad, volverAtras]);
 
   function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371e3;
@@ -125,12 +113,10 @@ export default function SupervisorPage() {
 
         const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
         if (!emp || !emp.activo) throw new Error("Empleado no válido");
-        
         const { data: aut } = await supabase.from('empleados').select('nombre, nivel_acceso').eq('pin_seguridad', pinAutorizador).maybeSingle();
         if (!aut || Number(aut.nivel_acceso) < 3) throw new Error("PIN Supervisor inválido");
 
         const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
-
         if (direccion === 'entrada') {
           if (jActiva) throw new Error("Ya tiene entrada activa");
           await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: new Date().toISOString(), estado: 'activo' }]);
@@ -142,7 +128,6 @@ export default function SupervisorPage() {
           await supabase.from('jornadas').update({ hora_salida: ahora.toISOString(), horas_trabajadas: horas, estado: 'finalizado', editado_por: `Sup: ${aut.nombre}` }).eq('id', jActiva.id);
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
-
         alert(`✅ Éxito: ${emp.nombre} (${dEntera}m)`);
         volverAtras();
       } catch (err: any) { alert(`❌ ${err.message}`); setAnimar(false); }
@@ -151,10 +136,7 @@ export default function SupervisorPage() {
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
-      <style jsx global>{`
-        @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-        .animate-laser { animation: laser 2s infinite linear; }
-      `}</style>
+      <style jsx global>{` @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } } .animate-laser { animation: laser 2s infinite linear; } `}</style>
 
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
         <div className="flex justify-between items-start mb-6">
@@ -187,9 +169,9 @@ export default function SupervisorPage() {
               ) : <p className="text-emerald-500 font-black text-[9px] uppercase tracking-widest">Identificado ✅</p>}
             </div>
             
-            {/* VISTA DE COORDENADAS SUPERVISOR */}
+            {/* COORDENADAS DEL GPS ACTUAL */}
             <div className="text-center text-[8px] font-bold text-slate-500 uppercase tracking-widest -mt-4">
-              Punto de Control: {config.almacen_lat.toFixed(6)} / {config.almacen_lon.toFixed(6)}
+              GPS Actual: {gpsReal.lat.toFixed(6)} / {gpsReal.lon.toFixed(6)}
             </div>
 
             {modo === 'manual' && (
