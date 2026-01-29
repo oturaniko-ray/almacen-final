@@ -11,12 +11,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: '120000' });
+  const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA RAY', timer_inactividad: '120000' });
   
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 1. CARGA DE CONFIGURACIÓN Y SESIÓN
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -34,45 +33,31 @@ export default function LoginPage() {
     }
   }, []);
 
-  // 2. FUNCIÓN DE NAVEGACIÓN QUIRÚRGICA
-  // Eliminamos cualquier dependencia de 'rol' y usamos solo 'nivel_acceso' (number)
-  const irARuta = (ruta: string) => {
-    if (!tempUser) return;
+  // --- RUTINA DE ACCESO QUIRÚRGICA (SOLO NIVELES) ---
+  const ejecutarNavegacion = (ruta: string, nivelMinimo: number, esReporte: boolean = false) => {
+    const nivelUsuario = Number(tempUser?.nivel_acceso || 0);
+    const tienePermisoReporte = tempUser?.permiso_reportes;
 
-    const nivel = Number(tempUser.nivel_acceso);
-    const permisoReportes = tempUser.permiso_reportes;
-
-    // LÓGICA DE CASCADA: SI ES 8, PASA SIEMPRE
-    if (nivel >= 8) {
+    // Si es Nivel 8, no se evalúa nada más: entra siempre.
+    if (nivelUsuario >= 8) {
       router.push(ruta);
       return;
     }
 
-    // VALIDACIÓN POR RUTA ESPECÍFICA
-    if (ruta === '/reportes') {
-      if (nivel >= 4 || (nivel === 3 && permisoReportes === true)) {
+    if (esReporte) {
+      // Acceso a Reportes: Nivel 4+ O (Nivel 3 con booleano true)
+      if (nivelUsuario >= 4 || (nivelUsuario === 3 && tienePermisoReporte)) {
         router.push(ruta);
       } else {
-        alert("No tiene permisos para Reportes");
+        alert("Acceso denegado a Reportes.");
       }
-    } 
-    else if (ruta === '/admin') {
-      if (nivel >= 4) {
+    } else {
+      // Acceso General: Nivel Usuario >= Nivel Requerido
+      if (nivelUsuario >= nivelMinimo) {
         router.push(ruta);
       } else {
-        alert("Acceso exclusivo Nivel 4");
+        alert("Su nivel de acceso es insuficiente.");
       }
-    }
-    else if (ruta === '/supervisor') {
-      if (nivel >= 3) {
-        router.push(ruta);
-      } else {
-        alert("Acceso exclusivo Nivel 3");
-      }
-    }
-    else {
-      // Ruta /empleado u otras (Nivel 1+)
-      router.push(ruta);
     }
   };
 
@@ -93,11 +78,10 @@ export default function LoginPage() {
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
-      
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert("Error de acceso: " + err.message);
+      alert("Error: Datos incorrectos");
       setIdentificador('');
       setPin('');
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -109,20 +93,16 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
-      
+
       <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10">
         <header className="mb-10 text-center">
           <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
-            {config.empresa_nombre ? (
-              <>
-                {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
-              </>
-            ) : 'SISTEMA'}
+            {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
           </h1>
           {tempUser && paso === 'selector' && (
             <div className="mt-4">
-              <p className="text-xs font-black uppercase text-white tracking-widest">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel: {tempUser.nivel_acceso}</p>
+              <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
+              <p className="text-[9px] font-bold text-blue-400 uppercase italic">Nivel de Acceso: {tempUser.nivel_acceso}</p>
             </div>
           )}
         </header>
@@ -153,38 +133,38 @@ export default function LoginPage() {
         ) : (
           <div className="space-y-3 animate-in zoom-in duration-300">
             
-            {/* EMPLEADO (Nivel 1 o superior) */}
+            {/* EMPLEADO: Nivel 1+ */}
             {tempUser.nivel_acceso >= 1 && (
-              <button onClick={() => irARuta('/empleado')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+              <button onClick={() => ejecutarNavegacion('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* SUPERVISOR (Nivel 3 o superior) */}
+            {/* SUPERVISOR: Nivel 3+ */}
             {tempUser.nivel_acceso >= 3 && (
-              <button onClick={() => irARuta('/supervisor')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+              <button onClick={() => ejecutarNavegacion('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* REPORTES (Nivel 4+ o Nivel 3 con permiso) */}
-            {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes === true)) && (
-              <button onClick={() => irARuta('/reportes')} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+            {/* REPORTES: Nivel 4+ o (Nivel 3 con permiso) */}
+            {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes)) && (
+              <button onClick={() => ejecutarNavegacion('/reportes', 3, true)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* GESTIÓN (Nivel 4 o superior) */}
+            {/* GESTIÓN: Nivel 4+ */}
             {tempUser.nivel_acceso >= 4 && (
-              <button onClick={() => irARuta('/admin')} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+              <button onClick={() => ejecutarNavegacion('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* TÉCNICO (Solo Nivel 8) */}
+            {/* TÉCNICO: Nivel 8 */}
             {tempUser.nivel_acceso >= 8 && (
               <button 
-                onClick={() => irARuta('/configuracion')} 
+                onClick={() => ejecutarNavegacion('/configuracion', 8)} 
                 className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8 group italic"
               >
                 <span className="mr-2 group-hover:animate-spin inline-block text-xl">⚙️</span> Configuración Maestra
@@ -193,7 +173,7 @@ export default function LoginPage() {
             
             <button 
               onClick={() => { localStorage.removeItem('user_session'); setTempUser(null); setPaso('login'); }} 
-              className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic"
+              className="w-full text-slate-600 font-bold uppercase text-[9px] tracking-[0.3em] mt-6 hover:text-white text-center italic transition-all"
             >
               ✕ Cerrar Sesión Segura
             </button>
