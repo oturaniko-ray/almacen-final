@@ -12,30 +12,31 @@ export default function PanelAdminHub() {
     if (!sessionData) { router.replace('/'); return; }
     
     const currentUser = JSON.parse(sessionData);
-    // Validación flexible para el rol admin
-    if (!['admin', 'administrador'].includes(currentUser.rol.toLowerCase())) { 
+    
+    // VALIDACIÓN POR NIVEL: Permitir Nivel 4 o superior (incluye Técnicos Nivel 8)
+    const nivel = Number(currentUser.nivel_acceso);
+    if (nivel < 4) { 
       router.replace('/'); 
       return; 
     }
     setUser(currentUser);
 
-    // 2. Lógica de Inactividad (2 Minutos)
+    // 2. Lógica de Inactividad (120 segundos)
     let timeout: NodeJS.Timeout;
 
     const resetTimer = () => {
       if (timeout) clearTimeout(timeout);
       timeout = setTimeout(() => {
-        localStorage.removeItem('user_session'); // Limpiar buffer de datos
-        router.replace('/'); // Regresar al menú principal
-      }, 120000); // 120 segundos
+        localStorage.removeItem('user_session');
+        router.replace('/');
+      }, 120000);
     };
 
-    // Eventos para detectar actividad
     window.addEventListener('mousemove', resetTimer);
     window.addEventListener('keydown', resetTimer);
     window.addEventListener('click', resetTimer);
 
-    resetTimer(); // Iniciar contador al cargar
+    resetTimer();
 
     return () => {
       if (timeout) clearTimeout(timeout);
@@ -56,7 +57,6 @@ export default function PanelAdminHub() {
             Gestión de Infraestructura Maestra
           </p>
 
-          {/* 🟢 IDENTIFICACIÓN DE USUARIO (Mantenida) */}
           {user && (
             <div className="mt-6 flex flex-col items-center gap-1">
               <div className="flex items-center gap-2">
@@ -64,29 +64,28 @@ export default function PanelAdminHub() {
                 <span className="text-[11px] font-black text-white uppercase italic">{user.nombre}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">ROL:</span>
-                <span className="text-[11px] font-black text-blue-400 uppercase italic">{user.rol}</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">CREDERNCIALES:</span>
+                <span className="text-[11px] font-black text-blue-400 uppercase italic">
+                  {user.rol}({user.nivel_acceso})
+                </span>
               </div>
             </div>
           )}
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* MÓDULO EMPLEADOS */}
           <button onClick={() => router.push('/admin/empleados')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl">
             <span className="text-3xl block mb-6">👥</span>
             <h3 className="text-xl font-black uppercase italic group-hover:text-blue-500 transition-colors">Empleados</h3>
             <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Base de datos y pins</p>
           </button>
           
-          {/* MÓDULO PRESENCIA */}
           <button onClick={() => router.push('/admin/presencia')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-emerald-500 transition-all text-left group shadow-2xl">
             <span className="text-3xl block mb-6">🏪</span>
             <h3 className="text-xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">Presencia</h3>
             <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Estado en tiempo real</p>
           </button>
 
-          {/* MÓDULO AUDITORÍA (RESTAURADO) */}
           <button onClick={() => router.push('/admin/auditoria')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl">
             <span className="text-3xl block mb-6">📑</span>
             <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
@@ -94,7 +93,6 @@ export default function PanelAdminHub() {
           </button>
         </div>
 
-        {/* BOTÓN VOLVER (RESTAURADO) */}
         <div className="mt-16 text-center">
           <button 
             onClick={() => router.push('/')} 

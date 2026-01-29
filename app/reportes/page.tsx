@@ -20,11 +20,19 @@ export default function ReportesPage() {
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.replace('/'); return; }
+    
     const currentUser = JSON.parse(sessionData);
-    if (!['admin', 'administrador', 'supervisor'].includes(currentUser.rol.toLowerCase())) {
+    
+    // --- LÓGICA DE ACCESO POR NIVEL ---
+    const nivel = Number(currentUser.nivel_acceso);
+    const tienePermisoReportes = currentUser.permiso_reportes === true;
+
+    // Solo entran Nivel 4+ o Nivel 3 con el permiso específico
+    if (!(nivel >= 4 || (nivel === 3 && tienePermisoReportes))) {
       router.replace('/');
       return;
     }
+
     setUser(currentUser);
     fetchReportes();
 
@@ -39,7 +47,7 @@ export default function ReportesPage() {
     try {
       let query = supabase.from('jornadas').select(`
         *,
-        empleados ( rol, documento_id )
+        empleados ( rol, nivel_acceso, documento_id )
       `).order('hora_entrada', { ascending: false });
 
       if (fechaInicio) query = query.gte('hora_entrada', `${fechaInicio}T00:00:00`);
@@ -55,10 +63,8 @@ export default function ReportesPage() {
     }
   };
 
-  const formatearRol = (rol: string) => {
-    const r = rol?.toLowerCase();
-    if (r === 'admin' || r === 'administrador') return 'ADMINISTRATIVO';
-    return rol?.toUpperCase() || 'EMPLEADO';
+  const formatearCredencial = (rol: string, nivel: any) => {
+    return `${rol || 'EMPLEADO'}(${nivel || 0})`.toUpperCase();
   };
 
   const formatearTiempoHMS = (entradaStr: string, salidaStr: string | null) => {
@@ -79,7 +85,7 @@ export default function ReportesPage() {
     const nombreArchivo = `jornada_${fechaStr}_${horaStr}.xlsx`;
 
     const encabezadoInfo = [
-      [`EXPORTADO POR: ${user?.nombre} (${formatearRol(user?.rol)})`],
+      [`EXPORTADO POR: ${user?.nombre} (${formatearCredencial(user?.rol, user?.nivel_acceso)})`],
       [`FECHA Y HORA DE EXPORTACIÓN: ${ahora.toLocaleString()}`],
       ["REPORTE DE JORNADAS"],
       [] 
@@ -88,7 +94,7 @@ export default function ReportesPage() {
     const cuerpoData = reportes.map(r => ({
       Empleado: r.nombre_empleado,
       Documento: r.documento_id || r.empleados?.documento_id || 'N/R',
-      Rol: formatearRol(r.empleados?.rol),
+      Credencial: formatearCredencial(r.empleados?.rol, r.empleados?.nivel_acceso),
       Entrada: new Date(r.hora_entrada).toLocaleString(),
       Salida: r.hora_salida ? new Date(r.hora_salida).toLocaleString() : 'ACTIVO',
       'Tiempo Total': formatearTiempoHMS(r.hora_entrada, r.hora_salida)
@@ -116,7 +122,6 @@ export default function ReportesPage() {
     setGuardando(false);
   };
 
-  // Lógica para el separador de fechas
   let fechaActualHeader = '';
 
   return (
@@ -134,7 +139,7 @@ export default function ReportesPage() {
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-300 uppercase">{user?.nombre}</span>
                 <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest italic bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
-                  {formatearRol(user?.rol)}
+                  {formatearCredencial(user?.rol, user?.nivel_acceso)}
                 </span>
               </div>
             </div>
@@ -145,7 +150,7 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* 1. PROPUESTA 1: Calendario de Rango Integrado */}
+        {/* FILTROS */}
         <div className="bg-[#0f172a] p-8 rounded-[40px] border border-white/5 shadow-2xl mb-12">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
             <div className="md:col-span-4 flex flex-col gap-2">
@@ -188,7 +193,7 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* TABLA CON SEPARADORES POR FECHA */}
+        {/* TABLA */}
         <div className="bg-[#0f172a] rounded-[45px] border border-white/5 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -217,7 +222,6 @@ export default function ReportesPage() {
 
                     return (
                       <React.Fragment key={r.id}>
-                        {/* 2. SEPARADOR DE FECHAS COLOR BLANCO */}
                         {mostrarHeader && (
                           <tr className="bg-white/5">
                             <td colSpan={5} className="py-3 px-10">
@@ -236,7 +240,7 @@ export default function ReportesPage() {
                               </span>
                               <span className="text-white/20 text-[9px]">—</span>
                               <span className="text-[9px] font-black text-blue-500 italic uppercase tracking-widest">
-                                {formatearRol(r.empleados?.rol)}
+                                {formatearCredencial(r.empleados?.rol, r.empleados?.nivel_acceso)}
                               </span>
                             </div>
                           </td>

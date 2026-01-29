@@ -32,6 +32,10 @@ export default function EmpleadoPage() {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
     const currentUser = JSON.parse(sessionData);
+    
+    // Aquí no añadimos restricción de nivel < 1 porque es el acceso base.
+    // Cualquier usuario logueado puede entrar aquí.
+    
     setUser(currentUser);
     fetchConfig();
 
@@ -168,9 +172,12 @@ export default function EmpleadoPage() {
           Acceso <span className="text-blue-500">Personal</span>
         </h1>
         
-        <div className="mb-8">
+        <div className="mb-8 border-b border-white/5 pb-6">
           <div className="text-sm font-bold text-slate-300 mb-1 uppercase tracking-tighter">{user?.nombre}</div>
-          <div className="text-[10px] text-slate-500 uppercase tracking-widest font-black italic">{user?.rol}</div>
+          {/* CAMBIO VISUAL: ROL(NIVEL) */}
+          <div className="text-[10px] text-blue-400 uppercase tracking-widest font-black italic">
+            {user?.rol}({user?.nivel_acceso})
+          </div>
         </div>
 
         {!ubicacionOk ? (
