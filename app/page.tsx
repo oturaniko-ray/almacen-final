@@ -16,7 +16,7 @@ export default function LoginPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 1. CARGA DE CONFIGURACIÓN DESDE LA TABLA sistema_config
+  // 1. CARGA DE CONFIGURACIÓN DESDE TABLA sistema_config
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -34,35 +34,36 @@ export default function LoginPage() {
     }
   }, []);
 
-  // 2. RUTINA DE NAVEGACIÓN QUIRÚRGICA (Aquí estaba el error)
-  const navegarModulo = (ruta: string, nivelMinimoRequerido: number, esModuloReportes: boolean = false) => {
-    const nivelActual = tempUser?.nivel_acceso;
-    const tienePermisoReportes = tempUser?.permiso_reportes;
+  // 2. ÚNICA RUTINA DE ACCESO (Coherencia Total)
+  const ejecutarAcceso = (ruta: string, nivelMinimoModulo: number, esReporte: boolean = false) => {
+    // Si no hay usuario, rebotar
+    if (!tempUser) return;
 
-    // REGLA DE ORO: Si es Nivel 8, entra a TODO sin más preguntas.
-    if (nivelActual >= 8) {
+    // REGLA MAESTRA: Nivel 8 tiene inmunidad total y acceso directo
+    if (tempUser.nivel_acceso >= 8) {
       router.push(ruta);
       return;
     }
 
-    // Lógica para Reportes (Nivel 4 entra siempre, Nivel 3 depende del booleano)
-    if (esModuloReportes) {
-      if (nivelActual >= 4 || (nivelActual === 3 && tienePermisoReportes)) {
+    // Lógica para los demás niveles
+    if (esReporte) {
+      // Caso especial Reportes: Nivel 4+ O (Nivel 3 Y permiso_reportes true)
+      if (tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes === true)) {
         router.push(ruta);
       } else {
-        alert("Su nivel o permisos actuales no permiten el acceso a Reportes.");
+        alert("Permisos de Reportes insuficientes.");
       }
-      return;
-    }
-
-    // Lógica para el resto de módulos (Empleado, Supervisor, Gestión)
-    if (nivelActual >= nivelMinimoRequerido) {
-      router.push(ruta);
     } else {
-      alert(`Nivel insuficiente. Requerido: ${nivelMinimoRequerido}, Actual: ${nivelActual}`);
+      // Caso General: Nivel Usuario >= Nivel Módulo
+      if (tempUser.nivel_acceso >= nivelMinimoModulo) {
+        router.push(ruta);
+      } else {
+        alert("Nivel de acceso insuficiente para este módulo.");
+      }
     }
   };
 
+  // 3. CAPTURA DE DATOS DESDE TABLA empleados
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -77,7 +78,7 @@ export default function LoginPage() {
 
       if (error || !data) throw new Error("Credenciales inválidas");
 
-      // Guardamos el objeto completo (incluye nivel_acceso como número)
+      // Almacenamos el objeto completo (nivel_acceso es int, permiso_reportes es bool)
       localStorage.setItem('user_session', JSON.stringify(data));
       setTempUser(data);
       setPaso('selector');
@@ -85,7 +86,7 @@ export default function LoginPage() {
       setIdentificador('');
       setPin('');
     } catch (err: any) {
-      alert("Error de acceso");
+      alert("Error: Verifique sus datos.");
       setIdentificador('');
       setPin('');
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -95,22 +96,16 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>
-      
-      <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl relative z-10">
+    <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative">
+      <div className="w-full max-w-md bg-[#0f172a] p-10 rounded-[45px] border border-white/5 shadow-2xl z-10">
         <header className="mb-10 text-center">
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
-            {config.empresa_nombre ? (
-              <>
-                {config.empresa_nombre.split(' ')[0]} <span className="text-blue-500">{config.empresa_nombre.split(' ').slice(1).join(' ')}</span>
-              </>
-            ) : 'SISTEMA'}
+          <h1 className="text-4xl font-black italic uppercase tracking-tighter">
+            {config.empresa_nombre || 'SISTEMA'}
           </h1>
           {tempUser && paso === 'selector' && (
-            <div className="mt-4">
-              <p className="text-xs font-black uppercase text-white">{tempUser.nombre}</p>
-              <p className="text-[9px] font-bold text-blue-400 uppercase italic">NIVEL ACCESO: {tempUser.nivel_acceso}</p>
+            <div className="mt-4 border-t border-white/5 pt-4">
+              <p className="text-xs font-black uppercase">{tempUser.nombre}</p>
+              <p className="text-[9px] font-bold text-blue-500 uppercase italic">NIVEL: {tempUser.nivel_acceso}</p>
             </div>
           )}
         </header>
@@ -120,7 +115,7 @@ export default function LoginPage() {
             <input 
               ref={inputRef}
               type="text" 
-              placeholder="DOCUMENTO O CORREO" 
+              placeholder="DOCUMENTO / CORREO" 
               className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-bold focus:border-blue-500 outline-none uppercase"
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
@@ -129,53 +124,50 @@ export default function LoginPage() {
             <input 
               type="password" 
               placeholder="PIN" 
-              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.5em] focus:border-blue-500 outline-none"
+              className="w-full bg-[#050a14] border border-white/5 p-5 rounded-[22px] text-xs font-black tracking-[0.4em] focus:border-blue-500 outline-none"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               required
             />
-            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all shadow-xl shadow-blue-900/20">
-              {loading ? 'VALIDANDO...' : 'ENTRAR'}
+            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-[25px] font-black uppercase italic text-sm transition-all">
+              {loading ? 'AUTENTICANDO...' : 'ENTRAR'}
             </button>
           </form>
         ) : (
-          <div className="space-y-3 animate-in zoom-in duration-300">
+          <div className="space-y-3">
             
-            {/* 1. EMPLEADO: Nivel 1, 3, 4, 8 */}
-            {tempUser?.nivel_acceso >= 1 && (
-              <button onClick={() => navegarModulo('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+            {/* MÓDULO 1: EMPLEADO (Nivel 1+) */}
+            {tempUser.nivel_acceso >= 1 && (
+              <button onClick={() => ejecutarAcceso('/empleado', 1)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
                 🏃 Acceso Empleado
               </button>
             )}
             
-            {/* 2. SUPERVISOR: Nivel 3, 4, 8 */}
-            {tempUser?.nivel_acceso >= 3 && (
-              <button onClick={() => navegarModulo('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+            {/* MÓDULO 2: SUPERVISOR (Nivel 3+) */}
+            {tempUser.nivel_acceso >= 3 && (
+              <button onClick={() => ejecutarAcceso('/supervisor', 3)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
                 🛡️ Panel Supervisor
               </button>
             )}
 
-            {/* 3. REPORTES: Nivel 4, 8 O (Nivel 3 con booleano true) */}
-            {(tempUser?.nivel_acceso >= 4 || (tempUser?.nivel_acceso === 3 && tempUser?.permiso_reportes)) && (
-              <button onClick={() => navegarModulo('/reportes', 3, true)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+            {/* MÓDULO 3: REPORTES (Nivel 4+ O Nivel 3 con Permiso) */}
+            {(tempUser.nivel_acceso >= 4 || (tempUser.nivel_acceso === 3 && tempUser.permiso_reportes)) && (
+              <button onClick={() => ejecutarAcceso('/reportes', 3, true)} className="w-full bg-[#1e293b] hover:bg-amber-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
                 📊 Análisis y Reportes
               </button>
             )}
 
-            {/* 4. GESTIÓN/ADMIN: Nivel 4, 8 */}
-            {tempUser?.nivel_acceso >= 4 && (
-              <button onClick={() => navegarModulo('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-md transition-all border border-white/5 text-left pl-8 italic">
+            {/* MÓDULO 4: ADMINISTRACIÓN (Nivel 4+) */}
+            {tempUser.nivel_acceso >= 4 && (
+              <button onClick={() => ejecutarAcceso('/admin', 4)} className="w-full bg-[#1e293b] hover:bg-blue-600 p-5 rounded-[22px] font-bold text-left pl-8 italic transition-all">
                 ⚙️ Gestión Administrativa
               </button>
             )}
 
-            {/* 5. TÉCNICO: Solo Nivel 8 */}
-            {tempUser?.nivel_acceso >= 8 && (
-              <button 
-                onClick={() => navegarModulo('/configuracion', 8)} 
-                className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-md transition-all text-left pl-8 group italic"
-              >
-                <span className="mr-2 group-hover:animate-spin inline-block text-xl">⚙️</span> Configuración Maestra
+            {/* MÓDULO 5: TÉCNICO (Nivel 8+) */}
+            {tempUser.nivel_acceso >= 8 && (
+              <button onClick={() => ejecutarAcceso('/configuracion', 8)} className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-500 hover:text-white p-5 rounded-[22px] font-black text-left pl-8 italic transition-all">
+                ⚙️ Configuración Maestra
               </button>
             )}
             
