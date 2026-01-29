@@ -1,16 +1,10 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-// 📍 COORDENADAS PROPORCIONADAS
-const ALMACEN_LAT = 40.59680101005673; 
-const ALMACEN_LON = -3.595251665548761;
-const RADIO_MAXIMO_METROS = 80; 
-const TIEMPO_MAX_TOKEN_MS = 120000;
 
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3;
@@ -35,40 +29,89 @@ export default function SupervisorPage() {
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
   const [sesionDuplicada, setSesionDuplicada] = useState(false);
+  const [gpsReal, setGpsReal] = useState({ lat: 0, lon: 0 });
+  const [distanciaMetros, setDistanciaMetros] = useState<number | null>(null);
+
+  // 1. Estados para configuración dinámica (Sustituye coordenadas fijas)
+  const [config, setConfig] = useState({
+    almacen_lat: 0,
+    almacen_lon: 0,
+    radio_maximo: 0,
+    timer_inactividad: 120000,
+    timer_token: 120000
+  });
   
   const sessionId = useRef(Math.random().toString(36).substring(7));
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
+  // Carga de configuración y GPS en tiempo real
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
     const currentUser = JSON.parse(sessionData);
     setUser(currentUser);
+    fetchConfig();
 
-    const canalSesion = supabase.channel('supervisor-session-control');
-    canalSesion
-      .on('broadcast', { event: 'nueva-sesion' }, (payload) => {
-        if (payload.payload.email === currentUser.email && payload.payload.id !== sessionId.current) {
-          setSesionDuplicada(true);
-          setTimeout(() => { localStorage.removeItem('user_session'); router.push('/'); }, 3000);
-        }
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await canalSesion.send({ type: 'broadcast', event: 'nueva-sesion', payload: { id: sessionId.current, email: currentUser.email } });
-        }
-      });
-    return () => { supabase.removeChannel(canalSesion); };
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGpsReal({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      },
+      () => {}, { enableHighAccuracy: true, maximumAge: 0 }
+    );
+
+    return () => { navigator.geolocation.clearWatch(watchId); };
   }, [router]);
 
-  const volverAtras = async () => {
-    try { if (scannerRef.current?.isScanning) { await scannerRef.current.stop(); scannerRef.current = null; } } catch (e) {}
+  const fetchConfig = async () => {
+    const { data } = await supabase.from('sistema_config').select('clave, valor');
+    if (data) {
+      const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+      setConfig({
+        almacen_lat: parseFloat(cfgMap.almacen_lat) || 0,
+        almacen_lon: parseFloat(cfgMap.almacen_lon) || 0,
+        radio_maximo: parseInt(cfgMap.radio_maximo) || 0,
+        timer_inactividad: parseInt(cfgMap.timer_inactividad) || 120000,
+        timer_token: parseInt(cfgMap.timer_token) || 120000
+      });
+    }
+  };
+
+  // 3. Temporizador de inactividad
+  const volverAtras = useCallback(async () => {
+    try { if (scannerRef.current?.isScanning) await scannerRef.current.stop(); } catch (e) {}
+    scannerRef.current = null;
     if (direccion) { setDireccion(null); setQrData(''); setPinAutorizador(''); setPinEmpleadoManual(''); setLecturaLista(false); } 
     else if (modo !== 'menu') { setModo('menu'); }
-  };
+  }, [direccion, modo]);
+
+  useEffect(() => {
+    const resetTimer = () => {
+      if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
+      if (modo !== 'menu') {
+        timerInactividadRef.current = setTimeout(() => volverAtras(), config.timer_inactividad);
+      }
+    };
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    resetTimer();
+    return () => {
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
+    };
+  }, [modo, direccion, config.timer_inactividad, volverAtras]);
+
+  // 2. Cálculo de distancia en tiempo real para visualización
+  useEffect(() => {
+    if (gpsReal.lat !== 0 && config.almacen_lat !== 0) {
+      const d = calcularDistancia(gpsReal.lat, gpsReal.lon, config.almacen_lat, config.almacen_lon);
+      setDistanciaMetros(Math.round(d));
+    }
+  }, [gpsReal, config]);
 
   const prepararSiguienteEmpleado = () => {
     setQrData(''); setPinEmpleadoManual(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
@@ -95,6 +138,7 @@ export default function SupervisorPage() {
     if (modo !== 'usb' || !direccion || qrData) return;
     let buffer = "";
     const handleKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).tagName === 'INPUT') return;
       if (e.key === 'Enter') {
         if (buffer.trim()) { setQrData(buffer.trim()); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 100); }
         buffer = "";
@@ -115,9 +159,9 @@ export default function SupervisorPage() {
     
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ALMACEN_LAT, ALMACEN_LON);
-        if (dist > RADIO_MAXIMO_METROS) {
-          throw new Error(`FUERA DE RANGO: Estás a ${Math.round(dist)}m.`);
+        const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
+        if (dist > config.radio_maximo) {
+          throw new Error(`FUERA DE RANGO: Estás a ${Math.round(dist)}m. Máximo permitido: ${config.radio_maximo}m`);
         }
 
         let idFinal = qrData.trim();
@@ -126,7 +170,7 @@ export default function SupervisorPage() {
             const decoded = atob(idFinal).split('|');
             if (decoded.length === 2) {
               const [docId, timestamp] = decoded;
-              if (Date.now() - parseInt(timestamp) > TIEMPO_MAX_TOKEN_MS) throw new Error("TOKEN EXPIRADO");
+              if (Date.now() - parseInt(timestamp) > config.timer_token) throw new Error("TOKEN EXPIRADO");
               idFinal = docId;
             }
           } catch (e: any) {
@@ -134,7 +178,6 @@ export default function SupervisorPage() {
           }
         }
 
-        // 🔴 CAMBIO: Se ajusta la selección de columna de 'estado' a 'activo'
         const { data: emp, error: empError } = await supabase
           .from('empleados')
           .select('id, nombre, activo, pin_seguridad, documento_id, email')
@@ -142,11 +185,7 @@ export default function SupervisorPage() {
           .maybeSingle();
 
         if (empError || !emp) throw new Error(`Empleado no encontrado (ID: ${idFinal})`);
-        
-        // 🔴 CAMBIO: Validación sobre la columna 'activo' (boolean)
-        if (emp.activo !== true) {
-          throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
-        }
+        if (emp.activo !== true) throw new Error("Persona no tiene acceso a las instalaciones ya que no presta servicio en esta Empresa");
 
         if (modo === 'manual' && emp.pin_seguridad !== pinEmpleadoManual) throw new Error("PIN Empleado incorrecto");
         
@@ -182,8 +221,19 @@ export default function SupervisorPage() {
         @keyframes laser { 0% { top: 0%; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
         .animate-laser { animation: laser 2s infinite linear; }
       `}</style>
+      
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-1 text-center tracking-tighter">Panel de Supervisión</h2>
+        
+        {/* 4. Membrete con Nombre, Rol y Nivel */}
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Panel de Supervisión</h2>
+          {user && (
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+              {user.nombre} : <span className="text-blue-400">{user.rol} ({user.nivel_acceso})</span>
+            </p>
+          )}
+        </div>
+
         {modo === 'menu' ? (
           <div className="grid gap-4 text-center">
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black text-lg border border-white/5 hover:border-blue-500 transition-all uppercase tracking-widest">🔌 Escáner USB</button>
@@ -199,6 +249,11 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* 5. Membretes específicos por modo */}
+            <p className="text-center text-[10px] font-black text-blue-400 uppercase tracking-widest">
+              {modo === 'usb' ? "Lectura Qr por scanner/usb" : modo === 'camara' ? "Lectura qr cámara" : "Ingreso Manual"}
+            </p>
+
             {modo === 'manual' ? (
               <div className="space-y-6">
                 <input ref={docInputRef} type="text" autoFocus className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-bold border border-white/10" placeholder="ID Empleado" value={qrData} onChange={(e) => setQrData(e.target.value)} />
@@ -215,6 +270,17 @@ export default function SupervisorPage() {
                     </>
                   ) : <p className="text-emerald-500 font-black text-[9px] uppercase">Identificado ✅</p>}
                 </div>
+                
+                {/* 2. Coordenadas GPS y Distancia debajo del scanner */}
+                <div className="text-center space-y-1">
+                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                     GPS: {gpsReal.lat.toFixed(6)}, {gpsReal.lon.toFixed(6)}
+                   </p>
+                   <p className="text-[10px] font-black text-blue-400 uppercase italic">
+                     Distancia: {distanciaMetros ?? '--'} metros
+                   </p>
+                </div>
+
                 {lecturaLista && <input ref={pinRef} type="password" placeholder="PIN Supervisor" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-3xl font-black border-2 border-blue-500/10" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />}
               </div>
             )}
