@@ -9,36 +9,43 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 export default function SupervisorPage() {
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
-  const [qrData, setQrData] = useState('');
+  const [qrData, setQrData] = useState(''); 
   const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
   const [gpsReal, setGpsReal] = useState({ lat: 0, lon: 0 });
-  const [distanciaAlmacen, setDistanciaAlmacen] = useState<number | null>(null);
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // Función crítica para CANCELAR y volver atrás
-  const resetLectura = useCallback(async () => {
-    // 1. Detener cámara si está activa
-    if (scannerRef.current) {
-      if (scannerRef.current.isScanning) {
-        await scannerRef.current.stop();
+  // ALGORITMO DE DECODIFICACIÓN (Solo para QR/Cámara/Scanner)
+  const procesarLecturaQR = (textoLeido: string) => {
+    try {
+      // Intenta decodificar el Base64 generado en EmpleadoPage (documento|timestamp)
+      const decoded = atob(textoLeido);
+      if (decoded.includes('|')) {
+        const [documento] = decoded.split('|');
+        return documento; // Retorna solo el documento_id extraído
       }
+      return textoLeido; // Si no tiene el pipe, es un documento plano (USB)
+    } catch (e) {
+      return textoLeido; // Si no es Base64, es texto plano
+    }
+  };
+
+  const resetLectura = useCallback(async () => {
+    if (scannerRef.current) {
+      if (scannerRef.current.isScanning) await scannerRef.current.stop();
       scannerRef.current = null;
     }
-    // 2. Limpiar datos de lectura
     setQrData('');
     setPinAutorizador('');
     setLecturaLista(false);
     setAnimar(false);
-    // 3. REGRESAR al paso anterior (Selección de Entrada/Salida)
     setDireccion(null); 
   }, []);
 
-  // Función para volver al menú principal de modos
   const volverAlMenu = () => {
     setDireccion(null);
     setModo('menu');
@@ -54,7 +61,6 @@ export default function SupervisorPage() {
 
   const iniciarCamara = async () => {
     try {
-      // Pequeño delay para asegurar que el div "reader" existe en el DOM
       setTimeout(async () => {
         if (!document.getElementById("reader")) return;
         const scanner = new Html5Qrcode("reader");
@@ -63,7 +69,9 @@ export default function SupervisorPage() {
           { facingMode: "environment" },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
-            setQrData(decodedText);
+            // APLICA DECODIFICACIÓN AL QR
+            const documentoExtraido = procesarLecturaQR(decodedText);
+            setQrData(documentoExtraido);
             setLecturaLista(true);
             scanner.stop();
             setTimeout(() => pinRef.current?.focus(), 300);
@@ -78,32 +86,50 @@ export default function SupervisorPage() {
     if (modo === 'camara' && direccion && !lecturaLista) {
       iniciarCamara();
     }
-    return () => { 
-      if (scannerRef.current?.isScanning) scannerRef.current.stop(); 
-    };
+    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, lecturaLista]);
 
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${qrData},email.eq.${qrData}`).maybeSingle();
-      if (!emp) throw new Error("Empleado no encontrado");
-      
-      const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
-      if (!aut) throw new Error("PIN Incorrecto");
+      // BÚSQUEDA DUAL: Busca por documento_id o por email
+      const { data: emp } = await supabase
+        .from('empleados')
+        .select('*')
+        .or(`documento_id.eq.${qrData},email.eq.${qrData}`)
+        .maybeSingle();
 
-      const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
+      if (!emp) throw new Error("Empleado no registrado o datos incorrectos");
+      
+      const { data: aut } = await supabase
+        .from('empleados')
+        .select('nombre')
+        .eq('pin_seguridad', pinAutorizador)
+        .in('rol', ['supervisor', 'admin', 'administrador'])
+        .maybeSingle();
+
+      if (!aut) throw new Error("PIN de Supervisor incorrecto");
+
+      const { data: jActiva } = await supabase
+        .from('jornadas')
+        .select('*')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .maybeSingle();
 
       if (direccion === 'entrada') {
-        if (jActiva) throw new Error("Entrada ya activa");
+        if (jActiva) throw new Error("Ya posee una entrada activa");
         await supabase.from('jornadas').insert([{ 
-          empleado_id: emp.id, nombre_empleado: emp.nombre, documento_id: emp.documento_id,
-          hora_entrada: new Date().toISOString(), estado: 'activo' 
+          empleado_id: emp.id, 
+          nombre_empleado: emp.nombre, 
+          documento_id: emp.documento_id,
+          hora_entrada: new Date().toISOString(), 
+          estado: 'activo' 
         }]);
         await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
       } else {
-        if (!jActiva) throw new Error("No hay entrada activa");
+        if (!jActiva) throw new Error("No se encontró entrada previa");
         const ahora = new Date();
         const diffMs = ahora.getTime() - new Date(jActiva.hora_entrada).getTime();
         const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
@@ -111,18 +137,19 @@ export default function SupervisorPage() {
         const s = Math.floor((diffMs % 60000) / 1000).toString().padStart(2, '0');
         
         await supabase.from('jornadas').update({ 
-          hora_salida: ahora.toISOString(), horas_trabajadas: `${h}:${m}:${s}`, 
-          estado: 'finalizado', editado_por: `Sup: ${aut.nombre}` 
+          hora_salida: ahora.toISOString(), 
+          horas_trabajadas: `${h}:${m}:${s}`, 
+          estado: 'finalizado', 
+          editado_por: `Supervisor: ${aut.nombre}` 
         }).eq('id', jActiva.id);
         await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
       }
 
-      alert(`✅ Registrado: ${emp.nombre}`);
-      resetLectura(); // Al finalizar con éxito, vuelve a la pantalla de Entrada/Salida
+      alert(`✅ Registro Exitoso: ${emp.nombre}`);
+      resetLectura();
     } catch (err: any) { 
-      alert(`❌ ${err.message}`); 
+      alert(`❌ Error: ${err.message}`); 
       setAnimar(false);
-      // Si falla, permitimos reintentar la lectura
       setLecturaLista(false);
       if (modo === 'camara') iniciarCamara();
     }
@@ -134,16 +161,14 @@ export default function SupervisorPage() {
         
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Panel Supervisor</h2>
-          <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">
-            🛰️ {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}
-          </p>
+          <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">🛰️ GPS: {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}</p>
         </div>
 
         {modo === 'menu' ? (
           <div className="grid gap-4">
             <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase border border-white/5 hover:bg-blue-600 transition-all">🔌 Scanner / USB</button>
             <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase border border-white/5 hover:bg-emerald-600 transition-all">📱 Cámara Móvil</button>
-            <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase border border-white/5 hover:bg-slate-700 transition-all">🖋️ Manual</button>
+            <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase border border-white/5 hover:bg-slate-700 transition-all">🖋️ Entrada Manual</button>
             <button onClick={() => router.push('/')} className="mt-4 text-slate-600 font-bold uppercase text-[9px] text-center tracking-widest">← Salir</button>
           </div>
         ) : !direccion ? (
@@ -154,56 +179,28 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
+            {modo === 'manual' && (
+              <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-2xl">
+                <p className="text-[10px] text-yellow-500 font-black uppercase tracking-tighter leading-tight text-center">
+                  ⚠️ ADVERTENCIA: Se requiere la autorización de un administrador para poder dar acceso manual.
+                </p>
+              </div>
+            )}
+
             <div className={`bg-[#050a14] p-4 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative h-64 flex items-center justify-center overflow-hidden`}>
               {!lecturaLista ? (
                 <>
-                  {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
+                  {modo === 'camara' && <div id=\"reader\" className=\"w-full h-full\"></div>}
                   {modo === 'usb' && (
-                    <div className="text-center">
-                      <p className="text-blue-500 font-black animate-pulse uppercase">Esperando Scanner...</p>
-                      <input type="text" className="opacity-0 absolute" autoFocus onChange={(e) => { setQrData(e.target.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 300); }} />
+                    <div className=\"text-center\">
+                      <p className=\"text-blue-500 font-black animate-pulse uppercase\">Esperando Scanner...</p>
+                      <input type=\"text\" className=\"opacity-0 absolute\" autoFocus onChange={(e) => { 
+                        const id = procesarLecturaQR(e.target.value);
+                        setQrData(id); 
+                        setLecturaLista(true); 
+                        setTimeout(() => pinRef.current?.focus(), 300); 
+                      }} />
                     </div>
                   )}
                   {modo === 'manual' && (
-                    <input type="text" placeholder="ID EMPLEADO" className="bg-transparent text-center text-2xl font-black uppercase outline-none w-full" autoFocus onKeyDown={(e) => { if(e.key === 'Enter') { setQrData(e.currentTarget.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 300); }}} />
-                  )}
-                  <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
-                </>
-              ) : (
-                <div className="text-center">
-                  <p className="text-emerald-500 font-black text-xl uppercase italic">ID Detectado ✅</p>
-                  <p className="text-[10px] text-slate-500 mt-2">{qrData}</p>
-                </div>
-              )}
-            </div>
-
-            {lecturaLista && (
-              <input 
-                ref={pinRef} 
-                type="password" 
-                placeholder="PIN SUPERVISOR" 
-                className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none" 
-                value={pinAutorizador} 
-                onChange={e => setPinAutorizador(e.target.value)} 
-              />
-            )}
-
-            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg hover:bg-blue-500 transition-all disabled:opacity-30">
-              {animar ? 'PROCESANDO...' : 'Confirmar'}
-            </button>
-            
-            {/* BOTÓN DE CANCELAR REPARADO: Ahora limpia 'direccion' para volver atrás */}
-            <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">
-              ✕ Cancelar y Volver
-            </button>
-          </div>
-        )}
-      </div>
-
-      <style jsx global>{`
-        @keyframes scan-laser { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
-        .animate-scan-laser { animation: scan-laser 2s infinite linear; }
-      `}</style>
-    </main>
-  );
-}
+                    <input type=\"text\"
