@@ -1,185 +1,41 @@
 'use client';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function PresenciaPage() {
-  const [user, setUser] = useState<any>(null);
-  const [empleados, setEmpleados] = useState<any[]>([]);
-  const [ahora, setAhora] = useState(new Date());
-  const router = useRouter();
+  const [presentes, setPresentes] = useState<any[]>([]);
 
   useEffect(() => {
-    const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { router.replace('/'); return; }
-    const currentUser = JSON.parse(sessionData);
-    const nivel = Number(currentUser.nivel_acceso);
-    if (nivel < 4) { router.replace('/'); return; }
+    fetchPresentes();
+    const channel = supabase.channel('presencia_realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchPresentes()).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
-    setUser(currentUser);
-    fetchData();
-
-    const timer = setInterval(() => setAhora(new Date()), 60000);
-    const channel = supabase.channel('presencia-global')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, fetchData)
-      .subscribe();
-
-    return () => { 
-      supabase.removeChannel(channel);
-      clearInterval(timer);
-    };
-  }, [router]);
-
-  const fetchData = async () => {
-    // Pedimos las jornadas ordenadas por fecha para capturar la última fácilmente
-    const { data, error } = await supabase
-      .from('empleados')
-      .select(`
-        *,
-        jornadas(hora_entrada, hora_salida, estado)
-      `)
-      .eq('activo', true)
-      .order('nombre', { ascending: true });
-
-    if (data) {
-      const procesados = data.map(emp => {
-        // Buscamos la jornada que está actualmente "activa"
-        const activa = emp.jornadas?.find((j: any) => j.estado === 'activo');
-        
-        // Buscamos la última jornada "finalizada" para obtener la hora_salida real
-        const cerradas = emp.jornadas?.filter((j: any) => j.estado === 'finalizado' && j.hora_salida);
-        const ultimaCerrada = cerradas?.length > 0 
-          ? cerradas.sort((a: any, b: any) => new Date(b.hora_salida).getTime() - new Date(a.hora_salida).getTime())[0]
-          : null;
-
-        return {
-          ...emp,
-          jornada_activa: activa || null,
-          ultima_jornada_cerrada: ultimaCerrada || null
-        };
-      });
-      setEmpleados(procesados);
-    }
-    if (error) console.error("Error en lectura:", error);
-  };
-
-  const calcularTiempoEstado = (emp: any) => {
-    let referencia: string | null = null;
-
-    if (emp.en_almacen) {
-      // PRESENTE: Hora actual - hora_entrada de la jornada activa
-      referencia = emp.jornada_activa?.hora_entrada;
-    } else {
-      // AUSENTE: Hora actual - hora_salida de la última jornada finalizada
-      referencia = emp.ultima_jornada_cerrada?.hora_salida;
-    }
-
-    if (!referencia) return '0h 0m';
-
-    const inicio = new Date(referencia).getTime();
-    const difMs = ahora.getTime() - inicio;
-    
-    if (difMs < 0) return '0h 0m';
-
-    const horas = Math.floor(difMs / 3600000);
-    const minutos = Math.floor((difMs % 3600000) / 60000);
-    return `${horas}h ${minutos}m`;
-  };
-
-  const formatearCredencial = (u: any) => {
-    if (!u) return '';
-    return `${u.rol}(${u.nivel_acceso})`.toUpperCase();
-  };
-
-  const exportarExcel = () => {
-    const f = new Date();
-    const fechaStr = f.toLocaleDateString().replace(/\//g, '-');
-    const horaStr = `${f.getHours()}-${f.getMinutes()}`;
-    
-    const encabezado = [
-      ["REPORTE PRESENCIAL DEL PERSONAL"],
-      [`Reporte creado por: ${user?.nombre} - ${formatearCredencial(user)}`],
-      [`Fecha y Hora de creación: ${f.toLocaleDateString()} ${f.toLocaleTimeString()}`],
-      [], 
-      ["PRESENTES"],
-      ["Nombre", "Documento ID", "Entrada (Fecha)", "Entrada (Hora)", "Tiempo en Almacén"]
-    ];
-
-    const presentesData = empleados.filter(e => e.en_almacen).map(e => [
-      e.nombre, e.documento_id || 'N/A',
-      e.jornada_activa?.hora_entrada ? new Date(e.jornada_activa.hora_entrada).toLocaleDateString() : '---',
-      e.jornada_activa?.hora_entrada ? new Date(e.jornada_activa.hora_entrada).toLocaleTimeString() : '---',
-      calcularTiempoEstado(e)
-    ]);
-
-    const ausentesEncabezado = [
-      [], ["AUSENTES"],
-      ["Nombre", "Documento ID", "Salida (Fecha)", "Salida (Hora)", "Inactividad"]
-    ];
-
-    const ausentesData = empleados.filter(e => !e.en_almacen).map(e => [
-      e.nombre, e.documento_id || 'N/A',
-      e.ultima_jornada_cerrada?.hora_salida ? new Date(e.ultima_jornada_cerrada.hora_salida).toLocaleDateString() : '---',
-      e.ultima_jornada_cerrada?.hora_salida ? new Date(e.ultima_jornada_cerrada.hora_salida).toLocaleTimeString() : '---',
-      calcularTiempoEstado(e)
-    ]);
-
-    const ws = XLSX.utils.aoa_to_sheet([...encabezado, ...presentesData, ...ausentesEncabezado, ...ausentesData]);
-    const wb = XLSX.utils.book_new();
-    const nombreHoja = `presencial${fechaStr}${horaStr}`.substring(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
-    XLSX.writeFile(wb, `presencia${fechaStr}${horaStr}.xlsx`);
+  const fetchPresentes = async () => {
+    // Unificación: Filtramos solo los que tienen estado 'activo' en jornadas
+    const { data } = await supabase.from('jornadas').select('*').is('hora_salida', null).eq('estado', 'activo');
+    if (data) setPresentes(data);
   };
 
   return (
-    <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
-      <div className="max-w-[1800px] mx-auto">
-        <header className="flex justify-between items-start mb-16">
-          <div>
-            <h2 className="text-4xl font-black uppercase italic tracking-tighter">Estado de <span className="text-blue-500">Presencia</span></h2>
-            {user && (
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2">
-                USER: <span className="text-white italic">{user.nombre}</span> • 
-                CRED: <span className="text-blue-400">{formatearCredencial(user)}</span>
-              </p>
-            )}
-          </div>
-          <div className="flex gap-4">
-            <button onClick={exportarExcel} className="p-4 bg-emerald-600/20 border border-emerald-500/20 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all">📊 Exportar Reporte</button>
-            <button onClick={() => router.back()} className="p-4 bg-[#1e293b] rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all">← Volver</button>
-          </div>
-        </header>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-16">
-          <div className="space-y-8">
-            <h3 className="text-[10px] font-black uppercase text-emerald-500 tracking-[0.4em] border-b border-emerald-500/20 pb-4">✓ PRESENTE ({empleados.filter(e => e.en_almacen).length})</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-10 gap-x-4">
-              {empleados.filter(e => e.en_almacen).map(emp => (
-                <div key={emp.id} className="flex flex-col group">
-                  <span className="text-sm font-black uppercase text-emerald-500 italic mb-1">{emp.nombre}</span>
-                  <span className="text-[10px] text-slate-400 font-bold mb-1">{emp.documento_id}</span>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase">Actividad: <span className="text-white font-black">{calcularTiempoEstado(emp)}</span></span>
-                </div>
-              ))}
+    <main className="min-h-screen bg-[#050a14] p-10 text-white font-sans">
+      <div className="max-w-4xl mx-auto">
+        <h2 className="text-3xl font-black uppercase italic text-emerald-500 mb-10 tracking-tighter">● Personal en Almacén</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {presentes.map((p) => (
+            <div key={p.id} className="bg-[#0f172a] p-6 rounded-[30px] border border-emerald-500/20 flex justify-between items-center shadow-xl shadow-emerald-500/5">
+              <div>
+                <p className="text-lg font-black uppercase italic leading-none">{p.nombre_empleado}</p>
+                <p className="text-[10px] text-emerald-500 font-bold uppercase mt-2 tracking-widest">Entrada: {new Date(p.hora_entrada).toLocaleTimeString()}</p>
+              </div>
+              <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></div>
             </div>
-          </div>
-
-          <div className="space-y-8">
-            <h3 className="text-[10px] font-black uppercase text-red-500 tracking-[0.4em] border-b border-red-500/20 pb-4">✗ AUSENTE ({empleados.filter(e => !e.en_almacen).length})</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-10 gap-x-4">
-              {empleados.filter(e => !e.en_almacen).map(emp => (
-                <div key={emp.id} className="flex flex-col group">
-                  <span className="text-sm font-black uppercase text-red-600 italic mb-1">{emp.nombre}</span>
-                  <span className="text-[10px] text-slate-400 font-bold mb-1">{emp.documento_id}</span>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase">Inactivo: <span className="text-white/70">{calcularTiempoEstado(emp)}</span></span>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
+          {presentes.length === 0 && (
+            <p className="text-slate-600 font-black uppercase italic py-10">No hay personal detectado en el recinto.</p>
+          )}
         </div>
       </div>
     </main>
