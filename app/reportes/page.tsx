@@ -12,11 +12,13 @@ export default function ReportesPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Unificación: Recuperación de sesión idéntica al módulo de Supervisor
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
     
     fetchJornadas();
     
+    // Escucha en tiempo real para reflejar cambios del Supervisor inmediatamente
     const channel = supabase
       .channel('cambios_jornadas_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => {
@@ -30,7 +32,7 @@ export default function ReportesPage() {
   const fetchJornadas = async () => {
     setLoading(true);
     try {
-      // Ordenamos por hora_entrada para tener la base cronológica
+      // Ambos módulos operan sobre la tabla 'jornadas'
       const { data, error } = await supabase
         .from('jornadas')
         .select('*')
@@ -39,18 +41,17 @@ export default function ReportesPage() {
       if (error) throw error;
       setJornadas(data || []);
     } catch (err) {
-      console.error(err);
+      console.error("Error en sincronización:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Función para calcular tiempo transcurrido en registros activos (HH:mm:ss)
+  // Rutina de tiempo para registros en curso (HH:mm:ss)
   const calcularTiempoTranscurrido = (entrada: string) => {
     const inicio = new Date(entrada).getTime();
     const ahora = new Date().getTime();
     const dif = Math.floor((ahora - inicio) / 1000);
-    
     const h = Math.floor(dif / 3600).toString().padStart(2, '0');
     const m = Math.floor((dif % 3600) / 60).toString().padStart(2, '0');
     const s = (dif % 60).toString().padStart(2, '0');
@@ -61,11 +62,11 @@ export default function ReportesPage() {
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* MEMBRETE */}
+        {/* MEMBRETE UNIFICADO */}
         <div className="flex justify-between items-start mb-10 border-b border-white/5 pb-6">
           <div>
             <h1 className="text-2xl font-black uppercase italic tracking-tighter text-blue-500">
-              Reporte de Asistencia <span className="text-white">Crítico</span>
+              Reporte de <span className="text-white">Asistencia Crítico</span>
             </h1>
             {user && (
               <div className="mt-2">
@@ -76,16 +77,14 @@ export default function ReportesPage() {
             )}
           </div>
           <div className="flex gap-4">
-            <button onClick={fetchJornadas} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">Actualizar</button>
+            <button onClick={fetchJornadas} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">Sincronizar</button>
             <button onClick={() => router.back()} className="bg-red-600/20 text-red-500 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-red-500/20">Cerrar</button>
           </div>
         </div>
 
-        {loading && jornadas.length === 0 ? (
-          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase">Cargando registros...</div>
-        ) : (
+        {!loading || jornadas.length > 0 ? (
           <div className="space-y-8">
-            {/* AGRUPACIÓN POR FECHA */}
+            {/* AGRUPACIÓN CRONOLÓGICA POR FECHA */}
             {Array.from(new Set(jornadas.map(j => new Date(j.hora_entrada).toLocaleDateString()))).map(fecha => (
               <div key={fecha} className="space-y-4">
                 <div className="flex items-center gap-4">
@@ -98,8 +97,8 @@ export default function ReportesPage() {
                     <thead>
                       <tr className="bg-black/20 text-[10px] font-black text-slate-500 uppercase italic">
                         <th className="p-6">Empleado</th>
-                        <th className="p-6">Hora Entrada</th>
-                        <th className="p-6">Hora Salida</th>
+                        <th className="p-6">Entrada</th>
+                        <th className="p-6">Salida</th>
                         <th className="p-6 text-blue-500">Total (HH:MM:SS)</th>
                         <th className="p-6">Estado</th>
                         <th className="p-6">Autorización</th>
@@ -108,7 +107,9 @@ export default function ReportesPage() {
                     <tbody className="divide-y divide-white/5">
                       {jornadas.filter(j => new Date(j.hora_entrada).toLocaleDateString() === fecha).map((j) => (
                         <tr key={j.id} className="hover:bg-white/[0.02] transition-colors group">
-                          <td className="p-6 text-sm font-black text-white uppercase italic">{j.nombre_empleado}</td>
+                          <td className="p-6 text-sm font-black text-white uppercase italic group-hover:text-blue-400 transition-colors">
+                            {j.nombre_empleado}
+                          </td>
                           <td className="p-6 text-[11px] font-mono text-emerald-500/80">
                             {new Date(j.hora_entrada).toLocaleTimeString('es-ES')}
                           </td>
@@ -117,6 +118,7 @@ export default function ReportesPage() {
                           </td>
                           <td className="p-6">
                             <span className="text-xl font-black text-blue-400 italic tracking-widest">
+                              {/* Unificación: Prioriza el cálculo en vivo para activos o el string H:M:S del supervisor */}
                               {j.estado === 'activo' ? calcularTiempoTranscurrido(j.hora_entrada) : (j.horas_trabajadas || '00:00:00')}
                             </span>
                           </td>
@@ -138,6 +140,8 @@ export default function ReportesPage() {
               </div>
             ))}
           </div>
+        ) : (
+          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase">Cargando base de datos...</div>
         )}
       </div>
     </main>
