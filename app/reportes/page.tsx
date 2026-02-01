@@ -9,12 +9,13 @@ export default function ReportesPage() {
   const [user, setUser] = useState<any>(null);
   const [jornadas, setJornadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState(''); // RESTAURADO
+  const [filtroFecha, setFiltroFecha] = useState(''); // RESTAURADO
   const router = useRouter();
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
-    
     fetchJornadas();
     
     const channel = supabase
@@ -30,7 +31,6 @@ export default function ReportesPage() {
   const fetchJornadas = async () => {
     setLoading(true);
     try {
-      // Ordenamos por hora_entrada para tener la base cronológica
       const { data, error } = await supabase
         .from('jornadas')
         .select('*')
@@ -45,12 +45,17 @@ export default function ReportesPage() {
     }
   };
 
-  // Función para calcular tiempo transcurrido en registros activos (HH:mm:ss)
+  // Lógica de filtrado unificada
+  const jornadasFiltradas = jornadas.filter(j => {
+    const cumpleNombre = j.nombre_empleado.toLowerCase().includes(busqueda.toLowerCase());
+    const cumpleFecha = filtroFecha ? j.hora_entrada.startsWith(filtroFecha) : true;
+    return cumpleNombre && cumpleFecha;
+  });
+
   const calcularTiempoTranscurrido = (entrada: string) => {
     const inicio = new Date(entrada).getTime();
     const ahora = new Date().getTime();
     const dif = Math.floor((ahora - inicio) / 1000);
-    
     const h = Math.floor(dif / 3600).toString().padStart(2, '0');
     const m = Math.floor((dif % 3600) / 60).toString().padStart(2, '0');
     const s = (dif % 60).toString().padStart(2, '0');
@@ -60,24 +65,33 @@ export default function ReportesPage() {
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        
-        {/* MEMBRETE */}
-        <div className="flex justify-between items-start mb-10 border-b border-white/5 pb-6">
-          <div>
+        {/* MEMBRETE Y BUSCADOR */}
+        <div className="mb-10 border-b border-white/5 pb-6">
+          <div className="flex justify-between items-start mb-6">
             <h1 className="text-2xl font-black uppercase italic tracking-tighter text-blue-500">
               Reporte de Asistencia <span className="text-white">Crítico</span>
             </h1>
-            {user && (
-              <div className="mt-2">
-                <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">
-                  {user.nombre} : <span className="text-blue-400 italic">{user.rol} ({user.nivel_acceso})</span>
-                </p>
-              </div>
-            )}
+            <div className="flex gap-4">
+              <button onClick={fetchJornadas} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase">Actualizar</button>
+              <button onClick={() => router.back()} className="bg-red-600/20 text-red-500 px-6 py-2 rounded-xl text-[10px] font-black uppercase">Cerrar</button>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <button onClick={fetchJornadas} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">Actualizar</button>
-            <button onClick={() => router.back()} className="bg-red-600/20 text-red-500 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-red-500/20">Cerrar</button>
+          
+          {/* BARRA DE BÚSQUEDA RESTAURADA */}
+          <div className="flex flex-wrap gap-4 mt-4">
+            <input 
+              type="text" 
+              placeholder="BUSCAR EMPLEADO..." 
+              className="flex-1 bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-bold uppercase outline-none focus:border-blue-500"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+            <input 
+              type="date" 
+              className="bg-[#0f172a] border border-white/10 rounded-xl px-4 py-3 text-[10px] font-bold outline-none focus:border-blue-500"
+              value={filtroFecha}
+              onChange={(e) => setFiltroFecha(e.target.value)}
+            />
           </div>
         </div>
 
@@ -86,7 +100,7 @@ export default function ReportesPage() {
         ) : (
           <div className="space-y-8">
             {/* AGRUPACIÓN POR FECHA */}
-            {Array.from(new Set(jornadas.map(j => new Date(j.hora_entrada).toLocaleDateString()))).map(fecha => (
+            {Array.from(new Set(jornadasFiltradas.map(j => new Date(j.hora_entrada).toLocaleDateString()))).map(fecha => (
               <div key={fecha} className="space-y-4">
                 <div className="flex items-center gap-4">
                   <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-[10px] font-black italic">{fecha}</span>
@@ -106,7 +120,7 @@ export default function ReportesPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {jornadas.filter(j => new Date(j.hora_entrada).toLocaleDateString() === fecha).map((j) => (
+                      {jornadasFiltradas.filter(j => new Date(j.hora_entrada).toLocaleDateString() === fecha).map((j) => (
                         <tr key={j.id} className="hover:bg-white/[0.02] transition-colors group">
                           <td className="p-6 text-sm font-black text-white uppercase italic">{j.nombre_empleado}</td>
                           <td className="p-6 text-[11px] font-mono text-emerald-500/80">
