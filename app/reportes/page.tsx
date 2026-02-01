@@ -12,17 +12,21 @@ export default function ReportesPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Unificación: Recuperación de sesión idéntica al módulo de Supervisor
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
     
     fetchJornadas();
     
-    // Escucha en tiempo real para reflejar cambios del Supervisor inmediatamente
+    // AUDITORÍA: Aseguramos que el canal escuche TODOS los eventos (*)
     const channel = supabase
       .channel('cambios_jornadas_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => {
-        fetchJornadas();
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'jornadas' 
+      }, (payload) => {
+        console.log("Cambio detectado:", payload);
+        fetchJornadas(); // Recarga forzada al detectar cambio
       })
       .subscribe();
 
@@ -30,9 +34,8 @@ export default function ReportesPage() {
   }, []);
 
   const fetchJornadas = async () => {
-    setLoading(true);
+    // No ponemos loading(true) aquí para evitar que la pantalla se ponga en blanco en cada update
     try {
-      // Ambos módulos operan sobre la tabla 'jornadas'
       const { data, error } = await supabase
         .from('jornadas')
         .select('*')
@@ -41,13 +44,12 @@ export default function ReportesPage() {
       if (error) throw error;
       setJornadas(data || []);
     } catch (err) {
-      console.error("Error en sincronización:", err);
+      console.error("Fuga detectada en fetch:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Rutina de tiempo para registros en curso (HH:mm:ss)
   const calcularTiempoTranscurrido = (entrada: string) => {
     const inicio = new Date(entrada).getTime();
     const ahora = new Date().getTime();
@@ -58,11 +60,23 @@ export default function ReportesPage() {
     return `${h}:${m}:${s}`;
   };
 
+  // CORRECTIVO: Función de agrupación robusta que no depende del locale del sistema
+  const agruparPorFecha = (registros: any[]) => {
+    return registros.reduce((groups: any, registro) => {
+      const fecha = registro.hora_entrada.split('T')[0]; // Usa formato YYYY-MM-DD directo de la DB
+      if (!groups[fecha]) groups[fecha] = [];
+      groups[fecha].push(registro);
+      return groups;
+    }, {});
+  };
+
+  const grupos = agruparPorFecha(jornadas);
+
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* MEMBRETE UNIFICADO */}
+        {/* MEMBRETE */}
         <div className="flex justify-between items-start mb-10 border-b border-white/5 pb-6">
           <div>
             <h1 className="text-2xl font-black uppercase italic tracking-tighter text-blue-500">
@@ -82,10 +96,15 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {!loading || jornadas.length > 0 ? (
+        {loading ? (
+          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase">Conectando...</div>
+        ) : jornadas.length === 0 ? (
+          <div className="text-center py-20 text-slate-600 font-bold uppercase border border-dashed border-white/10 rounded-3xl">
+            No se han detectado registros de acceso hoy
+          </div>
+        ) : (
           <div className="space-y-8">
-            {/* AGRUPACIÓN CRONOLÓGICA POR FECHA */}
-            {Array.from(new Set(jornadas.map(j => new Date(j.hora_entrada).toLocaleDateString()))).map(fecha => (
+            {Object.keys(grupos).map(fecha => (
               <div key={fecha} className="space-y-4">
                 <div className="flex items-center gap-4">
                   <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-[10px] font-black italic">{fecha}</span>
@@ -105,9 +124,9 @@ export default function ReportesPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {jornadas.filter(j => new Date(j.hora_entrada).toLocaleDateString() === fecha).map((j) => (
+                      {grupos[fecha].map((j: any) => (
                         <tr key={j.id} className="hover:bg-white/[0.02] transition-colors group">
-                          <td className="p-6 text-sm font-black text-white uppercase italic group-hover:text-blue-400 transition-colors">
+                          <td className="p-6 text-sm font-black text-white uppercase italic group-hover:text-blue-400">
                             {j.nombre_empleado}
                           </td>
                           <td className="p-6 text-[11px] font-mono text-emerald-500/80">
@@ -118,7 +137,6 @@ export default function ReportesPage() {
                           </td>
                           <td className="p-6">
                             <span className="text-xl font-black text-blue-400 italic tracking-widest">
-                              {/* Unificación: Prioriza el cálculo en vivo para activos o el string H:M:S del supervisor */}
                               {j.estado === 'activo' ? calcularTiempoTranscurrido(j.hora_entrada) : (j.horas_trabajadas || '00:00:00')}
                             </span>
                           </td>
@@ -140,8 +158,6 @@ export default function ReportesPage() {
               </div>
             ))}
           </div>
-        ) : (
-          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase">Cargando base de datos...</div>
         )}
       </div>
     </main>
