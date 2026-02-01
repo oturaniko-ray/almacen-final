@@ -70,25 +70,6 @@ export default function SupervisorPage() {
     setQrData(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
   }, []);
 
-  const iniciarCamara = async () => {
-    if (modo === 'camara' && direccion && !lecturaLista) {
-      try {
-        const scanner = new Html5Qrcode("reader");
-        scannerRef.current = scanner;
-        await scanner.start(
-          { facingMode: "environment" }, { fps: 15, qrbox: 250 },
-          (text) => { setQrData(text); setLecturaLista(true); scanner.stop(); setTimeout(() => pinRef.current?.focus(), 250); },
-          () => {}
-        );
-      } catch (err) { console.error(err); }
-    }
-  };
-
-  useEffect(() => {
-    if (modo === 'camara' && direccion && !lecturaLista) iniciarCamara();
-    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
-  }, [modo, direccion, lecturaLista]);
-
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
@@ -99,17 +80,6 @@ export default function SupervisorPage() {
         if (Math.round(d) > config.radio_maximo) throw new Error(`Fuera de rango (${Math.round(d)}m)`);
 
         let idFinal = qrData.trim();
-        if (modo !== 'manual') {
-          try {
-            const decodedStr = atob(idFinal);
-            if (decodedStr.includes('|')) {
-              const [id, ts] = decodedStr.split('|');
-              if (Date.now() - parseInt(ts) > config.timer_token) throw new Error("TOKEN QR EXPIRADO");
-              idFinal = id;
-            }
-          } catch (e: any) { if (e.message === "TOKEN QR EXPIRADO") throw e; }
-        }
-
         const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
         if (!emp || !emp.activo) throw new Error("Empleado no registrado o inactivo");
         
@@ -131,12 +101,14 @@ export default function SupervisorPage() {
         } else {
           if (!jActiva) throw new Error("No existe una entrada previa");
           const ahora = new Date();
-          const entrada = new Date(jActiva.hora_entrada);
-          const diffHoras = Number(((ahora.getTime() - entrada.getTime()) / (1000 * 60 * 60)).toFixed(4));
-
+          const diffMs = ahora.getTime() - new Date(jActiva.hora_entrada).getTime();
+          const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
+          const m = Math.floor((diffMs % 3600000) / 60000).toString().padStart(2, '0');
+          const s = Math.floor((diffMs % 60000) / 1000).toString().padStart(2, '0');
+          
           await supabase.from('jornadas').update({ 
             hora_salida: ahora.toISOString(), 
-            horas_trabajadas: diffHoras, 
+            horas_trabajadas: `${h}:${m}:${s}`, 
             estado: 'finalizado', 
             editado_por: `Sup: ${aut.nombre}` 
           }).eq('id', jActiva.id);
@@ -144,69 +116,37 @@ export default function SupervisorPage() {
         }
 
         alert(`✅ Éxito: ${emp.nombre}`);
-        await resetFormulario(); 
-        if (modo === 'camara') iniciarCamara();
+        await resetFormulario();
       } catch (err: any) { 
         alert(`❌ Error: ${err.message}`); 
-        setAnimar(false); setLecturaLista(false); setQrData('');
-        if (modo === 'camara') { await resetFormulario(); iniciarCamara(); }
+        setAnimar(false);
       }
     }, () => { alert("Error GPS"); setAnimar(false); }, { enableHighAccuracy: true });
   };
 
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
-      <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative z-10">
-        <div className="mb-6 text-center">
-          <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Panel Supervisor</h2>
-          {user && (
-            <div className="mt-2 bg-black/20 py-2 px-4 rounded-2xl inline-block border border-white/5">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{user.nombre} [{user.rol}]</p>
-              <p className="text-[9px] font-bold text-blue-500 mt-1 uppercase italic">
-                🛰️ GPS: {gpsReal.lat.toFixed(6)} | <span className="text-white">{distanciaAlmacen ?? '--'}m</span>
-              </p>
-            </div>
-          )}
-        </div>
-
+      <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl text-center">
+        <h2 className="text-2xl font-black uppercase italic text-blue-500 mb-6">Panel Supervisor</h2>
         {modo === 'menu' ? (
           <div className="grid gap-4">
-            <button onClick={() => setModo('usb')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase border border-white/5 hover:bg-blue-600 transition-all">🔌 Escáner USB</button>
-            <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase border border-white/5 hover:bg-emerald-600 transition-all">📱 Cámara Móvil</button>
-            <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase border border-white/5 hover:bg-slate-700 transition-all">🖋️ Manual</button>
-            <button onClick={() => router.push('/')} className="mt-4 text-slate-600 font-bold uppercase text-[9px] text-center tracking-widest">← Salir</button>
+            <button onClick={() => setModo('camara')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase hover:bg-emerald-600 transition-all">📱 Cámara</button>
+            <button onClick={() => setModo('manual')} className="p-8 bg-[#1e293b] rounded-[30px] font-black uppercase hover:bg-slate-700 transition-all">🖋️ Manual</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-4">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl uppercase italic">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl uppercase italic">SALIDA</button>
-            <button onClick={() => setModo('menu')} className="mt-6 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← Cambiar Modo</button>
+            <button onClick={() => setDireccion('entrada')} className="py-12 bg-emerald-600 rounded-[35px] font-black text-4xl italic shadow-xl">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="py-12 bg-red-600 rounded-[35px] font-black text-4xl italic shadow-xl">SALIDA</button>
           </div>
         ) : (
           <div className="space-y-6">
-            <div className={`bg-[#050a14] p-6 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative overflow-hidden h-64 flex flex-col items-center justify-center`}>
-              {!lecturaLista ? (
-                <>
-                  {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden"></div>}
-                  {modo === 'usb' && <p className="text-[11px] font-black text-blue-500 uppercase animate-pulse">Esperando Escaneo USB...</p>}
-                  {modo === 'manual' && <input type="text" placeholder="ID Empleado" className="bg-transparent text-center text-2xl font-black uppercase outline-none" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') { setQrData(e.currentTarget.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 250); }}} />}
-                </>
-              ) : (
-                <div className="text-center">
-                  <p className="text-emerald-500 font-black text-xl uppercase italic">ID Detectado ✅</p>
-                </div>
-              )}
+            <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Esperando PIN de Supervisor</p>
             </div>
-            {lecturaLista && (
-              <input ref={pinRef} type="password" placeholder="PIN Autorizador" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-4xl font-black border-2 border-blue-500/20 text-white outline-none focus:border-blue-500" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
-            )}
-            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg">
-              {animar ? 'VERIFICANDO...' : 'Confirmar Registro'}
-            </button>
-            <button onClick={resetFormulario} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest py-2">✕ Cancelar</button>
+            <input ref={pinRef} type="password" placeholder="PIN" className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} />
+            <button onClick={registrarAcceso} disabled={animar} className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg">Confirmar</button>
+            <button onClick={() => setModo('menu')} className="text-[10px] text-slate-500 uppercase tracking-widest">✕ Cancelar</button>
           </div>
         )}
       </div>
     </main>
-  );
-}
