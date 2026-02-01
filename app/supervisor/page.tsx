@@ -19,18 +19,17 @@ export default function SupervisorPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // ALGORITMO DE DECODIFICACIÓN (Solo para QR/Cámara/Scanner)
+  // ALGORITMO DE DECODIFICACIÓN (Sincronizado con EmpleadoPage)
   const procesarLecturaQR = (textoLeido: string) => {
     try {
-      // Intenta decodificar el Base64 generado en EmpleadoPage (documento|timestamp)
       const decoded = atob(textoLeido);
       if (decoded.includes('|')) {
         const [documento] = decoded.split('|');
-        return documento; // Retorna solo el documento_id extraído
+        return documento; 
       }
-      return textoLeido; // Si no tiene el pipe, es un documento plano (USB)
+      return textoLeido;
     } catch (e) {
-      return textoLeido; // Si no es Base64, es texto plano
+      return textoLeido; 
     }
   };
 
@@ -62,14 +61,14 @@ export default function SupervisorPage() {
   const iniciarCamara = async () => {
     try {
       setTimeout(async () => {
-        if (!document.getElementById("reader")) return;
+        const container = document.getElementById("reader");
+        if (!container) return;
         const scanner = new Html5Qrcode("reader");
         scannerRef.current = scanner;
         await scanner.start(
           { facingMode: "environment" },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
-            // APLICA DECODIFICACIÓN AL QR
             const documentoExtraido = procesarLecturaQR(decodedText);
             setQrData(documentoExtraido);
             setLecturaLista(true);
@@ -93,14 +92,14 @@ export default function SupervisorPage() {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      // BÚSQUEDA DUAL: Busca por documento_id o por email
+      // BÚSQUEDA DUAL: Documento o Email
       const { data: emp } = await supabase
         .from('empleados')
         .select('*')
         .or(`documento_id.eq.${qrData},email.eq.${qrData}`)
         .maybeSingle();
 
-      if (!emp) throw new Error("Empleado no registrado o datos incorrectos");
+      if (!emp) throw new Error("Empleado no registrado");
       
       const { data: aut } = await supabase
         .from('empleados')
@@ -119,7 +118,7 @@ export default function SupervisorPage() {
         .maybeSingle();
 
       if (direccion === 'entrada') {
-        if (jActiva) throw new Error("Ya posee una entrada activa");
+        if (jActiva) throw new Error("Ya tiene una entrada activa");
         await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -129,7 +128,7 @@ export default function SupervisorPage() {
         }]);
         await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
       } else {
-        if (!jActiva) throw new Error("No se encontró entrada previa");
+        if (!jActiva) throw new Error("No existe entrada previa");
         const ahora = new Date();
         const diffMs = ahora.getTime() - new Date(jActiva.hora_entrada).getTime();
         const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
@@ -190,11 +189,11 @@ export default function SupervisorPage() {
             <div className={`bg-[#050a14] p-4 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative h-64 flex items-center justify-center overflow-hidden`}>
               {!lecturaLista ? (
                 <>
-                  {modo === 'camara' && <div id=\"reader\" className=\"w-full h-full\"></div>}
+                  {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
                   {modo === 'usb' && (
-                    <div className=\"text-center\">
-                      <p className=\"text-blue-500 font-black animate-pulse uppercase\">Esperando Scanner...</p>
-                      <input type=\"text\" className=\"opacity-0 absolute\" autoFocus onChange={(e) => { 
+                    <div className="text-center">
+                      <p className="text-blue-500 font-black animate-pulse uppercase">Esperando Scanner...</p>
+                      <input type="text" className="opacity-0 absolute" autoFocus onChange={(e) => { 
                         const id = procesarLecturaQR(e.target.value);
                         setQrData(id); 
                         setLecturaLista(true); 
@@ -203,4 +202,44 @@ export default function SupervisorPage() {
                     </div>
                   )}
                   {modo === 'manual' && (
-                    <input type=\"text\"
+                    <input type="text" placeholder="DOCUMENTO O CORREO" className="bg-transparent text-center text-xl font-black uppercase outline-none w-full" autoFocus onKeyDown={(e) => { if(e.key === 'Enter') { setQrData(e.currentTarget.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 300); }}} />
+                  )}
+                  <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <p className="text-emerald-500 font-black text-xl uppercase italic">Identidad Lista ✅</p>
+                  <p className="text-[10px] text-slate-500 mt-2">{qrData}</p>
+                </div>
+              )}
+            </div>
+
+            {lecturaLista && (
+              <input 
+                ref={pinRef} 
+                type="password" 
+                placeholder="PIN SUPERVISOR" 
+                className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none" 
+                value={pinAutorizador} 
+                onChange={e => setPinAutorizador(e.target.value)} 
+              />
+            )}
+
+            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg hover:bg-blue-500 transition-all disabled:opacity-30">
+              {animar ? 'PROCESANDO...' : 'Confirmar Acceso'}
+            </button>
+            
+            <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">
+              ✕ Cancelar
+            </button>
+          </div>
+        )}
+      </div>
+
+      <style jsx global>{`
+        @keyframes scan-laser { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+        .animate-scan-laser { animation: scan-laser 2s infinite linear; }
+      `}</style>
+    </main>
+  );
+}
