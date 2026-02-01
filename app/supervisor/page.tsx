@@ -31,8 +31,7 @@ export default function SupervisorPage() {
   const [distanciaAlmacen, setDistanciaAlmacen] = useState<number | null>(null);
   
   const [config, setConfig] = useState<any>({ 
-    almacen_lat: 0, almacen_lon: 0, radio_maximo: 0,
-    timer_token: 120000 
+    almacen_lat: 0, almacen_lon: 0, radio_maximo: 0, timer_token: 120000 
   });
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -138,40 +137,47 @@ export default function SupervisorPage() {
         const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
         if (Math.round(d) > config.radio_maximo) throw new Error(`Fuera de rango (${Math.round(d)}m)`);
 
-        // --- ALGORITMO QR RESTAURADO ---
         let idFinal = qrData.trim();
+        
+        // --- ALGORITMO QR RESTAURADO Y REFORZADO ---
         if (modo !== 'manual') {
           try {
-            const decoded = atob(idFinal).split('|');
-            if (decoded.length === 2) {
-              const ts = parseInt(decoded[1]);
-              if (Date.now() - ts > config.timer_token) throw new Error("TOKEN QR EXPIRADO");
-              idFinal = decoded[0];
+            const decodedStr = atob(idFinal);
+            if (decodedStr.includes('|')) {
+              const [id, ts] = decodedStr.split('|');
+              if (Date.now() - parseInt(ts) > config.timer_token) throw new Error("TOKEN QR EXPIRADO");
+              idFinal = id;
             }
           } catch (e: any) {
             if (e.message === "TOKEN QR EXPIRADO") throw e;
-            // Si no es base64, se asume ID plano
+            // Si no es base64 válido, idFinal se queda como qrData original
           }
         }
 
         const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
-        if (!emp || !emp.activo) throw new Error("Empleado no válido");
+        if (!emp || !emp.activo) throw new Error("Empleado no registrado o inactivo");
         
         const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
-        if (!aut) throw new Error("PIN Supervisor inválido");
+        if (!aut) throw new Error("PIN de Supervisor incorrecto");
 
         const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
         if (direccion === 'entrada') {
-          if (jActiva) throw new Error("Ya tiene entrada activa");
-          await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: new Date().toISOString(), estado: 'activo' }]);
+          if (jActiva) throw new Error("El empleado ya tiene una entrada activa");
+          await supabase.from('jornadas').insert([{ 
+            empleado_id: emp.id, 
+            nombre_empleado: emp.nombre, 
+            hora_entrada: new Date().toISOString(), 
+            estado: 'activo' 
+          }]);
           await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
         } else {
-          if (!jActiva) throw new Error("No hay entrada activa");
+          if (!jActiva) throw new Error("No existe una entrada previa para este empleado");
           
           const ahora = new Date();
           const entrada = new Date(jActiva.hora_entrada);
           const diffSegundos = Math.floor((ahora.getTime() - entrada.getTime()) / 1000);
+          
           const h = Math.floor(diffSegundos / 3600).toString().padStart(2, '0');
           const m = Math.floor((diffSegundos % 3600) / 60).toString().padStart(2, '0');
           const s = (diffSegundos % 60).toString().padStart(2, '0');
@@ -186,17 +192,20 @@ export default function SupervisorPage() {
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
 
-        alert(`✅ Éxito: ${emp.nombre}`);
-        resetFormulario(); // Vuelve a la cámara automáticamente
+        alert(`✅ Operación Exitosa: ${emp.nombre}`);
+        await resetFormulario(); 
+        if (modo === 'camara') iniciarCamara();
       } catch (err: any) { 
-        alert(`❌ ${err.message}`); 
-        // AL FALLAR, RESETEAMOS PARA VOLVER A LEER QR
+        alert(`❌ Error: ${err.message}`); 
+        setAnimar(false);
         setLecturaLista(false);
         setQrData('');
-        setAnimar(false);
-        if (modo === 'camara') iniciarCamara();
+        if (modo === 'camara') {
+            await resetFormulario();
+            iniciarCamara();
+        }
       }
-    }, () => { alert("Error GPS"); setAnimar(false); }, { enableHighAccuracy: true });
+    }, () => { alert("Error GPS: No se pudo obtener ubicación"); setAnimar(false); }, { enableHighAccuracy: true });
   };
 
   return (
@@ -210,10 +219,10 @@ export default function SupervisorPage() {
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Panel de Supervisión</h2>
           {user && (
-            <div className="mt-2 bg-black/20 py-2 px-4 rounded-2xl inline-block">
+            <div className="mt-2 bg-black/20 py-2 px-4 rounded-2xl inline-block border border-white/5">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{user.nombre} [{user.rol}]</p>
               <p className="text-[9px] font-bold text-blue-500 mt-1 uppercase italic">
-                🛰️ GPS: {gpsReal.lat.toFixed(6)}, {gpsReal.lon.toFixed(6)} | <span className="text-white">{distanciaAlmacen ?? '--'} METROS</span>
+                🛰️ GPS: {gpsReal.lat.toFixed(6)}, {gpsReal.lon.toFixed(6)} | <span className="text-white">{distanciaAlmacen ?? '--'}m</span>
               </p>
             </div>
           )}
@@ -240,11 +249,12 @@ export default function SupervisorPage() {
                   <div className="absolute inset-x-0 h-[2px] bg-red-600 shadow-[0_0_10px_red] animate-laser z-20"></div>
                   {modo === 'camara' && <div id="reader" className="w-full h-full rounded-2xl overflow-hidden"></div>}
                   {modo === 'usb' && <p className="text-[11px] font-black text-blue-500 uppercase animate-pulse">Esperando Escaneo USB...</p>}
+                  {modo === 'manual' && <input type="text" placeholder="ID Empleado" className="bg-transparent text-center text-2xl font-black uppercase outline-none" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') { setQrData(e.currentTarget.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 250); }}} />}
                 </>
               ) : (
                 <div className="text-center">
-                  <p className="text-emerald-500 font-black text-xl uppercase italic">Identificado ✅</p>
-                  <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">Proceda con el PIN del Supervisor</p>
+                  <p className="text-emerald-500 font-black text-xl uppercase italic">ID Detectado ✅</p>
+                  <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase italic tracking-widest">Ingrese PIN de Supervisor</p>
                 </div>
               )}
             </div>
@@ -256,11 +266,11 @@ export default function SupervisorPage() {
             )}
             
             <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-[30px] font-black text-xl uppercase italic shadow-lg disabled:opacity-30">
-              {animar ? 'PROCESANDO...' : 'Confirmar Registro'}
+              {animar ? 'VERIFICANDO...' : 'Confirmar Registro'}
             </button>
             
             <button onClick={volverAlMenuTotal} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest hover:text-red-500 transition-colors py-2">
-              ✕ Cancelar y volver al inicio
+              ✕ Cancelar Proceso
             </button>
           </div>
         )}
