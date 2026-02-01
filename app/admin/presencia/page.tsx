@@ -13,24 +13,24 @@ export default function PresenciaPage() {
   useEffect(() => {
     fetchData();
     const interval = setInterval(() => setAhora(new Date()), 1000);
-    const ch = supabase.channel('presencia_realtime')
+    const channel = supabase.channel('presencia_realtime_fixed')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
       .subscribe();
     
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(ch);
+      supabase.removeChannel(channel);
     };
   }, []);
 
   const fetchData = async () => {
-    // Obtenemos empleados y sus jornadas más recientes para calcular el tiempo
     const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('nombre');
     const { data: jors } = await supabase.from('jornadas').select('*').order('hora_entrada', { ascending: false });
 
     if (emps) {
       const vinculados = emps.map(e => {
+        // Buscamos la jornada más reciente del empleado para tener su último movimiento
         const ultimaJornada = jors?.find(j => j.empleado_id === e.id);
         return { ...e, ultimaJornada };
       });
@@ -38,10 +38,12 @@ export default function PresenciaPage() {
     }
   };
 
-  const calcularTiempo = (fechaISO: string) => {
+  const calcularTiempo = (fechaISO: string | null) => {
     if (!fechaISO) return "00:00:00";
     const inicio = new Date(fechaISO).getTime();
     const diff = ahora.getTime() - inicio;
+    if (diff < 0) return "00:00:00";
+    
     const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
     const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
     const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
@@ -52,63 +54,61 @@ export default function PresenciaPage() {
   const ausentes = empleados.filter(e => !e.en_almacen);
 
   return (
-    <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
-      <div className="max-w-[1600px] mx-auto">
-        <div className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
-          <h2 className="text-2xl font-black uppercase italic text-blue-500 italic">Panel <span className="text-white">Presencia Real</span></h2>
-          <button 
-            onClick={() => router.back()} 
-            className="bg-[#1e293b] hover:bg-slate-700 px-8 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest border border-white/10 transition-all shadow-xl"
-          >
-            Volver
-          </button>
+    <main className="min-h-screen bg-[#050a14] p-6 text-white font-sans">
+      <div className="max-w-[100%] mx-auto">
+        <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
+          <h2 className="text-2xl font-black uppercase italic text-blue-500">Monitor de <span className="text-white">Presencia</span></h2>
+          <button onClick={() => router.back()} className="bg-[#1e293b] hover:bg-slate-700 px-8 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 transition-all">Volver</button>
         </div>
 
-        {/* SECCIÓN PRESENTES */}
-        <section className="mb-16">
-          <div className="flex items-center gap-4 mb-6 ml-2">
-            <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
-            <h3 className="text-sm font-black uppercase tracking-[0.3em] text-emerald-500">Presentes ({presentes.length})</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {presentes.map(e => (
-              <div key={e.id} className="bg-[#0f172a] p-6 rounded-[35px] border border-emerald-500/30 shadow-lg shadow-emerald-500/5 transition-all">
-                <p className="font-black uppercase italic text-sm mb-1 truncate">{e.nombre}</p>
-                <p className="text-[10px] text-emerald-500/60 font-bold uppercase mb-3">
-                  Entrada: {e.ultimaJornada ? new Date(e.ultimaJornada.hora_entrada).toLocaleTimeString() : '--:--'}
-                </p>
-                <div className="bg-black/30 rounded-2xl py-3 text-center border border-emerald-500/10">
-                  <span className="text-2xl font-black text-emerald-500 font-mono tracking-tighter">
-                    {calcularTiempo(e.ultimaJornada?.hora_entrada)}
-                  </span>
+        {/* CONTENEDOR PRINCIPAL: 2 COLUMNAS (PRESENTES IZQ / AUSENTES DER) */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+          
+          {/* LADO IZQUIERDO: PRESENTES */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 ml-2">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></div>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-500">Presentes ({presentes.length})</h3>
+            </div>
+            {/* GRID DE 4 COLUMNAS PARA PRESENTES */}
+            <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-3">
+              {presentes.map(e => (
+                <div key={e.id} className="bg-[#0f172a] p-4 rounded-[25px] border border-emerald-500/20 shadow-lg shadow-emerald-500/5">
+                  <p className="font-black uppercase italic text-[11px] truncate mb-1">{e.nombre}</p>
+                  <p className="text-[9px] text-emerald-500/50 font-bold mb-2 uppercase">Entrada: {e.ultimaJornada ? new Date(e.ultimaJornada.hora_entrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</p>
+                  <div className="bg-black/40 rounded-xl py-2 text-center border border-emerald-500/10">
+                    <span className="text-lg font-black text-emerald-500 font-mono italic">
+                      {calcularTiempo(e.ultimaJornada?.hora_entrada)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </section>
 
-        {/* SECCIÓN AUSENTES */}
-        <section>
-          <div className="flex items-center gap-4 mb-6 ml-2">
-            <span className="flex h-3 w-3 rounded-full bg-red-600"></span>
-            <h3 className="text-sm font-black uppercase tracking-[0.3em] text-red-500">Ausentes ({ausentes.length})</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {ausentes.map(e => (
-              <div key={e.id} className="bg-[#0f172a] p-6 rounded-[35px] border border-red-900/30 opacity-80 shadow-lg">
-                <p className="font-black uppercase italic text-sm mb-1 truncate text-slate-300">{e.nombre}</p>
-                <p className="text-[10px] text-red-500/60 font-bold uppercase mb-3">
-                  Salida: {e.ultimaJornada?.hora_salida ? new Date(e.ultimaJornada.hora_salida).toLocaleTimeString() : 'N/A'}
-                </p>
-                <div className="bg-black/30 rounded-2xl py-3 text-center border border-red-500/5">
-                  <span className="text-2xl font-black text-red-600 font-mono tracking-tighter">
-                    {e.ultimaJornada?.hora_salida ? calcularTiempo(e.ultimaJornada.hora_salida) : "00:00:00"}
-                  </span>
+          {/* LADO DERECHO: AUSENTES */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 ml-2">
+              <div className="w-2 h-2 bg-red-600 rounded-full shadow-[0_0_8px_red]"></div>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-red-500">Ausentes ({ausentes.length})</h3>
+            </div>
+            {/* GRID DE 4 COLUMNAS PARA AUSENTES */}
+            <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-3 opacity-80">
+              {ausentes.map(e => (
+                <div key={e.id} className="bg-[#0f172a] p-4 rounded-[25px] border border-red-500/10">
+                  <p className="font-black uppercase italic text-[11px] truncate mb-1 text-slate-400">{e.nombre}</p>
+                  <p className="text-[9px] text-red-500/50 font-bold mb-2 uppercase">Salida: {e.ultimaJornada?.hora_salida ? new Date(e.ultimaJornada.hora_salida).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Sin registro'}</p>
+                  <div className="bg-black/40 rounded-xl py-2 text-center border border-red-500/5">
+                    <span className="text-lg font-black text-red-600 font-mono italic">
+                      {calcularTiempo(e.ultimaJornada?.hora_salida || e.ultimaJornada?.hora_entrada)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </section>
+
+        </div>
       </div>
     </main>
   );
