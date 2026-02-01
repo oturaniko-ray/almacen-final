@@ -73,7 +73,10 @@ export default function SupervisorPage() {
   }, [gpsReal, config]);
 
   const resetFormulario = useCallback(async () => {
-    if (scannerRef.current?.isScanning) await scannerRef.current.stop();
+    if (scannerRef.current?.isScanning) {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+    }
     setQrData(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
   }, []);
 
@@ -83,6 +86,37 @@ export default function SupervisorPage() {
     setModo('menu');
   };
 
+  // LÓGICA DE CÁMARA RE-ACTIVADA
+  const iniciarCamara = async () => {
+    if (modo === 'camara' && direccion && !lecturaLista) {
+      try {
+        const scanner = new Html5Qrcode("reader");
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 15, qrbox: 250 },
+          (text) => {
+            setQrData(text);
+            setLecturaLista(true);
+            scanner.stop();
+            setTimeout(() => pinRef.current?.focus(), 250);
+          },
+          () => {}
+        );
+      } catch (err) { console.error("Error Cámara:", err); }
+    }
+  };
+
+  useEffect(() => {
+    if (modo === 'camara' && direccion && !lecturaLista) {
+        iniciarCamara();
+    }
+    return () => {
+        if (scannerRef.current?.isScanning) scannerRef.current.stop();
+    };
+  }, [modo, direccion, lecturaLista]);
+
+  // LÓGICA USB
   useEffect(() => {
     if (modo !== 'usb' || !direccion || lecturaLista) return;
     let buffer = "";
@@ -126,7 +160,6 @@ export default function SupervisorPage() {
         } else {
           if (!jActiva) throw new Error("No hay entrada activa");
           
-          // --- RUTINA DE CÁLCULO EN FORMATO TIEMPO (HH:mm:ss) ---
           const ahora = new Date();
           const entrada = new Date(jActiva.hora_entrada);
           const diffSegundos = Math.floor((ahora.getTime() - entrada.getTime()) / 1000);
