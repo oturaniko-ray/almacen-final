@@ -17,16 +17,10 @@ export default function ReportesPage() {
     
     fetchJornadas();
     
-    // AUDITORÍA: Aseguramos que el canal escuche TODOS los eventos (*)
     const channel = supabase
       .channel('cambios_jornadas_realtime')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'jornadas' 
-      }, (payload) => {
-        console.log("Cambio detectado:", payload);
-        fetchJornadas(); // Recarga forzada al detectar cambio
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => {
+        fetchJornadas();
       })
       .subscribe();
 
@@ -34,8 +28,9 @@ export default function ReportesPage() {
   }, []);
 
   const fetchJornadas = async () => {
-    // No ponemos loading(true) aquí para evitar que la pantalla se ponga en blanco en cada update
+    setLoading(true);
     try {
+      // Ordenamos por hora_entrada para tener la base cronológica
       const { data, error } = await supabase
         .from('jornadas')
         .select('*')
@@ -44,33 +39,23 @@ export default function ReportesPage() {
       if (error) throw error;
       setJornadas(data || []);
     } catch (err) {
-      console.error("Fuga detectada en fetch:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Función para calcular tiempo transcurrido en registros activos (HH:mm:ss)
   const calcularTiempoTranscurrido = (entrada: string) => {
     const inicio = new Date(entrada).getTime();
     const ahora = new Date().getTime();
     const dif = Math.floor((ahora - inicio) / 1000);
+    
     const h = Math.floor(dif / 3600).toString().padStart(2, '0');
     const m = Math.floor((dif % 3600) / 60).toString().padStart(2, '0');
     const s = (dif % 60).toString().padStart(2, '0');
     return `${h}:${m}:${s}`;
   };
-
-  // CORRECTIVO: Función de agrupación robusta que no depende del locale del sistema
-  const agruparPorFecha = (registros: any[]) => {
-    return registros.reduce((groups: any, registro) => {
-      const fecha = registro.hora_entrada.split('T')[0]; // Usa formato YYYY-MM-DD directo de la DB
-      if (!groups[fecha]) groups[fecha] = [];
-      groups[fecha].push(registro);
-      return groups;
-    }, {});
-  };
-
-  const grupos = agruparPorFecha(jornadas);
 
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
@@ -80,7 +65,7 @@ export default function ReportesPage() {
         <div className="flex justify-between items-start mb-10 border-b border-white/5 pb-6">
           <div>
             <h1 className="text-2xl font-black uppercase italic tracking-tighter text-blue-500">
-              Reporte de <span className="text-white">Asistencia Crítico</span>
+              Reporte de Asistencia <span className="text-white">Crítico</span>
             </h1>
             {user && (
               <div className="mt-2">
@@ -91,20 +76,17 @@ export default function ReportesPage() {
             )}
           </div>
           <div className="flex gap-4">
-            <button onClick={fetchJornadas} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">Sincronizar</button>
+            <button onClick={fetchJornadas} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/5">Actualizar</button>
             <button onClick={() => router.back()} className="bg-red-600/20 text-red-500 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-red-500/20">Cerrar</button>
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase">Conectando...</div>
-        ) : jornadas.length === 0 ? (
-          <div className="text-center py-20 text-slate-600 font-bold uppercase border border-dashed border-white/10 rounded-3xl">
-            No se han detectado registros de acceso hoy
-          </div>
+        {loading && jornadas.length === 0 ? (
+          <div className="text-center py-20 text-slate-500 font-black animate-pulse uppercase">Cargando registros...</div>
         ) : (
           <div className="space-y-8">
-            {Object.keys(grupos).map(fecha => (
+            {/* AGRUPACIÓN POR FECHA */}
+            {Array.from(new Set(jornadas.map(j => new Date(j.hora_entrada).toLocaleDateString()))).map(fecha => (
               <div key={fecha} className="space-y-4">
                 <div className="flex items-center gap-4">
                   <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-[10px] font-black italic">{fecha}</span>
@@ -116,19 +98,17 @@ export default function ReportesPage() {
                     <thead>
                       <tr className="bg-black/20 text-[10px] font-black text-slate-500 uppercase italic">
                         <th className="p-6">Empleado</th>
-                        <th className="p-6">Entrada</th>
-                        <th className="p-6">Salida</th>
+                        <th className="p-6">Hora Entrada</th>
+                        <th className="p-6">Hora Salida</th>
                         <th className="p-6 text-blue-500">Total (HH:MM:SS)</th>
                         <th className="p-6">Estado</th>
                         <th className="p-6">Autorización</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {grupos[fecha].map((j: any) => (
+                      {jornadas.filter(j => new Date(j.hora_entrada).toLocaleDateString() === fecha).map((j) => (
                         <tr key={j.id} className="hover:bg-white/[0.02] transition-colors group">
-                          <td className="p-6 text-sm font-black text-white uppercase italic group-hover:text-blue-400">
-                            {j.nombre_empleado}
-                          </td>
+                          <td className="p-6 text-sm font-black text-white uppercase italic">{j.nombre_empleado}</td>
                           <td className="p-6 text-[11px] font-mono text-emerald-500/80">
                             {new Date(j.hora_entrada).toLocaleTimeString('es-ES')}
                           </td>
