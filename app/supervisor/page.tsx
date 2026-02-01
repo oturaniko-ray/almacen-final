@@ -32,7 +32,7 @@ export default function SupervisorPage() {
   
   const [config, setConfig] = useState<any>({ 
     almacen_lat: 0, almacen_lon: 0, radio_maximo: 0,
-    timer_token: 120000, timer_inactividad: 120000 
+    timer_token: 120000 
   });
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -59,8 +59,7 @@ export default function SupervisorPage() {
         almacen_lat: parseFloat(cfgMap.almacen_lat) || 0,
         almacen_lon: parseFloat(cfgMap.almacen_lon) || 0,
         radio_maximo: parseInt(cfgMap.radio_maximo) || 0,
-        timer_token: parseInt(cfgMap.timer_token) || 120000,
-        timer_inactividad: parseInt(cfgMap.timer_inactividad) || 120000
+        timer_token: parseInt(cfgMap.qr_expiracion) || 120000
       });
     }
   };
@@ -86,7 +85,6 @@ export default function SupervisorPage() {
     setModo('menu');
   };
 
-  // LÓGICA DE CÁMARA RE-ACTIVADA
   const iniciarCamara = async () => {
     if (modo === 'camara' && direccion && !lecturaLista) {
       try {
@@ -103,17 +101,13 @@ export default function SupervisorPage() {
           },
           () => {}
         );
-      } catch (err) { console.error("Error Cámara:", err); }
+      } catch (err) { console.error(err); }
     }
   };
 
   useEffect(() => {
-    if (modo === 'camara' && direccion && !lecturaLista) {
-        iniciarCamara();
-    }
-    return () => {
-        if (scannerRef.current?.isScanning) scannerRef.current.stop();
-    };
+    if (modo === 'camara' && direccion && !lecturaLista) iniciarCamara();
+    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, lecturaLista]);
 
   // LÓGICA USB
@@ -144,7 +138,22 @@ export default function SupervisorPage() {
         const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
         if (Math.round(d) > config.radio_maximo) throw new Error(`Fuera de rango (${Math.round(d)}m)`);
 
+        // --- ALGORITMO QR RESTAURADO ---
         let idFinal = qrData.trim();
+        if (modo !== 'manual') {
+          try {
+            const decoded = atob(idFinal).split('|');
+            if (decoded.length === 2) {
+              const ts = parseInt(decoded[1]);
+              if (Date.now() - ts > config.timer_token) throw new Error("TOKEN QR EXPIRADO");
+              idFinal = decoded[0];
+            }
+          } catch (e: any) {
+            if (e.message === "TOKEN QR EXPIRADO") throw e;
+            // Si no es base64, se asume ID plano
+          }
+        }
+
         const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
         if (!emp || !emp.activo) throw new Error("Empleado no válido");
         
@@ -163,7 +172,6 @@ export default function SupervisorPage() {
           const ahora = new Date();
           const entrada = new Date(jActiva.hora_entrada);
           const diffSegundos = Math.floor((ahora.getTime() - entrada.getTime()) / 1000);
-          
           const h = Math.floor(diffSegundos / 3600).toString().padStart(2, '0');
           const m = Math.floor((diffSegundos % 3600) / 60).toString().padStart(2, '0');
           const s = (diffSegundos % 60).toString().padStart(2, '0');
@@ -175,13 +183,19 @@ export default function SupervisorPage() {
             estado: 'finalizado', 
             editado_por: `Sup: ${aut.nombre}` 
           }).eq('id', jActiva.id);
-          
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
 
         alert(`✅ Éxito: ${emp.nombre}`);
-        resetFormulario();
-      } catch (err: any) { alert(`❌ ${err.message}`); setAnimar(false); }
+        resetFormulario(); // Vuelve a la cámara automáticamente
+      } catch (err: any) { 
+        alert(`❌ ${err.message}`); 
+        // AL FALLAR, RESETEAMOS PARA VOLVER A LEER QR
+        setLecturaLista(false);
+        setQrData('');
+        setAnimar(false);
+        if (modo === 'camara') iniciarCamara();
+      }
     }, () => { alert("Error GPS"); setAnimar(false); }, { enableHighAccuracy: true });
   };
 
