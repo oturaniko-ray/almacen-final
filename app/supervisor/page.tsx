@@ -24,7 +24,6 @@ export default function SupervisorPage() {
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
-  const [pinEmpleadoManual, setPinEmpleadoManual] = useState('');
   const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
@@ -45,10 +44,9 @@ export default function SupervisorPage() {
     if (!sessionData) { router.push('/'); return; }
     setUser(JSON.parse(sessionData));
     fetchConfig();
-
     const watchId = navigator.geolocation.watchPosition(
       (pos) => setGpsReal({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => {}, { enableHighAccuracy: true, maximumAge: 0 }
+      () => {}, { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
@@ -74,17 +72,9 @@ export default function SupervisorPage() {
     }
   }, [gpsReal, config]);
 
-  // RESET COMPLETO PARA SIGUIENTE EMPLEADO O CANCELAR
   const resetFormulario = useCallback(async () => {
-    if (scannerRef.current?.isScanning) {
-      await scannerRef.current.stop();
-      scannerRef.current = null;
-    }
-    setQrData('');
-    setPinAutorizador('');
-    setPinEmpleadoManual('');
-    setLecturaLista(false);
-    setAnimar(false);
+    if (scannerRef.current?.isScanning) await scannerRef.current.stop();
+    setQrData(''); setPinAutorizador(''); setLecturaLista(false); setAnimar(false);
   }, []);
 
   const volverAlMenuTotal = async () => {
@@ -93,7 +83,6 @@ export default function SupervisorPage() {
     setModo('menu');
   };
 
-  // ESCÁNER USB
   useEffect(() => {
     if (modo !== 'usb' || !direccion || lecturaLista) return;
     let buffer = "";
@@ -112,54 +101,16 @@ export default function SupervisorPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [modo, direccion, lecturaLista]);
 
-  // CÁMARA
-  const iniciarCamara = async () => {
-    if (modo === 'camara' && direccion && !lecturaLista) {
-      try {
-        const scanner = new Html5Qrcode("reader");
-        scannerRef.current = scanner;
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 15, qrbox: 250 },
-          (text) => {
-            setQrData(text);
-            setLecturaLista(true);
-            scanner.stop();
-            setTimeout(() => pinRef.current?.focus(), 250);
-          },
-          () => {}
-        );
-      } catch (err) { console.error(err); }
-    }
-  };
-
-  useEffect(() => {
-    if (modo === 'camara' && direccion && !lecturaLista) iniciarCamara();
-  }, [modo, direccion, lecturaLista]);
-
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
 
-    const gpsTimeout = setTimeout(() => {
-      if (animar) { alert("❌ Error: GPS no responde"); setAnimar(false); }
-    }, 8000);
-
     navigator.geolocation.getCurrentPosition(async (pos) => {
-      clearTimeout(gpsTimeout);
       try {
         const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
         if (Math.round(d) > config.radio_maximo) throw new Error(`Fuera de rango (${Math.round(d)}m)`);
 
         let idFinal = qrData.trim();
-        if (modo !== 'manual') {
-          try {
-            const decoded = atob(idFinal).split('|');
-            if (decoded.length === 2 && Date.now() - parseInt(decoded[1]) > config.timer_token) throw new Error("TOKEN EXPIRADO");
-            if (decoded.length === 2) idFinal = decoded[0];
-          } catch (e) {}
-        }
-
         const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${idFinal},email.eq.${idFinal}`).maybeSingle();
         if (!emp || !emp.activo) throw new Error("Empleado no válido");
         
@@ -174,16 +125,31 @@ export default function SupervisorPage() {
           await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
         } else {
           if (!jActiva) throw new Error("No hay entrada activa");
+          
+          // --- RUTINA DE CÁLCULO EN FORMATO TIEMPO (HH:mm:ss) ---
           const ahora = new Date();
-          const horas = (ahora.getTime() - new Date(jActiva.hora_entrada).getTime()) / 3600000;
-          await supabase.from('jornadas').update({ hora_salida: ahora.toISOString(), horas_trabajadas: horas, estado: 'finalizado', editado_por: `Sup: ${aut.nombre}` }).eq('id', jActiva.id);
+          const entrada = new Date(jActiva.hora_entrada);
+          const diffSegundos = Math.floor((ahora.getTime() - entrada.getTime()) / 1000);
+          
+          const h = Math.floor(diffSegundos / 3600).toString().padStart(2, '0');
+          const m = Math.floor((diffSegundos % 3600) / 60).toString().padStart(2, '0');
+          const s = (diffSegundos % 60).toString().padStart(2, '0');
+          const tiempoFinal = `${h}:${m}:${s}`;
+
+          await supabase.from('jornadas').update({ 
+            hora_salida: ahora.toISOString(), 
+            horas_trabajadas: tiempoFinal, 
+            estado: 'finalizado', 
+            editado_por: `Sup: ${aut.nombre}` 
+          }).eq('id', jActiva.id);
+          
           await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
         }
 
         alert(`✅ Éxito: ${emp.nombre}`);
         resetFormulario();
       } catch (err: any) { alert(`❌ ${err.message}`); setAnimar(false); }
-    }, () => { clearTimeout(gpsTimeout); alert("Error GPS"); setAnimar(false); }, { enableHighAccuracy: true });
+    }, () => { alert("Error GPS"); setAnimar(false); }, { enableHighAccuracy: true });
   };
 
   return (
@@ -236,11 +202,8 @@ export default function SupervisorPage() {
               )}
             </div>
 
-            {(lecturaLista || modo === 'manual') && (
+            {lecturaLista && (
               <div className="space-y-4">
-                {modo === 'manual' && (
-                  <input type="text" className="w-full py-4 bg-[#050a14] rounded-[20px] text-center text-xl font-bold border border-white/10 text-white outline-none" placeholder="ID Empleado" value={qrData} onChange={(e) => setQrData(e.target.value)} />
-                )}
                 <input ref={pinRef} type="password" placeholder="PIN Autorizador" className="w-full py-5 bg-[#050a14] rounded-[25px] text-center text-4xl font-black border-2 border-blue-500/20 text-white outline-none focus:border-blue-500 shadow-2xl transition-all" value={pinAutorizador} onChange={(e) => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') registrarAcceso(); }} />
               </div>
             )}
@@ -249,7 +212,6 @@ export default function SupervisorPage() {
               {animar ? 'PROCESANDO...' : 'Confirmar Registro'}
             </button>
             
-            {/* BOTÓN CANCELAR CORREGIDO */}
             <button onClick={volverAlMenuTotal} className="w-full text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest hover:text-red-500 transition-colors py-2">
               ✕ Cancelar y volver al inicio
             </button>
