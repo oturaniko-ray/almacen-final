@@ -12,9 +12,14 @@ export default function ReportesPage() {
   const [busqueda, setBusqueda] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
+  const [user, setUser] = useState<any>(null); // Para el membrete
   const router = useRouter();
 
   useEffect(() => {
+    // Recuperar datos del usuario para el membrete
+    const sessionData = localStorage.getItem('user_session');
+    if (sessionData) setUser(JSON.parse(sessionData));
+
     fetchJornadas();
     const ch = supabase.channel('jornadas_real').on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchJornadas()).subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -42,13 +47,26 @@ export default function ReportesPage() {
     return matchNombre && matchDesde && matchHasta;
   });
 
+  // Agrupación para el separador de fechas (Punto 4)
+  let fechaActual = "";
+
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
-          <h1 className="text-2xl font-black uppercase italic text-blue-500">Auditoría <span className="text-white">General</span></h1>
+        
+        {/* MEMBRETE (Punto 2) */}
+        <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
+          <div>
+            <h1 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Reporte de Accesos</h1>
+            <div className="flex gap-4 mt-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Usuario: <span className="text-white">{user?.nombre || 'S/D'}</span></p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rol: <span className="text-blue-400">{user?.rol || 'S/D'}</span></p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nivel: <span className="text-emerald-500">Autorizado</span></p>
+            </div>
+          </div>
           <div className="flex gap-3">
-            <button onClick={exportarExcel} className="bg-emerald-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20">Excel</button>
+            {/* BOTÓN EXPORTAR (Punto 6) */}
+            <button onClick={exportarExcel} className="bg-emerald-600 px-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20">Exportar</button>
             <button onClick={() => router.back()} className="bg-red-600/20 text-red-500 px-5 py-2 rounded-xl text-[10px] font-black uppercase">Cerrar</button>
           </div>
         </div>
@@ -60,33 +78,70 @@ export default function ReportesPage() {
         </div>
 
         <div className="overflow-hidden rounded-[40px] border border-white/5 bg-[#0f172a] shadow-2xl">
-          <table className="w-full text-left">
+          <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-black/40 text-[10px] font-black text-slate-500 uppercase italic">
                 <th className="p-6">Empleado</th>
-                <th className="p-6">Entrada</th>
-                <th className="p-6">Salida</th>
-                <th className="p-6 text-yellow-400">Total Horas</th>
-                <th className="p-6">Estado</th>
+                <th className="p-6">Entrada (Fecha y Hora)</th>
+                <th className="p-6">Salida (Fecha y Hora)</th>
+                <th className="p-6 text-yellow-400">Total Horas (HH:MM:SS)</th>
+                <th className="p-6 text-center">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
-              {jornadasFiltradas.map((j) => (
-                <tr key={j.id} className="hover:bg-white/[0.01]">
-                  <td className="p-6 font-black uppercase italic text-sm">{j.nombre_empleado}</td>
-                  <td className="p-6 text-sm font-bold font-mono text-emerald-500">{new Date(j.hora_entrada).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}</td>
-                  <td className="p-6 text-sm font-bold font-mono text-red-400">{j.hora_salida ? new Date(j.hora_salida).toLocaleString('es-ES', {hour:'2-digit', minute:'2-digit'}) : '--:--'}</td>
-                  <td className="p-6 text-lg font-black text-yellow-400 italic tracking-tighter">{j.estado === 'activo' ? 'EN CURSO' : j.horas_trabajadas}</td>
-                  <td className="p-6">
-                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase ${j.estado === 'activo' ? 'bg-emerald-500/20 text-emerald-500 animate-pulse border border-emerald-500/30' : 'bg-slate-500/20 text-slate-400'}`}>
-                      {j.estado}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+            <tbody>
+              {jornadasFiltradas.map((j) => {
+                const fechaFila = new Date(j.hora_entrada).toLocaleDateString('es-ES');
+                const mostrarSeparador = fechaFila !== fechaActual;
+                fechaActual = fechaFila;
+
+                return (
+                  <React.Fragment key={j.id}>
+                    {/* SEPARADOR POR FECHAS (Punto 4) */}
+                    {mostrarSeparador && (
+                      <tr className="bg-white/5">
+                        <td colSpan={5} className="px-6 py-2 text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">
+                          📅 {fechaFila}
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="hover:bg-white/[0.01] border-b border-white/5">
+                      {/* FUENTE AMPLIADA (Punto 5) */}
+                      <td className="p-6 font-black uppercase italic text-lg tracking-tighter text-white">{j.nombre_empleado}</td>
+                      
+                      {/* FECHA Y HORA COMPLETA (Punto 3) */}
+                      <td className="p-6 text-[11px] font-bold font-mono text-emerald-500 leading-tight">
+                        {new Date(j.hora_entrada).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric'})}<br/>
+                        <span className="text-lg">{new Date(j.hora_entrada).toLocaleString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                      </td>
+                      
+                      <td className="p-6 text-[11px] font-bold font-mono text-red-400 leading-tight">
+                        {j.hora_salida ? (
+                          <>
+                            {new Date(j.hora_salida).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric'})}<br/>
+                            <span className="text-lg">{new Date(j.hora_salida).toLocaleString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                          </>
+                        ) : '--/--/--'}
+                      </td>
+
+                      {/* FORMATO HH:MM:SS Y FUENTE REDUCIDA AL 40% (Punto 1 y 5) */}
+                      <td className="p-6 font-black text-yellow-400 italic tracking-tighter">
+                        <span className="text-[12px] opacity-90">
+                          {j.estado === 'activo' ? 'SINCRONIZANDO...' : j.horas_trabajadas || '00:00:00'}
+                        </span>
+                      </td>
+
+                      <td className="p-6 text-center">
+                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase ${j.estado === 'activo' ? 'bg-emerald-500/20 text-emerald-500 animate-pulse border border-emerald-500/30' : 'bg-slate-500/20 text-slate-400'}`}>
+                          {j.estado}
+                        </span>
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
-          {loading && <div className="p-10 text-center text-[10px] font-black uppercase animate-pulse text-slate-500">Sincronizando...</div>}
+          {loading && <div className="p-10 text-center text-[10px] font-black uppercase animate-pulse text-slate-500">Sincronizando base de datos...</div>}
         </div>
       </div>
     </main>
