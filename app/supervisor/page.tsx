@@ -19,7 +19,6 @@ export default function SupervisorPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // ALGORITMO DE DECODIFICACIÓN (Sincronizado con EmpleadoPage)
   const procesarLecturaQR = (textoLeido: string) => {
     try {
       const decoded = atob(textoLeido);
@@ -61,8 +60,7 @@ export default function SupervisorPage() {
   const iniciarCamara = async () => {
     try {
       setTimeout(async () => {
-        const container = document.getElementById("reader");
-        if (!container) return;
+        if (!document.getElementById("reader")) return;
         const scanner = new Html5Qrcode("reader");
         scannerRef.current = scanner;
         await scanner.start(
@@ -92,52 +90,38 @@ export default function SupervisorPage() {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      // BÚSQUEDA DUAL: Documento o Email
-      const { data: emp } = await supabase
-        .from('empleados')
-        .select('*')
-        .or(`documento_id.eq.${qrData},email.eq.${qrData}`)
-        .maybeSingle();
-
+      const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${qrData},email.eq.${qrData}`).maybeSingle();
       if (!emp) throw new Error("Empleado no registrado");
       
-      const { data: aut } = await supabase
-        .from('empleados')
-        .select('nombre')
-        .eq('pin_seguridad', pinAutorizador)
-        .in('rol', ['supervisor', 'admin', 'administrador'])
-        .maybeSingle();
-
+      const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
       if (!aut) throw new Error("PIN de Supervisor incorrecto");
 
-      const { data: jActiva } = await supabase
-        .from('jornadas')
-        .select('*')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .maybeSingle();
+      const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
 
       if (direccion === 'entrada') {
         if (jActiva) throw new Error("Ya tiene una entrada activa");
         await supabase.from('jornadas').insert([{ 
-          empleado_id: emp.id, 
-          nombre_empleado: emp.nombre, 
-          documento_id: emp.documento_id,
-          hora_entrada: new Date().toISOString(), 
-          estado: 'activo' 
+          empleado_id: emp.id, nombre_empleado: emp.nombre, documento_id: emp.documento_id,
+          hora_entrada: new Date().toISOString(), estado: 'activo' 
         }]);
         await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
       } else {
         if (!jActiva) throw new Error("No existe entrada previa");
+        
+        // --- CÁLCULO DE TIEMPO CORREGIDO ---
         const ahora = new Date();
-        const diffMs = ahora.getTime() - new Date(jActiva.hora_entrada).getTime();
-        const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
-        const m = Math.floor((diffMs % 3600000) / 60000).toString().padStart(2, '0');
-        const s = Math.floor((diffMs % 60000) / 1000).toString().padStart(2, '0');
+        const entrada = new Date(jActiva.hora_entrada);
+        const diffMs = ahora.getTime() - entrada.getTime();
+        const totalSegundos = Math.floor(diffMs / 1000);
+        
+        const h = Math.floor(totalSegundos / 3600).toString().padStart(2, '0');
+        const m = Math.floor((totalSegundos % 3600) / 60).toString().padStart(2, '0');
+        const s = (totalSegundos % 60).toString().padStart(2, '0');
+        const tiempoFormateado = `${h}:${m}:${s}`;
         
         await supabase.from('jornadas').update({ 
           hora_salida: ahora.toISOString(), 
-          horas_trabajadas: `${h}:${m}:${s}`, 
+          horas_trabajadas: tiempoFormateado, 
           estado: 'finalizado', 
           editado_por: `Supervisor: ${aut.nombre}` 
         }).eq('id', jActiva.id);
@@ -157,7 +141,6 @@ export default function SupervisorPage() {
   return (
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative">
-        
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Panel Supervisor</h2>
           <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">🛰️ GPS: {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}</p>
@@ -185,7 +168,6 @@ export default function SupervisorPage() {
                 </p>
               </div>
             )}
-
             <div className={`bg-[#050a14] p-4 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative h-64 flex items-center justify-center overflow-hidden`}>
               {!lecturaLista ? (
                 <>
@@ -194,15 +176,14 @@ export default function SupervisorPage() {
                     <div className="text-center">
                       <p className="text-blue-500 font-black animate-pulse uppercase">Esperando Scanner...</p>
                       <input type="text" className="opacity-0 absolute" autoFocus onChange={(e) => { 
-                        const id = procesarLecturaQR(e.target.value);
-                        setQrData(id); 
+                        setQrData(procesarLecturaQR(e.target.value)); 
                         setLecturaLista(true); 
                         setTimeout(() => pinRef.current?.focus(), 300); 
                       }} />
                     </div>
                   )}
                   {modo === 'manual' && (
-                    <input type="text" placeholder="DOCUMENTO O CORREO" className="bg-transparent text-center text-xl font-black uppercase outline-none w-full" autoFocus onKeyDown={(e) => { if(e.key === 'Enter') { setQrData(e.currentTarget.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 300); }}} />
+                    <input type="text" placeholder="ID O CORREO" className="bg-transparent text-center text-xl font-black uppercase outline-none w-full" autoFocus onKeyDown={(e) => { if(e.key === 'Enter') { setQrData(e.currentTarget.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 300); }}} />
                   )}
                   <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
                 </>
@@ -213,29 +194,16 @@ export default function SupervisorPage() {
                 </div>
               )}
             </div>
-
             {lecturaLista && (
-              <input 
-                ref={pinRef} 
-                type="password" 
-                placeholder="PIN SUPERVISOR" 
-                className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none" 
-                value={pinAutorizador} 
-                onChange={e => setPinAutorizador(e.target.value)} 
-              />
+              <input ref={pinRef} type="password" placeholder="PIN SUPERVISOR" className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} />
             )}
-
             <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg hover:bg-blue-500 transition-all disabled:opacity-30">
-              {animar ? 'PROCESANDO...' : 'Confirmar Acceso'}
+              {animar ? 'PROCESANDO...' : 'Confirmar'}
             </button>
-            
-            <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">
-              ✕ Cancelar
-            </button>
+            <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">✕ Cancelar</button>
           </div>
         )}
       </div>
-
       <style jsx global>{`
         @keyframes scan-laser { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
         .animate-scan-laser { animation: scan-laser 2s infinite linear; }
