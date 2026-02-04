@@ -19,6 +19,7 @@ export default function SupervisorPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // Función para decodificar QR si viene con pipe (documento|timestamp)
   const procesarLecturaQR = (textoLeido: string) => {
     try {
       const decoded = atob(textoLeido);
@@ -86,29 +87,60 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, lecturaLista]);
 
+  // RUTINA AUDITADA Y CORREGIDA PARA REGISTRO EN TABLA JORNADAS
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${qrData},email.eq.${qrData}`).maybeSingle();
-      if (!emp) throw new Error("Empleado no registrado");
+      // 1. Validar existencia del empleado
+      const { data: emp, error: errEmp } = await supabase
+        .from('empleados')
+        .select('*')
+        .or(`documento_id.eq.${qrData},email.eq.${qrData}`)
+        .maybeSingle();
       
-      const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
-      if (!aut) throw new Error("PIN de Supervisor incorrecto");
+      if (errEmp || !emp) throw new Error("Empleado no registrado en el sistema");
+      
+      // 2. Validar PIN del Supervisor
+      const { data: aut, error: errAut } = await supabase
+        .from('empleados')
+        .select('nombre')
+        .eq('pin_seguridad', pinAutorizador)
+        .in('rol', ['supervisor', 'admin', 'administrador'])
+        .maybeSingle();
+      
+      if (errAut || !aut) throw new Error("PIN de Supervisor incorrecto o sin permisos");
 
-      const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
+      // 3. Buscar jornada activa (sin hora_salida)
+      const { data: jActiva } = await supabase
+        .from('jornadas')
+        .select('*')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .order('hora_entrada', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (direccion === 'entrada') {
-        if (jActiva) throw new Error("Ya tiene una entrada activa");
-        await supabase.from('jornadas').insert([{ 
-          empleado_id: emp.id, nombre_empleado: emp.nombre, documento_id: emp.documento_id,
-          hora_entrada: new Date().toISOString(), estado: 'activo' 
-        }]);
-        await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
-      } else {
-        if (!jActiva) throw new Error("No existe entrada previa");
+        if (jActiva) throw new Error(`El empleado ya tiene una entrada activa (${new Date(jActiva.hora_entrada).toLocaleTimeString()})`);
         
-        // --- CÁLCULO DE TIEMPO CORREGIDO ---
+        // Registrar Entrada
+        const { error: insErr } = await supabase.from('jornadas').insert([{ 
+          empleado_id: emp.id, 
+          nombre_empleado: emp.nombre, 
+          documento_id: emp.documento_id,
+          hora_entrada: new Date().toISOString(), 
+          estado: 'activo' 
+        }]);
+        if (insErr) throw insErr;
+
+        // Actualizar estado del empleado para el módulo de Presencia
+        await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
+
+      } else {
+        if (!jActiva) throw new Error("No existe una entrada previa registrada para este empleado");
+        
+        // CÁLCULO DE TIEMPO EXACTO
         const ahora = new Date();
         const entrada = new Date(jActiva.hora_entrada);
         const diffMs = ahora.getTime() - entrada.getTime();
@@ -119,12 +151,16 @@ export default function SupervisorPage() {
         const s = (totalSegundos % 60).toString().padStart(2, '0');
         const tiempoFormateado = `${h}:${m}:${s}`;
         
-        await supabase.from('jornadas').update({ 
+        // Registrar Salida
+        const { error: updErr } = await supabase.from('jornadas').update({ 
           hora_salida: ahora.toISOString(), 
           horas_trabajadas: tiempoFormateado, 
           estado: 'finalizado', 
           editado_por: `Supervisor: ${aut.nombre}` 
         }).eq('id', jActiva.id);
+        if (updErr) throw updErr;
+
+        // Actualizar estado del empleado para el módulo de Presencia
         await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
       }
 
