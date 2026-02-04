@@ -14,24 +14,28 @@ export default function SupervisorPage() {
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
   const [gpsReal, setGpsReal] = useState({ lat: 0, lon: 0 });
-  const [datosSupervisor, setDatosSupervisor] = useState<{nombre: string, nivel: string} | null>(null);
+  const [supervisorSesion, setSupervisorSesion] = useState<{nombre: string, rol: string} | null>(null);
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // ALGORITMO DE DESCIFRADO SINCRONIZADO CON EMPLEADOPAGE
+  // RECUPERAR SESIÓN DEL SUPERVISOR AL CARGAR
+  useEffect(() => {
+    const sessionData = localStorage.getItem('user_session');
+    if (sessionData) setSupervisorSesion(JSON.parse(sessionData));
+  }, []);
+
+  // ALGORITMO DE DESCIFRADO SINCRONIZADO CON EMPLEADOPAGE (atob + split)
   const procesarLecturaQR = (textoLeido: string) => {
     try {
-      // Intenta decodificar el Base64 (formato: documento|timestamp)
       const decoded = atob(textoLeido);
       if (decoded.includes('|')) {
-        return decoded.split('|')[0]; // Extrae solo el documento_id
+        return decoded.split('|')[0]; // Extrae el documento_id del token
       }
       return textoLeido;
     } catch (e) {
-      // Si falla atob, es una lectura directa (Scanner USB sin Base64)
-      return textoLeido; 
+      return textoLeido; // Si no es base64, retorna el texto plano
     }
   };
 
@@ -88,29 +92,28 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, lecturaLista]);
 
+  // RUTINA DE REGISTRO CON LOGICA DE VALIDACION DIFERENCIADA
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      // VALIDACIÓN DE EMPLEADO USANDO EL ID EXTRAÍDO
-      const { data: emp } = await supabase.from('empleados')
-        .select('*')
-        .or(`documento_id.eq.${qrData},email.eq.${qrData}`)
-        .maybeSingle();
-
+      // 1. Buscar al empleado que intenta acceder
+      const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${qrData},email.eq.${qrData}`).maybeSingle();
       if (!emp) throw new Error("Empleado no existe en la base de datos");
       
-      // VALIDACIÓN DE ROLES SEGÚN MODO (Manual requiere Admin)
-      const rolesPermitidos = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
-      const { data: aut } = await supabase.from('empleados')
-        .select('nombre, nivel_acceso')
+      // 2. Definir quién debe validar según el modo
+      // Scanner/Camara: Supervisor o Admin | Manual: Solo Admin
+      const rolesRequeridos = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
+      
+      const { data: validador } = await supabase.from('empleados')
+        .select('nombre, rol')
         .eq('pin_seguridad', pinAutorizador)
-        .in('rol', rolesPermitidos)
+        .in('rol', rolesRequeridos)
         .maybeSingle();
 
-      if (!aut) throw new Error(modo === 'manual' ? "Requiere PIN de Administrador" : "PIN Incorrecto");
-
-      setDatosSupervisor({ nombre: aut.nombre, nivel: aut.nivel_acceso || 'S/N' });
+      if (!validador) {
+        throw new Error(modo === 'manual' ? "Acceso Manual requiere PIN de ADMINISTRADOR" : "PIN Autorizador incorrecto");
+      }
 
       const { data: jActiva } = await supabase.from('jornadas')
         .select('*')
@@ -118,17 +121,24 @@ export default function SupervisorPage() {
         .is('hora_salida', null)
         .maybeSingle();
 
-      const firmaCompleta = `${aut.nombre} (${modo.toUpperCase()})`;
+      const firmaRegistro = `${validador.nombre} (${modo.toUpperCase()})`;
 
       if (direccion === 'entrada') {
-        if (jActiva) throw new Error("Entrada ya activa");
+        if (jActiva) throw new Error("El empleado ya tiene una entrada activa");
+        
         await supabase.from('jornadas').insert([{ 
-          empleado_id: emp.id, nombre_empleado: emp.nombre, documento_id: emp.documento_id,
-          hora_entrada: new Date().toISOString(), autoriza_entrada: firmaCompleta, estado: 'activo' 
+          empleado_id: emp.id, 
+          nombre_empleado: emp.nombre, 
+          documento_id: emp.documento_id,
+          hora_entrada: new Date().toISOString(), 
+          autoriza_entrada: firmaRegistro,
+          estado: 'activo' 
         }]);
         await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
+
       } else {
-        if (!jActiva) throw new Error("No hay entrada activa");
+        if (!jActiva) throw new Error("No existe una entrada previa para este empleado");
+        
         const ahora = new Date();
         const diffMs = ahora.getTime() - new Date(jActiva.hora_entrada).getTime();
         const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
@@ -136,16 +146,18 @@ export default function SupervisorPage() {
         const s = Math.floor((diffMs % 60000) / 1000).toString().padStart(2, '0');
         
         await supabase.from('jornadas').update({ 
-          hora_salida: ahora.toISOString(), horas_trabajadas: `${h}:${m}:${s}`, 
-          autoriza_salida: firmaCompleta, estado: 'finalizado'
+          hora_salida: ahora.toISOString(), 
+          horas_trabajadas: `${h}:${m}:${s}`, 
+          autoriza_salida: firmaRegistro,
+          estado: 'finalizado'
         }).eq('id', jActiva.id);
         await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
       }
 
-      alert(`✅ Registro OK: ${emp.nombre}`);
+      alert(`✅ Registro Exitoso: ${emp.nombre}`);
       resetLectura();
     } catch (err: any) { 
-      alert(`❌ ${err.message}`); 
+      alert(`❌ Error: ${err.message}`); 
       setAnimar(false);
       setLecturaLista(false);
       if (modo === 'camara') iniciarCamara();
@@ -156,21 +168,17 @@ export default function SupervisorPage() {
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative">
         
-        {/* MEMBRETE DINÁMICO CON MODO Y DATOS DE SUPERVISOR */}
+        {/* MEMBRETE DINÁMICO SEGÚN MODO */}
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">
             {modo === 'menu' ? 'Panel Supervisor' : `Acceso: ${modo === 'usb' ? 'Scanner / USB' : modo === 'camara' ? 'Cámara Móvil' : 'Manual'}`}
           </h2>
           {modo !== 'menu' && (
-            <div className="mt-2 space-y-1">
-              {datosSupervisor && (
-                <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
-                  Autoriza: {datosSupervisor.nombre} (Nivel {datosSupervisor.nivel})
-                </p>
-              )}
-              <p className="text-[9px] font-bold text-slate-500 uppercase">
-                🛰️ {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                SESIÓN: {supervisorSesion?.nombre || 'Cargando...'} ({supervisorSesion?.rol})
               </p>
+              <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">🛰️ GPS: {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}</p>
             </div>
           )}
         </div>
@@ -193,7 +201,7 @@ export default function SupervisorPage() {
             {modo === 'manual' && (
               <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-2xl">
                 <p className="text-[10px] text-yellow-500 font-black uppercase tracking-tighter leading-tight text-center">
-                  ⚠️ ADVERTENCIA: Acceso Manual requiere validación física de un ADMINISTRADOR.
+                  ⚠️ ADVERTENCIA: Acceso Manual requiere validación física obligatoria de un ADMINISTRADOR.
                 </p>
               </div>
             )}
@@ -221,7 +229,7 @@ export default function SupervisorPage() {
                 </>
               ) : (
                 <div className="text-center">
-                  <p className="text-emerald-500 font-black text-xl uppercase italic">ID Listo ✅</p>
+                  <p className="text-emerald-500 font-black text-xl uppercase italic">Identidad Lista ✅</p>
                   <p className="text-[10px] text-slate-500 mt-2">{qrData}</p>
                 </div>
               )}
@@ -231,16 +239,16 @@ export default function SupervisorPage() {
               <input 
                 ref={pinRef} 
                 type="password" 
-                placeholder="PIN AUTORIZADOR" 
+                placeholder={modo === 'manual' ? "PIN ADMINISTRADOR" : "PIN SUPERVISOR"} 
                 className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none" 
                 value={pinAutorizador} 
                 onChange={e => setPinAutorizador(e.target.value)}
-                onKeyDown={(e) => { if(e.key === 'Enter') registrarAcceso(); }} 
+                onKeyDown={(e) => { if(e.key === 'Enter') registrarAcceso(); }}
               />
             )}
 
             <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg hover:bg-blue-500 transition-all disabled:opacity-30">
-              {animar ? 'PROCESANDO...' : 'Confirmar'}
+              {animar ? 'PROCESANDO...' : 'Confirmar Registro'}
             </button>
             <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">✕ Cancelar</button>
           </div>
