@@ -19,13 +19,11 @@ export default function SupervisorPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // Función para decodificar QR si viene con pipe (documento|timestamp)
   const procesarLecturaQR = (textoLeido: string) => {
     try {
       const decoded = atob(textoLeido);
       if (decoded.includes('|')) {
-        const [documento] = decoded.split('|');
-        return documento; 
+        return decoded.split('|')[0]; 
       }
       return textoLeido;
     } catch (e) {
@@ -68,8 +66,7 @@ export default function SupervisorPage() {
           { facingMode: "environment" },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
-            const documentoExtraido = procesarLecturaQR(decodedText);
-            setQrData(documentoExtraido);
+            setQrData(procesarLecturaQR(decodedText));
             setLecturaLista(true);
             scanner.stop();
             setTimeout(() => pinRef.current?.focus(), 300);
@@ -87,84 +84,54 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, lecturaLista]);
 
-  // RUTINA AUDITADA Y CORREGIDA PARA REGISTRO EN TABLA JORNADAS
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      // 1. Validar existencia del empleado
-      const { data: emp, error: errEmp } = await supabase
-        .from('empleados')
-        .select('*')
-        .or(`documento_id.eq.${qrData},email.eq.${qrData}`)
-        .maybeSingle();
+      const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${qrData},email.eq.${qrData}`).maybeSingle();
+      if (!emp) throw new Error("Empleado no registrado");
       
-      if (errEmp || !emp) throw new Error("Empleado no registrado en el sistema");
-      
-      // 2. Validar PIN del Supervisor
-      const { data: aut, error: errAut } = await supabase
-        .from('empleados')
-        .select('nombre')
-        .eq('pin_seguridad', pinAutorizador)
-        .in('rol', ['supervisor', 'admin', 'administrador'])
-        .maybeSingle();
-      
-      if (errAut || !aut) throw new Error("PIN de Supervisor incorrecto o sin permisos");
+      const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', ['supervisor', 'admin', 'administrador']).maybeSingle();
+      if (!aut) throw new Error("PIN de Supervisor incorrecto");
 
-      // 3. Buscar jornada activa (sin hora_salida)
-      const { data: jActiva } = await supabase
-        .from('jornadas')
-        .select('*')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .order('hora_entrada', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: jActiva } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).order('hora_entrada', { ascending: false }).limit(1).maybeSingle();
+
+      const firmaAutoriza = `${aut.nombre} (${modo.toUpperCase()})`;
 
       if (direccion === 'entrada') {
-        if (jActiva) throw new Error(`El empleado ya tiene una entrada activa (${new Date(jActiva.hora_entrada).toLocaleTimeString()})`);
+        if (jActiva) throw new Error("Ya tiene una entrada activa");
         
-        // Registrar Entrada
-        const { error: insErr } = await supabase.from('jornadas').insert([{ 
+        await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
           documento_id: emp.documento_id,
           hora_entrada: new Date().toISOString(), 
+          autoriza_entrada: firmaAutoriza, // Nueva columna solicitada
           estado: 'activo' 
         }]);
-        if (insErr) throw insErr;
-
-        // Actualizar estado del empleado para el módulo de Presencia
         await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
 
       } else {
-        if (!jActiva) throw new Error("No existe una entrada previa registrada para este empleado");
-        
-        // CÁLCULO DE TIEMPO EXACTO
+        if (!jActiva) throw new Error("No existe registro de entrada");
+
         const ahora = new Date();
         const entrada = new Date(jActiva.hora_entrada);
         const diffMs = ahora.getTime() - entrada.getTime();
         const totalSegundos = Math.floor(diffMs / 1000);
-        
         const h = Math.floor(totalSegundos / 3600).toString().padStart(2, '0');
         const m = Math.floor((totalSegundos % 3600) / 60).toString().padStart(2, '0');
         const s = (totalSegundos % 60).toString().padStart(2, '0');
-        const tiempoFormateado = `${h}:${m}:${s}`;
         
-        // Registrar Salida
-        const { error: updErr } = await supabase.from('jornadas').update({ 
+        await supabase.from('jornadas').update({ 
           hora_salida: ahora.toISOString(), 
-          horas_trabajadas: tiempoFormateado, 
-          estado: 'finalizado', 
-          editado_por: `Supervisor: ${aut.nombre}` 
+          horas_trabajadas: `${h}:${m}:${s}`,
+          autoriza_salida: firmaAutoriza, // Nueva columna solicitada
+          estado: 'finalizado'
         }).eq('id', jActiva.id);
-        if (updErr) throw updErr;
-
-        // Actualizar estado del empleado para el módulo de Presencia
         await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
       }
 
-      alert(`✅ Registro Exitoso: ${emp.nombre}`);
+      alert(`✅ Registro OK: ${emp.nombre}`);
       resetLectura();
     } catch (err: any) { 
       alert(`❌ Error: ${err.message}`); 
@@ -197,13 +164,6 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {modo === 'manual' && (
-              <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-2xl">
-                <p className="text-[10px] text-yellow-500 font-black uppercase tracking-tighter leading-tight text-center">
-                  ⚠️ ADVERTENCIA: Se requiere la autorización de un administrador para poder dar acceso manual.
-                </p>
-              </div>
-            )}
             <div className={`bg-[#050a14] p-4 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative h-64 flex items-center justify-center overflow-hidden`}>
               {!lecturaLista ? (
                 <>
