@@ -47,45 +47,6 @@ export default function SupervisorPage() {
     setDireccion(null); 
   }, []);
 
-  const volverAlMenu = () => {
-    setDireccion(null);
-    setModo('menu');
-  };
-
-  useEffect(() => {
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => setGpsReal({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => {}, { enableHighAccuracy: true }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-
-  const iniciarCamara = async () => {
-    try {
-      setTimeout(async () => {
-        if (!document.getElementById("reader")) return;
-        const scanner = new Html5Qrcode("reader");
-        scannerRef.current = scanner;
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 20, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            setQrData(procesarLecturaQR(decodedText));
-            setLecturaLista(true);
-            scanner.stop();
-            setTimeout(() => pinAutRef.current?.focus(), 300);
-          },
-          () => {}
-        );
-      }, 300);
-    } catch (err) { console.error(err); }
-  };
-
-  useEffect(() => {
-    if (modo === 'camara' && direccion && !lecturaLista) iniciarCamara();
-    return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
-  }, [modo, direccion, lecturaLista]);
-
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
@@ -126,29 +87,35 @@ export default function SupervisorPage() {
         const entrada = new Date(jActiva.hora_entrada);
         const diffMs = ahora.getTime() - entrada.getTime();
         
-        // CÁLCULO EN FORMATO TIEMPO HH:MM:SS
+        // --- CORRECCIÓN CLAVE ---
+        // Para la base de datos (NUMERIC): Guardamos horas decimales
+        const horasDecimales = parseFloat((diffMs / 3600000).toFixed(2));
+        
+        // Para el mensaje de confirmación (Visualización HH:MM:SS)
         const totalSegundos = Math.floor(diffMs / 1000);
         const h = Math.floor(totalSegundos / 3600).toString().padStart(2, '0');
         const m = Math.floor((totalSegundos % 3600) / 60).toString().padStart(2, '0');
         const s = (totalSegundos % 60).toString().padStart(2, '0');
-        const tiempoFormateado = `${h}:${m}:${s}`;
+        const tiempoVisual = `${h}:${m}:${s}`;
         
         const { error: updErr } = await supabase.from('jornadas').update({ 
           hora_salida: ahora.toISOString(), 
-          horas_trabajadas: tiempoFormateado, 
+          horas_trabajadas: horasDecimales, // Enviamos el número corregido
           autoriza_salida: firmaRegistro,
           estado: 'finalizado'
         }).eq('id', jActiva.id);
+        
         if (updErr) throw updErr;
         await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
+        
+        alert(`✅ Salida OK: ${emp.nombre}\nTiempo: ${tiempoVisual}`);
       }
 
-      alert(`✅ Registro OK: ${emp.nombre}`);
+      if (direccion === 'entrada') alert(`✅ Entrada OK: ${emp.nombre}`);
       resetLectura();
     } catch (err: any) { 
       alert(`❌ ${err.message}`); 
       setAnimar(false);
-      if (modo === 'camara' && !lecturaLista) iniciarCamara();
     }
   };
 
@@ -160,9 +127,12 @@ export default function SupervisorPage() {
             {modo === 'menu' ? 'Panel Supervisor' : `Acceso ${modo.toUpperCase()}`}
           </h2>
           {modo !== 'menu' && (
-            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">
-              {supervisorSesion?.nombre} | GPS: {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}
-            </p>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                SVP: {supervisorSesion?.nombre} ({supervisorSesion?.rol})
+              </p>
+              <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">🛰️ GPS: {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}</p>
+            </div>
           )}
         </div>
 
@@ -177,13 +147,13 @@ export default function SupervisorPage() {
           <div className="flex flex-col gap-4">
             <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[35px] font-black text-4xl shadow-xl uppercase italic">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[35px] font-black text-4xl shadow-xl uppercase italic">SALIDA</button>
-            <button onClick={volverAlMenu} className="mt-6 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← Cambiar Modo</button>
+            <button onClick={() => setModo('menu')} className="mt-6 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← Cambiar Modo</button>
           </div>
         ) : (
           <div className="space-y-4">
             {modo === 'manual' && (
-              <div className="bg-yellow-500/10 border border-yellow-500/30 p-3 rounded-2xl mb-2 text-center">
-                <p className="text-[9px] text-yellow-500 font-black uppercase">⚠️ PIN Administrador Requerido</p>
+              <div className="bg-yellow-500/10 border border-yellow-500/30 p-3 rounded-2xl text-center">
+                <p className="text-[9px] text-yellow-500 font-black uppercase">⚠️ Se requiere PIN de ADMINISTRADOR</p>
               </div>
             )}
 
@@ -215,7 +185,7 @@ export default function SupervisorPage() {
             )}
 
             <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg hover:bg-blue-500 transition-all disabled:opacity-30">
-              {animar ? 'PROCESANDO...' : 'Confirmar'}
+              {animar ? 'PROCESANDO...' : 'Confirmar Registro'}
             </button>
             <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">✕ Cancelar</button>
           </div>
