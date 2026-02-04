@@ -14,6 +14,7 @@ export default function SupervisorPage() {
   const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
+  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0); // 0: Warning, 1: Doc, 2: PinEmp, 3: PinAut
   const [gpsReal, setGpsReal] = useState({ lat: 0, lon: 0 });
   const [supervisorSesion, setSupervisorSesion] = useState<{nombre: string, rol: string} | null>(null);
   
@@ -21,6 +22,7 @@ export default function SupervisorPage() {
   const pinEmpRef = useRef<HTMLInputElement>(null);
   const pinAutRef = useRef<HTMLInputElement>(null);
   const inputUsbRef = useRef<HTMLInputElement>(null);
+  const docManualRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -48,8 +50,10 @@ export default function SupervisorPage() {
     setPinAutorizador('');
     setLecturaLista(false);
     setAnimar(false);
-    setDireccion(null);
-  }, []);
+    setPasoManual(0);
+    // Reiniciar cámara si el modo persiste
+    if (modo === 'camara' && direccion) iniciarCamara();
+  }, [modo, direccion]);
 
   const iniciarCamara = async () => {
     try {
@@ -81,24 +85,28 @@ export default function SupervisorPage() {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      // 1. Validar al empleado en la tabla 'empleados' (Usando documento o email)
-      const { data: emp, error: e1 } = await supabase.from('empleados')
+      // Búsqueda alfanumérica explícita usando comillas para asegurar tipo string
+      const { data: emp } = await supabase.from('empleados')
         .select('id, nombre, pin_seguridad')
         .or(`documento_id.eq."${qrData}",email.eq."${qrData}"`)
         .maybeSingle();
 
       if (!emp) throw new Error("Empleado no identificado");
-      if (modo === 'manual' && emp.pin_seguridad !== pinEmpleado) throw new Error("PIN Empleado incorrecto");
+      // Comparación alfanumérica de PIN
+      if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) throw new Error("PIN Empleado incorrecto");
       
-      // 2. Validar Autorizador
       const rolesReq = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
-      const { data: val } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', pinAutorizador).in('rol', rolesReq).maybeSingle();
+      const { data: val } = await supabase.from('empleados')
+        .select('nombre')
+        .eq('pin_seguridad', String(pinAutorizador))
+        .in('rol', rolesReq)
+        .maybeSingle();
+
       if (!val) throw new Error(modo === 'manual' ? "Requiere PIN de Administrador" : "PIN Autorizador incorrecto");
 
       const firma = `${val.nombre} (${modo.toUpperCase()})`;
 
       if (direccion === 'entrada') {
-        // GRABAR EN JORNADAS (SOLO columnas existentes)
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre,
@@ -107,11 +115,8 @@ export default function SupervisorPage() {
           estado: 'activo' 
         }]);
         if (insErr) throw insErr;
-        
-        // ACTUALIZAR ESTADO EN EMPLEADOS
         await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
       } else {
-        // BUSCAR JORNADA POR empleado_id
         const { data: jActiva } = await supabase.from('jornadas').select('id, hora_entrada').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
         if (!jActiva) throw new Error("Sin registro de entrada activo");
 
@@ -134,6 +139,16 @@ export default function SupervisorPage() {
     } catch (err: any) { 
       alert(`❌ Error: ${err.message}`); 
       setAnimar(false);
+      // Reiniciar foco o cámara tras error
+      if (modo === 'manual') {
+        setPasoManual(1);
+        setQrData('');
+        setPinEmpleado('');
+        setPinAutorizador('');
+        setTimeout(() => docManualRef.current?.focus(), 100);
+      } else {
+        resetLectura();
+      }
     }
   };
 
@@ -141,7 +156,6 @@ export default function SupervisorPage() {
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative">
         
-        {/* MEMBRETE */}
         <div className="mb-8 text-center">
           <h2 className="text-2xl font-black uppercase italic text-blue-500 italic tracking-tighter">Panel Supervisor</h2>
           {modo !== 'menu' && (
@@ -167,44 +181,89 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className={`bg-[#050a14] p-4 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative h-56 flex items-center justify-center overflow-hidden`}>
-              {!lecturaLista ? (
-                <>
-                  {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                  {modo === 'usb' && (
-                    <div className="text-center">
-                      <p className="text-blue-500 font-black animate-pulse uppercase text-xs">A la espera de lectura USB...</p>
-                      <input ref={inputUsbRef} type="text" className="opacity-0 absolute" autoFocus onChange={(e) => { 
-                        const val = e.target.value;
-                        setTimeout(() => {
-                           setQrData(procesarLectura(val));
-                           setLecturaLista(true);
-                           setTimeout(() => pinAutRef.current?.focus(), 200);
-                        }, 150); 
-                      }} />
-                    </div>
-                  )}
-                  {modo === 'manual' && (
-                    <input type="text" placeholder="ID / CORREO" className="bg-transparent text-center text-xl font-black uppercase outline-none w-full" autoFocus onKeyDown={(e) => { if(e.key === 'Enter') { setQrData(e.currentTarget.value); setTimeout(() => pinEmpRef.current?.focus(), 200); }}} />
-                  )}
-                  {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
-                </>
-              ) : (
-                <div className="text-center">
-                  <p className="text-emerald-500 font-black text-xl uppercase italic">Identidad Validada ✅</p>
-                </div>
-              )}
-            </div>
-
-            {modo === 'manual' && qrData && !lecturaLista && (
-              <input ref={pinEmpRef} type="password" placeholder="PIN EMPLEADO" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/10 outline-none" value={pinEmpleado} onChange={e => setPinEmpleado(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') setLecturaLista(true); }} />
+            {modo === 'manual' && pasoManual === 0 && (
+              <div className="text-center py-10 animate-pulse">
+                <p className="text-yellow-500 font-black text-lg uppercase italic mb-4">
+                  ⚠️ Este acceso solo será validado por un supervisor
+                </p>
+                <button 
+                  autoFocus
+                  onClick={() => { setPasoManual(1); setTimeout(() => docManualRef.current?.focus(), 100); }}
+                  className="px-8 py-2 bg-yellow-600 rounded-full font-bold uppercase text-xs"
+                >
+                  Presione ENTER para seguir
+                </button>
+              </div>
             )}
 
-            {lecturaLista && (
-              <input ref={pinAutRef} type="password" placeholder="PIN AUTORIZADOR" className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none shadow-[0_0_20px_rgba(59,130,246,0.3)]" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') registrarAcceso(); }} />
+            {(modo !== 'manual' || pasoManual > 0) && (
+              <div className={`bg-[#050a14] p-4 rounded-[30px] border transition-all ${lecturaLista ? 'border-emerald-500' : 'border-white/5'} relative h-56 flex items-center justify-center overflow-hidden`}>
+                {!lecturaLista ? (
+                  <>
+                    {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
+                    {modo === 'usb' && (
+                      <div className="text-center">
+                        <p className="text-blue-500 font-black animate-pulse uppercase text-xs">A la espera de lectura USB...</p>
+                        <input ref={inputUsbRef} type="text" className="opacity-0 absolute" autoFocus onChange={(e) => { 
+                          const val = e.target.value;
+                          setTimeout(() => {
+                             setQrData(procesarLectura(val));
+                             setLecturaLista(true);
+                             setTimeout(() => pinAutRef.current?.focus(), 200);
+                          }, 150); 
+                        }} />
+                      </div>
+                    )}
+                    {modo === 'manual' && (
+                      <input 
+                        ref={docManualRef}
+                        type="text" 
+                        placeholder="DOCUMENTO / CORREO" 
+                        className="bg-transparent text-center text-xl font-black uppercase outline-none w-full" 
+                        onKeyDown={(e) => { if(e.key === 'Enter') { setPasoManual(2); setTimeout(() => pinEmpRef.current?.focus(), 200); }}} 
+                        value={qrData}
+                        onChange={(e) => setQrData(e.target.value)}
+                      />
+                    )}
+                    {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
+                  </>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-emerald-500 font-black text-xl uppercase italic">Identidad Validada ✅</p>
+                  </div>
+                )}
+              </div>
             )}
 
-            <button onClick={registrarAcceso} disabled={animar || !qrData || !pinAutorizador} className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg hover:bg-blue-500 transition-all disabled:opacity-30">
+            {modo === 'manual' && pasoManual >= 2 && (
+              <input 
+                ref={pinEmpRef} 
+                type="text" 
+                placeholder="PIN EMPLEADO" 
+                className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border border-white/10 outline-none" 
+                value={pinEmpleado} 
+                onChange={e => setPinEmpleado(e.target.value)} 
+                onKeyDown={(e) => { if(e.key === 'Enter') { setPasoManual(3); setLecturaLista(true); setTimeout(() => pinAutRef.current?.focus(), 200); }}} 
+              />
+            )}
+
+            {(lecturaLista || (modo === 'manual' && pasoManual === 3)) && (
+              <input 
+                ref={pinAutRef} 
+                type="text" 
+                placeholder="PIN ADMINISTRADOR" 
+                className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none shadow-[0_0_20px_rgba(59,130,246,0.3)]" 
+                value={pinAutorizador} 
+                onChange={e => setPinAutorizador(e.target.value)} 
+                onKeyDown={(e) => { if(e.key === 'Enter') registrarAcceso(); }} 
+              />
+            )}
+
+            <button 
+              onClick={registrarAcceso} 
+              disabled={animar || !qrData || !pinAutorizador} 
+              className="w-full py-6 bg-blue-600 rounded-3xl font-black uppercase italic shadow-lg hover:bg-blue-500 transition-all disabled:opacity-30"
+            >
               {animar ? 'PROCESANDO...' : 'Confirmar'}
             </button>
             <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">← Cancelar Lectura</button>
