@@ -20,17 +20,17 @@ export default function SupervisorPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // 1. ALGORITMO DE DESCIFRADO CORREGIDO
+  // ALGORITMO DE DESCIFRADO SINCRONIZADO CON EMPLEADOPAGE
   const procesarLecturaQR = (textoLeido: string) => {
     try {
-      // Intentamos decodificar Base64 (formato de la app de empleados)
+      // Intenta decodificar el Base64 (formato: documento|timestamp)
       const decoded = atob(textoLeido);
       if (decoded.includes('|')) {
-        return decoded.split('|')[0]; // Retorna el documento_id
+        return decoded.split('|')[0]; // Extrae solo el documento_id
       }
       return textoLeido;
     } catch (e) {
-      // Si no es Base64, asumimos que es el documento directo (Scanner simple)
+      // Si falla atob, es una lectura directa (Scanner USB sin Base64)
       return textoLeido; 
     }
   };
@@ -88,16 +88,19 @@ export default function SupervisorPage() {
     return () => { if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
   }, [modo, direccion, lecturaLista]);
 
-  // RUTINA DE REGISTRO CON VALIDACIÓN DE ADMINISTRADOR PARA MODO MANUAL
   const registrarAcceso = async () => {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      // 3. BUSQUEDA DE EMPLEADO (Algoritmo de validación)
-      const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq.${qrData},email.eq.${qrData}`).maybeSingle();
+      // VALIDACIÓN DE EMPLEADO USANDO EL ID EXTRAÍDO
+      const { data: emp } = await supabase.from('empleados')
+        .select('*')
+        .or(`documento_id.eq.${qrData},email.eq.${qrData}`)
+        .maybeSingle();
+
       if (!emp) throw new Error("Empleado no existe en la base de datos");
       
-      // 4. VALIDACIÓN DE PIN (Administrador para manual, Supervisor para otros)
+      // VALIDACIÓN DE ROLES SEGÚN MODO (Manual requiere Admin)
       const rolesPermitidos = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
       const { data: aut } = await supabase.from('empleados')
         .select('nombre, nivel_acceso')
@@ -107,37 +110,34 @@ export default function SupervisorPage() {
 
       if (!aut) throw new Error(modo === 'manual' ? "Requiere PIN de Administrador" : "PIN Incorrecto");
 
-      setDatosSupervisor({ nombre: aut.nombre, nivel: aut.nivel_acceso });
+      setDatosSupervisor({ nombre: aut.nombre, nivel: aut.nivel_acceso || 'S/N' });
 
       const { data: jActiva } = await supabase.from('jornadas')
         .select('*')
         .eq('empleado_id', emp.id)
         .is('hora_salida', null)
-        .order('hora_entrada', { ascending: false })
-        .limit(1)
         .maybeSingle();
 
-      const firmaAutoriza = `${aut.nombre} (${modo.toUpperCase()})`;
+      const firmaCompleta = `${aut.nombre} (${modo.toUpperCase()})`;
 
       if (direccion === 'entrada') {
-        if (jActiva) throw new Error("Ya tiene una entrada activa");
+        if (jActiva) throw new Error("Entrada ya activa");
         await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, nombre_empleado: emp.nombre, documento_id: emp.documento_id,
-          hora_entrada: new Date().toISOString(), autoriza_entrada: firmaAutoriza, estado: 'activo' 
+          hora_entrada: new Date().toISOString(), autoriza_entrada: firmaCompleta, estado: 'activo' 
         }]);
         await supabase.from('empleados').update({ en_almacen: true }).eq('id', emp.id);
       } else {
-        if (!jActiva) throw new Error("No existe registro de entrada");
+        if (!jActiva) throw new Error("No hay entrada activa");
         const ahora = new Date();
         const diffMs = ahora.getTime() - new Date(jActiva.hora_entrada).getTime();
-        const totalSegundos = Math.floor(diffMs / 1000);
-        const h = Math.floor(totalSegundos / 3600).toString().padStart(2, '0');
-        const m = Math.floor((totalSegundos % 3600) / 60).toString().padStart(2, '0');
-        const s = (totalSegundos % 60).toString().padStart(2, '0');
+        const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
+        const m = Math.floor((diffMs % 3600000) / 60000).toString().padStart(2, '0');
+        const s = Math.floor((diffMs % 60000) / 1000).toString().padStart(2, '0');
         
         await supabase.from('jornadas').update({ 
           hora_salida: ahora.toISOString(), horas_trabajadas: `${h}:${m}:${s}`, 
-          autoriza_salida: firmaAutoriza, estado: 'finalizado'
+          autoriza_salida: firmaCompleta, estado: 'finalizado'
         }).eq('id', jActiva.id);
         await supabase.from('empleados').update({ en_almacen: false }).eq('id', emp.id);
       }
@@ -145,7 +145,7 @@ export default function SupervisorPage() {
       alert(`✅ Registro OK: ${emp.nombre}`);
       resetLectura();
     } catch (err: any) { 
-      alert(`❌ Error: ${err.message}`); 
+      alert(`❌ ${err.message}`); 
       setAnimar(false);
       setLecturaLista(false);
       if (modo === 'camara') iniciarCamara();
@@ -156,17 +156,21 @@ export default function SupervisorPage() {
     <main className="min-h-screen bg-[#050a14] flex flex-col items-center justify-center p-6 text-white font-sans">
       <div className="bg-[#0f172a] p-10 rounded-[45px] w-full max-w-lg border border-white/5 shadow-2xl relative">
         
-        {/* 5. MEMBRETE DINÁMICO SEGÚN MODO */}
+        {/* MEMBRETE DINÁMICO CON MODO Y DATOS DE SUPERVISOR */}
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">
             {modo === 'menu' ? 'Panel Supervisor' : `Acceso: ${modo === 'usb' ? 'Scanner / USB' : modo === 'camara' ? 'Cámara Móvil' : 'Manual'}`}
           </h2>
           {modo !== 'menu' && (
-            <div className="mt-2">
-              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
-                {datosSupervisor ? `SVP: ${datosSupervisor.nombre} (Niv. ${datosSupervisor.nivel})` : 'Esperando Autorización...'}
+            <div className="mt-2 space-y-1">
+              {datosSupervisor && (
+                <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                  Autoriza: {datosSupervisor.nombre} (Nivel {datosSupervisor.nivel})
+                </p>
+              )}
+              <p className="text-[9px] font-bold text-slate-500 uppercase">
+                🛰️ {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}
               </p>
-              <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">🛰️ {gpsReal.lat.toFixed(4)}, {gpsReal.lon.toFixed(4)}</p>
             </div>
           )}
         </div>
@@ -186,11 +190,10 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* 4. WARNING AMARILLO PARA MODO MANUAL */}
             {modo === 'manual' && (
               <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-2xl">
                 <p className="text-[10px] text-yellow-500 font-black uppercase tracking-tighter leading-tight text-center">
-                  ⚠️ ADVERTENCIA: Para este acceso es necesaria la presencia de un ADMINISTRADOR para validar el PIN.
+                  ⚠️ ADVERTENCIA: Acceso Manual requiere validación física de un ADMINISTRADOR.
                 </p>
               </div>
             )}
@@ -212,14 +215,13 @@ export default function SupervisorPage() {
                   {modo === 'manual' && (
                     <input type="text" placeholder="DOCUMENTO O CORREO" className="bg-transparent text-center text-xl font-black uppercase outline-none w-full" autoFocus onKeyDown={(e) => { if(e.key === 'Enter') { setQrData(e.currentTarget.value); setLecturaLista(true); setTimeout(() => pinRef.current?.focus(), 300); }}} />
                   )}
-                  {/* 4. EFECTO LASER REMOVIDO EN MODO MANUAL */}
                   {modo !== 'manual' && (
                     <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
                   )}
                 </>
               ) : (
                 <div className="text-center">
-                  <p className="text-emerald-500 font-black text-xl uppercase italic">Identidad Lista ✅</p>
+                  <p className="text-emerald-500 font-black text-xl uppercase italic">ID Listo ✅</p>
                   <p className="text-[10px] text-slate-500 mt-2">{qrData}</p>
                 </div>
               )}
@@ -233,8 +235,7 @@ export default function SupervisorPage() {
                 className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-4xl font-black border-2 border-blue-500 outline-none" 
                 value={pinAutorizador} 
                 onChange={e => setPinAutorizador(e.target.value)}
-                // 2. ENTER EN PIN ACTIVA EL CÁLCULO
-                onKeyDown={(e) => { if(e.key === 'Enter') registrarAcceso(); }}
+                onKeyDown={(e) => { if(e.key === 'Enter') registrarAcceso(); }} 
               />
             )}
 
