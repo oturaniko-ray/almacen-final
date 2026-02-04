@@ -14,7 +14,8 @@ export default function LoginPage() {
   const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: '120000' });
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const idRef = useRef<HTMLInputElement>(null);
+  const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -36,30 +37,22 @@ export default function LoginPage() {
     }
   }, []);
 
+  const logout = () => {
+    localStorage.removeItem('user_session');
+    setTempUser(null);
+    setIdentificador('');
+    setPin('');
+    setPaso('login');
+    showNotification("Sesión finalizada", 'success');
+  };
+
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 4000);
   };
 
-  const irARuta = (ruta: string) => {
-    if (!tempUser) return;
-    const nivel = Number(tempUser.nivel_acceso);
-    const tienePermisoReportes = tempUser.permiso_reportes === true || tempUser.permiso_reportes === 'true';
-
-    if (nivel >= 8) { router.push(ruta); return; }
-    if (ruta === '/reportes' && !(nivel >= 4 || (nivel === 3 && tienePermisoReportes))) {
-      showNotification("Nivel insuficiente para Reportes.", 'error');
-      return;
-    }
-    if (ruta === '/admin' && nivel < 4) {
-      showNotification("Se requiere Nivel 4 para Gestión.", 'error');
-      return;
-    }
-    router.push(ruta);
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
+    if (!identificador || !pin) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -72,7 +65,11 @@ export default function LoginPage() {
 
       if (error || !data) throw new Error("Credenciales inválidas");
 
-      const userData = { ...data, nivel_acceso: Number(data.nivel_acceso) };
+      const userData = { 
+        ...data, 
+        nivel_acceso: Number(data.nivel_acceso),
+        rol: data.rol.toLowerCase() === 'admin' ? 'Administrador' : data.rol 
+      };
       localStorage.setItem('user_session', JSON.stringify(userData));
       
       setTempUser(userData);
@@ -82,13 +79,12 @@ export default function LoginPage() {
       showNotification("Acceso denegado.", 'error');
       setIdentificador('');
       setPin('');
-      setTimeout(() => inputRef.current?.focus(), 100);
+      idRef.current?.focus();
     } finally {
       setLoading(false);
     }
   };
 
-  // Función para renderizar el nombre de la empresa mitad blanco/mitad azul
   const renderBicolorText = (text: string) => {
     const half = Math.ceil(text.length / 2);
     return (
@@ -103,7 +99,7 @@ export default function LoginPage() {
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
       
       {mensaje.tipo && (
-        <div className={`fixed top-10 z-50 px-8 py-4 rounded-2xl shadow-2xl font-bold animate-bounce transition-all ${
+        <div className={`fixed top-10 z-50 px-8 py-4 rounded-2xl shadow-2xl font-bold transition-all ${
           mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
         }`}>
           {mensaje.tipo === 'success' ? '✅' : '❌'} {mensaje.texto}
@@ -116,55 +112,60 @@ export default function LoginPage() {
           <h1 className="text-3xl font-black italic uppercase tracking-tighter leading-none mb-2">
             {renderBicolorText(config.empresa_nombre || 'SISTEMA')}
           </h1>
-          <p className="text-white font-bold text-[11px] uppercase tracking-widest mb-4">
+          <p className="text-white font-normal text-[11px] uppercase tracking-widest mb-4">
             {paso === 'login' ? 'Módulo de Identificación' : 'Menú principal de acceso'}
           </p>
 
           {tempUser && paso === 'selector' && (
             <div className="mt-2 pt-2 border-t border-white/10">
-              <p className="text-sm font-black uppercase">
-                <span className="text-white">{tempUser.nombre.split(' ')[0]} </span>
-                <span className="text-blue-500">{tempUser.nombre.split(' ').slice(1).join(' ')}</span>
+              <p className="text-sm font-normal text-white uppercase italic">
+                {tempUser.nombre}
               </p>
-              <p className="text-[10px] font-bold uppercase italic">
-                <span className="text-white">{tempUser.rol} </span>
-                <span className="text-blue-500">({tempUser.nivel_acceso})</span>
+              <p className="text-[10px] font-normal text-white uppercase italic">
+                {tempUser.rol} ({tempUser.nivel_acceso})
               </p>
             </div>
           )}
         </header>
       </div>
       
-      {/* Contenedor de Formulario/Botones */}
-      <div className="w-full max-w-md bg-[#111111] p-10 rounded-[40px] border border-white/5 relative z-10">
+      {/* Contenedor Principal */}
+      <div className="w-full max-w-md bg-[#111111] p-10 rounded-[40px] border border-white/5 relative z-10 shadow-2xl">
         {paso === 'login' ? (
-          <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-4">
             <input 
-              ref={inputRef}
+              ref={idRef}
               type="text" 
               placeholder="DOCUMENTO O CORREO" 
-              className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center text-sm font-bold text-white focus:ring-2 focus:ring-blue-500 focus:bg-white/10 outline-none transition-all uppercase"
+              className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center text-sm font-bold text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all uppercase"
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
-              required
+              onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
+              autoFocus
             />
             <input 
-              type="password" 
+              ref={pinRef}
+              type="text" 
+              style={{ WebkitTextSecurity: 'disc' } as any} // PIN alfanumérico pero oculto visualmente
               placeholder="PIN DE SEGURIDAD" 
-              className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center text-sm font-black text-white tracking-[0.4em] focus:ring-2 focus:ring-blue-500 focus:bg-white/10 outline-none transition-all"
+              className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center text-sm font-black text-white tracking-[0.4em] focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              required
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             />
             <button 
+              onClick={handleLogin}
               disabled={loading} 
-              className="w-full bg-blue-600 hover:bg-blue-700 p-5 rounded-2xl text-white font-black uppercase italic text-sm transition-all shadow-lg shadow-blue-900/20 active:scale-95 flex justify-center"
+              className="w-full bg-blue-500 hover:bg-blue-700 p-5 rounded-2xl text-white font-black uppercase italic text-sm transition-all active:scale-95 flex justify-center shadow-lg"
             >
               <span className="inline-block w-[75%]">
                 {loading ? 'VALIDANDO...' : 'INICIAR SESIÓN'}
               </span>
             </button>
-          </form>
+            <button onClick={logout} className="w-full text-emerald-500 font-bold uppercase text-[10px] tracking-widest mt-4 italic hover:text-emerald-400 transition-colors">
+               ✕ Limpiar Terminal
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
             {[
@@ -172,6 +173,7 @@ export default function LoginPage() {
               { label: '🛡️ Panel Supervisor', ruta: '/supervisor', minNivel: 3 },
               { label: '📊 Análisis y Reportes', ruta: '/reportes', minNivel: 4, checkPermiso: true },
               { label: '⚙️ Gestión Administrativa', ruta: '/admin', minNivel: 4 },
+              { label: '⚙️ Configuración Maestra', ruta: '/configuracion', minNivel: 8 },
             ].map((btn) => {
               const tienePermiso = Number(tempUser.nivel_acceso) >= btn.minNivel || 
                                    (btn.checkPermiso && Number(tempUser.nivel_acceso) === 3 && (tempUser.permiso_reportes === true || tempUser.permiso_reportes === 'true'));
@@ -181,26 +183,20 @@ export default function LoginPage() {
               return (
                 <button 
                   key={btn.ruta}
-                  onClick={() => irARuta(btn.ruta)} 
-                  className="w-full bg-blue-600 hover:bg-blue-700 p-5 rounded-2xl text-white font-bold transition-all active:scale-95 flex justify-center shadow-md shadow-blue-900/20"
+                  onClick={() => router.push(btn.ruta)} 
+                  className="w-full bg-blue-500 hover:bg-blue-700 p-5 rounded-2xl text-white font-bold transition-all active:scale-95 flex justify-center shadow-md group"
                 >
-                  <span className="w-[75%] text-left italic uppercase text-xs">{btn.label}</span>
+                  <span className="w-[75%] text-left italic uppercase text-xs flex items-center">
+                    <span className="text-[1.3em] mr-2 transition-transform group-hover:scale-110">{btn.label.split(' ')[0]}</span>
+                    {btn.label.split(' ').slice(1).join(' ')}
+                  </span>
                 </button>
               );
             })}
-
-            {Number(tempUser.nivel_acceso) >= 8 && (
-              <button 
-                onClick={() => irARuta('/configuracion')} 
-                className="w-full bg-white/10 p-5 rounded-2xl text-white font-black transition-all flex justify-center active:scale-95 border border-white/5"
-              >
-                <span className="w-[75%] text-left italic uppercase text-xs">⚙️ Configuración Maestra</span>
-              </button>
-            )}
             
             <button 
-              onClick={() => { localStorage.removeItem('user_session'); setTempUser(null); setPaso('login'); }} 
-              className="w-full text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-8 hover:text-rose-500 transition-colors italic"
+              onClick={logout} 
+              className="w-full text-emerald-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-8 hover:text-emerald-400 transition-colors italic"
             >
               ✕ Cerrar Sesión Segura
             </button>
