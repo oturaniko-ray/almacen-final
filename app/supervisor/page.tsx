@@ -14,7 +14,7 @@ export default function SupervisorPage() {
   const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
-  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0); // 0: Warning, 1: Doc, 2: PinEmp, 3: PinAut
+  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0); 
   const [gpsReal, setGpsReal] = useState({ lat: 0, lon: 0 });
   const [supervisorSesion, setSupervisorSesion] = useState<{nombre: string, rol: string} | null>(null);
   
@@ -43,7 +43,31 @@ export default function SupervisorPage() {
     } catch { return texto; }
   };
 
-  const resetLectura = useCallback(async () => {
+  // AJUSTE: Función mejorada para actuar como botón de "Volver atrás"
+  const volverAtras = useCallback(async () => {
+    // Si la cámara está encendida, detenerla antes de salir
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop();
+    }
+
+    // Si ya hay una lectura lista, resetearla para permitir leer otra vez
+    if (lecturaLista || qrData) {
+      setQrData('');
+      setPinEmpleado('');
+      setPinAutorizador('');
+      setLecturaLista(false);
+      setPasoManual(modo === 'manual' ? 1 : 0);
+      if (modo === 'camara') iniciarCamara();
+      return;
+    }
+
+    // Si no hay lectura, regresar a la selección de ENTRADA/SALIDA
+    setDireccion(null);
+    setPasoManual(0);
+  }, [lecturaLista, qrData, modo]);
+
+  // Esta se mantiene para limpiezas automáticas tras éxito o error
+  const resetLecturaTotal = useCallback(async () => {
     if (scannerRef.current?.isScanning) await scannerRef.current.stop();
     setQrData('');
     setPinEmpleado('');
@@ -51,7 +75,6 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setAnimar(false);
     setPasoManual(0);
-    // Reiniciar cámara si el modo persiste
     if (modo === 'camara' && direccion) iniciarCamara();
   }, [modo, direccion]);
 
@@ -85,14 +108,12 @@ export default function SupervisorPage() {
     if (!qrData || !pinAutorizador || animar) return;
     setAnimar(true);
     try {
-      // Búsqueda alfanumérica explícita usando comillas para asegurar tipo string
       const { data: emp } = await supabase.from('empleados')
         .select('id, nombre, pin_seguridad')
         .or(`documento_id.eq."${qrData}",email.eq."${qrData}"`)
         .maybeSingle();
 
       if (!emp) throw new Error("Empleado no identificado");
-      // Comparación alfanumérica de PIN
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) throw new Error("PIN Empleado incorrecto");
       
       const rolesReq = modo === 'manual' ? ['admin', 'administrador'] : ['supervisor', 'admin', 'administrador'];
@@ -135,11 +156,10 @@ export default function SupervisorPage() {
       }
 
       alert(`✅ Registro exitoso: ${emp.nombre}`);
-      resetLectura();
+      resetLecturaTotal();
     } catch (err: any) { 
       alert(`❌ Error: ${err.message}`); 
       setAnimar(false);
-      // Reiniciar foco o cámara tras error
       if (modo === 'manual') {
         setPasoManual(1);
         setQrData('');
@@ -147,7 +167,7 @@ export default function SupervisorPage() {
         setPinAutorizador('');
         setTimeout(() => docManualRef.current?.focus(), 100);
       } else {
-        resetLectura();
+        resetLecturaTotal();
       }
     }
   };
@@ -266,7 +286,12 @@ export default function SupervisorPage() {
             >
               {animar ? 'PROCESANDO...' : 'Confirmar'}
             </button>
-            <button onClick={resetLectura} className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors">← Cancelar Lectura</button>
+            <button 
+              onClick={volverAtras} 
+              className="w-full text-center text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors"
+            >
+              ← Cancelar Lectura
+            </button>
           </div>
         )}
       </div>
