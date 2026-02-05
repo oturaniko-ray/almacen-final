@@ -6,7 +6,6 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// Función de cálculo Haversine para validación de rango
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3;
   const p1 = lat1 * Math.PI / 180;
@@ -28,7 +27,10 @@ export default function SupervisorPage() {
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | 'warning' | null }>({ texto: '', tipo: null });
   const [supervisorSesion, setSupervisorSesion] = useState<any>(null);
   const [config, setConfig] = useState<any>({ timer_inactividad: 120000, qr_expiracion: 30000 });
-  const [gpsOk, setGpsOk] = useState(false);
+  
+  // Estados de Telemetría GPS
+  const [distanciaActual, setDistanciaActual] = useState<number | null>(null);
+  const [gpsCoords, setGpsCoords] = useState({ lat: 0, lon: 0 });
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pinAutRef = useRef<HTMLInputElement>(null);
@@ -40,38 +42,92 @@ export default function SupervisorPage() {
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
   };
 
-  // --- CARGA DE CONFIGURACIÓN Y GPS ---
+  // --- NAVEGACIÓN Y LIMPIEZA ---
+  const volverMenuPrincipal = async () => {
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop();
+      scannerRef.current = null;
+    }
+    setModo('menu');
+    setDireccion(null);
+    setQrData('');
+    setLecturaLista(false);
+    setPinAutorizador('');
+  };
+
+  const volverPasoAnterior = async () => {
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop();
+      scannerRef.current = null;
+    }
+    setDireccion(null);
+    setQrData('');
+    setLecturaLista(false);
+  };
+
+  // --- CONTROL DE GPS Y CONFIG ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
     setSupervisorSesion(JSON.parse(sessionData));
 
-    const initSupervisor = async () => {
+    const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-        const newCfg = {
+        setConfig({
           lat: parseFloat(cfgMap.latitud_almacen),
           lon: parseFloat(cfgMap.longitud_almacen),
           radio: parseFloat(cfgMap.radio_permitido) || 100,
           timer: parseInt(cfgMap.timer_inactividad) || 120000,
-          qr_exp: parseInt(cfgMap.qr_expiracion) || 30000,
-          empresa: cfgMap.empresa_nombre
-        };
-        setConfig(newCfg);
-
-        // Validar ubicación del supervisor
-        navigator.geolocation.getCurrentPosition((pos) => {
-          const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, newCfg.lat, newCfg.lon);
-          if (dist <= newCfg.radio) setGpsOk(true);
-          else showNotification("FUERA DE RANGO GEOGRÁFICO", 'error');
-        }, () => showNotification("ERROR GPS: ACTIVA LA UBICACIÓN", 'error'));
+          qr_exp: parseInt(cfgMap.qr_expiracion) || 30000
+        });
       }
     };
-    initSupervisor();
+    fetchConfig();
+
+    const watchId = navigator.geolocation.watchPosition((pos) => {
+      setGpsCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+    });
+    return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
 
-  const handleLogout = () => { localStorage.clear(); router.push('/'); };
+  useEffect(() => {
+    if (config.lat && gpsCoords.lat !== 0) {
+      const d = calcularDistancia(gpsCoords.lat, gpsCoords.lon, config.lat, config.lon);
+      setDistanciaActual(Math.round(d));
+    }
+  }, [gpsCoords, config]);
+
+  // --- ACTIVACIÓN DE CÁMARA CUANDO HAY DIRECCIÓN ---
+  useEffect(() => {
+    if (modo === 'camara' && direccion && !lecturaLista) {
+      const iniciarCamara = async () => {
+        try {
+          const scanner = new Html5Qrcode("reader");
+          scannerRef.current = scanner;
+          await scanner.start(
+            { facingMode: "environment" },
+            { fps: 20, qrbox: 250 },
+            (decoded) => {
+              const doc = procesarLectura(decoded);
+              if (doc) {
+                setQrData(doc);
+                setLecturaLista(true);
+                scanner.stop();
+                setTimeout(() => pinAutRef.current?.focus(), 300);
+              }
+            },
+            () => {}
+          );
+        } catch (err) {
+          console.error("Error cámara:", err);
+          showNotification("NO SE PUDO ACTIVAR LA CÁMARA", "error");
+        }
+      };
+      iniciarCamara();
+    }
+  }, [modo, direccion, lecturaLista]);
 
   const procesarLectura = (texto: string) => {
     try {
@@ -79,7 +135,8 @@ export default function SupervisorPage() {
       if (decoded.includes('|')) {
         const [docId, timestamp] = decoded.split('|');
         if (Date.now() - parseInt(timestamp) > config.qr_exp) {
-          showNotification("CÓDIGO QR EXPIRADO", 'error'); return '';
+          showNotification("CÓDIGO QR EXPIRADO", 'error');
+          return '';
         }
         return docId;
       }
@@ -88,8 +145,10 @@ export default function SupervisorPage() {
   };
 
   const registrarAcceso = async () => {
-    if (!gpsOk) { showNotification("UBICACIÓN NO VÁLIDA", 'error'); return; }
-    if (!qrData || !pinAutorizador || animar) return;
+    if (distanciaActual! > config.radio) {
+      showNotification("FUERA DE RANGO: ACÉRQUESE AL ALMACÉN", "error");
+      return;
+    }
     setAnimar(true);
     const ahora = new Date().toISOString();
 
@@ -98,7 +157,8 @@ export default function SupervisorPage() {
       if (!emp) throw new Error("Empleado no encontrado");
       if (!emp.activo) {
         showNotification("EMPLEADO NO REGISTRADO COMO ACTIVO", 'warning');
-        setTimeout(() => setModo('menu'), 3000); return;
+        setTimeout(() => volverMenuPrincipal(), 3000);
+        return;
       }
 
       const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', String(pinAutorizador)).in('rol', ['supervisor', 'admin', 'Administrador']).maybeSingle();
@@ -117,23 +177,21 @@ export default function SupervisorPage() {
         await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
 
-      showNotification("REGISTRO EXITOSO", 'success');
-      setModo('menu'); setDireccion(null); setQrData(''); setLecturaLista(false); setPinAutorizador('');
-    } catch (err: any) { showNotification(err.message, 'error'); } finally { setAnimar(false); }
-  };
-
-  const getSubtitulo = () => {
-    if (modo === 'usb') return "Lectura del QR por Scanner";
-    if (modo === 'camara') return "Lectura de QR por móvil";
-    if (modo === 'manual') return "Acceso manual";
-    return "";
+      showNotification("REGISTRO EXITOSO ✅", 'success');
+      setTimeout(() => volverMenuPrincipal(), 1500);
+    } catch (err: any) {
+      showNotification(err.message, 'error');
+      setQrData('');
+      setLecturaLista(false);
+      setPinAutorizador('');
+    } finally { setAnimar(false); }
   };
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative overflow-hidden">
       
       {mensaje.tipo && (
-        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black animate-bounce shadow-2xl ${
+        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl animate-bounce ${
           mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 
           mensaje.tipo === 'warning' ? 'bg-amber-500 text-black' : 'bg-rose-600 text-white'
         }`}>
@@ -141,53 +199,62 @@ export default function SupervisorPage() {
         </div>
       )}
 
-      {/* MEMBRETE REDISEÑADO */}
+      {/* MEMBRETE */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-8 rounded-[30px] border border-white/5 mb-4 text-center">
-        <h1 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-1">
-          PANEL DE LECTURA <span className="text-blue-700">QR</span>
-        </h1>
-        {modo !== 'menu' && <p className="text-blue-500 font-bold text-sm uppercase mb-3">{getSubtitulo()}</p>}
+        <h1 className="text-2xl font-black italic uppercase tracking-tighter text-white">PANEL DE LECTURA <span className="text-blue-700">QR</span></h1>
+        {modo !== 'menu' && (
+          <p className="text-blue-500 font-bold text-[11px] uppercase tracking-widest mt-1">
+            {modo === 'usb' ? 'Lectura del QR por Scanner' : modo === 'camara' ? 'Lectura de QR por móvil' : 'Acceso Manual'}
+          </p>
+        )}
         {supervisorSesion && (
-          <div className="pt-3 border-t border-white/10 flex flex-col items-center">
+          <div className="pt-3 mt-3 border-t border-white/10 flex flex-col items-center">
             <span className="text-base text-white uppercase font-bold">{supervisorSesion.nombre}</span>
             <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">NIVEL ACCESO: {supervisorSesion.nivel_acceso}</span>
           </div>
         )}
       </div>
 
-      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[40px] border border-white/5 shadow-2xl">
+      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[40px] border border-white/5 shadow-2xl relative">
         {modo === 'menu' ? (
           <div className="grid gap-4 w-full">
             <div className="text-center mb-2">
-              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">Opciones</p>
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse">Opciones</p>
             </div>
-            {/* Botones +15% de tamaño de fuente */}
-            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-7 rounded-2xl text-white font-black uppercase italic text-base shadow-xl active:scale-95 transition-all">🔌 SCANNER USB</button>
-            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-7 rounded-2xl text-white font-black uppercase italic text-base shadow-xl active:scale-95 transition-all">📱 CÁMARA MÓVIL</button>
+            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-7 rounded-2xl text-white font-black uppercase italic text-base active:scale-95 transition-all">🔌 SCANNER USB</button>
+            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-7 rounded-2xl text-white font-black uppercase italic text-base active:scale-95 transition-all">📱 CÁMARA MÓVIL</button>
             <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-7 rounded-2xl text-white font-black uppercase italic text-base border border-white/10 active:scale-95 transition-all">🖋️ MANUAL</button>
-            <button onClick={handleLogout} className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic">← Volver al menú anterior</button>
+            <button onClick={() => router.push('/')} className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic">← Volver al menú anterior</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-4 w-full">
             <button onClick={() => setDireccion('entrada')} className="w-full py-8 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-8 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all">SALIDA</button>
-            <button onClick={() => setModo('menu')} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← VOLVER AL MENÚ ANTERIOR</button>
+            <button onClick={volverMenuPrincipal} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← VOLVER AL MENÚ ANTERIOR</button>
           </div>
         ) : (
           <div className="space-y-4 w-full">
+            {/* TELEMETRÍA GPS VISIBLE */}
+            <div className="flex justify-between items-center px-4 py-2 bg-black/50 rounded-xl border border-white/5">
+              <span className="text-[8px] text-white/40 font-bold uppercase">Distancia: <span className={distanciaActual! <= config.radio ? "text-emerald-500" : "text-rose-500"}>{distanciaActual}m</span></span>
+              <span className="text-[8px] text-white/40 font-bold uppercase">GPS: {gpsCoords.lat.toFixed(4)}, {gpsCoords.lon.toFixed(4)}</span>
+            </div>
+
             <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center relative overflow-hidden`}>
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full" placeholder="ESPERANDO SCANNER..." onChange={e => { setQrData(procesarLectura(e.target.value)); setLecturaLista(true); }} />}
-                    {modo === 'manual' && <input className="bg-transparent text-center text-2xl font-black text-white outline-none w-full" placeholder="DOCUMENTO ID" onChange={e => setQrData(e.target.value)} onKeyDown={e => e.key === 'Enter' && setLecturaLista(true)} />}
+                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full" placeholder="ESPERANDO SCANNER..." onChange={e => { const doc = procesarLectura(e.target.value); if(doc) { setQrData(doc); setLecturaLista(true); } }} />}
+                    {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-2xl font-black text-white outline-none w-full uppercase" placeholder="DOCUMENTO ID" onChange={e => setQrData(e.target.value)} onKeyDown={e => e.key === 'Enter' && setLecturaLista(true)} />}
                     <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
                   </>
-                ) : <p className="text-emerald-500 font-black text-2xl uppercase italic">ID CAPTURADO ✅</p>}
+                ) : <p className="text-emerald-500 font-black text-2xl uppercase italic animate-pulse">ID CAPTURADO ✅</p>}
             </div>
-            {lecturaLista && <input ref={pinAutRef} type="password" placeholder="PIN AUTORIZADOR" className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-3xl font-black border-4 border-blue-600 text-white outline-none" onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} />}
+
+            {lecturaLista && <input ref={pinAutRef} type="password" placeholder="PIN AUTORIZADOR" className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-3xl font-black border-4 border-blue-600 text-white outline-none" onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />}
+            
             <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic shadow-2xl">{animar ? '...' : 'CONFIRMAR'}</button>
-            <button onClick={() => setLecturaLista(false)} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← VOLVER AL MENÚ ANTERIOR</button>
+            <button onClick={volverPasoAnterior} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← VOLVER AL MENÚ ANTERIOR</button>
           </div>
         )}
       </div>
@@ -195,8 +262,6 @@ export default function SupervisorPage() {
       <style jsx global>{`
         @keyframes scan-laser { 0%, 100% { top: 0%; } 50% { top: 100%; } }
         .animate-scan-laser { animation: scan-laser 2s infinite linear; }
-        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
       `}</style>
     </main>
   );
