@@ -28,10 +28,10 @@ export default function LoginPage() {
     };
     fetchConfig();
 
+    // PERSISTENCIA: Si ya hay sesión, evaluar bypass
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       const user = JSON.parse(sessionData);
-      // Si es nivel 1, mandarlo directo al módulo QR sin pasar por menú
       if (Number(user.nivel_acceso) === 1) {
         router.push('/empleado');
       } else {
@@ -42,7 +42,7 @@ export default function LoginPage() {
   }, [router]);
 
   const logout = () => {
-    localStorage.clear(); // Limpieza total de caché y sesión
+    localStorage.clear(); // Limpieza total por seguridad
     setTempUser(null);
     setIdentificador('');
     setPin('');
@@ -55,6 +55,7 @@ export default function LoginPage() {
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 2000);
   };
 
+  // --- FUNCIÓN DE LOGIN CORREGIDA ---
   const handleLogin = async () => {
     if (!identificador || !pin) return;
     setLoading(true);
@@ -77,10 +78,12 @@ export default function LoginPage() {
       
       localStorage.setItem('user_session', JSON.stringify(userData));
 
-      // REDIRECCIÓN INTELIGENTE SEGÚN NIVEL
+      // BYPASS INMEDIATO: Si es nivel 1, saltar el menú "Opciones"
       if (userData.nivel_acceso === 1) {
+        showNotification(`Accediendo...`, 'success');
         router.push('/empleado');
       } else {
+        // Solo supervisores o admin ven el menú de opciones
         setTempUser(userData);
         setPaso('selector');
         showNotification(`Bienvenido, ${userData.nombre}`, 'success');
@@ -181,7 +184,6 @@ export default function LoginPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {/* Título de sección de Opciones */}
             <div className="text-center mb-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.3em]">
                 <span className="text-white">Opci</span><span className="text-blue-700">ones</span>
@@ -195,9 +197,6 @@ export default function LoginPage() {
               { label: '⚙️ gestión administrativa', ruta: '/admin', minNivel: 4 },
               { label: '⚙️ configuración maestra', ruta: '/configuracion', minNivel: 8 },
             ].map((btn) => {
-              // LÓGICA DE PERMISOS PUNTUAL:
-              // - Si es nivel >= minNivel, pasa.
-              // - Si es botón de reportes (checkPermiso), requiere nivel 4 O (nivel 3 Y permiso_reportes === true).
               const esSupervisor = Number(tempUser.nivel_acceso) === 3;
               const tienePermisoReportes = tempUser.permiso_reportes === true || String(tempUser.permiso_reportes) === 'true';
               
