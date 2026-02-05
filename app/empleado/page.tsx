@@ -6,9 +6,12 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// Algoritmo de Haversine para cálculo de distancia
+/**
+ * ARCHITECTURE NOTE: Haversine algorithm for distance calculation.
+ * Preserved as core business logic for GPS fencing.
+ */
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3; // Radio de la Tierra en metros
+  const R = 6371e3; 
   const p1 = lat1 * Math.PI / 180;
   const p2 = lat2 * Math.PI / 180;
   const dPhi = (lat2 - lat1) * Math.PI / 180;
@@ -38,7 +41,7 @@ export default function EmpleadoPage() {
 
   const router = useRouter();
 
-  // 1. Carga inicial de sesión y parámetros de sistema_config
+  // --- RECOVERY & CONFIGURATION LAYER ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -61,7 +64,7 @@ export default function EmpleadoPage() {
     fetchConfig();
   }, [router]);
 
-  // 2. Función para actualizar GPS con Ventana Flash
+  // --- GPS LOGIC LAYER ---
   const actualizarGPS = useCallback(() => {
     setMensajeFlash("Actualizando GPS");
     setTimeout(() => setMensajeFlash(''), 2000);
@@ -86,7 +89,6 @@ export default function EmpleadoPage() {
     );
   }, [config]);
 
-  // 3. Vigilancia automática de GPS y Timer de Inactividad
   useEffect(() => {
     if (config.almacen_lat === 0) return;
     actualizarGPS();
@@ -98,7 +100,7 @@ export default function EmpleadoPage() {
     return () => clearTimeout(logoutTimer);
   }, [config, actualizarGPS]);
 
-  // 4. Generación de Token QR (Algoritmo Base64 preservado)
+  // --- TOKEN GENERATION LAYER (BASE64) ---
   useEffect(() => {
     if (ubicacionOk && user) {
       const generateToken = () => {
@@ -131,14 +133,14 @@ export default function EmpleadoPage() {
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
-      {/* Ventana Flash "Actualizando GPS" */}
+      {/* Flash GPS Notification */}
       {mensajeFlash && (
         <div className="fixed top-10 z-50 px-8 py-3 bg-blue-600 text-white rounded-full font-bold shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse text-xs uppercase tracking-widest">
           📡 {mensajeFlash}
         </div>
       )}
 
-      {/* Membrete Estandarizado */}
+      {/* Corporate Header */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] shadow-2xl border border-white/5 mb-4 text-center">
         {renderBicolorTitle(config.empresa_nombre)}
         
@@ -156,7 +158,7 @@ export default function EmpleadoPage() {
         )}
       </div>
       
-      {/* Contenedor QR y GPS */}
+      {/* Main Module Content */}
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl flex flex-col items-center">
         
         {!ubicacionOk ? (
@@ -177,9 +179,9 @@ export default function EmpleadoPage() {
         ) : (
           <div className="flex flex-col items-center w-full group" onClick={actualizarGPS}>
             
-            {/* Título de sección de Opciones: Blanco, +30%, Parpadeo Lento */}
+            {/* ARCHITECTURAL UPDATE: Section Label - Uniform White, +30%, Slow Pulse */}
             <div className="text-center mb-6">
-              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-slow">
+              <p className="text-[14px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-slow">
                 Opciones
               </p>
             </div>
@@ -204,6 +206,7 @@ export default function EmpleadoPage() {
           </div>
         )}
 
+        {/* Global Exit */}
         <button 
           onClick={handleLogout} 
           className="w-full text-emerald-500 font-bold uppercase text-[9px] tracking-[0.3em] mt-8 italic py-3 border-t border-white/5 hover:text-emerald-300 transition-colors"
@@ -213,20 +216,12 @@ export default function EmpleadoPage() {
       </div>
 
       <style jsx global>{`
-        @keyframes flash-fast {
-          0%, 100% { opacity: 1; }
-          10%, 30%, 50% { opacity: 0; }
-          20%, 40%, 60% { opacity: 1; }
-        }
         @keyframes pulse-slow {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        .animate-flash-fast {
-          animation: flash-fast 2s ease-in-out;
+          50% { opacity: 0.2; }
         }
         .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
+          animation: pulse-slow 4s ease-in-out infinite;
         }
       `}</style>
     </main>
