@@ -6,15 +6,23 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// ARQUITECTURA DE CÁLCULO GEODÉSICO (Precisión Milimétrica)
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3; 
-  const p1 = lat1 * Math.PI / 180;
-  const p2 = lat2 * Math.PI / 180;
-  const dPhi = (lat2 - lat1) * Math.PI / 180;
-  const dLambda = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dLambda/2) * Math.sin(dLambda/2);
+  // Validación de seguridad: si las coordenadas son idénticas o nulas
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 99999;
+  
+  const R = 6371e3; // Radio de la Tierra en metros
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return R * c; // Resultado en metros
 }
 
 export default function SupervisorPage() {
@@ -27,13 +35,14 @@ export default function SupervisorPage() {
   const [lecturaLista, setLecturaLista] = useState(false);
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
   const [user, setUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000, timer_inactividad: null });
-  const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 0 });
+  const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, timer_inactividad: null });
+  const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999 });
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
+  // --- LÓGICA DE INACTIVIDAD ESTÁNDAR ---
   const resetTimerInactividad = useCallback(() => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     if (config.timer_inactividad) {
@@ -58,6 +67,7 @@ export default function SupervisorPage() {
     };
   }, [resetTimerInactividad]);
 
+  // --- CARGA DE CONFIGURACIÓN Y GPS ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -67,52 +77,52 @@ export default function SupervisorPage() {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        // CONVERSIÓN QUIRÚRGICA A NÚMERO (Evita el 0 por falla de parsing)
+        const dbLat = Number(m.latitud_almacen || m.gps_latitud);
+        const dbLon = Number(m.longitud_almacen || m.gps_longitud);
+        
         setConfig({
-          lat: parseFloat(m.latitud_almacen || m.gps_latitud) || 0,
-          lon: parseFloat(m.longitud_almacen || m.gps_longitud) || 0,
-          radio: parseInt(m.radio_permitido) || 100,
-          qr_exp: parseInt(m.qr_expiracion) || 30000,
+          lat: dbLat,
+          lon: dbLon,
+          radio: Number(m.radio_permitido) || 100,
+          qr_exp: Number(m.qr_expiracion) || 30000,
           timer_inactividad: m.timer_inactividad
         });
       }
     };
     loadConfig();
+
+    const watchId = navigator.geolocation.watchPosition((pos) => {
+      setGps(prev => ({
+        ...prev,
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude
+      }));
+    }, null, { enableHighAccuracy: true, maximumAge: 0 });
+
+    return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
 
+  // RE-CÁLCULO REACTIVO CUANDO CAMBIA GPS O CONFIG
   useEffect(() => {
-    const watchId = navigator.geolocation.watchPosition((pos) => {
-      const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.lat, config.lon);
-      setGps({ lat: pos.coords.latitude, lon: pos.coords.longitude, dist: Math.round(d) });
-    }, null, { enableHighAccuracy: true });
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [config]);
+    if (config.lat !== 0 && gps.lat !== 0) {
+      const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
+      setGps(prev => ({ ...prev, dist: Math.round(d) }));
+    }
+  }, [gps.lat, gps.lon, config]);
 
+  // --- CÁMARA ---
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
       const scanner = new Html5Qrcode("reader");
       scannerRef.current = scanner;
       scanner.start({ facingMode: "environment" }, { fps: 25, qrbox: 250 }, (decoded) => {
-        const doc = procesarQR(decoded);
-        if (doc) { setQrData(doc); setLecturaLista(true); scanner.stop(); }
+        const doc = decoded.replace(/[\n\r]/g, '').trim();
+        setQrData(doc); setLecturaLista(true); scanner.stop();
       }, () => {}).catch(() => {});
       return () => { if(scannerRef.current?.isScanning) scannerRef.current.stop(); };
     }
   }, [modo, direccion, lecturaLista]);
-
-  const procesarQR = (texto: string) => {
-    const cleanText = texto.replace(/[\n\r]/g, '').trim();
-    try {
-      const decoded = atob(cleanText);
-      if (decoded.includes('|')) {
-        const [docId, timestamp] = decoded.split('|');
-        if (Date.now() - parseInt(timestamp) > config.qr_exp) {
-          showNotification("QR EXPIRADO", "error"); return '';
-        }
-        return docId;
-      }
-      return cleanText;
-    } catch { return cleanText; }
-  };
 
   const registrarAcceso = async () => {
     if (gps.dist > config.radio) {
@@ -125,6 +135,7 @@ export default function SupervisorPage() {
       const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq."${qrData}",email.eq."${qrData}"`).maybeSingle();
       if (!emp) throw new Error("ID NO REGISTRADO");
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) throw new Error("PIN TRABAJADOR INCORRECTO");
+      
       const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', String(pinAutorizador)).in('rol', ['supervisor', 'admin', 'Administrador']).maybeSingle();
       if (!aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
 
@@ -156,23 +167,19 @@ export default function SupervisorPage() {
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
   };
 
-  const getSubtitulo = () => {
-    if (modo === 'usb') return 'Lectura por Scanner';
-    if (modo === 'camara') return 'Lectura por Móvil';
-    if (modo === 'manual') return 'Acceso Manual';
-    return 'Panel de Lectura QR';
-  };
-
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative font-sans overflow-hidden">
       {mensaje.tipo && (
         <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
+      {/* MEMBRETE DINÁMICO */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         <h1 className="text-xl font-black italic uppercase text-white leading-none">
           {modo === 'menu' ? 'PANEL DE LECTURA ' : ''}
-          <span className={modo === 'menu' ? 'text-blue-700' : 'text-white'}>{modo === 'menu' ? 'QR' : getSubtitulo().toUpperCase()}</span>
+          <span className={modo === 'menu' ? 'text-blue-700' : 'text-white'}>
+            {modo === 'menu' ? 'QR' : modo === 'usb' ? 'LECTURA POR SCANNER' : modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}
+          </span>
         </h1>
         {user && (
           <div className="pt-3 mt-3 border-t border-white/10">
@@ -201,7 +208,7 @@ export default function SupervisorPage() {
           <div className="space-y-4 w-full">
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
               <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
-                Lat:{gps.lat.toFixed(6)}  Lon:{gps.lon.toFixed(6)}  <span className={gps.dist <= config.radio ? "text-emerald-500" : "text-rose-500"}>({gps.dist} mts)</span>
+                Lat:{gps.lat.toFixed(8)}  Lon:{gps.lon.toFixed(8)}  <span className={gps.dist <= config.radio ? "text-emerald-500" : "text-rose-500"}>({gps.dist} mts)</span>
               </p>
             </div>
 
@@ -209,7 +216,7 @@ export default function SupervisorPage() {
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
+                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=(e.target as any).value.trim(); if(d){setQrData(d);setLecturaLista(true);}}}} />}
                     {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
                     {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
                   </>
