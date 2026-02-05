@@ -14,12 +14,10 @@ export default function LoginPage() {
   const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: '120000' });
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
 
-  // Referencias para el manejo de foco con Enter
   const idRef = useRef<HTMLInputElement>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // --- CONTROL DE INACTIVIDAD ---
   useEffect(() => {
     if (paso !== 'selector') return;
     const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
@@ -45,10 +43,12 @@ export default function LoginPage() {
       }
     };
     fetchConfig();
+    
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       const user = JSON.parse(sessionData);
-      if (Number(user.nivel_acceso) === 1) router.push('/empleado');
+      // Niveles 1 y 2 van directo a empleado
+      if (Number(user.nivel_acceso) <= 2) router.push('/empleado');
       else { setTempUser(user); setPaso('selector'); }
     }
   }, [router]);
@@ -77,16 +77,27 @@ export default function LoginPage() {
         .eq('pin_seguridad', pin).eq('activo', true).maybeSingle();
 
       if (error || !data) throw new Error("Credenciales inválidas");
-      const userData = { ...data, nivel_acceso: Number(data.nivel_acceso) };
+      
+      const userData = { 
+        ...data, 
+        nivel_acceso: Number(data.nivel_acceso),
+        permiso_reportes: !!data.permiso_reportes // Aseguramos booleano
+      };
+      
       localStorage.setItem('user_session', JSON.stringify(userData));
 
-      if (userData.nivel_acceso === 1) router.push('/empleado');
-      else { setTempUser(userData); setPaso('selector'); }
+      // Redirección lógica inmediata
+      if (userData.nivel_acceso <= 2) {
+        router.push('/empleado');
+      } else {
+        setTempUser(userData);
+        setPaso('selector');
+      }
     } catch (err: any) {
       showNotification("Acceso denegado", 'error');
       setIdentificador('');
       setPin('');
-      idRef.current?.focus(); // Regresa el foco al inicio tras error
+      idRef.current?.focus();
     } finally { setLoading(false); }
   };
 
@@ -113,19 +124,17 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Membrete Principal */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         {renderBicolorTitle(config.empresa_nombre)}
         
-        {/* Título del módulo: Blanco y +30% (de 13px a 17px aprox) */}
-        <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
+        <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${paso === 'login' ? 'animate-pulse-slow' : ''}`}>
           {paso === 'login' ? 'Identificación' : 'Menú Principal'}
         </p>
 
         {tempUser && paso === 'selector' && (
           <div className="mt-2 pt-2 border-t border-white/5 flex flex-col items-center">
             <span className="text-sm font-normal text-white uppercase">{tempUser.nombre}</span>
-            <span className="text-[10px] text-white/40 uppercase tracking-tighter">{tempUser.rol} ({tempUser.nivel_acceso})</span>
+            <span className="text-[10px] text-white/40 uppercase tracking-tighter">{tempUser.rol} (Nivel {tempUser.nivel_acceso})</span>
           </div>
         )}
       </div>
@@ -168,12 +177,19 @@ export default function LoginPage() {
             {[
               { label: '🏃 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
               { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
-              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', checkPermiso: true },
-              { label: '⚙️ gestión personal', ruta: '/admin', minNivel: 4, color: 'bg-amber-600' },
+              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
+              { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
               { label: '⚙️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
             ].map((btn) => {
-              const tienePermiso = Number(tempUser.nivel_acceso) >= btn.minNivel;
-              if (!tienePermiso) return null;
+              const nivelUsuario = Number(tempUser.nivel_acceso);
+              const cumpleNivel = nivelUsuario >= btn.minNivel;
+              
+              // Validación especial para reportes: Nivel >= 3 Y campo permiso_reportes === true
+              if (btn.requiereReportes) {
+                if (!(cumpleNivel && tempUser.permiso_reportes)) return null;
+              } else if (!cumpleNivel) {
+                return null;
+              }
 
               return (
                 <button 
@@ -197,6 +213,8 @@ export default function LoginPage() {
       </div>
 
       <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
         @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
         .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
         @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
