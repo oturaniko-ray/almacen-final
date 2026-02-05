@@ -89,11 +89,8 @@ export default function EmpleadoPage() {
   // 3. Vigilancia automática de GPS y Timer de Inactividad
   useEffect(() => {
     if (config.almacen_lat === 0) return;
-    
-    // Lectura inicial
     actualizarGPS();
 
-    // Auto-Logout por inactividad
     const logoutTimer = setTimeout(() => {
       handleLogout();
     }, config.timer_inactividad);
@@ -145,7 +142,6 @@ export default function EmpleadoPage() {
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] shadow-2xl border border-white/5 mb-4 text-center">
         {renderBicolorTitle(config.empresa_nombre)}
         
-        {/* Título del módulo: 20% más grande y blanco puro */}
         <p className="text-white font-bold text-[13px] uppercase tracking-[0.25em] mb-3">
           Mi identificador QR
         </p>
@@ -164,7 +160,6 @@ export default function EmpleadoPage() {
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl flex flex-col items-center">
         
         {!ubicacionOk ? (
-          /* Estado: Fuera de Ubicación */
           <div className="w-full py-10 bg-rose-500/10 rounded-[30px] border border-rose-500/20 text-center">
             <span className="text-4xl block mb-3">📍</span>
             <p className="text-rose-500 font-black text-xs uppercase mb-1">Acceso Denegado</p>
@@ -180,8 +175,15 @@ export default function EmpleadoPage() {
             </button>
           </div>
         ) : (
-          /* Estado: QR Activo */
           <div className="flex flex-col items-center w-full group" onClick={actualizarGPS}>
+            
+            {/* Título de sección de Opciones: Blanco, +30%, Parpadeo Lento */}
+            <div className="text-center mb-6">
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-slow">
+                Opciones
+              </p>
+            </div>
+
             <div className="bg-white p-6 rounded-[40px] shadow-[0_0_60px_rgba(59,130,246,0.15)] mb-6 transition-transform active:scale-90 cursor-pointer">
               {token && <QRCodeSVG value={token} size={200} level="H" />}
             </div>
@@ -191,7 +193,6 @@ export default function EmpleadoPage() {
                 ✓ Token activo y validado
               </p>
               
-              {/* Nueva línea de distancia solicitada */}
               <p className="text-white/40 font-bold text-[9px] uppercase tracking-[0.1em]">
                 Distancia al almacén: <span className="text-blue-500">{distancia}m</span>
               </p>
@@ -217,8 +218,15 @@ export default function EmpleadoPage() {
           10%, 30%, 50% { opacity: 0; }
           20%, 40%, 60% { opacity: 1; }
         }
+        @keyframes pulse-slow {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
         .animate-flash-fast {
           animation: flash-fast 2s ease-in-out;
+        }
+        .animate-pulse-slow {
+          animation: pulse-slow 3s ease-in-out infinite;
         }
       `}</style>
     </main>
