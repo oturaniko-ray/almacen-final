@@ -7,6 +7,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 9999; // Evitar el 0 falso
   const R = 6371e3;
   const p1 = lat1 * Math.PI / 180;
   const p2 = lat2 * Math.PI / 180;
@@ -34,33 +35,30 @@ export default function SupervisorPage() {
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // --- LÓGICA DE INACTIVIDAD ESTÁNDAR ---
-  const reiniciarInactividad = () => {
+  // --- INACTIVIDAD TOTAL (INCLUYE MODOS DE LECTURA) ---
+  const resetTimerInactividad = () => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     if (config.timer_inactividad) {
-      const tiempo = parseInt(config.timer_inactividad);
-      if (!isNaN(tiempo)) {
+      const ms = parseInt(config.timer_inactividad);
+      if (!isNaN(ms)) {
         timerInactividadRef.current = setTimeout(() => {
+          if (scannerRef.current?.isScanning) scannerRef.current.stop();
           localStorage.clear();
           router.push('/');
-        }, tiempo);
+        }, ms);
       }
     }
   };
 
   useEffect(() => {
     const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    eventos.forEach(e => document.addEventListener(e, reiniciarInactividad));
+    eventos.forEach(e => document.addEventListener(e, resetTimerInactividad));
+    resetTimerInactividad();
     return () => {
-      eventos.forEach(e => document.removeEventListener(e, reiniciarInactividad));
+      eventos.forEach(e => document.removeEventListener(e, resetTimerInactividad));
       if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     };
-  }, [config.timer_inactividad]);
-
-  const showNotification = (texto: string, tipo: 'success' | 'error' | 'warning') => {
-    setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
-  };
+  }, [config.timer_inactividad, modo, direccion]); // Reinicia si cambia el modo o direccion
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -72,7 +70,7 @@ export default function SupervisorPage() {
       if (data) {
         const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
         setConfig({
-          lat: Number(m.latitud_almacen), // Conversión explícita a número
+          lat: Number(m.latitud_almacen),
           lon: Number(m.longitud_almacen),
           radio: Number(m.radio_permitido) || 100,
           qr_exp: Number(m.qr_expiracion) || 30000,
@@ -87,10 +85,11 @@ export default function SupervisorPage() {
     }, null, { enableHighAccuracy: true });
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [router]);
+  }, []);
 
+  // Cálculo de distancia ultra-sensible
   useEffect(() => {
-    if (config.lat && config.lon && gps.lat && gps.lon) {
+    if (config.lat !== 0 && gps.lat !== 0) {
       const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
       setGps(prev => ({ ...prev, dist: Math.round(d) }));
     }
@@ -109,7 +108,6 @@ export default function SupervisorPage() {
   }, [modo, direccion, lecturaLista]);
 
   const procesarQR = (texto: string) => {
-    // Limpieza de caracteres de scanner USB (Saltos de línea, retornos, espacios)
     const cleanText = texto.replace(/[\n\r]/g, '').trim();
     try {
       const decoded = atob(cleanText);
@@ -126,23 +124,19 @@ export default function SupervisorPage() {
 
   const registrarAcceso = async () => {
     if (gps.dist > config.radio) {
-      showNotification("FUERA DE RANGO GEOGRÁFICO", "error"); 
-      resetLectura(); return;
+      showNotification(`FUERA DE RANGO: ${gps.dist}m`, "error"); 
+      setTimeout(resetLectura, 2000); return;
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
-
     try {
       const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq."${qrData}",email.eq."${qrData}"`).maybeSingle();
       if (!emp) throw new Error("ID NO REGISTRADO");
-      
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) throw new Error("PIN TRABAJADOR INCORRECTO");
-
       const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', String(pinAutorizador)).in('rol', ['supervisor', 'admin', 'Administrador']).maybeSingle();
-      if (!aut) throw new Error("PIN AUTORIZADOR INVÁLIDO");
+      if (!aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
 
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
-
       if (direccion === 'entrada') {
         await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: ahora, autoriza_entrada: firma, estado: 'activo' }]);
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
@@ -153,7 +147,6 @@ export default function SupervisorPage() {
         await supabase.from('jornadas').update({ hora_salida: ahora, horas_trabajadas: horas, autoriza_salida: firma, estado: 'finalizado' }).eq('id', j.id);
         await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
-
       showNotification("REGISTRO EXITOSO ✅", "success");
       setTimeout(resetLectura, 2000);
     } catch (e: any) { 
@@ -164,25 +157,24 @@ export default function SupervisorPage() {
 
   const resetLectura = () => {
     setQrData(''); setLecturaLista(false); setPinEmpleado(''); setPinAutorizador('');
-    // Mantiene el modo (Scanner/Camara) y la dirección (Entrada/Salida) para el siguiente empleado
+  };
+
+  const showNotification = (texto: string, tipo: 'success' | 'error' | 'warning') => {
+    setMensaje({ texto, tipo });
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
   };
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative font-sans overflow-hidden">
-      
       {mensaje.tipo && (
-        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${
-          mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'
-        }`}>
-          {mensaje.texto}
-        </div>
+        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
-        <h1 className="text-xl font-black italic uppercase text-white leading-none">PANEL DE LECTURA <span className="text-blue-700">QR</span></h1>
+        <h1 className="text-xl font-black italic uppercase text-white leading-none">PANEL <span className="text-blue-700">QR</span></h1>
         {supervisorSesion && (
           <div className="pt-3 mt-3 border-t border-white/10">
-            <p className="text-[11px] text-white/90 uppercase font-bold tracking-tight">
+            <p className="text-[11px] text-white/90 uppercase font-bold">
               {supervisorSesion.nombre.toLowerCase()} <span className="text-white/30 ml-1">({supervisorSesion.nivel_acceso})</span>
             </p>
           </div>
@@ -192,9 +184,9 @@ export default function SupervisorPage() {
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[40px] border border-white/5 shadow-2xl relative">
         {modo === 'menu' ? (
           <div className="grid gap-4 w-full">
-            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">🔌 SCANNER USB</button>
-            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">📱 CÁMARA MÓVIL</button>
-            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-8 rounded-2xl text-white font-black uppercase italic text-lg border border-white/10 active:scale-95">🖋️ MANUAL</button>
+            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95 transition-all">🔌 SCANNER USB</button>
+            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95 transition-all">📱 CÁMARA MÓVIL</button>
+            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-8 rounded-2xl text-white font-black uppercase italic text-lg border border-white/10 active:scale-95 transition-all">🖋️ MANUAL</button>
             <button onClick={() => router.push('/')} className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic">← Volver</button>
           </div>
         ) : !direccion ? (
@@ -207,7 +199,7 @@ export default function SupervisorPage() {
           <div className="space-y-4 w-full">
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
               <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
-                Lat:{gps.lat}  Lon:{gps.lon}  <span className={gps.dist <= config.radio ? "text-emerald-500" : "text-rose-500"}>({gps.dist} mts)</span>
+                Lat:{gps.lat.toFixed(6)}  Lon:{gps.lon.toFixed(6)}  <span className={gps.dist <= config.radio ? "text-emerald-500" : "text-rose-500"}>({gps.dist} mts)</span>
               </p>
             </div>
 
@@ -215,7 +207,7 @@ export default function SupervisorPage() {
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
+                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
                     {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
                     <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
                   </>
@@ -233,7 +225,7 @@ export default function SupervisorPage() {
               <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-2 bg-[#050a14] rounded-2xl text-center text-xl font-black border-4 border-blue-600 text-white outline-none" style={{ fontSize: '60%' }} value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
             )}
             
-            <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">{animar ? '...' : 'CONFIRMAR'}</button>
+            <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95 transition-all">{animar ? '...' : 'CONFIRMAR'}</button>
             <button onClick={() => setDireccion(null)} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] italic">← VOLVER</button>
           </div>
         )}
