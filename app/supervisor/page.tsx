@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -7,8 +7,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 9999; // Evitar el 0 falso
-  const R = 6371e3;
+  const R = 6371e3; 
   const p1 = lat1 * Math.PI / 180;
   const p2 = lat2 * Math.PI / 180;
   const dPhi = (lat2 - lat1) * Math.PI / 180;
@@ -26,8 +25,8 @@ export default function SupervisorPage() {
   const [pinAutorizador, setPinAutorizador] = useState(''); 
   const [animar, setAnimar] = useState(false);
   const [lecturaLista, setLecturaLista] = useState(false);
-  const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | 'warning' | null }>({ texto: '', tipo: null });
-  const [supervisorSesion, setSupervisorSesion] = useState<any>(null);
+  const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
+  const [user, setUser] = useState<any>(null);
   const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000, timer_inactividad: null });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 0 });
 
@@ -35,8 +34,7 @@ export default function SupervisorPage() {
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // --- INACTIVIDAD TOTAL (INCLUYE MODOS DE LECTURA) ---
-  const resetTimerInactividad = () => {
+  const resetTimerInactividad = useCallback(() => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     if (config.timer_inactividad) {
       const ms = parseInt(config.timer_inactividad);
@@ -48,7 +46,7 @@ export default function SupervisorPage() {
         }, ms);
       }
     }
-  };
+  }, [config.timer_inactividad, router]);
 
   useEffect(() => {
     const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
@@ -58,42 +56,36 @@ export default function SupervisorPage() {
       eventos.forEach(e => document.removeEventListener(e, resetTimerInactividad));
       if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     };
-  }, [config.timer_inactividad, modo, direccion]); // Reinicia si cambia el modo o direccion
+  }, [resetTimerInactividad]);
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
-    setSupervisorSesion(JSON.parse(sessionData));
+    setUser(JSON.parse(sessionData));
 
     const loadConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
         setConfig({
-          lat: Number(m.latitud_almacen),
-          lon: Number(m.longitud_almacen),
-          radio: Number(m.radio_permitido) || 100,
-          qr_exp: Number(m.qr_expiracion) || 30000,
+          lat: parseFloat(m.latitud_almacen || m.gps_latitud) || 0,
+          lon: parseFloat(m.longitud_almacen || m.gps_longitud) || 0,
+          radio: parseInt(m.radio_permitido) || 100,
+          qr_exp: parseInt(m.qr_expiracion) || 30000,
           timer_inactividad: m.timer_inactividad
         });
       }
     };
     loadConfig();
+  }, [router]);
 
-    const watchId = navigator.geolocation.watchPosition((pos) => {
-      setGps(prev => ({ ...prev, lat: pos.coords.latitude, lon: pos.coords.longitude }));
-    }, null, { enableHighAccuracy: true });
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-
-  // Cálculo de distancia ultra-sensible
   useEffect(() => {
-    if (config.lat !== 0 && gps.lat !== 0) {
-      const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
-      setGps(prev => ({ ...prev, dist: Math.round(d) }));
-    }
-  }, [gps.lat, gps.lon, config]);
+    const watchId = navigator.geolocation.watchPosition((pos) => {
+      const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.lat, config.lon);
+      setGps({ lat: pos.coords.latitude, lon: pos.coords.longitude, dist: Math.round(d) });
+    }, null, { enableHighAccuracy: true });
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [config]);
 
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
@@ -159,9 +151,16 @@ export default function SupervisorPage() {
     setQrData(''); setLecturaLista(false); setPinEmpleado(''); setPinAutorizador('');
   };
 
-  const showNotification = (texto: string, tipo: 'success' | 'error' | 'warning') => {
+  const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+  };
+
+  const getSubtitulo = () => {
+    if (modo === 'usb') return 'Lectura por Scanner';
+    if (modo === 'camara') return 'Lectura por Móvil';
+    if (modo === 'manual') return 'Acceso Manual';
+    return 'Panel de Lectura QR';
   };
 
   return (
@@ -171,11 +170,14 @@ export default function SupervisorPage() {
       )}
 
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
-        <h1 className="text-xl font-black italic uppercase text-white leading-none">PANEL <span className="text-blue-700">QR</span></h1>
-        {supervisorSesion && (
+        <h1 className="text-xl font-black italic uppercase text-white leading-none">
+          {modo === 'menu' ? 'PANEL DE LECTURA ' : ''}
+          <span className={modo === 'menu' ? 'text-blue-700' : 'text-white'}>{modo === 'menu' ? 'QR' : getSubtitulo().toUpperCase()}</span>
+        </h1>
+        {user && (
           <div className="pt-3 mt-3 border-t border-white/10">
             <p className="text-[11px] text-white/90 uppercase font-bold">
-              {supervisorSesion.nombre.toLowerCase()} <span className="text-white/30 ml-1">({supervisorSesion.nivel_acceso})</span>
+              <span style={{ fontSize: '80%' }}>{user.nombre}</span> <span className="text-white/30 ml-1">({user.rol})</span>
             </p>
           </div>
         )}
@@ -184,16 +186,16 @@ export default function SupervisorPage() {
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[40px] border border-white/5 shadow-2xl relative">
         {modo === 'menu' ? (
           <div className="grid gap-4 w-full">
-            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95 transition-all">🔌 SCANNER USB</button>
-            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95 transition-all">📱 CÁMARA MÓVIL</button>
-            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-8 rounded-2xl text-white font-black uppercase italic text-lg border border-white/10 active:scale-95 transition-all">🖋️ MANUAL</button>
+            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">🔌 SCANNER USB</button>
+            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">📱 CÁMARA MÓVIL</button>
+            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-8 rounded-2xl text-white font-black uppercase italic text-lg border border-white/10 active:scale-95">🖋️ MANUAL</button>
             <button onClick={() => router.push('/')} className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic">← Volver</button>
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-4 w-full">
             <button onClick={() => setDireccion('entrada')} className="w-full py-10 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-10 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95">SALIDA</button>
-            <button onClick={() => setModo('menu')} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center">← CAMBIAR MODO</button>
+            <button onClick={() => { setModo('menu'); setDireccion(null); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center">← CAMBIAR MODO</button>
           </div>
         ) : (
           <div className="space-y-4 w-full">
@@ -209,7 +211,7 @@ export default function SupervisorPage() {
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
                     {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
                     {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
+                    {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
                   </>
                 ) : <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>}
             </div>
