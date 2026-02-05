@@ -18,25 +18,17 @@ export default function LoginPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // --- ARQUITECTURA DE SEGURIDAD: CONTROL DE INACTIVIDAD ---
+  // --- CONTROL DE INACTIVIDAD ---
   useEffect(() => {
     if (paso !== 'selector') return;
-
     const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
-    
     const reiniciarTemporizador = () => {
       clearTimeout(window.inactividadTimeout);
-      window.inactividadTimeout = setTimeout(() => {
-        logout();
-      }, tiempoLimite);
+      window.inactividadTimeout = setTimeout(() => logout(), tiempoLimite);
     };
-
-    // Eventos que reinician el contador de actividad
     const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
     eventos.forEach(evento => document.addEventListener(evento, reiniciarTemporizador));
-    
-    reiniciarTemporizador(); // Inicio del contador
-
+    reiniciarTemporizador();
     return () => {
       eventos.forEach(evento => document.removeEventListener(evento, reiniciarTemporizador));
       clearTimeout(window.inactividadTimeout);
@@ -52,16 +44,11 @@ export default function LoginPage() {
       }
     };
     fetchConfig();
-
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       const user = JSON.parse(sessionData);
-      if (Number(user.nivel_acceso) === 1) {
-        router.push('/empleado');
-      } else {
-        setTempUser(user);
-        setPaso('selector');
-      }
+      if (Number(user.nivel_acceso) === 1) router.push('/empleado');
+      else { setTempUser(user); setPaso('selector'); }
     }
   }, [router]);
 
@@ -71,7 +58,7 @@ export default function LoginPage() {
     setIdentificador('');
     setPin('');
     setPaso('login');
-    showNotification("Sesión cerrada por inactividad", 'success');
+    showNotification("Sesión cerrada", 'success');
   };
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
@@ -83,52 +70,31 @@ export default function LoginPage() {
     if (!identificador || !pin) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('empleados')
+      const { data, error } = await supabase.from('empleados')
         .select('*')
         .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
-        .eq('pin_seguridad', pin)
-        .eq('activo', true)
-        .maybeSingle();
+        .eq('pin_seguridad', pin).eq('activo', true).maybeSingle();
 
       if (error || !data) throw new Error("Credenciales inválidas");
-
-      const userData = { 
-        ...data, 
-        nivel_acceso: Number(data.nivel_acceso),
-        rol: data.rol.toLowerCase() === 'admin' ? 'Administrador' : data.rol 
-      };
-      
+      const userData = { ...data, nivel_acceso: Number(data.nivel_acceso) };
       localStorage.setItem('user_session', JSON.stringify(userData));
 
-      if (userData.nivel_acceso === 1) {
-        showNotification(`Accediendo...`, 'success');
-        router.push('/empleado');
-      } else {
-        setTempUser(userData);
-        setPaso('selector');
-        showNotification(`Bienvenido, ${userData.nombre}`, 'success');
-      }
+      if (userData.nivel_acceso === 1) router.push('/empleado');
+      else { setTempUser(userData); setPaso('selector'); }
     } catch (err: any) {
-      showNotification("Acceso denegado.", 'error');
-      setIdentificador('');
-      setPin('');
-      idRef.current?.focus();
-    } finally {
-      setLoading(false);
-    }
+      showNotification("Acceso denegado", 'error');
+    } finally { setLoading(false); }
   };
 
   const renderBicolorTitle = (text: string) => {
     const words = (text || 'SISTEMA').split(' ');
-    if (words.length === 1) return <span className="text-blue-700">{words[0]}</span>;
     const lastWord = words.pop();
     const firstPart = words.join(' ');
     return (
-      <>
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
         <span className="text-white">{firstPart} </span>
         <span className="text-blue-700">{lastWord}</span>
-      </>
+      </h1>
     );
   };
 
@@ -136,111 +102,66 @@ export default function LoginPage() {
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
       {mensaje.tipo && (
-        <div className={`fixed top-6 z-50 px-6 py-3 rounded-xl shadow-2xl font-bold animate-flash-fast text-sm ${
+        <div className={`fixed top-6 z-50 px-6 py-3 rounded-xl font-bold animate-flash-fast text-sm ${
           mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
         }`}>
-          {mensaje.tipo === 'success' ? '✅' : '❌'} {mensaje.texto}
+          {mensaje.texto}
         </div>
       )}
 
-      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-white/5 mb-4">
-        <header className="text-center">
-          <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-            {renderBicolorTitle(config.empresa_nombre)}
-          </h1>
-          <p className="text-blue-700 font-bold text-[13px] uppercase tracking-widest mb-3">
-            {paso === 'login' ? 'Identificación' : 'Menú Principal'}
-          </p>
-
-          {tempUser && paso === 'selector' && (
-            <div className="mt-2 pt-2 border-t border-white/5 flex flex-row items-center justify-center gap-2 flex-wrap">
-              <span className="text-sm font-normal text-white uppercase truncate max-w-[150px]">
-                {tempUser.nombre.split(' ')[0]}
-              </span>
-              <span className="text-[11px] font-normal text-white/60 uppercase">
-                | {tempUser.rol} ({tempUser.nivel_acceso})
-              </span>
-            </div>
-          )}
-        </header>
+      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
+        {renderBicolorTitle(config.empresa_nombre)}
+        <p className="text-blue-700 font-bold text-[13px] uppercase tracking-widest mb-3">
+          {paso === 'login' ? 'Identificación' : 'Menú Principal'}
+        </p>
+        {tempUser && paso === 'selector' && (
+          <div className="mt-2 pt-2 border-t border-white/5 flex flex-col items-center">
+            <span className="text-sm font-normal text-white uppercase">{tempUser.nombre}</span>
+            <span className="text-[10px] text-white/40 uppercase tracking-tighter">{tempUser.rol} ({tempUser.nivel_acceso})</span>
+          </div>
+        )}
       </div>
       
-      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 relative z-10 shadow-2xl">
+      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl">
         {paso === 'login' ? (
           <div className="space-y-4">
-            <input 
-              ref={idRef}
-              type="text" 
-              placeholder="DOCUMENTO O CORREO" 
-              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white focus:ring-1 focus:ring-blue-500 outline-none transition-all uppercase"
-              value={identificador}
-              onChange={(e) => setIdentificador(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
-              autoFocus
-            />
-            <input 
-              ref={pinRef}
-              type="text" 
-              style={{ WebkitTextSecurity: 'disc' } as any}
-              placeholder="PIN DE SEGURIDAD" 
-              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-black text-white tracking-[0.4em] focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-            />
-            <button 
-              onClick={handleLogin}
-              disabled={loading} 
-              className="w-full bg-blue-500 hover:bg-blue-700 p-4 rounded-xl text-white font-black uppercase italic text-sm transition-all active:scale-95 flex justify-center shadow-lg group"
-            >
-              <span className="inline-block w-[75%]">
-                {loading ? '...' : 'INICIAR SESIÓN'}
-              </span>
+            <input type="text" placeholder="ID / CORREO" className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none uppercase" value={identificador} onChange={(e) => setIdentificador(e.target.value)} />
+            <input type="password" placeholder="PIN" className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-black text-white tracking-[0.4em] outline-none" value={pin} onChange={(e) => setPin(e.target.value)} />
+            <button onClick={handleLogin} className="w-full bg-blue-600 p-4 rounded-xl text-white font-black uppercase italic text-sm active:scale-95 transition-all">
+              {loading ? '...' : 'Entrar'}
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="text-center mb-6">
-              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">
-                Opciones
-              </p>
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">Opciones</p>
             </div>
 
             {[
-              { label: '🕣​ acceso como empleado', ruta: '/empleado', minNivel: 1 },
-              { label: '👮 panel supervisor', ruta: '/supervisor', minNivel: 3 },
-              { label: '📝 análisis y reportes', ruta: '/reportes', minNivel: 3, checkPermiso: true },
-              { label: '⌨️​ gestión administrativa', ruta: '/admin', minNivel: 4 },
-              { label: '🛠️​ configuración maestra', ruta: '/configuracion', minNivel: 8 },
+              { label: '🕣 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
+              { label: '👮 panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
+              { label: '📝 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', checkPermiso: true },
+              { label: '⌨️ gestión personal', ruta: '/admin', minNivel: 4, color: 'bg-amber-600' },
+              { label: '🛠️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
             ].map((btn) => {
-              const esSupervisor = Number(tempUser.nivel_acceso) === 3;
-              const tienePermisoReportes = tempUser.permiso_reportes === true || String(tempUser.permiso_reportes) === 'true';
-              let accesoAutorizado = Number(tempUser.nivel_acceso) >= btn.minNivel;
-              if (btn.checkPermiso) {
-                accesoAutorizado = (Number(tempUser.nivel_acceso) >= 4) || (esSupervisor && tienePermisoReportes);
-              }
-              if (!accesoAutorizado) return null;
+              const tienePermiso = Number(tempUser.nivel_acceso) >= btn.minNivel;
+              if (!tienePermiso) return null;
 
               return (
                 <button 
                   key={btn.ruta}
                   onClick={() => router.push(btn.ruta)} 
-                  className="w-full bg-blue-500 hover:bg-blue-700 p-4 rounded-xl text-white font-bold transition-all active:scale-95 flex justify-center shadow-md group"
+                  className={`w-full ${btn.color} p-4 rounded-xl text-white font-bold transition-all active:scale-95 shadow-lg group`}
                 >
-                  <span className="w-[85%] text-left italic uppercase text-[11px] flex items-center">
-                    <span className="text-[1.5em] mr-3 transition-transform duration-300 group-hover:scale-125 group-hover:rotate-12 inline-block">
-                      {btn.label.split(' ')[0]}
-                    </span>
+                  <span className="text-left italic uppercase text-[11px] flex items-center">
+                    <span className="text-[1.4em] mr-3">{btn.label.split(' ')[0]}</span>
                     {btn.label.split(' ').slice(1).join(' ')}
                   </span>
                 </button>
               );
             })}
             
-            <button 
-              onClick={logout} 
-              className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 hover:text-emerald-400 transition-colors italic text-center py-2 border-t border-white/5"
-            >
+            <button onClick={logout} className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5">
               ✕ Cerrar Sesión
             </button>
           </div>
@@ -248,18 +169,11 @@ export default function LoginPage() {
       </div>
 
       <style jsx global>{`
-        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
         @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
         .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
       `}</style>
     </main>
   );
 }
 
-// Extensión global para el timeout
-declare global {
-  interface Window {
-    inactividadTimeout: any;
-  }
-}
+declare global { interface Window { inactividadTimeout: any; } }
