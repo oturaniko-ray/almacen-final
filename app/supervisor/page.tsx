@@ -32,7 +32,6 @@ export default function SupervisorPage() {
     const user = JSON.parse(sessionData);
     setSupervisorSesion(user);
 
-    // Temporizador de inactividad dinámico
     const reiniciarTemporizador = () => {
       clearTimeout(window.inactividadSupTimeout);
       window.inactividadSupTimeout = setTimeout(() => handleLogout(), config.timer_inactividad);
@@ -162,7 +161,7 @@ export default function SupervisorPage() {
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative">
       
-      {/* Membrete - Reducido 20% para equilibrio visual */}
+      {/* Membrete */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-8 rounded-[30px] border border-white/5 mb-4 text-center shadow-2xl">
         {renderBicolorTitle(config.empresa_nombre)}
         <p className="text-white font-bold text-[19px] uppercase tracking-[0.25em] mb-4">Panel de lectura QR</p>
@@ -184,8 +183,9 @@ export default function SupervisorPage() {
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-4 w-full">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all">SALIDA</button>
+            {/* Ajuste de Grosor: py-8 (Reducido 30% desde py-12) */}
+            <button onClick={() => setDireccion('entrada')} className="w-full py-8 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all shadow-lg">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-8 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all shadow-lg">SALIDA</button>
             <button onClick={() => setModo('menu')} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← Volver al menú anterior</button>
           </div>
         ) : (
