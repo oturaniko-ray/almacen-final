@@ -28,7 +28,6 @@ export default function LoginPage() {
     };
     fetchConfig();
 
-    // PERSISTENCIA: Si ya hay sesión, evaluar bypass
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       const user = JSON.parse(sessionData);
@@ -42,7 +41,7 @@ export default function LoginPage() {
   }, [router]);
 
   const logout = () => {
-    localStorage.clear(); // Limpieza total por seguridad
+    localStorage.clear();
     setTempUser(null);
     setIdentificador('');
     setPin('');
@@ -55,7 +54,6 @@ export default function LoginPage() {
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 2000);
   };
 
-  // --- FUNCIÓN DE LOGIN CORREGIDA ---
   const handleLogin = async () => {
     if (!identificador || !pin) return;
     setLoading(true);
@@ -78,12 +76,10 @@ export default function LoginPage() {
       
       localStorage.setItem('user_session', JSON.stringify(userData));
 
-      // BYPASS INMEDIATO: Si es nivel 1, saltar el menú "Opciones"
       if (userData.nivel_acceso === 1) {
         showNotification(`Accediendo...`, 'success');
         router.push('/empleado');
       } else {
-        // Solo supervisores o admin ven el menú de opciones
         setTempUser(userData);
         setPaso('selector');
         showNotification(`Bienvenido, ${userData.nombre}`, 'success');
@@ -128,7 +124,8 @@ export default function LoginPage() {
           <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
             {renderBicolorTitle(config.empresa_nombre)}
           </h1>
-          <p className="text-blue-700 font-bold text-[10px] uppercase tracking-widest mb-3">
+          {/* Título Menú Principal: Aumentado un 30% (de 10px a 13px) */}
+          <p className="text-blue-700 font-bold text-[13px] uppercase tracking-widest mb-3">
             {paso === 'login' ? 'Identificación' : 'Menú Principal'}
           </p>
 
@@ -184,9 +181,10 @@ export default function LoginPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="text-center mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em]">
-                <span className="text-white">Opci</span><span className="text-blue-700">ones</span>
+            {/* OPCIONES: Blanco, +30% (de 10px a 13px), Parpadeo Muy Lento */}
+            <div className="text-center mb-6">
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">
+                Opciones
               </p>
             </div>
 
@@ -224,11 +222,12 @@ export default function LoginPage() {
               );
             })}
             
+            {/* CERRAR SESIÓN: Texto cambiado, +20% (de 9px a 11px) */}
             <button 
               onClick={logout} 
-              className="w-full text-emerald-500 font-bold uppercase text-[9px] tracking-[0.2em] mt-6 hover:text-emerald-400 transition-colors italic text-center"
+              className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 hover:text-emerald-400 transition-colors italic text-center py-2 border-t border-white/5"
             >
-              ✕ Cerrar Sesión Segura
+              ✕ Cerrar Sesión
             </button>
           </div>
         )}
@@ -240,8 +239,15 @@ export default function LoginPage() {
           10%, 30%, 50% { opacity: 0; }
           20%, 40%, 60% { opacity: 1; }
         }
+        @keyframes pulse-very-slow {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.2; }
+        }
         .animate-flash-fast {
           animation: flash-fast 2s ease-in-out;
+        }
+        .animate-pulse-very-slow {
+          animation: pulse-very-slow 6s ease-in-out infinite;
         }
       `}</style>
     </main>
