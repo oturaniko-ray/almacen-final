@@ -19,13 +19,12 @@ export default function SupervisorPage() {
   const [config, setConfig] = useState<any>({ empresa_nombre: '', qr_expiracion: 30000, timer_inactividad: 120000 });
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const pinEmpRef = useRef<HTMLInputElement>(null);
   const pinAutRef = useRef<HTMLInputElement>(null);
   const inputUsbRef = useRef<HTMLInputElement>(null);
   const docManualRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // --- SEGURIDAD: CONTROL DE INACTIVIDAD Y SESIÓN ÚNICA ---
+  // --- ARQUITECTURA DE SEGURIDAD Y SESIÓN ÚNICA ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -33,13 +32,10 @@ export default function SupervisorPage() {
     const user = JSON.parse(sessionData);
     setSupervisorSesion(user);
 
-    // Lógica de inactividad
-    const tiempoLimite = config.timer_inactividad;
+    // Temporizador de inactividad dinámico
     const reiniciarTemporizador = () => {
       clearTimeout(window.inactividadSupTimeout);
-      window.inactividadSupTimeout = setTimeout(() => {
-        handleLogout();
-      }, tiempoLimite);
+      window.inactividadSupTimeout = setTimeout(() => handleLogout(), config.timer_inactividad);
     };
 
     const eventos = ['mousedown', 'mousemove', 'keypress', 'touchstart'];
@@ -50,7 +46,7 @@ export default function SupervisorPage() {
       eventos.forEach(e => document.removeEventListener(e, reiniciarTemporizador));
       clearTimeout(window.inactividadSupTimeout);
     };
-  }, [config.timer_inactividad]);
+  }, [config.timer_inactividad, router]);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -78,8 +74,7 @@ export default function SupervisorPage() {
       if (decoded.includes('|')) {
         const [docId, timestamp] = decoded.split('|');
         if (Date.now() - parseInt(timestamp) > config.qr_expiracion) {
-          alert("❌ QR EXPIRADO");
-          return '';
+          alert("❌ QR EXPIRADO"); return '';
         }
         return docId;
       }
@@ -117,7 +112,6 @@ export default function SupervisorPage() {
     try {
       const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq."${qrData}",email.eq."${qrData}"`).maybeSingle();
       if (!emp) throw new Error("Empleado no encontrado");
-      if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) throw new Error("PIN Incorrecto");
       
       const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', String(pinAutorizador)).in('rol', ['supervisor', 'admin', 'Administrador']).maybeSingle();
       if (!aut) throw new Error("Autorizador no válido");
@@ -138,8 +132,7 @@ export default function SupervisorPage() {
         if (!j) throw new Error("No hay entrada activa");
         
         const hEntrada = new Date(j.hora_entrada).getTime();
-        const hSalida = Date.now();
-        const horas = parseFloat(((hSalida - hEntrada) / 3600000).toFixed(2));
+        const horas = parseFloat(((Date.now() - hEntrada) / 3600000).toFixed(2));
 
         await supabase.from('jornadas').update({
           hora_salida: new Date().toISOString(),
@@ -159,7 +152,7 @@ export default function SupervisorPage() {
     const words = (text || 'SISTEMA').split(' ');
     const lastWord = words.pop();
     return (
-      <h1 className="text-3xl font-black italic uppercase tracking-tighter mb-4">
+      <h1 className="text-2xl font-black italic uppercase tracking-tighter mb-2">
         <span className="text-white">{words.join(' ')} </span>
         <span className="text-blue-700">{lastWord}</span>
       </h1>
@@ -169,57 +162,57 @@ export default function SupervisorPage() {
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative">
       
-      {/* Membrete con fuentes +50% */}
-      <div className="w-full max-w-lg bg-[#1a1a1a] p-10 rounded-[40px] border border-white/5 mb-6 text-center shadow-2xl">
+      {/* Membrete - Reducido 20% para equilibrio visual */}
+      <div className="w-full max-w-sm bg-[#1a1a1a] p-8 rounded-[30px] border border-white/5 mb-4 text-center shadow-2xl">
         {renderBicolorTitle(config.empresa_nombre)}
-        <p className="text-white font-bold text-[24px] uppercase tracking-[0.3em] mb-4">Panel de lectura QR</p>
+        <p className="text-white font-bold text-[19px] uppercase tracking-[0.25em] mb-4">Panel de lectura QR</p>
         {supervisorSesion && (
-          <div className="pt-4 border-t border-white/10 flex flex-col gap-2">
-            <span className="text-xl text-white uppercase font-bold">{supervisorSesion.nombre}</span>
-            <span className="text-sm text-white/40 uppercase tracking-widest">{supervisorSesion.rol} ({supervisorSesion.nivel_acceso})</span>
+          <div className="pt-3 border-t border-white/10 flex flex-col gap-1">
+            <span className="text-base text-white uppercase font-bold">{supervisorSesion.nombre}</span>
+            <span className="text-[10px] text-white/40 uppercase tracking-widest">{supervisorSesion.rol} ({supervisorSesion.nivel_acceso})</span>
           </div>
         )}
       </div>
 
-      <div className="w-full max-w-lg bg-[#111111] p-10 rounded-[50px] border border-white/5 shadow-2xl">
+      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[40px] border border-white/5 shadow-2xl">
         {modo === 'menu' ? (
-          <div className="grid gap-4 w-full">
-            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-3xl text-white font-black uppercase italic text-lg shadow-xl active:scale-95 transition-all">🔌 SCANNER USB</button>
-            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-3xl text-white font-black uppercase italic text-lg shadow-xl active:scale-95 transition-all">📱 CÁMARA MÓVIL</button>
-            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-8 rounded-3xl text-white font-black uppercase italic text-lg border border-white/10 active:scale-95 transition-all">🖋️ MANUAL</button>
-            <button onClick={handleLogout} className="mt-6 text-emerald-500 font-bold uppercase text-xs tracking-widest text-center italic">← Volver al menú anterior</button>
+          <div className="grid gap-3 w-full">
+            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-6 rounded-2xl text-white font-black uppercase italic text-sm shadow-xl active:scale-95 transition-all">🔌 SCANNER USB</button>
+            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-6 rounded-2xl text-white font-black uppercase italic text-sm shadow-xl active:scale-95 transition-all">📱 CÁMARA MÓVIL</button>
+            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-6 rounded-2xl text-white font-black uppercase italic text-sm border border-white/10 active:scale-95 transition-all">🖋️ MANUAL</button>
+            <button onClick={handleLogout} className="mt-4 text-emerald-500 font-bold uppercase text-[9px] tracking-widest text-center italic">← Volver al menú anterior</button>
           </div>
         ) : !direccion ? (
-          <div className="flex flex-col gap-6 w-full">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-16 bg-emerald-600 rounded-[40px] font-black text-5xl italic hover:bg-emerald-500 transition-all">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-16 bg-red-600 rounded-[40px] font-black text-5xl italic hover:bg-red-500 transition-all">SALIDA</button>
-            <button onClick={() => setModo('menu')} className="mt-6 text-slate-500 font-bold text-sm uppercase text-center tracking-widest">← Volver al menú anterior</button>
+          <div className="flex flex-col gap-4 w-full">
+            <button onClick={() => setDireccion('entrada')} className="w-full py-12 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-12 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95 transition-all">SALIDA</button>
+            <button onClick={() => setModo('menu')} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← Volver al menú anterior</button>
           </div>
         ) : (
-          <div className="space-y-6 w-full">
-            <div className={`bg-[#050a14] p-6 rounded-[40px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-72 flex items-center justify-center overflow-hidden relative`}>
+          <div className="space-y-4 w-full">
+            <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center overflow-hidden relative`}>
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
                     {modo === 'usb' && (
-                      <input ref={inputUsbRef} type="text" className="bg-transparent text-center text-2xl font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO USB..." autoFocus onChange={e => { setQrData(procesarLectura(e.target.value)); setLecturaLista(true); setTimeout(() => pinAutRef.current?.focus(), 200); }} />
+                      <input ref={inputUsbRef} type="text" className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO USB..." autoFocus onChange={e => { setQrData(procesarLectura(e.target.value)); setLecturaLista(true); setTimeout(() => pinAutRef.current?.focus(), 200); }} />
                     )}
                     {modo === 'manual' && (
-                      <input ref={docManualRef} type="text" placeholder="DOCUMENTO" className="bg-transparent text-center text-3xl font-black uppercase outline-none w-full text-white" value={qrData} onChange={e => setQrData(e.target.value)} onKeyDown={e => e.key === 'Enter' && setPasoManual(2)} />
+                      <input ref={docManualRef} type="text" placeholder="DOCUMENTO" className="bg-transparent text-center text-2xl font-black uppercase outline-none w-full text-white" value={qrData} onChange={e => setQrData(e.target.value)} onKeyDown={e => e.key === 'Enter' && setPasoManual(2)} />
                     )}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_20px_red] animate-scan-laser"></div>
+                    <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>
                   </>
-                ) : <p className="text-emerald-500 font-black text-3xl uppercase italic">ID VALIDADO ✅</p>}
+                ) : <p className="text-emerald-500 font-black text-2xl uppercase italic">ID VALIDADO ✅</p>}
             </div>
 
             {lecturaLista && (
-              <input ref={pinAutRef} type="password" placeholder="PIN AUTORIZADOR" className="w-full py-6 bg-[#050a14] rounded-3xl text-center text-4xl font-black border-4 border-blue-600 outline-none text-white tracking-[0.5em] shadow-blue-900/20 shadow-2xl" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} />
+              <input ref={pinAutRef} type="password" placeholder="PIN AUTORIZADOR" className="w-full py-5 bg-[#050a14] rounded-2xl text-center text-3xl font-black border-4 border-blue-600 outline-none text-white tracking-[0.4em]" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} />
             )}
 
-            <button onClick={registrarAcceso} disabled={!pinAutorizador || animar} className="w-full py-8 bg-blue-600 rounded-3xl font-black text-2xl uppercase italic shadow-2xl active:scale-95 transition-all">
+            <button onClick={registrarAcceso} disabled={!pinAutorizador || animar} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic shadow-2xl">
               {animar ? '...' : 'CONFIRMAR'}
             </button>
-            <button onClick={volverAtras} className="w-full text-center text-slate-500 font-bold uppercase text-xs tracking-widest italic">← Volver al menú anterior</button>
+            <button onClick={volverAtras} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← Volver al menú anterior</button>
           </div>
         )}
       </div>
