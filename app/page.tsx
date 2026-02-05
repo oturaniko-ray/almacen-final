@@ -48,7 +48,8 @@ export default function LoginPage() {
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 4000);
+    // Ajustado a 2 segundos con efecto flash en CSS
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 2000);
   };
 
   const handleLogin = async () => {
@@ -90,7 +91,7 @@ export default function LoginPage() {
     return (
       <>
         <span className="text-white">{text.substring(0, half)}</span>
-        <span className="text-blue-500">{text.substring(half)}</span>
+        <span className="text-blue-700">{text.substring(half)}</span>
       </>
     );
   };
@@ -98,8 +99,9 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
       
+      {/* Sistema de Alertas Estándar con Efecto Flash */}
       {mensaje.tipo && (
-        <div className={`fixed top-10 z-50 px-8 py-4 rounded-2xl shadow-2xl font-bold transition-all ${
+        <div className={`fixed top-10 z-50 px-8 py-4 rounded-2xl shadow-2xl font-bold animate-flash-fast ${
           mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
         }`}>
           {mensaje.tipo === 'success' ? '✅' : '❌'} {mensaje.texto}
@@ -112,16 +114,18 @@ export default function LoginPage() {
           <h1 className="text-3xl font-black italic uppercase tracking-tighter leading-none mb-2">
             {renderBicolorText(config.empresa_nombre || 'SISTEMA')}
           </h1>
-          <p className="text-white font-normal text-[11px] uppercase tracking-widest mb-4">
+          <p className="text-blue-700 font-bold text-[11px] uppercase tracking-widest mb-4">
             {paso === 'login' ? 'Módulo de Identificación' : 'Menú principal de acceso'}
           </p>
 
           {tempUser && paso === 'selector' && (
             <div className="mt-2 pt-2 border-t border-white/10">
-              <p className="text-sm font-normal text-white uppercase italic">
+              {/* Nombre aumentado 30% y plano */}
+              <p className="text-xl font-normal text-white uppercase tracking-tight">
                 {tempUser.nombre}
               </p>
-              <p className="text-[10px] font-normal text-white uppercase italic">
+              {/* Rol y Nivel plano (sin italic) */}
+              <p className="text-[10px] font-normal text-white uppercase mt-1">
                 {tempUser.rol} ({tempUser.nivel_acceso})
               </p>
             </div>
@@ -146,7 +150,7 @@ export default function LoginPage() {
             <input 
               ref={pinRef}
               type="text" 
-              style={{ WebkitTextSecurity: 'disc' } as any} // PIN alfanumérico pero oculto visualmente
+              style={{ WebkitTextSecurity: 'disc' } as any}
               placeholder="PIN DE SEGURIDAD" 
               className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl text-center text-sm font-black text-white tracking-[0.4em] focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               value={pin}
@@ -156,7 +160,7 @@ export default function LoginPage() {
             <button 
               onClick={handleLogin}
               disabled={loading} 
-              className="w-full bg-blue-500 hover:bg-blue-700 p-5 rounded-2xl text-white font-black uppercase italic text-sm transition-all active:scale-95 flex justify-center shadow-lg"
+              className="w-full bg-blue-500 hover:bg-blue-700 p-5 rounded-2xl text-white font-black uppercase italic text-sm transition-all active:scale-95 flex justify-center shadow-lg group"
             >
               <span className="inline-block w-[75%]">
                 {loading ? 'VALIDANDO...' : 'INICIAR SESIÓN'}
@@ -187,7 +191,10 @@ export default function LoginPage() {
                   className="w-full bg-blue-500 hover:bg-blue-700 p-5 rounded-2xl text-white font-bold transition-all active:scale-95 flex justify-center shadow-md group"
                 >
                   <span className="w-[75%] text-left italic uppercase text-xs flex items-center">
-                    <span className="text-[1.3em] mr-2 transition-transform group-hover:scale-110">{btn.label.split(' ')[0]}</span>
+                    {/* Emoji aumentado y animado al hacer hover en el botón */}
+                    <span className="text-[1.7em] mr-3 transition-transform duration-300 group-hover:scale-125 group-hover:rotate-12 inline-block">
+                      {btn.label.split(' ')[0]}
+                    </span>
                     {btn.label.split(' ').slice(1).join(' ')}
                   </span>
                 </button>
@@ -203,6 +210,17 @@ export default function LoginPage() {
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        @keyframes flash-fast {
+          0%, 100% { opacity: 1; }
+          10%, 30%, 50% { opacity: 0; }
+          20%, 40%, 60% { opacity: 1; }
+        }
+        .animate-flash-fast {
+          animation: flash-fast 2s ease-in-out;
+        }
+      `}</style>
     </main>
   );
 }
