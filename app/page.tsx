@@ -31,14 +31,18 @@ export default function LoginPage() {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       const user = JSON.parse(sessionData);
-      user.nivel_acceso = Number(user.nivel_acceso);
-      setTempUser(user);
-      setPaso('selector');
+      // Si es nivel 1, mandarlo directo al módulo QR sin pasar por menú
+      if (Number(user.nivel_acceso) === 1) {
+        router.push('/empleado');
+      } else {
+        setTempUser(user);
+        setPaso('selector');
+      }
     }
-  }, []);
+  }, [router]);
 
   const logout = () => {
-    localStorage.removeItem('user_session');
+    localStorage.clear(); // Limpieza total de caché y sesión
     setTempUser(null);
     setIdentificador('');
     setPin('');
@@ -70,11 +74,17 @@ export default function LoginPage() {
         nivel_acceso: Number(data.nivel_acceso),
         rol: data.rol.toLowerCase() === 'admin' ? 'Administrador' : data.rol 
       };
-      localStorage.setItem('user_session', JSON.stringify(userData));
       
-      setTempUser(userData);
-      setPaso('selector');
-      showNotification(`Bienvenido, ${userData.nombre}`, 'success');
+      localStorage.setItem('user_session', JSON.stringify(userData));
+
+      // REDIRECCIÓN INTELIGENTE SEGÚN NIVEL
+      if (userData.nivel_acceso === 1) {
+        router.push('/empleado');
+      } else {
+        setTempUser(userData);
+        setPaso('selector');
+        showNotification(`Bienvenido, ${userData.nombre}`, 'success');
+      }
     } catch (err: any) {
       showNotification("Acceso denegado.", 'error');
       setIdentificador('');
@@ -85,14 +95,11 @@ export default function LoginPage() {
     }
   };
 
-  // Función ajustada: Última palabra en azul y tamaño reducido 30%
   const renderBicolorTitle = (text: string) => {
     const words = (text || 'SISTEMA').split(' ');
     if (words.length === 1) return <span className="text-blue-700">{words[0]}</span>;
-    
     const lastWord = words.pop();
     const firstPart = words.join(' ');
-    
     return (
       <>
         <span className="text-white">{firstPart} </span>
@@ -112,10 +119,9 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Box de Membrete - Ajustada para Móvil */}
+      {/* Box de Membrete */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-white/5 mb-4">
         <header className="text-center">
-          {/* Título reducido 30% (de text-3xl a text-xl) */}
           <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
             {renderBicolorTitle(config.empresa_nombre)}
           </h1>
@@ -125,7 +131,6 @@ export default function LoginPage() {
 
           {tempUser && paso === 'selector' && (
             <div className="mt-2 pt-2 border-t border-white/5 flex flex-row items-center justify-center gap-2 flex-wrap">
-              {/* Nombre, Rol y Nivel en una sola línea */}
               <span className="text-sm font-normal text-white uppercase truncate max-w-[150px]">
                 {tempUser.nombre.split(' ')[0]}
               </span>
@@ -176,17 +181,33 @@ export default function LoginPage() {
           </div>
         ) : (
           <div className="space-y-2">
+            {/* Título de sección de Opciones */}
+            <div className="text-center mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em]">
+                <span className="text-white">Opci</span><span className="text-blue-700">ones</span>
+              </p>
+            </div>
+
             {[
-              { label: '🏃 Acceso Empleado', ruta: '/empleado', minNivel: 1 },
-              { label: '🛡️ Panel Supervisor', ruta: '/supervisor', minNivel: 3 },
-              { label: '📊 Análisis y Reportes', ruta: '/reportes', minNivel: 4, checkPermiso: true },
-              { label: '⚙️ Gestión Administrativa', ruta: '/admin', minNivel: 4 },
-              { label: '⚙️ Configuración Maestra', ruta: '/configuracion', minNivel: 8 },
+              { label: '🏃 acceso como empleado', ruta: '/empleado', minNivel: 1 },
+              { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3 },
+              { label: '📊 análisis y reportes', ruta: '/reportes', minNivel: 3, checkPermiso: true },
+              { label: '⚙️ gestión administrativa', ruta: '/admin', minNivel: 4 },
+              { label: '⚙️ configuración maestra', ruta: '/configuracion', minNivel: 8 },
             ].map((btn) => {
-              const tienePermiso = Number(tempUser.nivel_acceso) >= btn.minNivel || 
-                                   (btn.checkPermiso && Number(tempUser.nivel_acceso) === 3 && (tempUser.permiso_reportes === true || tempUser.permiso_reportes === 'true'));
+              // LÓGICA DE PERMISOS PUNTUAL:
+              // - Si es nivel >= minNivel, pasa.
+              // - Si es botón de reportes (checkPermiso), requiere nivel 4 O (nivel 3 Y permiso_reportes === true).
+              const esSupervisor = Number(tempUser.nivel_acceso) === 3;
+              const tienePermisoReportes = tempUser.permiso_reportes === true || String(tempUser.permiso_reportes) === 'true';
               
-              if (!tienePermiso) return null;
+              let accesoAutorizado = Number(tempUser.nivel_acceso) >= btn.minNivel;
+
+              if (btn.checkPermiso) {
+                accesoAutorizado = (Number(tempUser.nivel_acceso) >= 4) || (esSupervisor && tienePermisoReportes);
+              }
+              
+              if (!accesoAutorizado) return null;
 
               return (
                 <button 
