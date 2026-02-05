@@ -18,6 +18,31 @@ export default function LoginPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // --- ARQUITECTURA DE SEGURIDAD: CONTROL DE INACTIVIDAD ---
+  useEffect(() => {
+    if (paso !== 'selector') return;
+
+    const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
+    
+    const reiniciarTemporizador = () => {
+      clearTimeout(window.inactividadTimeout);
+      window.inactividadTimeout = setTimeout(() => {
+        logout();
+      }, tiempoLimite);
+    };
+
+    // Eventos que reinician el contador de actividad
+    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    eventos.forEach(evento => document.addEventListener(evento, reiniciarTemporizador));
+    
+    reiniciarTemporizador(); // Inicio del contador
+
+    return () => {
+      eventos.forEach(evento => document.removeEventListener(evento, reiniciarTemporizador));
+      clearTimeout(window.inactividadTimeout);
+    };
+  }, [paso, config.timer_inactividad]);
+
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -46,7 +71,7 @@ export default function LoginPage() {
     setIdentificador('');
     setPin('');
     setPaso('login');
-    showNotification("Sesión finalizada", 'success');
+    showNotification("Sesión cerrada por inactividad", 'success');
   };
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
@@ -118,13 +143,11 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Box de Membrete */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-white/5 mb-4">
         <header className="text-center">
           <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
             {renderBicolorTitle(config.empresa_nombre)}
           </h1>
-          {/* Título Menú Principal: Aumentado un 30% (de 10px a 13px) */}
           <p className="text-blue-700 font-bold text-[13px] uppercase tracking-widest mb-3">
             {paso === 'login' ? 'Identificación' : 'Menú Principal'}
           </p>
@@ -142,7 +165,6 @@ export default function LoginPage() {
         </header>
       </div>
       
-      {/* Contenedor de Acciones */}
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 relative z-10 shadow-2xl">
         {paso === 'login' ? (
           <div className="space-y-4">
@@ -175,13 +197,9 @@ export default function LoginPage() {
                 {loading ? '...' : 'INICIAR SESIÓN'}
               </span>
             </button>
-            <button onClick={logout} className="w-full text-emerald-500 font-bold uppercase text-[9px] tracking-widest mt-2 italic hover:text-emerald-400 transition-colors">
-               ✕ Limpiar Terminal
-            </button>
           </div>
         ) : (
           <div className="space-y-2">
-            {/* OPCIONES: Blanco, +30% (de 10px a 13px), Parpadeo Muy Lento */}
             <div className="text-center mb-6">
               <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">
                 Opciones
@@ -189,21 +207,18 @@ export default function LoginPage() {
             </div>
 
             {[
-              { label: '🏃 acceso como empleado', ruta: '/empleado', minNivel: 1 },
-              { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3 },
-              { label: '📊 análisis y reportes', ruta: '/reportes', minNivel: 3, checkPermiso: true },
-              { label: '⚙️ gestión administrativa', ruta: '/admin', minNivel: 4 },
-              { label: '⚙️ configuración maestra', ruta: '/configuracion', minNivel: 8 },
+              { label: '🕣​ acceso como empleado', ruta: '/empleado', minNivel: 1 },
+              { label: '👮 panel supervisor', ruta: '/supervisor', minNivel: 3 },
+              { label: '📝 análisis y reportes', ruta: '/reportes', minNivel: 3, checkPermiso: true },
+              { label: '⌨️​ gestión administrativa', ruta: '/admin', minNivel: 4 },
+              { label: '🛠️​ configuración maestra', ruta: '/configuracion', minNivel: 8 },
             ].map((btn) => {
               const esSupervisor = Number(tempUser.nivel_acceso) === 3;
               const tienePermisoReportes = tempUser.permiso_reportes === true || String(tempUser.permiso_reportes) === 'true';
-              
               let accesoAutorizado = Number(tempUser.nivel_acceso) >= btn.minNivel;
-
               if (btn.checkPermiso) {
                 accesoAutorizado = (Number(tempUser.nivel_acceso) >= 4) || (esSupervisor && tienePermisoReportes);
               }
-              
               if (!accesoAutorizado) return null;
 
               return (
@@ -222,7 +237,6 @@ export default function LoginPage() {
               );
             })}
             
-            {/* CERRAR SESIÓN: Texto cambiado, +20% (de 9px a 11px) */}
             <button 
               onClick={logout} 
               className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 hover:text-emerald-400 transition-colors italic text-center py-2 border-t border-white/5"
@@ -234,22 +248,18 @@ export default function LoginPage() {
       </div>
 
       <style jsx global>{`
-        @keyframes flash-fast {
-          0%, 100% { opacity: 1; }
-          10%, 30%, 50% { opacity: 0; }
-          20%, 40%, 60% { opacity: 1; }
-        }
-        @keyframes pulse-very-slow {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.2; }
-        }
-        .animate-flash-fast {
-          animation: flash-fast 2s ease-in-out;
-        }
-        .animate-pulse-very-slow {
-          animation: pulse-very-slow 6s ease-in-out infinite;
-        }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
       `}</style>
     </main>
   );
+}
+
+// Extensión global para el timeout
+declare global {
+  interface Window {
+    inactividadTimeout: any;
+  }
 }
