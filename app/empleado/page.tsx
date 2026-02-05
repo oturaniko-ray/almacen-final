@@ -6,8 +6,9 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// Algoritmo de Haversine para cálculo de distancia
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371e3;
+  const R = 6371e3; // Radio de la Tierra en metros
   const p1 = lat1 * Math.PI / 180;
   const p2 = lat2 * Math.PI / 180;
   const dPhi = (lat2 - lat1) * Math.PI / 180;
@@ -37,12 +38,11 @@ export default function EmpleadoPage() {
 
   const router = useRouter();
 
-  // 1. Carga de sesión y Configuración
+  // 1. Carga inicial de sesión y parámetros de sistema_config
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
-    const userData = JSON.parse(sessionData);
-    setUser(userData);
+    setUser(JSON.parse(sessionData));
 
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -50,8 +50,8 @@ export default function EmpleadoPage() {
         const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
         setConfig({
           empresa_nombre: cfgMap.empresa_nombre || 'SISTEMA',
-          almacen_lat: parseFloat(cfgMap.almacen_lat || cfgMap.gps_latitud),
-          almacen_lon: parseFloat(cfgMap.almacen_lon || cfgMap.gps_longitud),
+          almacen_lat: parseFloat(cfgMap.almacen_lat || cfgMap.gps_latitud) || 0,
+          almacen_lon: parseFloat(cfgMap.almacen_lon || cfgMap.gps_longitud) || 0,
           radio_maximo: parseInt(cfgMap.radio_maximo) || 50,
           timer_inactividad: parseInt(cfgMap.timer_inactividad) || 120000,
           time_token: parseInt(cfgMap.time_token) || 5000
@@ -61,9 +61,9 @@ export default function EmpleadoPage() {
     fetchConfig();
   }, [router]);
 
-  // 2. Función de actualización de GPS (Manual y Automática)
+  // 2. Función para actualizar GPS con Ventana Flash
   const actualizarGPS = useCallback(() => {
-    setMensajeFlash("Actualizando GPS...");
+    setMensajeFlash("Actualizando GPS");
     setTimeout(() => setMensajeFlash(''), 2000);
 
     navigator.geolocation.getCurrentPosition(
@@ -78,30 +78,35 @@ export default function EmpleadoPage() {
           setErrorGps(`Fuera de rango (${Math.round(d)}m)`);
         }
       },
-      (err) => setErrorGps("Error de señal GPS"),
+      (err) => {
+        setErrorGps("Error de señal GPS");
+        setUbicacionOk(false);
+      },
       { enableHighAccuracy: true }
     );
   }, [config]);
 
-  // 3. Vigilancia GPS inicial y Timer de Inactividad
+  // 3. Vigilancia automática de GPS y Timer de Inactividad
   useEffect(() => {
     if (config.almacen_lat === 0) return;
+    
+    // Lectura inicial
     actualizarGPS();
 
-    // Timer de Inactividad
-    const timeout = setTimeout(() => {
+    // Auto-Logout por inactividad
+    const logoutTimer = setTimeout(() => {
       handleLogout();
     }, config.timer_inactividad);
 
-    return () => clearTimeout(timeout);
+    return () => clearTimeout(logoutTimer);
   }, [config, actualizarGPS]);
 
-  // 4. Generación de Token según time_token
+  // 4. Generación de Token QR (Algoritmo Base64 preservado)
   useEffect(() => {
     if (ubicacionOk && user) {
       const generateToken = () => {
         const rawToken = `${user.documento_id}|${Date.now()}`;
-        setToken(btoa(rawToken)); // Algoritmo Base64 preservado
+        setToken(btoa(rawToken));
       };
       generateToken();
       const interval = setInterval(generateToken, config.time_token);
@@ -129,55 +134,93 @@ export default function EmpleadoPage() {
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
-      {/* Ventana Flash de GPS */}
+      {/* Ventana Flash "Actualizando GPS" */}
       {mensajeFlash && (
-        <div className="fixed top-10 z-50 px-6 py-3 bg-blue-600 text-white rounded-full font-bold shadow-2xl animate-bounce text-xs uppercase">
+        <div className="fixed top-10 z-50 px-8 py-3 bg-blue-600 text-white rounded-full font-bold shadow-[0_0_30px_rgba(37,99,235,0.5)] animate-pulse text-xs uppercase tracking-widest">
           📡 {mensajeFlash}
         </div>
       )}
 
-      {/* Membrete */}
+      {/* Membrete Estandarizado */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] shadow-2xl border border-white/5 mb-4 text-center">
         {renderBicolorTitle(config.empresa_nombre)}
-        {/* Título Mi identificador QR: 20% más grande y Blanco */}
-        <p className="text-white font-bold text-[12px] uppercase tracking-[0.2em] mb-3">
+        
+        {/* Título del módulo: 20% más grande y blanco puro */}
+        <p className="text-white font-bold text-[13px] uppercase tracking-[0.25em] mb-3">
           Mi identificador QR
         </p>
 
         {user && (
-          <div className="mt-2 pt-2 border-t border-white/5 flex flex-col items-center">
+          <div className="mt-2 pt-2 border-t border-white/5 flex flex-col items-center gap-1">
             <span className="text-sm font-normal text-white uppercase">{user.nombre}</span>
-            <span className="text-[11px] font-normal text-white/50 uppercase">Documento: {user.documento_id}</span>
+            <span className="text-[11px] font-normal text-white/50 uppercase tracking-tighter">
+              Documento: {user.documento_id}
+            </span>
           </div>
         )}
       </div>
       
-      {/* Contenedor QR */}
+      {/* Contenedor QR y GPS */}
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl flex flex-col items-center">
+        
         {!ubicacionOk ? (
+          /* Estado: Fuera de Ubicación */
           <div className="w-full py-10 bg-rose-500/10 rounded-[30px] border border-rose-500/20 text-center">
             <span className="text-4xl block mb-3">📍</span>
-            <p className="text-rose-500 font-black text-xs uppercase">Acceso Denegado</p>
-            <p className="text-white/40 text-[9px] mt-1">{errorGps || "Verificando distancia..."}</p>
-            <button onClick={actualizarGPS} className="mt-4 text-[9px] text-blue-500 underline uppercase font-bold">Reintentar GPS</button>
+            <p className="text-rose-500 font-black text-xs uppercase mb-1">Acceso Denegado</p>
+            <p className="text-white/40 text-[9px] uppercase italic">{errorGps || "Calculando posición..."}</p>
+            {distancia !== null && (
+              <p className="text-white/20 text-[8px] mt-4 uppercase">Distancia actual: {distancia}m</p>
+            )}
+            <button 
+              onClick={actualizarGPS} 
+              className="mt-4 text-[10px] text-blue-500 underline uppercase font-bold tracking-widest"
+            >
+              Reintentar GPS
+            </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center group cursor-pointer" onClick={actualizarGPS}>
-            <div className="bg-white p-6 rounded-[40px] shadow-[0_0_50px_rgba(59,130,246,0.2)] mb-6 transition-transform active:scale-95">
+          /* Estado: QR Activo */
+          <div className="flex flex-col items-center w-full group" onClick={actualizarGPS}>
+            <div className="bg-white p-6 rounded-[40px] shadow-[0_0_60px_rgba(59,130,246,0.15)] mb-6 transition-transform active:scale-90 cursor-pointer">
               {token && <QRCodeSVG value={token} size={200} level="H" />}
             </div>
-            <p className="text-emerald-500 font-black text-[10px] uppercase">✓ Token activo y validado</p>
-            <p className="text-white/30 text-[8px] uppercase mt-1">Pulsa el QR para refrescar posición</p>
+            
+            <div className="text-center space-y-1">
+              <p className="text-emerald-500 font-black text-[10px] uppercase tracking-wide">
+                ✓ Token activo y validado
+              </p>
+              
+              {/* Nueva línea de distancia solicitada */}
+              <p className="text-white/40 font-bold text-[9px] uppercase tracking-[0.1em]">
+                Distancia al almacén: <span className="text-blue-500">{distancia}m</span>
+              </p>
+              
+              <p className="text-white/20 text-[7px] uppercase mt-3 tracking-[0.2em]">
+                Toca el QR para actualizar GPS
+              </p>
+            </div>
           </div>
         )}
 
         <button 
           onClick={handleLogout} 
-          className="w-full text-emerald-500 font-bold uppercase text-[9px] tracking-[0.3em] mt-8 italic py-2 border-t border-white/5 hover:text-emerald-300 transition-colors"
+          className="w-full text-emerald-500 font-bold uppercase text-[9px] tracking-[0.3em] mt-8 italic py-3 border-t border-white/5 hover:text-emerald-300 transition-colors"
         >
-          ✕ Finalizar Sesión
+          ✕ Finalizar Sesión Segura
         </button>
       </div>
+
+      <style jsx global>{`
+        @keyframes flash-fast {
+          0%, 100% { opacity: 1; }
+          10%, 30%, 50% { opacity: 0; }
+          20%, 40%, 60% { opacity: 1; }
+        }
+        .animate-flash-fast {
+          animation: flash-fast 2s ease-in-out;
+        }
+      `}</style>
     </main>
   );
 }
