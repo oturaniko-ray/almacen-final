@@ -9,7 +9,7 @@ export default function ReportesMenuPage() {
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
-    else router.push('/');
+    else router.push('/login'); // Seguridad: si no hay sesión, al login
   }, [router]);
 
   return (
@@ -47,11 +47,12 @@ export default function ReportesMenuPage() {
           </span>
         </button>
 
+        {/* CORRECCIÓN: Apuntamos a /login para que el useEffect de esa página reconozca la sesión y muestre el selector */}
         <button 
-          onClick={() => router.push('/')} 
-          className="w-full text-blue-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5"
+          onClick={() => router.push('/login')} 
+          className="w-full text-blue-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5 hover:text-blue-400 transition-colors"
         >
-          ← VOLVER AL MENÚ
+          ← VOLVER AL MENÚ PRINCIPAL
         </button>
       </div>
     </main>
