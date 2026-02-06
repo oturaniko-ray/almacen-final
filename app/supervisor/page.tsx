@@ -6,7 +6,6 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// FÓRMULA GEODÉSICA DE ALTA PRECISIÓN
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
   const R = 6371e3; 
@@ -29,14 +28,13 @@ export default function SupervisorPage() {
   const [lecturaLista, setLecturaLista] = useState(false);
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
   const [user, setUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, timer_inactividad: null });
+  const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, timer_inactividad: null, qr_exp: 30000 });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // --- INACTIVIDAD ---
   const resetTimerInactividad = useCallback(() => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     if (config.timer_inactividad) {
@@ -53,12 +51,12 @@ export default function SupervisorPage() {
 
   useEffect(() => {
     const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    eventos.forEach(e => document.addEventListener(e, resetTimerInactividad));
+    const reset = () => resetTimerInactividad();
+    eventos.forEach(e => document.addEventListener(e, reset));
     resetTimerInactividad();
-    return () => eventos.forEach(e => document.removeEventListener(e, resetTimerInactividad));
+    return () => eventos.forEach(e => document.removeEventListener(e, reset));
   }, [resetTimerInactividad]);
 
-  // --- CONFIGURACIÓN Y GPS (CORRECCIÓN DE CAMPOS) ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -68,33 +66,25 @@ export default function SupervisorPage() {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-        
-        // PARSEO QUIRÚRGICO DE COORDENADAS (almacen_lat / almacen_lon)
         const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
         const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
-
         setConfig({
           lat: isNaN(parsedLat) ? 0 : parsedLat,
           lon: isNaN(parsedLon) ? 0 : parsedLon,
           radio: parseInt(m.radio_permitido) || 100,
-          timer_inactividad: m.timer_inactividad
+          timer_inactividad: m.timer_inactividad,
+          qr_exp: parseInt(m.qr_expiracion) || 30000
         });
       }
     };
     loadConfig();
 
     const watchId = navigator.geolocation.watchPosition((pos) => {
-      setGps(prev => ({
-        ...prev,
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude
-      }));
+      setGps(prev => ({ ...prev, lat: pos.coords.latitude, lon: pos.coords.longitude }));
     }, null, { enableHighAccuracy: true });
-
     return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
 
-  // RE-CÁLCULO REACTIVO
   useEffect(() => {
     if (config.lat !== 0 && gps.lat !== 0) {
       const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
@@ -102,13 +92,28 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // --- CÁMARA ---
+  const procesarQR = (texto: string) => {
+    const cleanText = texto.replace(/[\n\r]/g, '').trim();
+    try {
+      const decoded = atob(cleanText);
+      if (decoded.includes('|')) {
+        const [docId, timestamp] = decoded.split('|');
+        if (Date.now() - parseInt(timestamp) > config.qr_exp) {
+          showNotification("QR EXPIRADO", "error"); return '';
+        }
+        return docId;
+      }
+      return cleanText;
+    } catch { return cleanText; }
+  };
+
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
       const scanner = new Html5Qrcode("reader");
       scannerRef.current = scanner;
       scanner.start({ facingMode: "environment" }, { fps: 25, qrbox: 250 }, (decoded) => {
-        setQrData(decoded.trim()); setLecturaLista(true); scanner.stop();
+        const doc = procesarQR(decoded);
+        if (doc) { setQrData(doc); setLecturaLista(true); scanner.stop(); }
       }, () => {}).catch(() => {});
       return () => { if(scannerRef.current?.isScanning) scannerRef.current.stop(); };
     }
@@ -163,17 +168,17 @@ export default function SupervisorPage() {
         <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
-      {/* MEMBRETE CORREGIDO (NIVEL DE ACCESO) */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
-        <h1 className="text-xl font-black italic uppercase text-white leading-none">
-          {modo === 'menu' ? 'PANEL DE LECTURA QR' : 
+        <h1 className="text-xl font-black italic uppercase leading-none">
+          <span className="text-white">{modo === 'menu' ? 'PANEL DE LECTURA ' : 
            modo === 'usb' ? 'LECTURA POR SCANNER' : 
-           modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}
+           modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}</span>
+          {modo === 'menu' && <span className="text-blue-700"> QR</span>}
         </h1>
         {user && (
           <div className="pt-3 mt-3 border-t border-white/10">
             <p className="text-[11px] text-white/90 uppercase font-bold">
-              <span style={{ fontSize: '80%' }}>{user.nombre}</span> <span className="text-white/30 ml-1">({user.nivel_acceso})</span>
+              <span className="text-white">{user.nombre}</span> <span className="text-blue-500 ml-1">({user.nivel_acceso})</span>
             </p>
           </div>
         )}
@@ -191,7 +196,7 @@ export default function SupervisorPage() {
           <div className="flex flex-col gap-4 w-full">
             <button onClick={() => setDireccion('entrada')} className="w-full py-10 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-10 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95">SALIDA</button>
-            <button onClick={() => { setModo('menu'); setDireccion(null); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center">← CAMBIAR MODO</button>
+            <button onClick={() => { setModo('menu'); setDireccion(null); resetLectura(); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center">← CAMBIAR MODO</button>
           </div>
         ) : (
           <div className="space-y-4 w-full">
@@ -205,7 +210,7 @@ export default function SupervisorPage() {
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=(e.target as any).value.trim(); if(d){setQrData(d);setLecturaLista(true);}}}} />}
+                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
                     {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
                     {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
                   </>
@@ -224,7 +229,7 @@ export default function SupervisorPage() {
             )}
             
             <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">{animar ? '...' : 'CONFIRMAR'}</button>
-            <button onClick={() => setDireccion(null)} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] italic">← VOLVER</button>
+            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] italic">← VOLVER</button>
           </div>
         )}
       </div>
