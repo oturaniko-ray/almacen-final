@@ -7,22 +7,23 @@ export default function ReportesMenuPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Recuperamos la sesión para verificar que el usuario tenga acceso
+    // Recuperamos la sesión del localStorage
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       setUser(JSON.parse(sessionData));
     } else {
-      // Si no hay sesión, protegemos la ruta enviando al login
+      // Si no hay sesión, regresamos al login para proteger la ruta
       router.push('/login');
     }
   }, [router]);
 
-  // Evitamos renderizar contenido vacío mientras se valida la sesión
+  // Si no hay usuario cargado, no renderizamos nada (evita parpadeo)
   if (!user) return null;
 
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
-      {/* MEMBRETE VISUAL */}
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      
+      {/* MEMBRETE COHERENTE CON LOGIN */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
           <span className="text-white">REPORTES Y </span>
@@ -35,7 +36,7 @@ export default function ReportesMenuPage() {
         </div>
       </div>
 
-      {/* SELECTOR DE MÓDULOS DE REPORTES */}
+      {/* SELECTOR DE MÓDULOS */}
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl space-y-3">
         <button 
           onClick={() => router.push('/reportes/presencia')} 
@@ -55,7 +56,7 @@ export default function ReportesMenuPage() {
           </span>
         </button>
 
-        {/* BOTÓN DE RETORNO CORREGIDO PARA EVITAR 404 */}
+        {/* SOLUCIÓN AL 404: Apunta a /login porque allí está tu LoginPage */}
         <button 
           onClick={() => router.push('/login')} 
           className="w-full text-blue-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5 hover:text-blue-400 transition-colors"
