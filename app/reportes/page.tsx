@@ -44,7 +44,7 @@ export default function ReportesMenuPage() {
           className="w-full bg-blue-600 p-4 rounded-xl text-white font-bold transition-all active:scale-95 shadow-lg flex items-center"
         >
           <span className="text-left italic uppercase text-[11px] flex items-center">
-            <span className="text-[1.4em] mr-3">⏱️</span> MONITOR DE PRESENCIA
+            <span className="text-[1.4em] mr-3">⏳</span> MONITOR DE PRESENCIA
           </span>
         </button>
 
