@@ -35,7 +35,6 @@ export default function SupervisorPage() {
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // --- 1. INACTIVIDAD FIJA 90 SEGUNDOS ---
   const resetTimerInactividad = useCallback(() => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     timerInactividadRef.current = setTimeout(() => {
@@ -94,22 +93,34 @@ export default function SupervisorPage() {
       if (decoded.includes('|')) {
         const [docId, timestamp] = decoded.split('|');
         if (Date.now() - parseInt(timestamp) > config.qr_exp) {
-          showNotification("QR EXPIRADO", "error"); return '';
+          showNotification("QR EXPIRADO", "error"); 
+          return '';
         }
         return docId;
       }
       return cleanText;
-    } catch { return cleanText; }
+    } catch { 
+      return cleanText; 
+    }
   };
 
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
       const scanner = new Html5Qrcode("reader");
       scannerRef.current = scanner;
-      scanner.start({ facingMode: "environment" }, { fps: 25, qrbox: 250 }, (decoded) => {
-        const doc = procesarQR(decoded);
-        if (doc) { setQrData(doc); setLecturaLista(true); scanner.stop(); }
-      }, () => {}).catch(() => {});
+      scanner.start(
+        { facingMode: "environment" }, 
+        { fps: 20, qrbox: { width: 250, height: 250 } }, 
+        (decoded) => {
+          const doc = procesarQR(decoded);
+          if (doc) {
+            setQrData(doc);
+            setLecturaLista(true);
+            scanner.stop();
+          }
+        }, 
+        () => {}
+      ).catch(() => {});
       return () => { if(scannerRef.current?.isScanning) scannerRef.current.stop(); };
     }
   }, [modo, direccion, lecturaLista]);
@@ -162,7 +173,7 @@ export default function SupervisorPage() {
         <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
-      {/* 2. MEMBRETE UNIFICADO BLANCO Y AZUL */}
+      {/* MEMBRETE UNIFICADO BLANCO Y AZUL */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         <h1 className="text-xl font-black italic uppercase leading-none">
           <span className="text-white">
@@ -176,7 +187,7 @@ export default function SupervisorPage() {
           <div className="pt-3 mt-3 border-t border-white/10">
             <p className="text-[11px] uppercase font-bold tracking-wider">
               <span className="text-white">{user.nombre}</span> 
-              <span className="text-blue-500 ml-1">({user.nivel_acceso})</span>
+              <span className="text-blue-600 ml-1">({user.nivel_acceso})</span>
             </p>
           </div>
         )}
@@ -194,7 +205,6 @@ export default function SupervisorPage() {
           <div className="flex flex-col gap-4 w-full">
             <button onClick={() => setDireccion('entrada')} className="w-full py-10 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-10 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95">SALIDA</button>
-            {/* 3. CAMBIO TEXTO VOLVER ATRÁS */}
             <button onClick={() => { setModo('menu'); setDireccion(null); resetLectura(); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← VOLVER ATRÁS</button>
           </div>
         ) : (
@@ -228,7 +238,6 @@ export default function SupervisorPage() {
             )}
             
             <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">{animar ? '...' : 'CONFIRMAR'}</button>
-            {/* 3. CAMBIO TEXTO VOLVER ATRÁS */}
             <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← VOLVER ATRÁS</button>
           </div>
         )}
