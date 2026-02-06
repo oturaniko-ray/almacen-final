@@ -27,9 +27,6 @@ export default function ReportesMenuPage() {
           <span className="text-blue-700">ANÁLISIS</span>
         </h1>
         <div className="mt-2 pt-2 border-t border-white/10 flex flex-col gap-1">
-          <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">
-            USUARIO:
-          </p>
           {/* Muestra: NOMBRE + ROL + (NIVEL) */}
           <p className="text-[11px] text-white font-bold uppercase italic">
             {user.nombre} - {user.rol || 'Sin Rol'} ({user.nivel_acceso || '0'})
