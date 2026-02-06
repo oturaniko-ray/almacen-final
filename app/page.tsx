@@ -191,11 +191,11 @@ export default function LoginPage() {
             </div>
 
             {[
-              { label: '🏃 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
-              { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
+              { label: '🫆 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
+              { label: '🕖 panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
               { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
               { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
-              { label: '⚙️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
+              { label: '👨‍🔧 configuración maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
             ].map((btn) => {
               const nivelUsuario = Number(tempUser.nivel_acceso);
               const cumpleNivel = nivelUsuario >= btn.minNivel;
