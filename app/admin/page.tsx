@@ -50,11 +50,11 @@ export default function PanelAdminHub() {
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans flex items-center justify-center">
       <div className="max-w-4xl w-full">
         <header className="text-center mb-16">
-          <h1 className="text-5xl font-black italic uppercase tracking-tighter">
-            CONSOLA <span className="text-blue-500">ADMIN</span>
+          <h1 className="text-12px font-black italic uppercase tracking-tighter">
+            GESTIÓN <span className="text-blue-500">ADMINISTRATIVA</span>
           </h1>
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mt-3">
-            Gestión de Infraestructura Maestra
+            Gestión de Infraestructura
           </p>
 
           {user && (
