@@ -190,33 +190,39 @@ export default function LoginPage() {
               <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white/20 animate-pulse-very-slow">Opciones</p>
             </div>
 
-            {[
-              { label: '🏃 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
-              { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
-              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
-              { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
-              { label: '⚙️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
-            ].map((btn) => {
-              const nivelUsuario = Number(tempUser.nivel_acceso);
-              const cumpleNivel = nivelUsuario >= btn.minNivel;
-              
-              if (btn.requiereReportes) {
-                if (!(cumpleNivel && tempUser.permiso_reportes)) return null;
-              } else if (!cumpleNivel) return null;
+           // app/login/page.tsx (Solo se muestra la sección de botones actualizada)
+// ... resto del código idéntico al adjunto ...
 
-              return (
-                <button 
-                  key={btn.ruta}
-                  onClick={() => router.push(btn.ruta)} 
-                  className={`w-full ${btn.color} p-4 rounded-xl text-white font-bold transition-all active:scale-95 shadow-lg flex items-center`}
-                >
-                  <span className="text-left italic uppercase text-[11px] flex items-center">
-                    <span className="text-[1.4em] mr-3">{btn.label.split(' ')[0]}</span>
-                    {btn.label.split(' ').slice(1).join(' ')}
-                  </span>
-                </button>
-              );
-            })}
+{[
+  { label: '🏃 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
+  { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
+  { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700' }, // Ahora apunta al menú selector
+  { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
+  { label: '⚙️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
+].map((btn) => {
+  const nivelUsuario = Number(tempUser.nivel_acceso);
+  const cumpleNivel = nivelUsuario >= btn.minNivel;
+  
+  // Si es el botón de reportes, verificamos nivel 3 Y el permiso explícito
+  if (btn.ruta === '/reportes') {
+    if (!(cumpleNivel && tempUser.permiso_reportes)) return null;
+  } else if (!cumpleNivel) return null;
+
+  return (
+    <button 
+      key={btn.ruta}
+      onClick={() => router.push(btn.ruta)} 
+      className={`w-full ${btn.color} p-4 rounded-xl text-white font-bold transition-all active:scale-95 shadow-lg flex items-center`}
+    >
+      <span className="text-left italic uppercase text-[11px] flex items-center">
+        <span className="text-[1.4em] mr-3">{btn.label.split(' ')[0]}</span>
+        {btn.label.split(' ').slice(1).join(' ')}
+      </span>
+    </button>
+  );
+})}
+
+// ... resto del código idéntico ...
             
             <button onClick={logout} className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5">
               ✕ Cerrar Sesión

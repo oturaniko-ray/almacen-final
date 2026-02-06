@@ -80,12 +80,6 @@ export default function PanelAdminHub() {
             <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Base de datos y pins</p>
           </button>
           
-          <button onClick={() => router.push('/admin/presencia')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-emerald-500 transition-all text-left group shadow-2xl">
-            <span className="text-3xl block mb-6">🏪</span>
-            <h3 className="text-xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">Presencia</h3>
-            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Estado en tiempo real</p>
-          </button>
-
           <button onClick={() => router.push('/admin/auditoria')} className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl">
             <span className="text-3xl block mb-6">📑</span>
             <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
