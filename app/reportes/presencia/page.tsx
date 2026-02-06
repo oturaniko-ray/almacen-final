@@ -11,7 +11,7 @@ export default function PresenciaPage() {
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
-  // Reloj maestro para forzar el renderizado cada segundo
+  // Reloj Maestro (Intervalo de 1 segundo)
   useEffect(() => {
     const timer = setInterval(() => setAhora(new Date()), 1000);
     return () => clearInterval(timer);
@@ -35,21 +35,22 @@ export default function PresenciaPage() {
 
   useEffect(() => {
     fetchData();
-    const channel = supabase.channel('presencia_v8')
+    const channel = supabase.channel('presencia_v9')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
   /**
-   * CÁLCULO DE RELOJES (HH:MM:SS)
-   * Analiza el timestampz y resta el tiempo actual
+   * ALGORITMO DE AUDITORÍA: CÁLCULO UTC REAL-TIME
+   * Neutraliza el desfase de zona horaria del navegador
    */
   const calcularReloj = (timestamp: string | null) => {
     if (!timestamp) return "00:00:00";
     
-    const inicio = new Date(timestamp).getTime();
-    const fin = ahora.getTime();
+    // Convertimos ambos a milisegundos UTC para una resta pura
+    const inicio = new Date(timestamp).getTime(); 
+    const fin = ahora.getTime(); 
     const diffMs = Math.max(0, fin - inicio);
 
     const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
@@ -60,70 +61,72 @@ export default function PresenciaPage() {
   };
 
   /**
-   * LIMPIEZA DE HORA_ENTRADA / HORA_SALIDA
-   * Extrae HH:MM:SS del formato timestamptz
+   * LIMPIEZA DE HORA (Extracción HH:MM:SS)
+   * Se fuerza formato 24h y se ignora el ajuste local
    */
   const extraerHora = (timestamp: string | null) => {
     if (!timestamp) return "--:--:--";
-    return new Date(timestamp).toLocaleTimeString('es-ES', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit',
-        hour12: false 
-    });
+    const d = new Date(timestamp);
+    // Extraemos los componentes manualmente para evitar que el navegador sume o reste horas por zona horaria
+    return d.getUTCHours().toString().padStart(2, '0') + ":" + 
+           d.getUTCMinutes().toString().padStart(2, '0') + ":" + 
+           d.getUTCSeconds().toString().padStart(2, '0');
   };
 
+  // Filtrado por lógica de negocio
   const presentes = empleados.filter(e => e.en_almacen && e.ultimaJornada?.estado === 'activo');
   const ausentes = empleados.filter(e => !e.en_almacen || e.ultimaJornada?.estado === 'finalizado');
 
   return (
     <main className="min-h-screen bg-black flex flex-col font-sans overflow-hidden text-white">
       
-      {/* HEADER COMPACTO */}
-      <div className="w-full bg-[#1a1a1a] p-4 border-b border-white/5 flex justify-between items-center shadow-xl">
+      {/* HEADER */}
+      <div className="w-full bg-[#1a1a1a] p-4 border-b border-white/5 flex justify-between items-center">
         <h1 className="text-xl font-black italic uppercase">
-          MONITOR <span className="text-blue-600">RT</span>
+          MONITOR <span className="text-blue-600">PRESTACIONES</span>
         </h1>
-        <div className="text-right">
-          <p className="text-3xl font-black font-mono leading-none">{ahora.toLocaleTimeString()}</p>
-        </div>
+        <p className="text-3xl font-black font-mono">{ahora.toLocaleTimeString()}</p>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* PANEL PRESENTES */}
+        {/* PANEL PRESENTES - DISEÑO SIN RECUADROS INTERNOS */}
         <div className="w-1/2 p-4 overflow-y-auto border-r border-white/10">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-4 italic">● PRESENTES ({presentes.length})</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <h2 className="text-[10px] font-black uppercase text-emerald-500 mb-6 italic tracking-widest">● PRESENTES ({presentes.length})</h2>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-10">
             {presentes.map(e => (
-              <div key={e.id} className="p-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col">
-                <p className="font-black uppercase italic text-[10px] truncate">{e.nombre}</p>
-                <p className="text-[9px] text-white/40 mb-2">{e.documento_id}</p>
+              <div key={e.id} className="flex flex-col">
+                <p className="font-black uppercase italic text-[11px] text-white truncate">{e.nombre}</p>
+                <p className="text-[9px] text-white/30 mb-1">{e.documento_id}</p>
                 
-                <p className="text-2xl font-black font-mono text-emerald-500 tracking-tighter">
+                {/* Reloj Real-Time */}
+                <p className="text-3xl font-black font-mono text-emerald-500 leading-none">
                     {calcularReloj(e.ultimaJornada?.hora_entrada)}
                 </p>
-                <p className="text-[9px] font-bold text-white/60 uppercase">
-                    IN: {extraerHora(e.ultimaJornada?.hora_entrada)}
+                {/* Hora de entrada limpia */}
+                <p className="text-[9px] font-bold text-emerald-500/50 uppercase mt-1">
+                    ENTRADA: {extraerHora(e.ultimaJornada?.hora_entrada)}
                 </p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* PANEL AUSENTES */}
+        {/* PANEL AUSENTES - DISEÑO SIN RECUADROS INTERNOS */}
         <div className="w-1/2 p-4 overflow-y-auto bg-[#020202]">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-rose-600 mb-4 italic">○ AUSENTES ({ausentes.length})</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <h2 className="text-[10px] font-black uppercase text-rose-600 mb-6 italic tracking-widest">○ AUSENTES ({ausentes.length})</h2>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-10">
             {ausentes.map(e => (
-              <div key={e.id} className="p-3 rounded-2xl border border-white/5 bg-white/[0.02] flex flex-col opacity-70">
-                <p className="font-black uppercase italic text-[10px] truncate">{e.nombre}</p>
-                <p className="text-[9px] text-white/40 mb-2">{e.documento_id}</p>
+              <div key={e.id} className="flex flex-col opacity-70">
+                <p className="font-black uppercase italic text-[11px] text-white truncate">{e.nombre}</p>
+                <p className="text-[9px] text-white/30 mb-1">{e.documento_id}</p>
                 
-                <p className="text-2xl font-black font-mono text-blue-500 tracking-tighter">
+                {/* Reloj Real-Time */}
+                <p className="text-3xl font-black font-mono text-blue-500 leading-none">
                     {calcularReloj(e.ultimaJornada?.hora_salida)}
                 </p>
-                <p className="text-[9px] font-bold text-white/60 uppercase">
-                    OUT: {extraerHora(e.ultimaJornada?.hora_salida)}
+                {/* Hora de salida limpia */}
+                <p className="text-[9px] font-bold text-blue-500/50 uppercase mt-1">
+                    SALIDA: {extraerHora(e.ultimaJornada?.hora_salida)}
                 </p>
               </div>
             ))}
@@ -131,12 +134,12 @@ export default function PresenciaPage() {
         </div>
       </div>
 
-      {/* FOOTER Y BOTÓN CORREGIDO */}
+      {/* FOOTER - NAVEGACIÓN GARANTIZADA */}
       <div className="p-4 bg-[#1a1a1a] border-t border-white/5 flex justify-between items-center px-10">
-        <p className="text-[9px] text-white/20 uppercase font-black tracking-widest">TIEMPO REAL BIOMÉTRICO</p>
+        <p className="text-[9px] text-white/20 uppercase font-black tracking-widest">AUDITORÍA DE TIEMPO REAL</p>
         <button 
           onClick={() => router.push('/reportes')} 
-          className="bg-white/5 hover:bg-white/10 text-white px-8 py-2 rounded-full text-[10px] font-black uppercase italic border border-white/10 transition-all"
+          className="bg-white/5 hover:bg-white/10 text-white px-10 py-2 rounded-full text-[11px] font-black uppercase italic border border-white/10"
         >
           volver atrás
         </button>
