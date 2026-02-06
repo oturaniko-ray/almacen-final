@@ -13,6 +13,7 @@ export default function PresenciaPage() {
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
+  // Actualización del reloj maestro cada segundo
   useEffect(() => {
     const timer = setInterval(() => setAhora(new Date()), 1000);
     return () => clearInterval(timer);
@@ -25,13 +26,13 @@ export default function PresenciaPage() {
     const { data: config } = await supabase.from('sistema_config').select('valor').eq('clave', 'maximo_labor').maybeSingle();
     if (config) setMaxLabor(parseFloat(config.valor) || 8);
 
-    // CONSULTA UNIFICADA: Empleados y sus Jornadas
+    // CONSULTA UNIFICADA: Obtenemos empleados y sus jornadas recientes
     const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('nombre');
     const { data: jors } = await supabase.from('jornadas').select('*').order('created_at', { ascending: false });
 
     if (emps) {
       const vinculados = emps.map(e => {
-        // Buscamos la jornada más reciente del empleado en la tabla jornadas
+        // Encontramos la jornada más reciente del empleado
         const ultimaJor = jors?.find(j => j.empleado_id === e.id);
         return { ...e, ultimaJornada: ultimaJor || null };
       });
@@ -48,9 +49,14 @@ export default function PresenciaPage() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
-  const calcularHHMM = (fechaISO: string) => {
-    if (!fechaISO) return "00:00";
-    const diffMs = Math.max(0, ahora.getTime() - new Date(fechaISO).getTime());
+  // CORRECCIÓN 1: Cálculo de tiempo transcurrido (Relojes de presencia/ausencia)
+  const calcularHHMM = (jornada: any, estaPresente: boolean) => {
+    if (!jornada?.hora_entrada) return "00:00";
+
+    let inicio = new Date(jornada.hora_entrada).getTime();
+    let fin = estaPresente ? ahora.getTime() : (jornada.hora_salida ? new Date(jornada.hora_salida).getTime() : inicio);
+    
+    const diffMs = Math.max(0, fin - inicio);
     const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
     const m = Math.floor((diffMs % 3600000) / 60000).toString().padStart(2, '0');
     return `${h}:${m}`;
@@ -61,12 +67,9 @@ export default function PresenciaPage() {
     return (r === 'admin' || r === 'administrador') ? 'ADMINISTRATIVO' : rol?.toUpperCase();
   };
 
-  // FUNCIÓN DE EXPORTACIÓN CORREGIDA (COLUMNAS INDIVIDUALES)
   const exportarAsistencia = () => {
     const fechaStr = ahora.toLocaleDateString().replace(/\//g, '-');
     const horaStr = ahora.toLocaleTimeString().replace(/:/g, '-');
-    
-    // Encabezados con separador de columnas (;)
     const encabezados = ["Nombre", "Documento ID", "Hora Entrada", "Hora Salida", "Horas Trabajadas", "Estado"].join(";");
     
     const filas = empleados.map(e => [
@@ -78,18 +81,11 @@ export default function PresenciaPage() {
       e.en_almacen ? 'PRESENTE' : 'AUSENTE'
     ].join(";"));
 
-    const content = [
-      `Reporte de Asistencia a las: ${ahora.toLocaleTimeString()}`,
-      `Exportado por: ${user?.nombre} - ${getRolDisplay(user?.rol)}`,
-      "",
-      encabezados,
-      ...filas
-    ].join("\n");
-
-    const blob = new Blob(["\ufeff" + content], { type: 'text/csv;charset=utf-8;' }); // \ufeff ayuda a Excel con caracteres especiales
+    const content = [`Reporte de Asistencia: ${ahora.toLocaleString()}`, `Exportado por: ${user?.nombre}`, "", encabezados, ...filas].join("\n");
+    const blob = new Blob(["\ufeff" + content], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Reporte de Asistencia ${fechaStr} ${horaStr}.csv`;
+    link.download = `Asistencia_${fechaStr}.csv`;
     link.click();
   };
 
@@ -128,6 +124,7 @@ export default function PresenciaPage() {
         </div>
       </div>
 
+      {/* TABS Y EXPORTACIÓN */}
       <div className="flex justify-between items-center px-10 py-3 bg-black border-b border-white/5">
         <div className="flex gap-2">
           {(['empleados', 'supervisores', 'administradores', 'tecnicos'] as const).map(tab => (
@@ -140,7 +137,7 @@ export default function PresenciaPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* LADO PRESENTES */}
+        {/* PANEL PRESENTES */}
         <div className="w-1/2 p-6 overflow-y-auto border-r border-white/10">
           <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-emerald-500 italic mb-6">● PRESENTES ({presentes.length})</h2>
           <div className="grid grid-cols-4 gap-4">
@@ -151,8 +148,14 @@ export default function PresenciaPage() {
                   <p className="text-white font-black uppercase italic text-[11px] truncate leading-none">{e.nombre}</p>
                   <p className="text-[11px] text-white/70 font-normal truncate mt-1 mb-4">{e.documento_id}</p>
                   <div className="bg-black/60 p-4 rounded-2xl border border-white/5 text-center">
-                    <p className="text-3xl font-black font-mono tracking-tighter text-emerald-500">{calcularHHMM(hIn)}</p>
-                    <p className="text-[10px] text-white/60 uppercase font-black mt-2">IN: {hIn ? new Date(hIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</p>
+                    {/* Reloj de tiempo laborado hoy */}
+                    <p className="text-3xl font-black font-mono tracking-tighter text-emerald-500">
+                        {calcularHHMM(e.ultimaJornada, true)}
+                    </p>
+                    {/* CORRECCIÓN 2: Hora de acceso (entrada) */}
+                    <p className="text-[10px] text-white/60 uppercase font-black mt-2">
+                        ENTRADA: {hIn ? new Date(hIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}
+                    </p>
                   </div>
                 </div>
               );
@@ -160,7 +163,7 @@ export default function PresenciaPage() {
           </div>
         </div>
 
-        {/* LADO AUSENTES */}
+        {/* PANEL AUSENTES */}
         <div className="w-1/2 p-6 overflow-y-auto bg-[#020202]">
           <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-rose-600 italic mb-6">○ AUSENTES ({ausentes.length})</h2>
           <div className="grid grid-cols-4 gap-4">
@@ -171,8 +174,14 @@ export default function PresenciaPage() {
                   <p className="text-white/80 font-black uppercase italic text-[11px] truncate leading-none">{e.nombre}</p>
                   <p className="text-[11px] text-white/70 font-normal truncate mt-1 mb-4">{e.documento_id}</p>
                   <div className="bg-black/60 p-4 rounded-2xl border border-white/5 text-center">
-                    <p className="text-3xl font-black font-mono tracking-tighter text-blue-500">{calcularHHMM(hOut)}</p>
-                    <p className="text-[10px] text-white/60 uppercase font-black mt-2">OUT: {hOut ? new Date(hOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</p>
+                    {/* Tiempo total laborado en la última jornada */}
+                    <p className="text-3xl font-black font-mono tracking-tighter text-blue-500">
+                        {calcularHHMM(e.ultimaJornada, false)}
+                    </p>
+                    {/* CORRECCIÓN 3: Hora de salida */}
+                    <p className="text-[10px] text-white/60 uppercase font-black mt-2">
+                        SALIDA: {hOut ? new Date(hOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}
+                    </p>
                   </div>
                 </div>
               );
@@ -183,7 +192,7 @@ export default function PresenciaPage() {
 
       <div className="p-4 bg-[#1a1a1a] border-t border-white/5 flex justify-between items-center px-10">
         <p className="text-[9px] text-white/20 uppercase font-black tracking-widest">SISTEMA DE ASISTENCIA BIOMÉTRICA V6.0</p>
-        <button onClick={() => router.push('/admin')} className="text-white/40 hover:text-white text-[10px] font-black uppercase italic transition-colors">← REGRESAR AL PANEL</button>
+        <button onClick={() => router.push('/reportes')} className="text-white/40 hover:text-white text-[10px] font-black uppercase italic transition-colors">← REGRESAR AL MENÚ DE REPORTES</button>
       </div>
     </main>
   );
