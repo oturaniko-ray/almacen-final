@@ -29,7 +29,7 @@ export default function ReportesMenuPage() {
         <div className="mt-2 pt-2 border-t border-white/10 flex flex-col gap-1">
           {/* Muestra: NOMBRE + ROL + (NIVEL) */}
           <p className="text-[11px] text-white font-bold uppercase italic">
-            {user.nombre} - text-blue-700 {user.rol || 'Sin Rol'} ({user.nivel_acceso || '0'})
+            {user.nombre} - "text-blue-700" {user.rol || 'Sin Rol'} ({user.nivel_acceso || '0'})
           </p>
         </div>
       </div>
