@@ -11,12 +11,46 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ empresa_nombre: 'SISTEMA', timer_inactividad: null });
+  const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: null });
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
 
   const idRef = useRef<HTMLInputElement>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- LÓGICA DE INACTIVIDAD SIN FALLBACK ---
+  const reiniciarTemporizador = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    
+    // Solo se ejecuta si existe el valor en la configuración cargada de la DB
+    if (config.timer_inactividad) {
+      const tiempoLimite = parseInt(config.timer_inactividad);
+      
+      if (!isNaN(tiempoLimite)) {
+        timerRef.current = setTimeout(() => {
+          if (paso === 'selector') {
+            logout();
+            showNotification("Sesión cerrada por inactividad", 'error');
+          }
+        }, tiempoLimite);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (paso === 'selector' && config.timer_inactividad) {
+      const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+      
+      eventos.forEach(evento => document.addEventListener(evento, reiniciarTemporizador));
+      reiniciarTemporizador();
+
+      return () => {
+        eventos.forEach(evento => document.removeEventListener(evento, reiniciarTemporizador));
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
+    }
+  }, [paso, config.timer_inactividad]);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -31,74 +65,174 @@ export default function LoginPage() {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       const user = JSON.parse(sessionData);
-      setTempUser(user);
-      setPaso('selector');
+      if (Number(user.nivel_acceso) <= 2) router.push('/empleado');
+      else { setTempUser(user); setPaso('selector'); }
     }
-  }, []);
+  }, [router]);
+
+  const logout = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    localStorage.clear();
+    setTempUser(null);
+    setIdentificador('');
+    setPin('');
+    setPaso('login');
+  };
+
+  const showNotification = (texto: string, tipo: 'success' | 'error') => {
+    setMensaje({ texto, tipo });
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+  };
 
   const handleLogin = async () => {
     if (!identificador || !pin) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('employees')
+      const { data, error } = await supabase.from('empleados')
         .select('*')
-        .or(`documento_id.eq.${identificador},email.ilike.${identificador.trim()}`)
+        .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
         .eq('pin_seguridad', pin).eq('activo', true).maybeSingle();
 
-      if (error || !data) throw new Error("Acceso Denegado");
+      if (error || !data) throw new Error("Credenciales inválidas");
       
-      localStorage.setItem('user_session', JSON.stringify(data));
-      setTempUser(data);
-      setPaso('selector');
+      const userData = { 
+        ...data, 
+        nivel_acceso: Number(data.nivel_acceso),
+        permiso_reportes: !!data.permiso_reportes 
+      };
+      
+      localStorage.setItem('user_session', JSON.stringify(userData));
+
+      if (userData.nivel_acceso <= 2) {
+        router.push('/empleado');
+      } else {
+        setTempUser(userData);
+        setPaso('selector');
+      }
     } catch (err: any) {
-      setMensaje({ texto: "Credenciales Incorrectas", tipo: 'error' });
-      setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+      showNotification("Acceso denegado", 'error');
+      setIdentificador(''); setPin('');
+      idRef.current?.focus();
     } finally { setLoading(false); }
   };
 
+  const renderBicolorTitle = (text: string) => {
+    const words = (text || 'SISTEMA').split(' ');
+    const lastWord = words.pop();
+    const firstPart = words.join(' ');
+    return (
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{firstPart} </span>
+        <span className="text-blue-700">{lastWord}</span>
+      </h1>
+    );
+  };
+
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center text-white">
-        <h1 className="text-xl font-black italic uppercase">{config.empresa_nombre}</h1>
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      
+      {mensaje.tipo && (
+        <div className={`fixed top-6 z-50 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast ${
+          mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white'
+        }`}>
+          {mensaje.texto}
+        </div>
+      )}
+
+      {/* MEMBRETE */}
+      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
+        {renderBicolorTitle(config.empresa_nombre)}
+        
+        <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${paso === 'login' ? 'animate-pulse-slow' : ''}`}>
+          {paso === 'login' ? 'Identificación' : 'Menú Principal'}
+        </p>
+
+        {tempUser && paso === 'selector' && (
+          <div className="mt-2 pt-2 border-t border-white/10 flex flex-col items-center">
+            <span className="text-sm font-normal text-white uppercase">{tempUser.nombre}</span>
+            <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">NIVEL ACCESO: {tempUser.nivel_acceso}</span>
+          </div>
+        )}
       </div>
       
-      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5">
+      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl">
         {paso === 'login' ? (
           <div className="space-y-4">
             <input 
-              type="text" placeholder="ID / CORREO" 
-              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-blue-500" 
-              value={identificador} onChange={(e) => setIdentificador(e.target.value)}
+              ref={idRef}
+              type="text" 
+              placeholder="ID / CORREO" 
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none uppercase focus:border-blue-500/50" 
+              value={identificador} 
+              onChange={(e) => setIdentificador(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
+              autoFocus
             />
             <input 
-              type="password" placeholder="PIN" 
-              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-blue-500" 
-              value={pin} onChange={(e) => setPin(e.target.value)} 
+              ref={pinRef}
+              type="password" 
+              placeholder="PIN" 
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-black text-white tracking-[0.4em] outline-none focus:border-blue-500/50" 
+              value={pin} 
+              onChange={(e) => setPin(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             />
-            <button onClick={handleLogin} className="w-full bg-blue-600 p-4 rounded-xl text-white font-bold uppercase shadow-lg">
+            <button 
+              onClick={handleLogin} 
+              className="w-full bg-blue-600 p-4 rounded-xl text-white font-black uppercase italic text-sm active:scale-95 transition-all shadow-lg"
+            >
               {loading ? '...' : 'Entrar'}
             </button>
           </div>
         ) : (
           <div className="space-y-3">
+            <div className="text-center mb-6">
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white/20 animate-pulse-very-slow">Opciones</p>
+            </div>
+
             {[
               { label: '🏃 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
-              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700' },
+              { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
+              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
+              { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
               { label: '⚙️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
             ].map((btn) => {
-              if (Number(tempUser?.nivel_acceso) < btn.minNivel) return null;
+              const nivelUsuario = Number(tempUser.nivel_acceso);
+              const cumpleNivel = nivelUsuario >= btn.minNivel;
+              
+              if (btn.requiereReportes) {
+                if (!(cumpleNivel && tempUser.permiso_reportes)) return null;
+              } else if (!cumpleNivel) return null;
+
               return (
                 <button 
-                  key={btn.ruta} onClick={() => router.push(btn.ruta)} 
-                  className={`w-full ${btn.color} p-4 rounded-xl text-white font-bold uppercase text-[11px]`}
+                  key={btn.ruta}
+                  onClick={() => router.push(btn.ruta)} 
+                  className={`w-full ${btn.color} p-4 rounded-xl text-white font-bold transition-all active:scale-95 shadow-lg flex items-center`}
                 >
-                  {btn.label}
+                  <span className="text-left italic uppercase text-[11px] flex items-center">
+                    <span className="text-[1.4em] mr-3">{btn.label.split(' ')[0]}</span>
+                    {btn.label.split(' ').slice(1).join(' ')}
+                  </span>
                 </button>
               );
             })}
+            
+            <button onClick={logout} className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5">
+              ✕ Cerrar Sesión
+            </button>
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+      `}</style>
     </main>
   );
 }
