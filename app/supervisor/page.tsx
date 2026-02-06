@@ -6,23 +6,17 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// ARQUITECTURA DE CÁLCULO GEODÉSICO (Precisión Milimétrica)
+// FÓRMULA GEODÉSICA DE ALTA PRECISIÓN
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-  // Validación de seguridad: si las coordenadas son idénticas o nulas
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 99999;
-  
-  const R = 6371e3; // Radio de la Tierra en metros
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
+  const R = 6371e3; 
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
+  const dPhi = (lat2 - lat1) * Math.PI / 180;
+  const dLambda = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dLambda/2) * Math.sin(dLambda/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Resultado en metros
+  return R * c;
 }
 
 export default function SupervisorPage() {
@@ -36,13 +30,13 @@ export default function SupervisorPage() {
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
   const [user, setUser] = useState<any>(null);
   const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, timer_inactividad: null });
-  const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999 });
+  const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // --- LÓGICA DE INACTIVIDAD ESTÁNDAR ---
+  // --- INACTIVIDAD ---
   const resetTimerInactividad = useCallback(() => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
     if (config.timer_inactividad) {
@@ -61,13 +55,10 @@ export default function SupervisorPage() {
     const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
     eventos.forEach(e => document.addEventListener(e, resetTimerInactividad));
     resetTimerInactividad();
-    return () => {
-      eventos.forEach(e => document.removeEventListener(e, resetTimerInactividad));
-      if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
-    };
+    return () => eventos.forEach(e => document.removeEventListener(e, resetTimerInactividad));
   }, [resetTimerInactividad]);
 
-  // --- CARGA DE CONFIGURACIÓN Y GPS ---
+  // --- CONFIGURACIÓN Y GPS (CORRECCIÓN DE CAMPOS) ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -77,15 +68,15 @@ export default function SupervisorPage() {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-        // CONVERSIÓN QUIRÚRGICA A NÚMERO (Evita el 0 por falla de parsing)
-        const dbLat = Number(m.latitud_almacen || m.gps_latitud);
-        const dbLon = Number(m.longitud_almacen || m.gps_longitud);
         
+        // PARSEO QUIRÚRGICO DE COORDENADAS (almacen_lat / almacen_lon)
+        const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
+        const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
+
         setConfig({
-          lat: dbLat,
-          lon: dbLon,
-          radio: Number(m.radio_permitido) || 100,
-          qr_exp: Number(m.qr_expiracion) || 30000,
+          lat: isNaN(parsedLat) ? 0 : parsedLat,
+          lon: isNaN(parsedLon) ? 0 : parsedLon,
+          radio: parseInt(m.radio_permitido) || 100,
           timer_inactividad: m.timer_inactividad
         });
       }
@@ -98,12 +89,12 @@ export default function SupervisorPage() {
         lat: pos.coords.latitude,
         lon: pos.coords.longitude
       }));
-    }, null, { enableHighAccuracy: true, maximumAge: 0 });
+    }, null, { enableHighAccuracy: true });
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
 
-  // RE-CÁLCULO REACTIVO CUANDO CAMBIA GPS O CONFIG
+  // RE-CÁLCULO REACTIVO
   useEffect(() => {
     if (config.lat !== 0 && gps.lat !== 0) {
       const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
@@ -117,8 +108,7 @@ export default function SupervisorPage() {
       const scanner = new Html5Qrcode("reader");
       scannerRef.current = scanner;
       scanner.start({ facingMode: "environment" }, { fps: 25, qrbox: 250 }, (decoded) => {
-        const doc = decoded.replace(/[\n\r]/g, '').trim();
-        setQrData(doc); setLecturaLista(true); scanner.stop();
+        setQrData(decoded.trim()); setLecturaLista(true); scanner.stop();
       }, () => {}).catch(() => {});
       return () => { if(scannerRef.current?.isScanning) scannerRef.current.stop(); };
     }
@@ -173,18 +163,17 @@ export default function SupervisorPage() {
         <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
-      {/* MEMBRETE DINÁMICO */}
+      {/* MEMBRETE CORREGIDO (NIVEL DE ACCESO) */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         <h1 className="text-xl font-black italic uppercase text-white leading-none">
-          {modo === 'menu' ? 'PANEL DE LECTURA ' : ''}
-          <span className={modo === 'menu' ? 'text-blue-700' : 'text-white'}>
-            {modo === 'menu' ? 'QR' : modo === 'usb' ? 'LECTURA POR SCANNER' : modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}
-          </span>
+          {modo === 'menu' ? 'PANEL DE LECTURA QR' : 
+           modo === 'usb' ? 'LECTURA POR SCANNER' : 
+           modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}
         </h1>
         {user && (
           <div className="pt-3 mt-3 border-t border-white/10">
             <p className="text-[11px] text-white/90 uppercase font-bold">
-              <span style={{ fontSize: '80%' }}>{user.nombre}</span> <span className="text-white/30 ml-1">({user.rol})</span>
+              <span style={{ fontSize: '80%' }}>{user.nombre}</span> <span className="text-white/30 ml-1">({user.nivel_acceso})</span>
             </p>
           </div>
         )}
@@ -234,7 +223,7 @@ export default function SupervisorPage() {
               <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-2 bg-[#050a14] rounded-2xl text-center text-xl font-black border-4 border-blue-600 text-white outline-none" style={{ fontSize: '60%' }} value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
             )}
             
-            <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95 transition-all">{animar ? '...' : 'CONFIRMAR'}</button>
+            <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">{animar ? '...' : 'CONFIRMAR'}</button>
             <button onClick={() => setDireccion(null)} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] italic">← VOLVER</button>
           </div>
         )}
