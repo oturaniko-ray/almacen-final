@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -11,164 +11,228 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
+  const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: null });
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
 
+  const idRef = useRef<HTMLInputElement>(null);
+  const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- PERSISTENCIA Y CARGA INICIAL ---
-  useEffect(() => {
-    const sessionData = localStorage.getItem('user_session');
-    if (sessionData) {
-      setTempUser(JSON.parse(sessionData));
-      setPaso('selector');
-    }
-  }, []);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // --- LÓGICA DE INACTIVIDAD SIN FALLBACK ---
+  const reiniciarTemporizador = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     
-    const idLimpio = identificador.trim();
-    const pinLimpio = pin.trim();
-
-    if (!idLimpio || !pinLimpio) {
-      setMensaje({ texto: 'Complete Documento/Email y PIN', tipo: 'error' });
-      return;
-    }
-    
-    setLoading(true);
-    setMensaje({ texto: '', tipo: null });
-
-    try {
-      // Búsqueda en tabla 'empleados' por documento_id o email
-      // .ilike permite que no importe si escriben en Mayúsculas o Minúsculas
-      const { data, error } = await supabase
-        .from('empleados')
-        .select('*')
-        .or(`documento_id.ilike.${idLimpio},email.ilike.${idLimpio}`)
-        .eq('pin', pinLimpio)
-        .eq('activo', true)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error DB:", error.message);
-        setMensaje({ texto: 'Error de conexión con la base de datos', tipo: 'error' });
-        return;
+    // Solo se ejecuta si existe el valor en la configuración cargada de la DB
+    if (config.timer_inactividad) {
+      const tiempoLimite = parseInt(config.timer_inactividad);
+      
+      if (!isNaN(tiempoLimite)) {
+        timerRef.current = setTimeout(() => {
+          if (paso === 'selector') {
+            logout();
+            showNotification("Sesión cerrada por inactividad", 'error');
+          }
+        }, tiempoLimite);
       }
-
-      if (!data) {
-        setMensaje({ texto: 'Credenciales inválidas o personal inactivo', tipo: 'error' });
-      } else {
-        setTempUser(data);
-        localStorage.setItem('user_session', JSON.stringify(data));
-        setPaso('selector');
-      }
-    } catch (err) {
-      setMensaje({ texto: 'Error crítico en el inicio de sesión', tipo: 'error' });
-    } finally {
-      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (paso === 'selector' && config.timer_inactividad) {
+      const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+      
+      eventos.forEach(evento => document.addEventListener(evento, reiniciarTemporizador));
+      reiniciarTemporizador();
+
+      return () => {
+        eventos.forEach(evento => document.removeEventListener(evento, reiniciarTemporizador));
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
+    }
+  }, [paso, config.timer_inactividad]);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      const { data } = await supabase.from('sistema_config').select('clave, valor');
+      if (data) {
+        const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        setConfig((prev: any) => ({ ...prev, ...cfgMap }));
+      }
+    };
+    fetchConfig();
+    
+    const sessionData = localStorage.getItem('user_session');
+    if (sessionData) {
+      const user = JSON.parse(sessionData);
+      if (Number(user.nivel_acceso) <= 2) router.push('/empleado');
+      else { setTempUser(user); setPaso('selector'); }
+    }
+  }, [router]);
+
   const logout = () => {
-    localStorage.removeItem('user_session');
+    if (timerRef.current) clearTimeout(timerRef.current);
+    localStorage.clear();
     setTempUser(null);
     setIdentificador('');
     setPin('');
     setPaso('login');
   };
 
+  const showNotification = (texto: string, tipo: 'success' | 'error') => {
+    setMensaje({ texto, tipo });
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+  };
+
+  const handleLogin = async () => {
+    if (!identificador || !pin) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('empleados')
+        .select('*')
+        .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
+        .eq('pin_seguridad', pin).eq('activo', true).maybeSingle();
+
+      if (error || !data) throw new Error("Credenciales inválidas");
+      
+      const userData = { 
+        ...data, 
+        nivel_acceso: Number(data.nivel_acceso),
+        permiso_reportes: !!data.permiso_reportes 
+      };
+      
+      localStorage.setItem('user_session', JSON.stringify(userData));
+
+      if (userData.nivel_acceso <= 2) {
+        router.push('/empleado');
+      } else {
+        setTempUser(userData);
+        setPaso('selector');
+      }
+    } catch (err: any) {
+      showNotification("Acceso denegado", 'error');
+      setIdentificador(''); setPin('');
+      idRef.current?.focus();
+    } finally { setLoading(false); }
+  };
+
+  const renderBicolorTitle = (text: string) => {
+    const words = (text || 'SISTEMA').split(' ');
+    const lastWord = words.pop();
+    const firstPart = words.join(' ');
+    return (
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{firstPart} </span>
+        <span className="text-blue-700">{lastWord}</span>
+      </h1>
+    );
+  };
+
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
-      {/* Glow de fondo */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-blue-600/10 blur-[120px] pointer-events-none" />
+      {mensaje.tipo && (
+        <div className={`fixed top-6 z-50 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast ${
+          mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white'
+        }`}>
+          {mensaje.texto}
+        </div>
+      )}
 
-      <div className="w-full max-w-sm relative z-10">
+      {/* MEMBRETE */}
+      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
+        {renderBicolorTitle(config.empresa_nombre)}
+        
+        <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${paso === 'login' ? 'animate-pulse-slow' : ''}`}>
+          {paso === 'login' ? 'Identificación' : 'Menú Principal'}
+        </p>
+
+        {tempUser && paso === 'selector' && (
+          <div className="mt-2 pt-2 border-t border-white/10 flex flex-col items-center">
+            <span className="text-sm font-normal text-white uppercase">{tempUser.nombre}</span>
+            <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">NIVEL ACCESO: {tempUser.nivel_acceso}</span>
+          </div>
+        )}
+      </div>
+      
+      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl">
         {paso === 'login' ? (
-          <form onSubmit={handleLogin} className="bg-[#111] p-8 rounded-[35px] border border-white/5 shadow-2xl space-y-4">
-            <div className="text-center mb-6">
-              <h2 className="text-white font-black uppercase italic tracking-[0.2em] text-xl">Acceso Sistema</h2>
-              <p className="text-blue-500 text-[9px] font-black mt-2 uppercase tracking-widest">Verificación de Credenciales</p>
-            </div>
-            
-            {mensaje.texto && (
-              <div className={`p-4 rounded-xl text-center text-[10px] font-black uppercase border ${
-                mensaje.tipo === 'error' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-              }`}>
-                {mensaje.texto}
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label className="text-[9px] text-white/30 font-black uppercase ml-2 tracking-widest">Documento o Email</label>
-              <input 
-                type="text" 
-                placeholder="ID / CORREO" 
-                className="w-full bg-black border border-white/10 p-4 rounded-2xl text-white font-bold focus:border-blue-600 outline-none transition-all placeholder:text-white/5"
-                value={identificador} 
-                onChange={(e) => setIdentificador(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[9px] text-white/30 font-black uppercase ml-2 tracking-widest">PIN Personal</label>
-              <input 
-                type="password" 
-                placeholder="••••" 
-                className="w-full bg-black border border-white/10 p-4 rounded-2xl text-white font-bold focus:border-blue-600 outline-none transition-all placeholder:text-white/5 text-center tracking-[0.5em]"
-                value={pin} 
-                onChange={(e) => setPin(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
+          <div className="space-y-4">
+            <input 
+              ref={idRef}
+              type="text" 
+              placeholder="ID / CORREO" 
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none uppercase focus:border-blue-500/50" 
+              value={identificador} 
+              onChange={(e) => setIdentificador(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
+              autoFocus
+            />
+            <input 
+              ref={pinRef}
+              type="password" 
+              placeholder="PIN" 
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-black text-white tracking-[0.4em] outline-none focus:border-blue-500/50" 
+              value={pin} 
+              onChange={(e) => setPin(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            />
             <button 
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl text-white font-black uppercase italic text-[11px] tracking-widest transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-600/20"
+              onClick={handleLogin} 
+              className="w-full bg-blue-600 p-4 rounded-xl text-white font-black uppercase italic text-sm active:scale-95 transition-all shadow-lg"
             >
-              {loading ? 'Validando...' : 'Entrar al Sistema'}
+              {loading ? '...' : 'Entrar'}
             </button>
-          </form>
+          </div>
         ) : (
-          <div className="bg-[#111] p-8 rounded-[35px] border border-white/5 shadow-2xl space-y-3">
+          <div className="space-y-3">
             <div className="text-center mb-6">
-              <p className="text-white/40 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Usuario Identificado</p>
-              <h3 className="text-white text-xl font-black uppercase italic truncate">{tempUser?.nombre}</h3>
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white/20 animate-pulse-very-slow">Opciones</p>
             </div>
 
-            <div className="space-y-2">
-              {[
-                { label: '🏃 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
-                { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
-                { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700' },
-                { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
-                { label: '⚙️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
-              ].map((btn) => {
-                if (Number(tempUser?.nivel_acceso) < btn.minNivel) return null;
-                return (
-                  <button 
-                    key={btn.ruta} 
-                    onClick={() => router.push(btn.ruta)}
-                    className={`w-full ${btn.color} p-4 rounded-2xl text-white font-black uppercase italic text-[10px] flex items-center justify-between shadow-lg hover:brightness-110 active:scale-95 transition-all`}
-                  >
-                    <span>{btn.label}</span>
-                    <span className="opacity-40">→</span>
-                  </button>
-                );
-              })}
-            </div>
+            {[
+              { label: '🏃 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
+              { label: '🛡️ panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
+              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
+              { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
+              { label: '⚙️ config. maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
+            ].map((btn) => {
+              const nivelUsuario = Number(tempUser.nivel_acceso);
+              const cumpleNivel = nivelUsuario >= btn.minNivel;
+              
+              if (btn.requiereReportes) {
+                if (!(cumpleNivel && tempUser.permiso_reportes)) return null;
+              } else if (!cumpleNivel) return null;
 
-            <button 
-              onClick={logout} 
-              className="w-full text-white/20 hover:text-red-500 font-black uppercase text-[9px] tracking-[0.2em] pt-6 border-t border-white/5 transition-colors mt-4"
-            >
+              return (
+                <button 
+                  key={btn.ruta}
+                  onClick={() => router.push(btn.ruta)} 
+                  className={`w-full ${btn.color} p-4 rounded-xl text-white font-bold transition-all active:scale-95 shadow-lg flex items-center`}
+                >
+                  <span className="text-left italic uppercase text-[11px] flex items-center">
+                    <span className="text-[1.4em] mr-3">{btn.label.split(' ')[0]}</span>
+                    {btn.label.split(' ').slice(1).join(' ')}
+                  </span>
+                </button>
+              );
+            })}
+            
+            <button onClick={logout} className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5">
               ✕ Cerrar Sesión
             </button>
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+      `}</style>
     </main>
   );
 }
