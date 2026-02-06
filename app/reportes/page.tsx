@@ -8,9 +8,16 @@ export default function ReportesMenuPage() {
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (sessionData) setUser(JSON.parse(sessionData));
-    else router.push('/login'); // Seguridad: si no hay sesión, al login
+    if (sessionData) {
+      setUser(JSON.parse(sessionData));
+    } else {
+      // Si no hay sesión, redirige al login inmediatamente
+      router.push('/login');
+    }
   }, [router]);
+
+  // Si no hay usuario cargado aún, no renderizamos para evitar parpadeos visuales
+  if (!user) return null;
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
@@ -20,11 +27,11 @@ export default function ReportesMenuPage() {
           <span className="text-white">REPORTES Y </span>
           <span className="text-blue-700">ANÁLISIS</span>
         </h1>
-        {user && (
-          <div className="mt-2 pt-2 border-t border-white/10">
-            <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">USUARIO: {user.nombre}</p>
-          </div>
-        )}
+        <div className="mt-2 pt-2 border-t border-white/10">
+          <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">
+            USUARIO: {user.nombre}
+          </p>
+        </div>
       </div>
 
       {/* SELECTOR DE MÓDULOS */}
@@ -47,7 +54,7 @@ export default function ReportesMenuPage() {
           </span>
         </button>
 
-        {/* CORRECCIÓN: Apuntamos a /login para que el useEffect de esa página reconozca la sesión y muestre el selector */}
+        {/* BOTÓN DE RETORNO CORREGIDO */}
         <button 
           onClick={() => router.push('/login')} 
           className="w-full text-blue-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5 hover:text-blue-400 transition-colors"

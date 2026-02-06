@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-export default function ReportesPage() {
+export default function ReporteAccesosPage() {
   const [jornadas, setJornadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
@@ -38,7 +38,7 @@ export default function ReportesPage() {
 
   const jornadasFiltradas = jornadas.filter(j => {
     const f = j.hora_entrada.split('T')[0];
-    const matchNombre = j.nombre_empleado.toLowerCase().includes(busqueda.toLowerCase());
+    const matchNombre = j.nombre_empleado?.toLowerCase().includes(busqueda.toLowerCase());
     const matchDesde = desde ? f >= desde : true;
     const matchHasta = hasta ? f <= hasta : true;
     return matchNombre && matchDesde && matchHasta;
@@ -66,7 +66,9 @@ export default function ReportesPage() {
                 XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
                 XLSX.writeFile(wb, "Reporte_Asistencia.xlsx");
             }} className="bg-emerald-600 px-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20">Exportar</button>
-            <button onClick={() => router.back()} className="bg-red-600/20 text-red-500 px-5 py-2 rounded-xl text-[10px] font-black uppercase">Cerrar</button>
+            
+            {/* AJUSTE: Ahora regresa explícitamente al menú de reportes */}
+            <button onClick={() => router.push('/reportes')} className="bg-red-600/20 text-red-500 px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all active:scale-95">Regresar</button>
           </div>
         </div>
 
