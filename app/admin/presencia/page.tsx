@@ -30,7 +30,6 @@ export default function PresenciaPage() {
 
     if (emps) {
       const vinculados = emps.map(e => {
-        // Buscamos la última jornada absoluta para este empleado
         const ultimaJornada = jors?.find(j => j.empleado_id === e.id) || null;
         return { ...e, ultimaJornada };
       });
@@ -40,19 +39,18 @@ export default function PresenciaPage() {
 
   useEffect(() => {
     fetchData();
-    const channel = supabase.channel('presencia_dual_grid')
+    const channel = supabase.channel('presencia_v4')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
-  // RELOJ DINÁMICO HH:MM
-  const formatReloj = (fechaISO: string) => {
+  const calcularHHMM = (fechaISO: string) => {
     if (!fechaISO) return "00:00";
     const inicio = new Date(fechaISO).getTime();
-    const diff = ahora.getTime() - inicio;
-    const totalMinutos = Math.floor(diff / 60000);
+    const diffMs = Math.max(0, ahora.getTime() - inicio);
+    const totalMinutos = Math.floor(diffMs / 60000);
     const h = Math.floor(totalMinutos / 60).toString().padStart(2, '0');
     const m = (totalMinutos % 60).toString().padStart(2, '0');
     return `${h}:${m}`;
@@ -60,8 +58,7 @@ export default function PresenciaPage() {
 
   const checkExceso = (fechaISO: string) => {
     if (!fechaISO) return false;
-    const horas = (ahora.getTime() - new Date(fechaISO).getTime()) / 3600000;
-    return horas >= maxLabor;
+    return ((ahora.getTime() - new Date(fechaISO).getTime()) / 3600000) >= maxLabor;
   };
 
   const filtrarPorTab = (lista: any[]) => {
@@ -80,57 +77,61 @@ export default function PresenciaPage() {
   return (
     <main className="min-h-screen bg-black flex flex-col font-sans overflow-hidden">
       
-      {/* MEMBRETE UNIFICADO */}
-      <div className="w-full bg-[#1a1a1a] p-4 border-b border-white/5 text-center shadow-xl">
-        <h1 className="text-xl font-black italic uppercase leading-none mb-2">
-          <span className="text-white">MONITOR OPERATIVO </span>
-          <span className="text-blue-600">PRESENCIA</span>
-        </h1>
-        {user && (
-          <div className="flex justify-center items-center gap-6">
-            <p className="text-[10px] uppercase font-bold tracking-widest">
-              <span className="text-white">{user.nombre}</span> 
-              <span className="text-blue-500 ml-1">({user.nivel_acceso})</span>
+      {/* MEMBRETE CON RELOJ SUPERIOR IZQUIERDA */}
+      <div className="w-full bg-[#1a1a1a] p-5 border-b border-white/5 shadow-2xl relative">
+        {/* Reloj y Fecha Superior Izquierda */}
+        <div className="absolute top-5 left-8 text-left hidden md:block">
+          <p className="text-xl font-black font-mono text-blue-500 leading-none">{ahora.toLocaleTimeString()}</p>
+          <p className="text-[8px] font-bold text-white/40 uppercase tracking-widest">{ahora.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}</p>
+        </div>
+
+        <div className="text-center">
+          <h1 className="text-2xl font-black italic uppercase leading-none mb-2">
+            <span className="text-white">MONITOR DE PRESENCIA </span>
+            <span className="text-blue-600">TIEMPO REAL</span>
+          </h1>
+          {user && (
+            <p className="text-[11px] uppercase tracking-widest font-medium">
+              <span className="text-white">{user.nombre}</span>
+              <span className="text-blue-500 font-black ml-2">[{user.rol || 'USER'}]</span>
+              <span className="text-blue-300 ml-1">({user.nivel_acceso})</span>
             </p>
-            <p className="text-[10px] font-mono text-blue-400 font-black">{ahora.toLocaleTimeString()} | {ahora.toLocaleDateString()}</p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* SELECTOR DE TABS */}
-      <div className="flex justify-center gap-2 p-3 bg-black">
+      <div className="flex justify-center gap-2 p-3 bg-black border-b border-white/5">
         {(['empleados', 'supervisores', 'administradores', 'tecnicos'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setTabActiva(tab)}
-            className={`px-5 py-1.5 rounded-full text-[9px] font-black uppercase italic transition-all ${tabActiva === tab ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40' : 'bg-white/5 text-white/40 hover:text-white'}`}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all ${tabActiva === tab ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/30 hover:text-white'}`}
           >
             {tab}
           </button>
         ))}
       </div>
 
-      {/* CONTENEDOR DIVIDIDO 50/50 */}
-      <div className="flex flex-1 overflow-hidden border-t border-white/5">
-        
-        {/* LADO IZQUIERDO: PRESENTES (VERDE) */}
-        <div className="w-1/2 p-4 border-r border-white/10 overflow-y-auto bg-black">
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-500 italic">● Presentes ({presentes.length})</h2>
-          </div>
-          <div className="grid grid-cols-4 gap-3">
+      <div className="flex flex-1 overflow-hidden">
+        {/* IZQUIERDA: PRESENTES */}
+        <div className="w-1/2 p-6 overflow-y-auto border-r border-white/10 bg-black">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-500 italic mb-6 flex items-center gap-2">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            PERSONAL EN ALMACÉN ({presentes.length})
+          </h2>
+          <div className="grid grid-cols-4 gap-4">
             {presentes.map(e => {
               const hEntrada = e.ultimaJornada?.hora_entrada;
               const excede = checkExceso(hEntrada);
               return (
-                <div key={e.id} className={`p-3 rounded-2xl border-2 transition-all ${excede ? 'bg-amber-500/5 border-amber-500 animate-yellow-pulse' : 'bg-emerald-500/5 border-emerald-500/40'}`}>
-                  <p className="text-white font-black uppercase italic text-[10px] truncate leading-tight">{e.nombre}</p>
-                  <p className="text-[8px] text-white/30 font-bold mb-2">{e.documento_id}</p>
-                  <div className="bg-black/60 py-2 rounded-xl text-center border border-white/5">
-                    <p className={`text-lg font-black font-mono tracking-tighter ${excede ? 'text-amber-500' : 'text-emerald-400'}`}>
-                      {formatReloj(hEntrada)}
+                <div key={e.id} className={`p-4 rounded-[25px] border-2 transition-all ${excede ? 'bg-amber-500/5 border-amber-500 animate-yellow-pulse' : 'bg-emerald-500/5 border-emerald-500'}`}>
+                  <p className="text-white font-black uppercase italic text-[11px] truncate leading-none mb-1">{e.nombre}</p>
+                  <p className="text-[11px] text-white/40 font-normal truncate mb-3">{e.documento_id}</p>
+                  <div className="bg-black/60 p-3 rounded-2xl border border-white/5 text-center">
+                    <p className={`text-2xl font-black font-mono tracking-tighter leading-none ${excede ? 'text-amber-500' : 'text-emerald-500'}`}>
+                      {calcularHHMM(hEntrada)}
                     </p>
-                    <p className="text-[6px] text-white/20 uppercase font-black">En Almacén</p>
+                    <p className="text-[8px] text-white/20 uppercase font-black mt-2">In: {hEntrada ? new Date(hEntrada).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</p>
                   </div>
                 </div>
               );
@@ -138,43 +139,42 @@ export default function PresenciaPage() {
           </div>
         </div>
 
-        {/* LADO DERECHO: AUSENTES (ROJO/AZUL) */}
-        <div className="w-1/2 p-4 overflow-y-auto bg-[#020202]">
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-rose-600 italic">○ Ausentes ({ausentes.length})</h2>
-          </div>
-          <div className="grid grid-cols-4 gap-3">
+        {/* DERECHA: AUSENTES */}
+        <div className="w-1/2 p-6 overflow-y-auto bg-[#030303]">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-rose-600 italic mb-6 flex items-center gap-2">
+            <span className="w-2 h-2 bg-rose-600 rounded-full"></span>
+            PERSONAL AUSENTE ({ausentes.length})
+          </h2>
+          <div className="grid grid-cols-4 gap-4">
             {ausentes.map(e => {
               const hSalida = e.ultimaJornada?.hora_salida;
               return (
-                <div key={e.id} className="p-3 rounded-2xl border border-white/10 bg-white/[0.02]">
-                  <p className="text-white/60 font-black uppercase italic text-[10px] truncate leading-tight">{e.nombre}</p>
-                  <p className="text-[8px] text-white/20 font-bold mb-2">{e.documento_id}</p>
-                  <div className="bg-black/60 py-2 rounded-xl text-center border border-white/5">
-                    <p className="text-lg font-black font-mono tracking-tighter text-blue-500/60">
-                      {formatReloj(hSalida)}
+                <div key={e.id} className="p-4 rounded-[25px] border-2 bg-rose-500/5 border-rose-500">
+                  <p className="text-white font-black uppercase italic text-[11px] truncate leading-none mb-1">{e.nombre}</p>
+                  <p className="text-[11px] text-white/40 font-normal truncate mb-3">{e.documento_id}</p>
+                  <div className="bg-black/60 p-3 rounded-2xl border border-white/5 text-center">
+                    <p className="text-2xl font-black font-mono tracking-tighter leading-none text-blue-400">
+                      {calcularHHMM(hSalida)}
                     </p>
-                    <p className="text-[6px] text-white/20 uppercase font-black">De Ausencia</p>
+                    <p className="text-[8px] text-white/20 uppercase font-black mt-2">Out: {hSalida ? new Date(hSalida).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</p>
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
-
       </div>
 
-      {/* BOTÓN VOLVER */}
-      <button 
-        onClick={() => router.push('/admin')} 
-        className="fixed bottom-6 right-6 bg-blue-600/10 hover:bg-blue-600 p-3 px-6 rounded-full border border-blue-600/50 text-[9px] font-black uppercase italic text-white transition-all shadow-2xl backdrop-blur-md"
-      >
-        ← VOLVER ATRÁS
-      </button>
+      <div className="p-4 bg-[#1a1a1a] border-t border-white/5 flex justify-between items-center">
+        <p className="text-[9px] text-white/20 uppercase font-bold italic tracking-widest">Monitorización de Seguridad Activa</p>
+        <button onClick={() => router.push('/admin')} className="bg-blue-600 px-8 py-2 rounded-full text-[10px] font-black uppercase italic text-white active:scale-95 transition-all shadow-xl">
+          ← VOLVER ATRÁS
+        </button>
+      </div>
 
       <style jsx global>{`
         @keyframes yellow-pulse {
-          0%, 100% { border-color: rgba(245, 158, 11, 0.2); transform: scale(1); }
+          0%, 100% { border-color: rgba(245, 158, 11, 0.3); transform: scale(1); }
           50% { border-color: rgba(245, 158, 11, 1); transform: scale(1.02); }
         }
         .animate-yellow-pulse { animation: yellow-pulse 2s infinite ease-in-out; }
