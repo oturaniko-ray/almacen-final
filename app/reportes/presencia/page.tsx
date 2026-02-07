@@ -63,6 +63,19 @@ export default function PresenciaPage() {
     return `${fecha} ${hora}`;
   };
 
+  const exportarExcel = () => {
+    const data = empleados.map(e => ({
+      Nombre: e.nombre,
+      Documento: e.documento_id,
+      Nivel: e.nivel_acceso,
+      Estado: e.en_almacen ? 'PRESENTE' : 'AUSENTE'
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Presencia");
+    XLSX.writeFile(wb, "Monitor_Presencia.xlsx");
+  };
+
   const filtrarYOrdenar = (esPresente: boolean) => {
     return empleados
       .filter(e => {
@@ -93,10 +106,19 @@ export default function PresenciaPage() {
             <h2 className="text-xl font-black uppercase italic text-white">MONITOR DE <span className="text-blue-500">PRESENCIA</span></h2>
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{user?.nombre} <span className="text-blue-500">[{user?.rol}]</span> ({user?.nivel_acceso})</p>
           </div>
+          
           <div className="text-center">
             <p className="text-3xl font-black font-mono leading-none text-white">{ahora.toLocaleTimeString([], { hour12: false })}</p>
+            {/* FECHA DEBAJO DEL RELOJ */}
+            <p className="text-[8px] font-black uppercase text-blue-500 tracking-[0.2em] mt-1">
+              {ahora.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+            </p>
           </div>
-          <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border border-white/10 hover:bg-slate-700">REGRESAR</button>
+
+          <div className="flex gap-2">
+            <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-emerald-600/30">📊 EXPORTAR</button>
+            <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border border-white/10 hover:bg-slate-700">REGRESAR</button>
+          </div>
         </div>
 
         {/* TABS */}
@@ -123,9 +145,9 @@ export default function PresenciaPage() {
                     <p className="text-white text-[12px] font-black uppercase truncate w-full text-center leading-none mb-1">{e.nombre}</p>
                     <p className="text-[10px] text-slate-400 font-mono mb-2 uppercase">{e.documento_id}</p>
                     
-                    {/* FECHA + HORA EN UNA SOLA LÍNEA */}
                     <div className="mb-3">
-                      <p className={`text-[11px] font-black font-mono tracking-tighter ${esExcedido ? 'text-lime-300' : 'text-emerald-400/60'}`}>
+                      {/* FECHA + HORA EN BLANCO INTENSO */}
+                      <p className={`text-[11px] font-black font-mono tracking-tighter ${esExcedido ? 'text-lime-300' : 'text-white'}`}>
                         {formatearFechaHoraUnico(e.ultimaJornada?.hora_entrada)}
                       </p>
                     </div>
@@ -147,21 +169,22 @@ export default function PresenciaPage() {
               <span className="w-1.5 h-1.5 bg-rose-600 rounded-full shadow-[0_0_8px_#e11d48]"></span>
               AUSENTES ({ausentes.length})
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 opacity-70">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               {ausentes.map(e => (
                 <div key={e.id} className="bg-[#0f172a] p-4 rounded-[20px] border border-rose-500/30 flex flex-col items-center">
-                  <p className="text-slate-300 text-[12px] font-black uppercase truncate w-full text-center leading-none mb-1">{e.nombre}</p>
+                  <p className="text-white text-[12px] font-black uppercase truncate w-full text-center leading-none mb-1">{e.nombre}</p>
                   <p className="text-[10px] text-slate-500 font-mono mb-2 uppercase">{e.documento_id}</p>
                   
-                  {/* FECHA + HORA EN UNA SOLA LÍNEA */}
                   <div className="mb-3">
-                    <p className="text-[11px] font-black font-mono text-rose-500/40 tracking-tighter">
+                    {/* FECHA + HORA EN BLANCO INTENSO */}
+                    <p className="text-[11px] font-black font-mono text-white tracking-tighter">
                       {formatearFechaHoraUnico(e.ultimaJornada?.hora_salida)}
                     </p>
                   </div>
 
                   <div className="bg-black/20 w-full py-2 rounded-xl border border-white/5 text-center">
-                    <p className="text-lg font-black font-mono text-slate-600 italic leading-none">
+                    {/* RELOJ DE AUSENTES EN ROSA */}
+                    <p className="text-lg font-black font-mono text-rose-400 italic leading-none">
                       {formatearTiempo(calcularTiempoRaw(e.ultimaJornada?.hora_salida))}
                     </p>
                   </div>
