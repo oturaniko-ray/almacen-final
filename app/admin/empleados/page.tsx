@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -29,7 +29,6 @@ export default function GestionEmpleados() {
     if (data) setEmpleados(data);
   };
 
-  // LÓGICA DE NIVELES SEGÚN ROL
   const obtenerOpcionesNivel = () => {
     const r = nuevo.rol;
     if (r === 'empleado') return [1, 2];
@@ -39,17 +38,37 @@ export default function GestionEmpleados() {
     return [1];
   };
 
+  // 1. VALIDACIÓN DE PIN ÚNICO
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Verificar si el pin ya existe en otro empleado
+    const { data: existe } = await supabase
+      .from('empleados')
+      .select('id, nombre')
+      .eq('pin_seguridad', nuevo.pin_seguridad)
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000') // Ignorar si es el mismo que estamos editando
+      .single();
+
+    if (existe) {
+      alert(`⚠️ ERROR: El PIN ya está asignado a ${existe.nombre}. Elija uno nuevo.`);
+      document.getElementById('pin_input')?.focus();
+      return;
+    }
+
     const payload = { ...nuevo };
     if (editando) {
       await supabase.from('empleados').update(payload).eq('id', editando.id);
     } else {
       await supabase.from('empleados').insert([payload]);
     }
+    cancelarEdicion();
+    fetchEmpleados();
+  };
+
+  const cancelarEdicion = () => {
     setEditando(null);
     setNuevo(estadoInicial);
-    fetchEmpleados();
   };
 
   const exportarExcel = () => {
@@ -63,7 +82,7 @@ export default function GestionEmpleados() {
     <main className="min-h-screen bg-[#050a14] p-4 text-white font-sans">
       <div className="max-w-[100%] mx-auto">
         
-        {/* 1 y 2. MEMBRETE UNIFICADO */}
+        {/* MEMBRETE */}
         <div className="flex justify-between items-end mb-6 border-b border-white/5 pb-4">
           <div>
             <h1 className="text-2xl font-black italic uppercase text-white">
@@ -74,7 +93,6 @@ export default function GestionEmpleados() {
             </p>
           </div>
           <div className="flex gap-2">
-            {/* 3. BOTÓN EXPORTAR */}
             <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all hover:bg-emerald-600/40">
               📊 EXPORTAR
             </button>
@@ -84,7 +102,7 @@ export default function GestionEmpleados() {
           </div>
         </div>
 
-        {/* 4. EDITOR EN UNA SOLA LÍNEA */}
+        {/* EDITOR LINEAL */}
         <div className={`p-6 rounded-[30px] border mb-8 transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5 bg-[#0f172a]'}`}>
           <form onSubmit={handleGuardar} className="flex flex-wrap lg:flex-nowrap gap-3 items-end">
             <div className="flex-1 min-w-[150px]">
@@ -93,7 +111,7 @@ export default function GestionEmpleados() {
             </div>
             <div className="w-[120px]">
               <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">DNI/NIE/PASS</label>
-              <input className="w-full bg-black/40 p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
+              <input className="w-full bg-black/40 p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center uppercase" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
             </div>
             <div className="flex-1 min-w-[150px]">
               <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Email</label>
@@ -101,7 +119,7 @@ export default function GestionEmpleados() {
             </div>
             <div className="w-[80px]">
               <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Pin</label>
-              <input className="w-full bg-black/40 p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center font-mono" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
+              <input id="pin_input" className="w-full bg-black/40 p-3 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center font-mono" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
             </div>
             <div className="w-[130px]">
               <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Rol</label>
@@ -125,23 +143,29 @@ export default function GestionEmpleados() {
                 {obtenerOpcionesNivel().map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
-            <button type="submit" className={`p-3 w-[60px] rounded-xl font-black text-xs uppercase transition-all shadow-lg ${editando ? 'bg-amber-500' : 'bg-blue-600'}`}>
-              OK
-            </button>
+            
+            {/* 2. BOTONES OK Y CANCELAR */}
+            <div className="flex flex-col gap-1">
+              {editando && (
+                <button type="button" onClick={cancelarEdicion} className="bg-rose-600 hover:bg-rose-500 text-white rounded-lg p-1 text-[10px] font-black transition-all">
+                  ✕ CANCELAR
+                </button>
+              )}
+              <button type="submit" className={`p-3 w-[80px] rounded-xl font-black text-xs uppercase transition-all shadow-lg ${editando ? 'bg-amber-500' : 'bg-blue-600'}`}>
+                OK
+              </button>
+            </div>
           </form>
         </div>
 
-        {/* LISTADO DE PERSONAL */}
+        {/* LISTADO */}
         <div className="bg-[#0f172a] rounded-[30px] border border-white/5 overflow-hidden">
-          <div className="p-4 border-b border-white/5">
-            <input type="text" placeholder="BUSCAR POR NOMBRE O DNI..." className="w-full bg-black/20 border border-white/10 rounded-xl px-6 py-3 text-[10px] font-black uppercase outline-none focus:border-blue-500" value={filtro} onChange={e => setFiltro(e.target.value)} />
-          </div>
           <table className="w-full text-left">
             <thead className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-black/20">
               <tr>
                 <th className="p-5">Colaborador</th>
                 <th className="p-5">DNI / Email</th>
-                <th className="p-5 text-center">Rol / Nivel</th>
+                <th className="p-5 text-center">Rol / Pin</th>
                 <th className="p-5 text-center">Acciones</th>
               </tr>
             </thead>
@@ -149,21 +173,33 @@ export default function GestionEmpleados() {
               {empleados.filter(e => e.nombre.toLowerCase().includes(filtro.toLowerCase())).map((emp) => (
                 <tr key={emp.id} className="hover:bg-white/[0.01] transition-colors">
                   <td className="p-5">
-                    <p className="font-bold text-[12px] uppercase text-white leading-none">{emp.nombre}</p>
-                    <p className="text-[9px] text-emerald-500 font-black mt-1 uppercase">● {emp.activo ? 'Activo' : 'Inactivo'}</p>
+                    <div className="flex items-center gap-3">
+                      {/* 5. INDICADOR DE ALMACÉN Y TAMAÑO NOMBRE */}
+                      <div className={`w-3 h-3 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/10'}`}></div>
+                      <p className="font-black text-[14px] uppercase text-white leading-none tracking-tight">{emp.nombre}</p>
+                    </div>
                   </td>
                   <td className="p-5 font-mono text-[11px]">
                     <span className="text-white block">{emp.documento_id}</span>
                     <span className="text-slate-500 text-[9px]">{emp.email}</span>
                   </td>
                   <td className="p-5 text-center">
-                    <span className="text-[9px] font-black uppercase bg-slate-800 px-3 py-1 rounded text-blue-400 border border-blue-500/20">
-                      {emp.rol} (Lvl {emp.nivel_acceso})
-                    </span>
+                    {/* 4. PIN OCULTO (HOVER) */}
+                    <p className="text-[10px] font-black uppercase text-blue-400">{emp.rol}</p>
+                    <div className="group relative mt-1">
+                      <p className="text-[10px] font-mono text-slate-600 group-hover:hidden">••••</p>
+                      <p className="text-[10px] font-mono text-amber-500 hidden group-hover:block font-bold">PIN: {emp.pin_seguridad}</p>
+                    </div>
                   </td>
                   <td className="p-5 text-center flex gap-2 justify-center">
-                    <button onClick={() => { setEditando(emp); setNuevo(emp); }} className="text-blue-500 hover:text-white font-black text-[10px] uppercase transition-all px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600">Editar</button>
-                    <button onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} className={`px-4 py-1.5 rounded-lg font-black text-[10px] uppercase ${emp.activo ? 'text-rose-500 border border-rose-500/20' : 'text-emerald-500 border border-emerald-500/20'}`}>{emp.activo ? 'Baja' : 'Alta'}</button>
+                    <button onClick={() => { setEditando(emp); setNuevo(emp); }} className="text-blue-500 hover:text-white font-black text-[10px] uppercase px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600">Editar</button>
+                    {/* 3. BOTÓN ACTIVO/INACTIVO DINÁMICO */}
+                    <button 
+                      onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} 
+                      className={`px-4 py-1.5 rounded-lg font-black text-[10px] uppercase border ${emp.activo ? 'text-emerald-500 border-emerald-500/20' : 'text-rose-600 border-rose-600/20'}`}
+                    >
+                      {emp.activo ? 'Activo' : 'Inactivo'}
+                    </button>
                   </td>
                 </tr>
               ))}
