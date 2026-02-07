@@ -9,7 +9,7 @@ import {
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-export default function AuditoriaKPI() {
+export default function AuditoriaInteligente() {
   const [metricas, setMetricas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deptoSeleccionado, setDeptoSeleccionado] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function AuditoriaKPI() {
 
       setMetricas(dataProcesada);
     } catch (err) {
-      console.error("Error en KPI:", err);
+      console.error("Error en Auditoría:", err);
     } finally {
       setLoading(false);
     }
@@ -51,154 +51,153 @@ export default function AuditoriaKPI() {
 
   useEffect(() => { fetchAuditoria(); }, [fetchAuditoria]);
 
-  // FILTRADO DINÁMICO
   const metricasFiltradas = useMemo(() => {
-    if (!deptoSeleccionado) return metricas;
-    return metricas.filter(m => m.depto_nombre === deptoSeleccionado);
+    return deptoSeleccionado ? metricas.filter(m => m.depto_nombre === deptoSeleccionado) : metricas;
   }, [metricas, deptoSeleccionado]);
 
-  // CÁLCULOS KPI BASADOS EN EL FILTRO
-  const stats = useMemo(() => {
+  // MOTOR DE RECOMENDACIONES LÓGICAS
+  const insights = useMemo(() => {
     const data = metricasFiltradas;
-    const total = data.length || 1;
+    if (data.length === 0) return [];
+
+    const total = data.length;
     const fugas = data.reduce((acc, curr) => acc + (Number(curr.horas_exceso) || 0), 0);
-    const scoreGral = Math.round(data.reduce((acc, curr) => acc + (Number(curr.eficiencia_score) || 0), 0) / total);
-    
-    // Data para el PieChart (Siempre usa la data total para dar contexto global)
+    const avgScore = data.reduce((acc, curr) => acc + (Number(curr.eficiencia_score) || 0), 0) / total;
+    const incidencias = data.filter(d => d.incidencia_tipo !== 'normal').length;
+    const ratioIncidencia = (incidencias / total) * 100;
+
+    const lista: any[] = [];
+
+    // Lógica 1: Fuga Crítica
+    if (fugas > 15) {
+      lista.push({
+        tipo: 'CRÍTICO',
+        titulo: 'Fuga de Capital Detectada',
+        desc: `Se han acumulado ${fugas.toFixed(1)}h de exceso. Se recomienda revisar la carga de trabajo o contratar personal de refuerzo.`,
+        color: 'text-rose-500',
+        bg: 'bg-rose-500/10'
+      });
+    }
+
+    // Lógica 2: Eficiencia Baja
+    if (avgScore < 75) {
+      lista.push({
+        tipo: 'ADVERTENCIA',
+        titulo: 'Baja Eficiencia Operativa',
+        desc: `El score promedio es de ${Math.round(avgScore)}%. Existe un patrón de incumplimiento en los horarios establecidos.`,
+        color: 'text-amber-500',
+        bg: 'bg-amber-500/10'
+      });
+    }
+
+    // Lógica 3: Estabilidad
+    if (ratioIncidencia < 10 && avgScore > 90) {
+      lista.push({
+        tipo: 'OPTIMO',
+        titulo: 'Operación Saludable',
+        desc: 'El departamento mantiene una relación de presencia/tiempo excelente. Mantener incentivos actuales.',
+        color: 'text-emerald-500',
+        bg: 'bg-emerald-500/10'
+      });
+    }
+
+    return { fugas, avgScore, incidencias, lista, deptoData: [] }; // simplificado para el return
+  }, [metricasFiltradas]);
+
+  const deptoData = useMemo(() => {
     const porDepto = metricas.reduce((acc: any, curr) => {
       const d = curr.depto_nombre;
       if (!acc[d]) acc[d] = { name: d, value: 0, fill: curr.depto_color };
       acc[d].value += 1;
       return acc;
     }, {});
+    return Object.values(porDepto);
+  }, [metricas]);
 
-    return { fugas, scoreGral, deptoData: Object.values(porDepto) };
-  }, [metricas, metricasFiltradas]);
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#020617] flex items-center justify-center font-black text-blue-500 animate-pulse uppercase tracking-[0.4em]">
-      Analizando Estructura...
-    </div>
-  );
+  if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center text-blue-500 font-black animate-pulse">CARGANDO INTELIGENCIA...</div>;
 
   return (
-    <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300">
+    <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto">
         
         {/* HEADER */}
-        <div className="flex justify-between items-end mb-10 border-b border-white/5 pb-6">
+        <div className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
           <div>
-            <h1 className="text-3xl font-black italic text-white tracking-tighter uppercase">
-              KPI <span className="text-blue-500">POR DEPARTAMENTO</span>
+            <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter">
+              AUDITORÍA <span className="text-blue-500">INTELIGENTE</span>
             </h1>
-            <div className="flex items-center gap-2 mt-2">
-                <span className={`w-2 h-2 rounded-full ${deptoSeleccionado ? 'bg-blue-500 animate-pulse' : 'bg-slate-700'}`}></span>
-                <p className="text-[10px] font-bold text-slate-500 tracking-[0.3em] uppercase">
-                    {deptoSeleccionado ? `Filtrando por: ${deptoSeleccionado}` : 'Visualizando Planta Completa'}
-                </p>
-            </div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">Análisis Prescriptivo de Personal</p>
           </div>
-          <div className="flex gap-4">
-            {deptoSeleccionado && (
-                <button onClick={() => setDeptoSeleccionado(null)} className="text-[10px] font-black text-rose-500 border border-rose-500/20 px-4 py-2 rounded-full hover:bg-rose-500 hover:text-white transition-all">LIMPIAR FILTRO</button>
-            )}
-            <button onClick={() => router.push('/reportes')} className="bg-white/5 hover:bg-white hover:text-black px-6 py-2 rounded-full text-[10px] font-black transition-all border border-white/10 uppercase">Volver</button>
-          </div>
+          <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase">REGRESAR</button>
         </div>
 
-        {/* SELECTOR DE DEPARTAMENTO (TABS) */}
-        <div className="flex flex-wrap gap-2 mb-8 justify-center">
-            {stats.deptoData.map((d: any) => (
-                <button 
-                    key={d.name} 
-                    onClick={() => setDeptoSeleccionado(d.name)}
-                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${deptoSeleccionado === d.name ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-white/5 border-white/5 text-slate-500 hover:border-white/20'}`}
-                >
-                    {d.name}
-                </button>
+        {/* RECOMENDACIONES IA (Insights Section) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+            {insights.lista.map((ins: any, i: number) => (
+                <div key={i} className={`${ins.bg} p-6 rounded-[24px] border border-white/5 flex flex-col gap-2`}>
+                    <div className="flex justify-between items-center">
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded ${ins.color} border border-current opacity-70`}>{ins.tipo}</span>
+                        <span className="animate-ping w-1.5 h-1.5 rounded-full bg-current"></span>
+                    </div>
+                    <h4 className={`text-[12px] font-black uppercase ${ins.color}`}>{ins.titulo}</h4>
+                    <p className="text-[11px] text-slate-400 font-medium leading-relaxed">{ins.desc}</p>
+                </div>
+            ))}
+            {insights.lista.length === 0 && (
+                <div className="bg-blue-500/5 p-6 rounded-[24px] border border-white/5 flex items-center justify-center">
+                    <p className="text-[10px] font-black text-slate-500 uppercase">Sin anomalías críticas detectadas</p>
+                </div>
+            )}
+        </div>
+
+        {/* SELECTOR Y KPIs */}
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+            <button onClick={() => setDeptoSeleccionado(null)} className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase transition-all ${!deptoSeleccionado ? 'bg-white text-black' : 'bg-white/5 text-slate-500'}`}>TODOS</button>
+            {deptoData.map((d: any) => (
+                <button key={d.name} onClick={() => setDeptoSeleccionado(d.name)} className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase transition-all ${deptoSeleccionado === d.name ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-500'}`}>{d.name}</button>
             ))}
         </div>
 
-        {/* KPI CARDS DINÁMICOS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 shadow-2xl relative overflow-hidden group">
-             <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Pérdida por Excesos</p>
-             <div className="flex items-baseline gap-2">
-                <span className={`text-5xl font-black tracking-tighter transition-colors ${stats.fugas > 10 ? 'text-rose-500' : 'text-white'}`}>{stats.fugas.toFixed(1)}</span>
-                <span className="text-slate-500 font-bold uppercase text-xs tracking-tighter">Horas Extra</span>
-             </div>
-          </div>
-
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 shadow-2xl relative overflow-hidden">
-             <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Salud Operativa</p>
-             <div className="flex items-baseline gap-2">
-                <span className={`text-5xl font-black tracking-tighter transition-colors ${stats.scoreGral < 70 ? 'text-rose-500' : 'text-white'}`}>{stats.scoreGral}%</span>
-                <span className="text-blue-500 font-bold uppercase text-xs tracking-tighter">Eficiencia</span>
-             </div>
-          </div>
-
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 shadow-2xl">
-             <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Impacto en Auditoría</p>
-             <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-black text-white tracking-tighter">{metricasFiltradas.length}</span>
-                <span className="text-emerald-500 font-bold uppercase text-xs tracking-tighter">Registros</span>
-             </div>
-          </div>
+            <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Score Promedio</p>
+                <h2 className="text-5xl font-black text-white">{Math.round(insights.avgScore || 0)}%</h2>
+            </div>
+            <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Total Fugas</p>
+                <h2 className={`text-5xl font-black ${insights.fugas > 10 ? 'text-rose-500' : 'text-white'}`}>{insights.fugas.toFixed(1)}h</h2>
+            </div>
+            <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Incidencias</p>
+                <h2 className="text-5xl font-black text-white">{insights.incidencias}</h2>
+            </div>
         </div>
 
-        {/* LOG DE AUDITORÍA COLORIZADO */}
-        <div className="bg-[#0f172a] p-8 rounded-[40px] border border-white/5 shadow-inner">
-          <h3 className="text-[11px] font-black uppercase text-slate-400 mb-6 flex items-center gap-3 tracking-widest">
-            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
-            Logs de {deptoSeleccionado || 'Planta Completa'}
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="text-[9px] text-slate-500 uppercase tracking-widest border-b border-white/5">
-                  <th className="pb-4 font-black">Empleado</th>
-                  <th className="pb-4 font-black text-center">Área</th>
-                  <th className="pb-4 font-black text-center">Presencia</th>
-                  <th className="pb-4 font-black text-center">Exceso</th>
-                  <th className="pb-4 font-black text-right">Eficiencia</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {metricasFiltradas.length === 0 ? (
+        {/* TABLA DE AUDITORÍA */}
+        <div className="bg-[#0f172a] rounded-[32px] border border-white/5 overflow-hidden">
+            <table className="w-full text-left">
+                <thead className="bg-white/5 text-[9px] font-black uppercase text-slate-500 tracking-widest">
                     <tr>
-                        <td colSpan={5} className="py-20 text-center text-[10px] font-black text-slate-700 uppercase tracking-[0.5em]">Sin datos para este filtro</td>
+                        <th className="p-6">Empleado</th>
+                        <th className="p-6 text-center">Depto</th>
+                        <th className="p-6 text-center">Presencia</th>
+                        <th className="p-6 text-right">Eficiencia</th>
                     </tr>
-                ) : (
-                    metricasFiltradas.map((m) => (
-                    <tr key={m.id} className="group hover:bg-white/[0.02] transition-colors">
-                        <td className="py-4">
-                            <p className="text-[12px] font-black text-white uppercase group-hover:text-blue-400 transition-all">{m.nombre_empleado}</p>
-                            <p className="text-[9px] font-mono text-slate-600 italic">{m.fecha_proceso}</p>
-                        </td>
-                        <td className="py-4 text-center">
-                            <span className="text-[8px] font-black px-3 py-1 rounded-full border border-white/5" style={{color: m.depto_color, borderColor: `${m.depto_color}20`, backgroundColor: `${m.depto_color}05`}}>
-                                {m.depto_nombre}
-                            </span>
-                        </td>
-                        <td className="py-4 text-center text-[11px] font-bold text-slate-400 font-mono">{m.horas_totales_presencia}h</td>
-                        <td className="py-4 text-center">
-                            <span className={`text-[11px] font-black ${Number(m.horas_exceso) > 0 ? 'text-rose-500 bg-rose-500/5 px-2 py-0.5 rounded' : 'text-slate-700'}`}>
-                                +{m.horas_exceso}h
-                            </span>
-                        </td>
-                        <td className="py-4 text-right">
-                            <span className={`text-[13px] font-black font-mono px-3 py-1 rounded-lg ${m.eficiencia_score > 80 ? 'text-blue-500 bg-blue-500/5' : 'text-rose-500 bg-rose-500/5'}`}>
-                                {m.eficiencia_score}
-                            </span>
-                        </td>
-                    </tr>
-                    ))
-                )}
-              </tbody>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                    {metricasFiltradas.map((m) => (
+                        <tr key={m.id} className="hover:bg-white/[0.02] transition-all">
+                            <td className="p-6 font-black text-[12px] uppercase">{m.nombre_empleado} <br/><span className="text-[9px] text-slate-600 font-mono font-normal">{m.fecha_proceso}</span></td>
+                            <td className="p-6 text-center">
+                                <span className="text-[8px] font-black px-2 py-1 rounded border border-white/10" style={{color: m.depto_color}}>{m.depto_nombre}</span>
+                            </td>
+                            <td className="p-6 text-center text-slate-400 font-mono text-[11px] font-bold">{m.horas_totales_presencia}h <span className="text-rose-500 ml-1">(+{m.horas_exceso})</span></td>
+                            <td className={`p-6 text-right font-black text-lg font-mono ${m.eficiencia_score > 80 ? 'text-blue-500' : 'text-rose-500'}`}>{m.eficiencia_score}</td>
+                        </tr>
+                    ))}
+                </tbody>
             </table>
-          </div>
         </div>
-
       </div>
     </main>
   );
