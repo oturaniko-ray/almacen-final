@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -15,18 +15,35 @@ export default function ReporteAccesosPage() {
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
+  // Carga inicial de sesión y datos
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
     fetchJornadas();
-    const ch = supabase.channel('jornadas_real').on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchJornadas()).subscribe();
+    
+    // Suscripción en tiempo real
+    const ch = supabase.channel('jornadas_real')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchJornadas())
+      .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
 
   const fetchJornadas = async () => {
     setLoading(true);
-    const { data } = await supabase.from('jornadas').select('*').order('hora_entrada', { ascending: false });
-    if (data) setJornadas(data);
+    // Realizamos un JOIN (Inner Selection) para traer el documento_id desde la tabla empleados
+    const { data, error } = await supabase
+      .from('jornadas')
+      .select(`
+        *,
+        empleados!inner (
+          documento_id
+        )
+      `)
+      .order('hora_entrada', { ascending: false });
+
+    if (!error && data) {
+      setJornadas(data);
+    }
     setLoading(false);
   };
 
@@ -59,7 +76,7 @@ export default function ReporteAccesosPage() {
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* MEMBRETE */}
+        {/* HEADER / MEMBRETE */}
         <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
           <div>
             <h1 className="text-2xl font-black uppercase italic text-white tracking-tighter">
@@ -85,7 +102,7 @@ export default function ReporteAccesosPage() {
           </div>
         </div>
 
-        {/* FILTROS */}
+        {/* BUSCADOR Y FILTROS */}
         <div className="flex flex-wrap gap-4 mb-8 bg-[#0f172a] p-6 rounded-[35px] border border-white/5 items-center shadow-xl">
           <input type="text" placeholder="🔍 BUSCAR EMPLEADO..." className="flex-1 min-w-[200px] bg-black/20 border border-white/10 rounded-xl px-5 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
           <input type="date" className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400" value={desde} onChange={e => setDesde(e.target.value)} />
@@ -93,7 +110,7 @@ export default function ReporteAccesosPage() {
           <button onClick={limpiarFiltros} className="bg-slate-700 hover:bg-slate-600 px-4 py-3 rounded-xl text-[9px] font-black uppercase transition-colors">Limpiar</button>
         </div>
 
-        {/* TABLA */}
+        {/* TABLA DE DATOS */}
         <div className="overflow-hidden rounded-[40px] border border-white/5 bg-[#0f172a] shadow-2xl">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -122,12 +139,13 @@ export default function ReporteAccesosPage() {
                     )}
                     <tr className="hover:bg-white/[0.01] border-b border-white/5 transition-colors">
                       <td className="p-6">
-                        {/* CORRECTIVO: NOMBRE SIMPLE Y DOCUMENTO BLANCO DEBAJO */}
+                        {/* NOMBRE SIMPLE (SIN BOLD/ITALIC) */}
                         <p className="uppercase text-lg tracking-tighter text-white leading-none">
                           {j.nombre_empleado}
                         </p>
+                        {/* DOCUMENTO EXTRAÍDO DE RELACIÓN EN COLOR BLANCO */}
                         <p className="text-[10px] font-bold text-white mt-2 uppercase tracking-widest">
-                          {j.documento_id}
+                          {j.empleados?.documento_id || j.documento_id || 'S/D'}
                         </p>
                       </td>
                       
@@ -162,7 +180,11 @@ export default function ReporteAccesosPage() {
               })}
             </tbody>
           </table>
-          {loading && <div className="p-10 text-center text-[10px] font-black uppercase animate-pulse text-slate-500">Sincronizando...</div>}
+          {loading && (
+            <div className="p-10 text-center text-[10px] font-black uppercase animate-pulse text-slate-500">
+              Sincronizando registros...
+            </div>
+          )}
         </div>
       </div>
     </main>
