@@ -30,6 +30,19 @@ export default function ReporteAccesosPage() {
     setLoading(false);
   };
 
+  /**
+   * AJUSTE 5: CONVERSIÓN DE VALOR NUMÉRICO A HH:MM:SS
+   * Convierte horas decimales (ej: 8.5) a formato de tiempo
+   */
+  const formatearTiempo = (horasDecimales: number | string | null) => {
+    if (!horasDecimales) return "00:00:00";
+    const totalSegundos = Math.floor(Number(horasDecimales) * 3600);
+    const h = Math.floor(totalSegundos / 3600).toString().padStart(2, '0');
+    const m = Math.floor((totalSegundos % 3600) / 60).toString().padStart(2, '0');
+    const s = Math.floor(totalSegundos % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+
   const limpiarFiltros = () => {
     setBusqueda('');
     setDesde('');
@@ -50,13 +63,15 @@ export default function ReporteAccesosPage() {
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* Membrete con Nivel entre paréntesis */}
+        {/* AJUSTE 1: MEMBRETE UNIFICADO BLANCO Y AZUL */}
         <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
           <div>
-            <h1 className="text-2xl font-black uppercase italic text-blue-500 tracking-tighter">Reporte de Accesos</h1>
+            <h1 className="text-2xl font-black uppercase italic text-white tracking-tighter">
+                REPORTE DE <span className="text-blue-500">ACCESOS</span>
+            </h1>
             <div className="flex gap-4 mt-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Usuario: <span className="text-white">{user?.nombre || 'S/D'}</span></p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rol: <span className="text-blue-400">{user?.rol || 'S/D'} ({user?.nivel_acceso || '0'})</span></p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"> <span className="text-white">{user?.nombre || 'S/D'}</span></p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"> <span className="text-blue-500">{user?.rol || 'S/D'} ({user?.nivel_acceso || '0'})</span></p>
             </div>
           </div>
           <div className="flex gap-3">
@@ -66,14 +81,12 @@ export default function ReporteAccesosPage() {
                 XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
                 XLSX.writeFile(wb, "Reporte_Asistencia.xlsx");
             }} className="bg-emerald-600 px-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20">Exportar</button>
-            
-            {/* AJUSTE: Ahora regresa explícitamente al menú de reportes */}
             <button onClick={() => router.push('/reportes')} className="bg-red-600/20 text-red-500 px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all active:scale-95">Regresar</button>
           </div>
         </div>
 
-        {/* Buscador y Botón Limpiar */}
-        <div className="flex flex-wrap gap-4 mb-8 bg-[#0f172a] p-6 rounded-[35px] border border-white/5 items-center">
+        {/* Buscador y Filtros */}
+        <div className="flex flex-wrap gap-4 mb-8 bg-[#0f172a] p-6 rounded-[35px] border border-white/5 items-center shadow-xl">
           <input type="text" placeholder="🔍 BUSCAR EMPLEADO..." className="flex-1 min-w-[200px] bg-black/20 border border-white/10 rounded-xl px-5 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
           <input type="date" className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400" value={desde} onChange={e => setDesde(e.target.value)} />
           <input type="date" className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400" value={hasta} onChange={e => setHasta(e.target.value)} />
@@ -84,10 +97,11 @@ export default function ReporteAccesosPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-black/40 text-[10px] font-black text-slate-500 uppercase italic">
-                <th className="p-6">Empleado / Documento</th>
+                <th className="p-6">Empleado</th>
                 <th className="p-6">Entrada (Fecha y Hora)</th>
                 <th className="p-6">Salida (Fecha y Hora)</th>
-                <th className="p-6 text-yellow-400">Total Horas (HH:MM:SS)</th>
+                {/* AJUSTE 3: CAMBIO DE COLOR A AZUL CLARO */}
+                <th className="p-6 text-blue-400">Total Horas (HH:MM:SS)</th>
                 <th className="p-6 text-center">Estado</th>
               </tr>
             </thead>
@@ -106,29 +120,31 @@ export default function ReporteAccesosPage() {
                         </td>
                       </tr>
                     )}
-                    <tr className="hover:bg-white/[0.01] border-b border-white/5">
+                    <tr className="hover:bg-white/[0.01] border-b border-white/5 transition-colors">
                       <td className="p-6">
+                        {/* AJUSTE 2: NOMBRE Y DOCUMENTO (GRIS 70%) */}
                         <p className="font-black uppercase italic text-lg tracking-tighter text-white leading-none">{j.nombre_empleado}</p>
-                        <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">{j.documento_id}</p>
+                        <p className="text-[10px] font-bold text-white/70 mt-1.5 uppercase tracking-widest">{j.documento_id}</p>
                       </td>
                       
                       <td className="p-6 text-[11px] font-bold font-mono text-emerald-500 leading-tight">
-                        {new Date(j.hora_entrada).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric'})}<br/>
-                        <span className="text-lg">{new Date(j.hora_entrada).toLocaleString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                        {new Date(j.hora_entrada).toLocaleDateString('es-ES')}<br/>
+                        <span className="text-lg">{new Date(j.hora_entrada).toLocaleTimeString('es-ES')}</span>
                       </td>
                       
                       <td className="p-6 text-[11px] font-bold font-mono text-red-400 leading-tight">
                         {j.hora_salida ? (
                           <>
-                            {new Date(j.hora_salida).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric'})}<br/>
-                            <span className="text-lg">{new Date(j.hora_salida).toLocaleString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                            {new Date(j.hora_salida).toLocaleDateString('es-ES')}<br/>
+                            <span className="text-lg">{new Date(j.hora_salida).toLocaleTimeString('es-ES')}</span>
                           </>
                         ) : '--/--/--'}
                       </td>
 
-                      <td className="p-6 font-black text-yellow-400 italic tracking-tighter">
-                        <span className="text-[12px] opacity-90">
-                          {j.estado === 'activo' ? 'EN PROCESO...' : j.horas_trabajadas || '00:00:00'}
+                      {/* AJUSTE 3 Y 4: COLOR AZUL CLARO Y TEXTO "EN PROGRESO..." */}
+                      <td className="p-6 font-black text-blue-400 italic tracking-tighter">
+                        <span className="text-[14px]">
+                          {j.estado === 'activo' ? 'En progreso...' : formatearTiempo(j.horas_trabajadas)}
                         </span>
                       </td>
 
