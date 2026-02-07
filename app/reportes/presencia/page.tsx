@@ -8,9 +8,12 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 export default function PresenciaPage() {
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [ahora, setAhora] = useState(new Date());
+  const [maxLabor, setMaxLabor] = useState<number>(8);
+  const [tabActiva, setTabActiva] = useState<'empleados' | 'supervisores' | 'administradores' | 'tecnicos'>('empleados');
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
+  // Actualización del reloj maestro cada segundo
   useEffect(() => {
     const timer = setInterval(() => setAhora(new Date()), 1000);
     return () => clearInterval(timer);
@@ -20,11 +23,16 @@ export default function PresenciaPage() {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
 
+    const { data: config } = await supabase.from('sistema_config').select('valor').eq('clave', 'maximo_labor').maybeSingle();
+    if (config) setMaxLabor(parseFloat(config.valor) || 8);
+
+    // CONSULTA UNIFICADA: Obtenemos empleados y sus jornadas recientes
     const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('nombre');
     const { data: jors } = await supabase.from('jornadas').select('*').order('created_at', { ascending: false });
 
     if (emps) {
       const vinculados = emps.map(e => {
+        // Encontramos la jornada más reciente del empleado
         const ultimaJor = jors?.find(j => j.empleado_id === e.id);
         return { ...e, ultimaJornada: ultimaJor || null };
       });
@@ -34,93 +42,157 @@ export default function PresenciaPage() {
 
   useEffect(() => {
     fetchData();
-    const channel = supabase.channel('presencia_v12')
+    const channel = supabase.channel('presencia_v6')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
-  // ALGORITMO CORREGIDO PARA TIMESTAMPTZ (HH:MM:SS)
-  const calcularRelojReal = (timestamp: string | null) => {
-    if (!timestamp) return "00:00:00";
-    const inicio = new Date(timestamp).getTime();
-    const diffMs = Math.max(0, ahora.getTime() - inicio);
+  // CORRECCIÓN 1: Cálculo de tiempo transcurrido (Relojes de presencia/ausencia)
+  const calcularHHMM = (jornada: any, estaPresente: boolean) => {
+    if (!jornada?.hora_entrada) return "00:00";
+
+    let inicio = new Date(jornada.hora_entrada).getTime();
+    let fin = estaPresente ? ahora.getTime() : (jornada.hora_salida ? new Date(jornada.hora_salida).getTime() : inicio);
     
+    const diffMs = Math.max(0, fin - inicio);
     const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
     const m = Math.floor((diffMs % 3600000) / 60000).toString().padStart(2, '0');
-    const s = Math.floor((diffMs % 60000) / 1000).toString().padStart(2, '0');
-    return `${h}:${m}:${s}`;
+    return `${h}:${m}`;
   };
 
-  const extraerHoraUTC = (timestamp: string | null) => {
-    if (!timestamp) return "--:--:--";
-    const d = new Date(timestamp);
-    return d.getUTCHours().toString().padStart(2, '0') + ":" + 
-           d.getUTCMinutes().toString().padStart(2, '0') + ":" + 
-           d.getUTCSeconds().toString().padStart(2, '0');
+  const getRolDisplay = (rol: string) => {
+    const r = rol?.toLowerCase();
+    return (r === 'admin' || r === 'administrador') ? 'ADMINISTRATIVO' : rol?.toUpperCase();
   };
 
-  const presentes = empleados.filter(e => e.en_almacen === true);
-  const ausentes = empleados.filter(e => e.en_almacen === false);
+  const exportarAsistencia = () => {
+    const fechaStr = ahora.toLocaleDateString().replace(/\//g, '-');
+    const horaStr = ahora.toLocaleTimeString().replace(/:/g, '-');
+    const encabezados = ["Nombre", "Documento ID", "Hora Entrada", "Hora Salida", "Horas Trabajadas", "Estado"].join(";");
+    
+    const filas = empleados.map(e => [
+      e.nombre,
+      e.documento_id,
+      e.ultimaJornada?.hora_entrada ? new Date(e.ultimaJornada.hora_entrada).toLocaleString() : '-',
+      e.ultimaJornada?.hora_salida ? new Date(e.ultimaJornada.hora_salida).toLocaleString() : '-',
+      e.ultimaJornada?.horas_trabajadas || '0',
+      e.en_almacen ? 'PRESENTE' : 'AUSENTE'
+    ].join(";"));
+
+    const content = [`Reporte de Asistencia: ${ahora.toLocaleString()}`, `Exportado por: ${user?.nombre}`, "", encabezados, ...filas].join("\n");
+    const blob = new Blob(["\ufeff" + content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Asistencia_${fechaStr}.csv`;
+    link.click();
+  };
+
+  const filtrarPorTab = (lista: any[]) => {
+    const mapping: Record<string, string[]> = {
+      empleados: ['empleado', 'trabajador'],
+      supervisores: ['supervisor', 'capataz'],
+      administradores: ['admin', 'administrador'],
+      tecnicos: ['técnico', 'tecnico', 'mantenimiento']
+    };
+    return lista.filter(e => mapping[tabActiva].includes(e.rol?.toLowerCase()));
+  };
+
+  const presentes = filtrarPorTab(empleados.filter(e => e.en_almacen));
+  const ausentes = filtrarPorTab(empleados.filter(e => !e.en_almacen));
 
   return (
-    <main className="min-h-screen bg-black flex flex-col font-sans text-white overflow-hidden">
+    <main className="min-h-screen bg-black flex flex-col font-sans overflow-hidden">
       
-      {/* HEADER COMPACTO */}
-      <div className="w-full bg-[#111] p-5 border-b border-white/10 flex justify-between items-center">
-        <h1 className="text-xl font-black italic uppercase">MONITOR <span className="text-blue-600">RT</span></h1>
-        <p className="text-4xl font-black font-mono">{ahora.toLocaleTimeString()}</p>
+      {/* MEMBRETE */}
+      <div className="w-full bg-[#1a1a1a] p-6 border-b border-white/5 relative shadow-2xl">
+        <div className="absolute top-6 right-10 text-right">
+          <p className="text-5xl font-black font-mono text-white leading-none mb-2">{ahora.toLocaleTimeString()}</p>
+          <p className="text-[14px] font-bold text-white/60 uppercase tracking-[0.3em]">{ahora.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        </div>
+
+        <div className="text-left ml-4">
+          <h1 className="text-2xl font-black italic uppercase leading-none mb-2 text-white">
+            MONITOR DE PRESENCIA <span className="text-blue-600">TIEMPO REAL</span>
+          </h1>
+          {user && (
+            <p className="text-[11px] uppercase tracking-widest font-medium text-white/60">
+              {user.nombre} <span className="text-blue-500 font-black ml-2">[{getRolDisplay(user.rol)}]</span> ({user.nivel_acceso})
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* TABS Y EXPORTACIÓN */}
+      <div className="flex justify-between items-center px-10 py-3 bg-black border-b border-white/5">
+        <div className="flex gap-2">
+          {(['empleados', 'supervisores', 'administradores', 'tecnicos'] as const).map(tab => (
+            <button key={tab} onClick={() => setTabActiva(tab)} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all ${tabActiva === tab ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-white/30 hover:text-white'}`}>{tab}</button>
+          ))}
+        </div>
+        <button onClick={exportarAsistencia} className="bg-emerald-600/10 hover:bg-emerald-600 border border-emerald-500/50 px-8 py-2 rounded-full text-[10px] font-black uppercase italic text-white transition-all">
+          📊 EXPORTAR ASISTENCIA
+        </button>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* PANEL PRESENTES - SIN RECUADROS INTERNOS */}
-        <div className="w-1/2 p-6 overflow-y-auto border-r border-white/5">
-          <h2 className="text-[10px] font-black uppercase text-emerald-500 mb-8 italic tracking-[0.3em]">● PRESENTES ({presentes.length})</h2>
-          <div className="grid grid-cols-2 gap-10">
-            {presentes.map(e => (
-              <div key={e.id} className="flex flex-col">
-                <p className="font-black uppercase italic text-sm">{e.nombre}</p>
-                <p className="text-[10px] text-white/30 mb-2">{e.documento_id}</p>
-                <p className="text-4xl font-black font-mono text-emerald-500 leading-none">
-                  {calcularRelojReal(e.ultimaJornada?.hora_entrada)}
-                </p>
-                <p className="text-[9px] font-bold text-white/40 uppercase mt-2">
-                  ENTRADA: {extraerHoraUTC(e.ultimaJornada?.hora_entrada)}
-                </p>
-              </div>
-            ))}
+        {/* PANEL PRESENTES */}
+        <div className="w-1/2 p-6 overflow-y-auto border-r border-white/10">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-emerald-500 italic mb-6">● PRESENTES ({presentes.length})</h2>
+          <div className="grid grid-cols-4 gap-4">
+            {presentes.map(e => {
+              const hIn = e.ultimaJornada?.hora_entrada;
+              return (
+                <div key={e.id} className="p-4 rounded-[30px] border-2 bg-emerald-500/[0.03] border-emerald-500 shadow-[inset_0_0_20px_rgba(16,185,129,0.1)]">
+                  <p className="text-white font-black uppercase italic text-[11px] truncate leading-none">{e.nombre}</p>
+                  <p className="text-[11px] text-white/70 font-normal truncate mt-1 mb-4">{e.documento_id}</p>
+                  <div className="bg-black/60 p-4 rounded-2xl border border-white/5 text-center">
+                    {/* Reloj de tiempo laborado hoy */}
+                    <p className="text-3xl font-black font-mono tracking-tighter text-emerald-500">
+                        {calcularHHMM(e.ultimaJornada, true)}
+                    </p>
+                    {/* CORRECCIÓN 2: Hora de acceso (entrada) */}
+                    <p className="text-[10px] text-white/60 uppercase font-black mt-2">
+                        ENTRADA: {hIn ? new Date(hIn).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* PANEL AUSENTES - SIN RECUADROS INTERNOS */}
-        <div className="w-1/2 p-6 overflow-y-auto bg-[#050505]">
-          <h2 className="text-[10px] font-black uppercase text-rose-600 mb-8 italic tracking-[0.3em]">○ AUSENTES ({ausentes.length})</h2>
-          <div className="grid grid-cols-2 gap-10">
-            {ausentes.map(e => (
-              <div key={e.id} className="flex flex-col opacity-60">
-                <p className="font-black uppercase italic text-sm">{e.nombre}</p>
-                <p className="text-[10px] text-white/30 mb-2">{e.documento_id}</p>
-                <p className="text-4xl font-black font-mono text-blue-500 leading-none">
-                  {calcularRelojReal(e.ultimaJornada?.hora_salida)}
-                </p>
-                <p className="text-[9px] font-bold text-white/40 uppercase mt-2">
-                  SALIDA: {extraerHoraUTC(e.ultimaJornada?.hora_salida)}
-                </p>
-              </div>
-            ))}
+        {/* PANEL AUSENTES */}
+        <div className="w-1/2 p-6 overflow-y-auto bg-[#020202]">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-rose-600 italic mb-6">○ AUSENTES ({ausentes.length})</h2>
+          <div className="grid grid-cols-4 gap-4">
+            {ausentes.map(e => {
+              const hOut = e.ultimaJornada?.hora_salida;
+              return (
+                <div key={e.id} className="p-4 rounded-[30px] border-2 bg-rose-500/[0.03] border-rose-500 shadow-[inset_0_0_20px_rgba(225,29,72,0.1)]">
+                  <p className="text-white/80 font-black uppercase italic text-[11px] truncate leading-none">{e.nombre}</p>
+                  <p className="text-[11px] text-white/70 font-normal truncate mt-1 mb-4">{e.documento_id}</p>
+                  <div className="bg-black/60 p-4 rounded-2xl border border-white/5 text-center">
+                    {/* Tiempo total laborado en la última jornada */}
+                    <p className="text-3xl font-black font-mono tracking-tighter text-blue-500">
+                        {calcularHHMM(e.ultimaJornada, false)}
+                    </p>
+                    {/* CORRECCIÓN 3: Hora de salida */}
+                    <p className="text-[10px] text-white/60 uppercase font-black mt-2">
+                        SALIDA: {hOut ? new Date(hOut).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* FOOTER CON BOTÓN CORREGIDO */}
-      <div className="p-4 bg-[#111] border-t border-white/10 flex justify-between items-center px-10">
-        <p className="text-[9px] text-white/20 uppercase font-black">SISTEMA V12.0</p>
-        <button 
-          onClick={() => router.push('/reportes')} 
-          className="bg-white/5 hover:bg-white/10 text-white px-10 py-2 rounded-full text-[10px] font-black uppercase italic border border-white/10 transition-all"
-        >
-          volver atrás
-        </button>
+      <div className="p-4 bg-[#1a1a1a] border-t border-white/5 flex justify-between items-center px-10">
+        <p className="text-[9px] text-white/20 uppercase font-black tracking-widest">SISTEMA DE ASISTENCIA BIOMÉTRICA V6.0</p>
+        <button onClick={() => router.push('/reportes')} className="text-white/40 hover:text-white text-[10px] font-black uppercase italic transition-colors">← REGRESAR AL MENÚ DE REPORTES</button>
       </div>
     </main>
   );
