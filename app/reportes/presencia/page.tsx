@@ -13,22 +13,19 @@ export default function PresenciaPage() {
   const [tabActiva, setTabActiva] = useState<string>('empleado');
   const router = useRouter();
 
-  /**
-   * ARQUITECTURA DE CRUCE DE DATOS:
-   * Se extrae el ROL y DOCUMENTO_ID vinculando JORNADAS con EMPLEADOS mediante ID
-   */
   const fetchData = useCallback(async () => {
+    // Cruce de datos: empleados activos y todas las jornadas
     const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('nombre');
     const { data: jors } = await supabase.from('jornadas').select('*').order('hora_entrada', { ascending: false });
 
     if (emps) {
       const vinculados = emps.map(e => {
-        // Match por ID para obtener la última actividad y verificar rol/documento
         const ultimaJornada = jors?.find(j => j.empleado_id === e.id);
         return { 
           ...e, 
           ultimaJornada,
-          rol_sistema: e.rol?.toLowerCase() || 'empleado' // Garantizamos el rol para el filtrado de pestañas
+          // Normalizamos el nivel para el filtrado de pestañas
+          nivel: Number(e.nivel_acceso || 0)
         };
       });
       setEmpleados(vinculados);
@@ -40,7 +37,7 @@ export default function PresenciaPage() {
     if (sessionData) setUser(JSON.parse(sessionData));
     fetchData();
     const interval = setInterval(() => setAhora(new Date()), 1000);
-    const channel = supabase.channel('presencia_final_roles')
+    const channel = supabase.channel('presencia_v4')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
       .subscribe();
@@ -62,7 +59,7 @@ export default function PresenciaPage() {
     const data = empleados.map(e => ({
       Nombre: e.nombre,
       Documento: e.documento_id,
-      Rol: e.rol_sistema,
+      Nivel: e.nivel_acceso,
       Estado: e.en_almacen ? 'PRESENTE' : 'AUSENTE'
     }));
     const ws = XLSX.utils.json_to_sheet(data);
@@ -71,21 +68,39 @@ export default function PresenciaPage() {
     XLSX.writeFile(wb, "Monitor_Presencia.xlsx");
   };
 
-  const roles = ['empleado', 'supervisor', 'administrador', 'técnico'];
-  
-  // FILTRADO DINÁMICO POR ROL EXTRAÍDO EN EL CRUCE
-  const empleadosFiltrados = empleados.filter(e => e.rol_sistema === tabActiva);
-  const presentes = empleadosFiltrados.filter(e => e.en_almacen);
-  const ausentes = empleadosFiltrados.filter(e => !e.en_almacen);
+  // ESTRUCTURA DE FILTRADO POR NIVEL DE ACCESO
+  const filtrarPorPestaña = () => {
+    return empleados.filter(e => {
+      const n = e.nivel;
+      if (tabActiva === 'empleado') return n === 1 || n === 2;
+      if (tabActiva === 'supervisor') return n === 3;
+      if (tabActiva === 'administrador') return n >= 4 && n <= 7;
+      if (tabActiva === 'técnico') return n >= 8 && n <= 10;
+      return false;
+    });
+  };
+
+  const listaFiltrada = filtrarPorPestaña();
+  const presentes = listaFiltrada.filter(e => e.en_almacen);
+  const ausentes = listaFiltrada.filter(e => !e.en_almacen);
+
+  const pestañas = [
+    { id: 'empleado', label: 'Empleados' },
+    { id: 'supervisor', label: 'Supervisores' },
+    { id: 'administrador', label: 'Administradores' },
+    { id: 'técnico', label: 'Técnicos' }
+  ];
 
   return (
     <main className="min-h-screen bg-[#050a14] p-4 text-white font-sans">
       <div className="max-w-[100%] mx-auto">
         
-        {/* HEADER */}
+        {/* MEMBRETE */}
         <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
           <div>
-            <h2 className="text-xl font-black uppercase italic">MONITOR DE <span className="text-blue-500">PRESENCIA</span></h2>
+            <h2 className="text-xl font-black uppercase italic text-white">
+              MONITOR DE <span className="text-blue-500">PRESENCIA</span>
+            </h2>
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
               {user?.nombre} <span className="text-blue-500">[{user?.rol}]</span> ({user?.nivel_acceso})
             </p>
@@ -101,30 +116,30 @@ export default function PresenciaPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase">📊 EXPORTAR</button>
-            <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border border-white/10">REGRESAR</button>
+            <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-emerald-600/30">📊 EXPORTAR</button>
+            <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border border-white/10 hover:bg-slate-700">REGRESAR</button>
           </div>
         </div>
 
-        {/* SELECTOR DE PESTAÑAS (ROLES) */}
+        {/* SELECTOR DE PESTAÑAS BASADO EN NIVELES */}
         <div className="flex gap-1 mb-10 justify-center">
-          {roles.map(rol => (
+          {pestañas.map(p => (
             <button 
-              key={rol} 
-              onClick={() => setTabActiva(rol)} 
+              key={p.id} 
+              onClick={() => setTabActiva(p.id)} 
               className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                tabActiva === rol ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-slate-500'
+                tabActiva === p.id ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-slate-500 hover:text-white'
               }`}
             >
-              {rol}s
+              {p.label}
             </button>
           ))}
         </div>
 
-        {/* PANTALLA DIVIDIDA SIN CONTENEDORES EXTERNOS */}
+        {/* GRILLA DE DATOS (SIN RECUADROS ENVOLVENTES) */}
         <div className="flex flex-col lg:flex-row gap-8">
           
-          {/* LADO IZQUIERDO: PRESENTES */}
+          {/* PRESENTES (BORDE VERDE INTENSO) */}
           <div className="flex-1">
             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-6 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></span>
@@ -135,24 +150,20 @@ export default function PresenciaPage() {
                 <div key={e.id} className="bg-[#0f172a] p-3 rounded-[20px] border-2 border-emerald-500 shadow-lg flex flex-col items-center">
                   <p className="text-white text-[11px] font-bold uppercase truncate w-full text-center leading-none">{e.nombre}</p>
                   <p className="text-[9px] text-white mt-1 uppercase font-medium">{e.documento_id}</p>
-                  
                   <div className="my-2 text-center">
                     <p className="text-[13px] font-black font-mono text-emerald-400 leading-none">
                       {e.ultimaJornada?.hora_entrada ? new Date(e.ultimaJornada.hora_entrada).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '--:--:--'}
                     </p>
                   </div>
-
                   <div className="bg-black/40 w-full py-2 rounded-xl border border-white/5 text-center">
-                    <p className="text-lg font-black font-mono text-blue-500 italic leading-none">
-                      {calcularTiempo(e.ultimaJornada?.hora_entrada)}
-                    </p>
+                    <p className="text-lg font-black font-mono text-blue-500 italic leading-none">{calcularTiempo(e.ultimaJornada?.hora_entrada)}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* LADO DERECHO: AUSENTES */}
+          {/* AUSENTES (BORDE ROJO INTENSO) */}
           <div className="flex-1">
             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-rose-500 mb-6 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-rose-600 rounded-full shadow-[0_0_8px_#e11d48]"></span>
@@ -163,19 +174,13 @@ export default function PresenciaPage() {
                 <div key={e.id} className="bg-[#0f172a]/60 p-3 rounded-[20px] border-2 border-red-600 shadow-md flex flex-col items-center opacity-85">
                   <p className="text-white text-[11px] font-bold uppercase truncate w-full text-center leading-none">{e.nombre}</p>
                   <p className="text-[9px] text-white mt-1 uppercase font-medium">{e.documento_id}</p>
-                  
                   <div className="my-2 text-center">
-                    {/* HORA SALIDA EN ROJO */}
                     <p className="text-[13px] font-black font-mono text-red-500 leading-none">
                       {e.ultimaJornada?.hora_salida ? new Date(e.ultimaJornada.hora_salida).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '--:--:--'}
                     </p>
                   </div>
-
                   <div className="bg-black/20 w-full py-2 rounded-xl border border-white/5 text-center">
-                    {/* CONTADOR AUSENTES EN ROSA */}
-                    <p className="text-lg font-black font-mono text-rose-400 italic leading-none">
-                      {calcularTiempo(e.ultimaJornada?.hora_salida)}
-                    </p>
+                    <p className="text-lg font-black font-mono text-rose-400 italic leading-none">{calcularTiempo(e.ultimaJornada?.hora_salida)}</p>
                   </div>
                 </div>
               ))}
