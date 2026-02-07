@@ -86,8 +86,8 @@ export default function GestionEmpleados() {
               <h1 className="text-2xl font-black italic uppercase text-white">
                 GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
               </h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                {user?.nombre} <span className="text-blue-500">[{user?.rol}]</span> ({user?.nivel_acceso})
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                {user?.nombre} <span className="text-blue-500">{user?.rol}</span> ({user?.nivel_acceso})
               </p>
             </div>
             <div className="flex gap-2">
@@ -156,7 +156,7 @@ export default function GestionEmpleados() {
           </div>
           
           <div className="bg-black/20 p-2 border border-white/5 rounded-xl flex items-center">
-             <input type="text" placeholder="BUSCAR..." className="w-full bg-transparent px-4 text-[10px] font-black uppercase outline-none" value={filtro} onChange={e => setFiltro(e.target.value)} />
+             <input type="text" placeholder="BUSCAR..." className="w-full bg-transparent px-4 text-[11px] font-black uppercase outline-none" value={filtro} onChange={e => setFiltro(e.target.value)} />
           </div>
         </div>
       </div>
@@ -185,7 +185,7 @@ export default function GestionEmpleados() {
                   </td>
                   <td className="p-5 font-mono text-[11px]">
                     <span className="text-white block">{emp.documento_id}</span>
-                    <span className="text-slate-500 text-[10px]">{emp.email}</span>
+                    <span className="text-slate-500 text-[11px]">{emp.email}</span>
                   </td>
                   <td className="p-5 text-center">
                     <p className="text-[10px] font-black uppercase text-blue-400">{emp.rol}</p>
@@ -198,15 +198,15 @@ export default function GestionEmpleados() {
                   <td className="p-5 text-center font-black">
                     <span className="text-white text-[12px]">{emp.nivel_acceso}</span>
                     <span className="text-slate-600 mx-2">/</span>
-                    <span className={emp.permiso_reportes ? 'text-emerald-500 text-[10px]' : 'text-rose-500 text-[10px]'}>
+                    <span className={emp.permiso_reportes ? 'text-emerald-500 text-[11px]' : 'text-rose-500 text-[11px]'}>
                       {emp.permiso_reportes ? 'SI' : 'NO'}
                     </span>
                   </td>
                   <td className="p-5 text-center flex gap-2 justify-center">
-                    <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[10px] uppercase px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all">Editar</button>
+                    <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all">Editar</button>
                     <button 
                       onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} 
-                      className={`px-4 py-1.5 rounded-lg font-black text-[10px] uppercase border transition-all ${emp.activo ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-600 border-rose-600/20 hover:bg-rose-600/10'}`}
+                      className={`px-4 py-1.5 rounded-lg font-black text-[11px] uppercase border transition-all ${emp.activo ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-600 border-rose-600/20 hover:bg-rose-600/10'}`}
                     >
                       {emp.activo ? 'Activo' : 'Inactivo'}
                     </button>
