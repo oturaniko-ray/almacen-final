@@ -30,10 +30,6 @@ export default function ReporteAccesosPage() {
     setLoading(false);
   };
 
-  /**
-   * AJUSTE 5: CONVERSIÓN DE VALOR NUMÉRICO A HH:MM:SS
-   * Convierte horas decimales (ej: 8.5) a formato de tiempo
-   */
   const formatearTiempo = (horasDecimales: number | string | null) => {
     if (!horasDecimales) return "00:00:00";
     const totalSegundos = Math.floor(Number(horasDecimales) * 3600);
@@ -63,7 +59,6 @@ export default function ReporteAccesosPage() {
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* AJUSTE 1: MEMBRETE UNIFICADO BLANCO Y AZUL */}
         <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
           <div>
             <h1 className="text-2xl font-black uppercase italic text-white tracking-tighter">
@@ -85,7 +80,6 @@ export default function ReporteAccesosPage() {
           </div>
         </div>
 
-        {/* Buscador y Filtros */}
         <div className="flex flex-wrap gap-4 mb-8 bg-[#0f172a] p-6 rounded-[35px] border border-white/5 items-center shadow-xl">
           <input type="text" placeholder="🔍 BUSCAR EMPLEADO..." className="flex-1 min-w-[200px] bg-black/20 border border-white/10 rounded-xl px-5 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
           <input type="date" className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400" value={desde} onChange={e => setDesde(e.target.value)} />
@@ -100,7 +94,6 @@ export default function ReporteAccesosPage() {
                 <th className="p-6">Empleado</th>
                 <th className="p-6">Entrada (Fecha y Hora)</th>
                 <th className="p-6">Salida (Fecha y Hora)</th>
-                {/* AJUSTE 3: CAMBIO DE COLOR A AZUL CLARO */}
                 <th className="p-6 text-blue-400">Total Horas (HH:MM:SS)</th>
                 <th className="p-6 text-center">Estado</th>
               </tr>
@@ -122,8 +115,8 @@ export default function ReporteAccesosPage() {
                     )}
                     <tr className="hover:bg-white/[0.01] border-b border-white/5 transition-colors">
                       <td className="p-6">
-                        {/* AJUSTE 2: NOMBRE Y DOCUMENTO (GRIS 70%) */}
-                        <p className="font-black uppercase italic text-lg tracking-tighter text-white leading-none">{j.nombre_empleado}</p>
+                        {/* CORRECCIÓN: NOMBRE SIN BOLD/ITALIC Y DOCUMENTO DEBAJO */}
+                        <p className="uppercase text-lg tracking-tighter text-white leading-none">{j.nombre_empleado}</p>
                         <p className="text-[10px] font-bold text-white/70 mt-1.5 uppercase tracking-widest">{j.documento_id}</p>
                       </td>
                       
@@ -141,7 +134,6 @@ export default function ReporteAccesosPage() {
                         ) : '--/--/--'}
                       </td>
 
-                      {/* AJUSTE 3 Y 4: COLOR AZUL CLARO Y TEXTO "EN PROGRESO..." */}
                       <td className="p-6 font-black text-blue-400 italic tracking-tighter">
                         <span className="text-[14px]">
                           {j.estado === 'activo' ? 'En progreso...' : formatearTiempo(j.horas_trabajadas)}
