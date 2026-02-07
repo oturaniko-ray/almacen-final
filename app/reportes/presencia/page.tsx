@@ -13,15 +13,23 @@ export default function PresenciaPage() {
   const [tabActiva, setTabActiva] = useState<string>('empleado');
   const router = useRouter();
 
+  /**
+   * ARQUITECTURA DE CRUCE DE DATOS:
+   * Se extrae el ROL y DOCUMENTO_ID vinculando JORNADAS con EMPLEADOS mediante ID
+   */
   const fetchData = useCallback(async () => {
-    // Cruce de datos: empleados y jornadas mediante empleado_id
     const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('nombre');
     const { data: jors } = await supabase.from('jornadas').select('*').order('hora_entrada', { ascending: false });
 
     if (emps) {
       const vinculados = emps.map(e => {
+        // Match por ID para obtener la última actividad y verificar rol/documento
         const ultimaJornada = jors?.find(j => j.empleado_id === e.id);
-        return { ...e, ultimaJornada };
+        return { 
+          ...e, 
+          ultimaJornada,
+          rol_sistema: e.rol?.toLowerCase() || 'empleado' // Garantizamos el rol para el filtrado de pestañas
+        };
       });
       setEmpleados(vinculados);
     }
@@ -32,7 +40,7 @@ export default function PresenciaPage() {
     if (sessionData) setUser(JSON.parse(sessionData));
     fetchData();
     const interval = setInterval(() => setAhora(new Date()), 1000);
-    const channel = supabase.channel('presencia_v3')
+    const channel = supabase.channel('presencia_final_roles')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
       .subscribe();
@@ -54,9 +62,8 @@ export default function PresenciaPage() {
     const data = empleados.map(e => ({
       Nombre: e.nombre,
       Documento: e.documento_id,
-      Rol: e.rol,
-      Estado: e.en_almacen ? 'PRESENTE' : 'AUSENTE',
-      Registro: e.en_almacen ? e.ultimaJornada?.hora_entrada : e.ultimaJornada?.hora_salida
+      Rol: e.rol_sistema,
+      Estado: e.en_almacen ? 'PRESENTE' : 'AUSENTE'
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -65,7 +72,9 @@ export default function PresenciaPage() {
   };
 
   const roles = ['empleado', 'supervisor', 'administrador', 'técnico'];
-  const empleadosFiltrados = empleados.filter(e => e.rol?.toLowerCase() === tabActiva.toLowerCase());
+  
+  // FILTRADO DINÁMICO POR ROL EXTRAÍDO EN EL CRUCE
+  const empleadosFiltrados = empleados.filter(e => e.rol_sistema === tabActiva);
   const presentes = empleadosFiltrados.filter(e => e.en_almacen);
   const ausentes = empleadosFiltrados.filter(e => !e.en_almacen);
 
@@ -73,7 +82,7 @@ export default function PresenciaPage() {
     <main className="min-h-screen bg-[#050a14] p-4 text-white font-sans">
       <div className="max-w-[100%] mx-auto">
         
-        {/* MEMBRETE */}
+        {/* HEADER */}
         <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
           <div>
             <h2 className="text-xl font-black uppercase italic">MONITOR DE <span className="text-blue-500">PRESENCIA</span></h2>
@@ -92,19 +101,19 @@ export default function PresenciaPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all hover:bg-emerald-600/30">📊 EXPORTAR</button>
-            <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border border-white/10 transition-all hover:bg-slate-700">REGRESAR</button>
+            <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase">📊 EXPORTAR</button>
+            <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border border-white/10">REGRESAR</button>
           </div>
         </div>
 
-        {/* PESTAÑAS DE ROL */}
-        <div className="flex gap-1 mb-8 justify-center">
+        {/* SELECTOR DE PESTAÑAS (ROLES) */}
+        <div className="flex gap-1 mb-10 justify-center">
           {roles.map(rol => (
             <button 
               key={rol} 
               onClick={() => setTabActiva(rol)} 
               className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                tabActiva === rol ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 text-slate-500 hover:text-white'
+                tabActiva === rol ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-slate-500'
               }`}
             >
               {rol}s
@@ -112,7 +121,7 @@ export default function PresenciaPage() {
           ))}
         </div>
 
-        {/* DISTRIBUCIÓN 50/50 SIN RECUADROS ENVOLVENTES */}
+        {/* PANTALLA DIVIDIDA SIN CONTENEDORES EXTERNOS */}
         <div className="flex flex-col lg:flex-row gap-8">
           
           {/* LADO IZQUIERDO: PRESENTES */}
@@ -123,7 +132,7 @@ export default function PresenciaPage() {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               {presentes.map(e => (
-                <div key={e.id} className="bg-[#0f172a] p-3 rounded-[20px] border-2 border-emerald-600 shadow-lg flex flex-col items-center">
+                <div key={e.id} className="bg-[#0f172a] p-3 rounded-[20px] border-2 border-emerald-500 shadow-lg flex flex-col items-center">
                   <p className="text-white text-[11px] font-bold uppercase truncate w-full text-center leading-none">{e.nombre}</p>
                   <p className="text-[9px] text-white mt-1 uppercase font-medium">{e.documento_id}</p>
                   
@@ -151,17 +160,19 @@ export default function PresenciaPage() {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               {ausentes.map(e => (
-                <div key={e.id} className="bg-[#0f172a]/60 p-3 rounded-[20px] border-2 border-red-700 shadow-md flex flex-col items-center opacity-85">
+                <div key={e.id} className="bg-[#0f172a]/60 p-3 rounded-[20px] border-2 border-red-600 shadow-md flex flex-col items-center opacity-85">
                   <p className="text-white text-[11px] font-bold uppercase truncate w-full text-center leading-none">{e.nombre}</p>
                   <p className="text-[9px] text-white mt-1 uppercase font-medium">{e.documento_id}</p>
                   
                   <div className="my-2 text-center">
+                    {/* HORA SALIDA EN ROJO */}
                     <p className="text-[13px] font-black font-mono text-red-500 leading-none">
                       {e.ultimaJornada?.hora_salida ? new Date(e.ultimaJornada.hora_salida).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '--:--:--'}
                     </p>
                   </div>
 
                   <div className="bg-black/20 w-full py-2 rounded-xl border border-white/5 text-center">
+                    {/* CONTADOR AUSENTES EN ROSA */}
                     <p className="text-lg font-black font-mono text-rose-400 italic leading-none">
                       {calcularTiempo(e.ultimaJornada?.hora_salida)}
                     </p>
