@@ -59,14 +59,19 @@ export default function ReporteAccesosPage() {
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
+        {/* MEMBRETE */}
         <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
           <div>
             <h1 className="text-2xl font-black uppercase italic text-white tracking-tighter">
                 REPORTE DE <span className="text-blue-500">ACCESOS</span>
             </h1>
             <div className="flex gap-4 mt-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"> <span className="text-white">{user?.nombre || 'S/D'}</span></p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"> <span className="text-blue-500">{user?.rol || 'S/D'} ({user?.nivel_acceso || '0'})</span></p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-white">{user?.nombre || 'S/D'}</span>
+              </p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-blue-500">{user?.rol || 'S/D'} ({user?.nivel_acceso || '0'})</span>
+              </p>
             </div>
           </div>
           <div className="flex gap-3">
@@ -80,6 +85,7 @@ export default function ReporteAccesosPage() {
           </div>
         </div>
 
+        {/* FILTROS */}
         <div className="flex flex-wrap gap-4 mb-8 bg-[#0f172a] p-6 rounded-[35px] border border-white/5 items-center shadow-xl">
           <input type="text" placeholder="🔍 BUSCAR EMPLEADO..." className="flex-1 min-w-[200px] bg-black/20 border border-white/10 rounded-xl px-5 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
           <input type="date" className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400" value={desde} onChange={e => setDesde(e.target.value)} />
@@ -87,6 +93,7 @@ export default function ReporteAccesosPage() {
           <button onClick={limpiarFiltros} className="bg-slate-700 hover:bg-slate-600 px-4 py-3 rounded-xl text-[9px] font-black uppercase transition-colors">Limpiar</button>
         </div>
 
+        {/* TABLA */}
         <div className="overflow-hidden rounded-[40px] border border-white/5 bg-[#0f172a] shadow-2xl">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -115,9 +122,13 @@ export default function ReporteAccesosPage() {
                     )}
                     <tr className="hover:bg-white/[0.01] border-b border-white/5 transition-colors">
                       <td className="p-6">
-                        {/* CORRECCIÓN: NOMBRE SIN BOLD/ITALIC Y DOCUMENTO DEBAJO */}
-                        <p className="uppercase text-lg tracking-tighter text-white leading-none">{j.nombre_empleado}</p>
-                        <p className="text-[10px] font-bold text-white/70 mt-1.5 uppercase tracking-widest">{j.documento_id}</p>
+                        {/* CORRECTIVO: NOMBRE SIMPLE Y DOCUMENTO BLANCO DEBAJO */}
+                        <p className="uppercase text-lg tracking-tighter text-white leading-none">
+                          {j.nombre_empleado}
+                        </p>
+                        <p className="text-[10px] font-bold text-white mt-2 uppercase tracking-widest">
+                          {j.documento_id}
+                        </p>
                       </td>
                       
                       <td className="p-6 text-[11px] font-bold font-mono text-emerald-500 leading-tight">
