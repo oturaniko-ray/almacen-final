@@ -11,7 +11,7 @@ export default function ReportesMenuPage() {
     if (sessionData) {
       setUser(JSON.parse(sessionData));
     } else {
-      // Si no hay sesión, vuelve a la raíz (donde está el login ahora)
+      // Si no hay sesión, vuelve al login
       router.push('/');
     }
   }, [router]);
@@ -20,7 +20,7 @@ export default function ReportesMenuPage() {
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative">
-      {/* MEMBRETE ACTUALIZADO */}
+      {/* MEMBRETE DE USUARIO */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
           <span className="text-white">REPORTES Y </span>
@@ -30,14 +30,13 @@ export default function ReportesMenuPage() {
           <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">
             USUARIO:
           </p>
-          {/* Muestra: NOMBRE + ROL + (NIVEL) */}
           <p className="text-[11px] text-white font-bold uppercase italic">
             {user.nombre} - {user.rol || 'Sin Rol'} ({user.nivel_acceso || '0'})
           </p>
         </div>
       </div>
 
-      {/* SELECTOR DE MÓDULOS */}
+      {/* SELECTOR DE MÓDULOS - RUTAS CORREGIDAS */}
       <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl space-y-3">
         <button 
           onClick={() => router.push('/reportes/presencia')} 
@@ -57,12 +56,12 @@ export default function ReportesMenuPage() {
           </span>
         </button>
 
-        {/* RETORNO A LA RAÍZ '/' */}
+        {/* BOTÓN VOLVER ATRÁS (A LA RAÍZ) */}
         <button 
           onClick={() => router.push('/')} 
           className="w-full text-blue-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5 hover:text-blue-400 transition-colors"
         >
-          ← VOLVER AL MENÚ PRINCIPAL
+          ← VOLVER ATRÁS
         </button>
       </div>
     </main>
