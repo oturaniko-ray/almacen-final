@@ -15,8 +15,12 @@ export default function PresenciaPage() {
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
-    const { data: config } = await supabase.from('sistema_config').select('maximo_labor').single();
-    if (config) setMaxLabor(config.maximo_labor);
+    // AJUSTE SENIOR: Conversión explícita de valor de texto a numérico (ms)
+    const { data: config } = await supabase.from('sistema_config').select('valor').eq('clave', 'maximo_labor').single();
+    if (config) {
+        // Almacenamos el valor convertido a número (milisegundos)
+        setMaxLabor(parseFloat(config.valor) || 0);
+    }
 
     const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('nombre');
     const { data: jors } = await supabase.from('jornadas').select('*').order('hora_entrada', { ascending: false });
@@ -109,7 +113,6 @@ export default function PresenciaPage() {
           
           <div className="text-center">
             <p className="text-3xl font-black font-mono leading-none text-white">{ahora.toLocaleTimeString([], { hour12: false })}</p>
-            {/* FECHA DEBAJO DEL RELOJ */}
             <p className="text-[8px] font-black uppercase text-blue-500 tracking-[0.2em] mt-1">
               {ahora.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
             </p>
@@ -138,7 +141,8 @@ export default function PresenciaPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               {presentes.map(e => {
                 const ms = calcularTiempoRaw(e.ultimaJornada?.hora_entrada);
-                const esExcedido = maxLabor > 0 && (ms / 3600000) > maxLabor;
+                // AUDITORÍA DE TIEMPO: ms transcurridos vs tope configurado (ambos en ms)
+                const esExcedido = maxLabor > 0 && ms > maxLabor;
                 
                 return (
                   <div key={e.id} className={`p-4 rounded-[20px] border-2 transition-all duration-300 shadow-lg flex flex-col items-center ${esExcedido ? 'border-lime-400 bg-lime-400/10 shadow-[0_0_15px_rgba(163,230,53,0.3)]' : 'border-emerald-500 bg-[#0f172a]'}`}>
@@ -146,7 +150,6 @@ export default function PresenciaPage() {
                     <p className="text-[10px] text-slate-400 font-mono mb-2 uppercase">{e.documento_id}</p>
                     
                     <div className="mb-3">
-                      {/* FECHA + HORA EN BLANCO INTENSO */}
                       <p className={`text-[11px] font-black font-mono tracking-tighter ${esExcedido ? 'text-lime-300' : 'text-white'}`}>
                         {formatearFechaHoraUnico(e.ultimaJornada?.hora_entrada)}
                       </p>
@@ -176,14 +179,12 @@ export default function PresenciaPage() {
                   <p className="text-[10px] text-slate-500 font-mono mb-2 uppercase">{e.documento_id}</p>
                   
                   <div className="mb-3">
-                    {/* FECHA + HORA EN BLANCO INTENSO */}
                     <p className="text-[11px] font-black font-mono text-white tracking-tighter">
                       {formatearFechaHoraUnico(e.ultimaJornada?.hora_salida)}
                     </p>
                   </div>
 
                   <div className="bg-black/20 w-full py-2 rounded-xl border border-white/5 text-center">
-                    {/* RELOJ DE AUSENTES EN ROSA */}
                     <p className="text-lg font-black font-mono text-rose-400 italic leading-none">
                       {formatearTiempo(calcularTiempoRaw(e.ultimaJornada?.hora_salida))}
                     </p>
