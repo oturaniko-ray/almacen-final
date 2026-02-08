@@ -36,12 +36,16 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const router = useRouter();
 
+  // RESET QUIRÚRGICO: Limpia y devuelve al estado de lectura
   const resetLectura = useCallback(() => {
     setQrData(''); 
     setLecturaLista(false); 
     setPinEmpleado(''); 
     setPinAutorizador('');
-    if (scannerRef.current?.isScanning) scannerRef.current.stop();
+    setAnimar(false);
+    if (scannerRef.current?.isScanning) {
+      scannerRef.current.stop().catch(() => {});
+    }
   }, []);
 
   const manejarFueraDeRango = useCallback((distancia: number) => {
@@ -106,23 +110,33 @@ export default function SupervisorPage() {
         const [docId, timestamp] = decoded.split('|');
         if (Date.now() - parseInt(timestamp) > config.qr_exp) {
           showNotification("QR EXPIRADO", "error"); 
+          resetLectura(); // Regresar a lectura si expira
           return '';
         }
         return docId;
       }
       return cleanText;
-    } catch { return cleanText; }
+    } catch { 
+      return cleanText; 
+    }
   };
 
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
       const scanner = new Html5Qrcode("reader");
       scannerRef.current = scanner;
-      scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 250 } }, 
+      scanner.start(
+        { facingMode: "environment" }, 
+        { fps: 20, qrbox: { width: 250, height: 250 } }, 
         (decoded) => {
           const doc = procesarQR(decoded);
-          if (doc) { setQrData(doc); setLecturaLista(true); scanner.stop(); }
-        }, () => {}
+          if (doc) {
+            setQrData(doc);
+            setLecturaLista(true);
+            scanner.stop();
+          }
+        }, 
+        () => {}
       ).catch(() => {});
       return () => { if(scannerRef.current?.isScanning) scannerRef.current.stop(); };
     }
@@ -137,7 +151,6 @@ export default function SupervisorPage() {
     setAnimar(true);
     const ahora = new Date().toISOString();
     try {
-      // 1. Buscamos el empleado para obtener su UUID exacto
       const { data: emp } = await supabase.from('empleados').select('*').or(`documento_id.eq."${qrData}",email.eq."${qrData}",id.eq."${qrData}"`).maybeSingle();
       if (!emp) throw new Error("ID NO REGISTRADO");
       
@@ -153,7 +166,6 @@ export default function SupervisorPage() {
         if (errE) throw errE;
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
       } else {
-        // AJUSTE QUIRÚRGICO: Búsqueda infalible de la jornada abierta por UUID
         const { data: j } = await supabase.from('jornadas')
           .select('*')
           .eq('empleado_id', emp.id)
@@ -177,6 +189,10 @@ export default function SupervisorPage() {
       setTimeout(() => { setDireccion(null); resetLectura(); }, 1500);
     } catch (e: any) { 
       showNotification(e.message, "error");
+      // ANTE ERROR: Volvemos al estado de lectura según el modo
+      setTimeout(() => {
+        resetLectura();
+      }, 1500);
     } finally { setAnimar(false); }
   };
 
@@ -235,13 +251,19 @@ export default function SupervisorPage() {
               {!lecturaLista ? (
                 <>
                   {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                  {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
+                  {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." value={qrData} onChange={e => setQrData(e.target.value)} onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
                   {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
+                  {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
                 </>
               ) : <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>}
             </div>
             {modo === 'manual' && !lecturaLista && (
-              <input type="password" placeholder="PIN TRABAJADOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-2 border-white/10 text-white outline-none" value={pinEmpleado} onChange={e => setPinEmpleado(e.target.value)} />
+              <div className="space-y-2">
+                <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-xl text-center">
+                  <p className="text-amber-500 text-[9px] font-black uppercase italic">⚠️ Requiere Validación Administrativa</p>
+                </div>
+                <input type="password" placeholder="PIN TRABAJADOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-2 border-white/10 text-white outline-none" value={pinEmpleado} onChange={e => setPinEmpleado(e.target.value)} />
+              </div>
             )}
             {(lecturaLista || (modo === 'manual' && qrData && pinEmpleado)) && (
               <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-2 bg-[#050a14] rounded-2xl text-center text-xl font-black border-4 border-blue-600 text-white outline-none" style={{ fontSize: '60%' }} value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
@@ -253,6 +275,7 @@ export default function SupervisorPage() {
       </div>
       <style jsx global>{`
         @keyframes scan-laser { 0%, 100% { top: 0%; } 50% { top: 100%; } }
+        .animate-scan-laser { animation: scan-laser 2s infinite linear; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         .animate-shake { animation: shake 0.2s ease-in-out 3; }
       `}</style>
