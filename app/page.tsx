@@ -162,7 +162,7 @@ export default function LoginPage() {
               ref={idRef}
               type="text" 
               placeholder="ID / CORREO" 
-              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none uppercase focus:border-blue-500/50" 
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none focus:border-blue-500/50" 
               value={identificador} 
               onChange={(e) => setIdentificador(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
