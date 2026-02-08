@@ -19,14 +19,10 @@ export default function LoginPage() {
   const router = useRouter();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- LÓGICA DE INACTIVIDAD SIN FALLBACK ---
   const reiniciarTemporizador = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    
-    // Solo se ejecuta si existe el valor en la configuración cargada de la DB
     if (config.timer_inactividad) {
       const tiempoLimite = parseInt(config.timer_inactividad);
-      
       if (!isNaN(tiempoLimite)) {
         timerRef.current = setTimeout(() => {
           if (paso === 'selector') {
@@ -41,10 +37,8 @@ export default function LoginPage() {
   useEffect(() => {
     if (paso === 'selector' && config.timer_inactividad) {
       const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-      
       eventos.forEach(evento => document.addEventListener(evento, reiniciarTemporizador));
       reiniciarTemporizador();
-
       return () => {
         eventos.forEach(evento => document.removeEventListener(evento, reiniciarTemporizador));
         if (timerRef.current) clearTimeout(timerRef.current);
@@ -88,6 +82,7 @@ export default function LoginPage() {
     if (!identificador || !pin) return;
     setLoading(true);
     try {
+      // Ajuste de lógica: El identificador se usa tal cual para el ID, y en minúsculas para el email
       const { data, error } = await supabase.from('empleados')
         .select('*')
         .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
@@ -139,10 +134,8 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* MEMBRETE */}
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         {renderBicolorTitle(config.empresa_nombre)}
-        
         <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${paso === 'login' ? 'animate-pulse-slow' : ''}`}>
           {paso === 'login' ? 'Identificación' : 'Menú Principal'}
         </p>
@@ -162,7 +155,8 @@ export default function LoginPage() {
               ref={idRef}
               type="text" 
               placeholder="ID / CORREO" 
-              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none uppercase focus:border-blue-500/50" 
+              // Se eliminó la clase 'uppercase' y el manejo forzado de strings
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none focus:border-blue-500/50" 
               value={identificador} 
               onChange={(e) => setIdentificador(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
