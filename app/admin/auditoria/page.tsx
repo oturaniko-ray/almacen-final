@@ -14,14 +14,14 @@ export default function AuditoriaQuirurgicaFinal() {
   const [loading, setLoading] = useState(true);
   const [deptoSeleccionado, setDeptoSeleccionado] = useState<string | null>(null);
   
-  // Cambiado a 'todo' para asegurar visibilidad inicial de los datos existentes
-  const [rangoDias, setRangoDias] = useState<number | 'todo'>('todo');
+  const [rangoDias, setRangoDias] = useState<number | 'todo'>(7);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
 
   const router = useRouter();
 
-  const getDepto = (nivel: any) => {
+  // Mapeo basado en nivel_acceso (numeric) de la captura de empleados
+  const getDepto = (nivel: number) => {
     const n = Number(nivel);
     if (n <= 2) return { nombre: 'OPERATIVO', color: '#3b82f6' };
     if (n === 3) return { nombre: 'SUPERVISIÓN', color: '#10b981' };
@@ -32,38 +32,37 @@ export default function AuditoriaQuirurgicaFinal() {
   const fetchAuditoria = useCallback(async () => {
     setLoading(true);
     try {
+      // Query quirúrgica: mapeo exacto a reportes_auditoria y empleados
       const { data, error } = await supabase
         .from('reportes_auditoria')
         .select(`
           *,
-          empleados ( nombre, nivel_acceso )
+          empleados (
+            nombre,
+            nivel_acceso
+          )
         `)
         .order('fecha_proceso', { ascending: false });
 
       if (error) throw error;
       
       const dataProcesada = (data || []).map(m => {
-        // Manejo robusto de la relación con empleados
-        const empData = Array.isArray(m.empleados) ? m.empleados[0] : m.empleados;
-        const deptoInfo = getDepto(empData?.nivel_acceso || 1);
+        const emp = Array.isArray(m.empleados) ? m.empleados[0] : m.empleados;
+        const deptoInfo = getDepto(emp?.nivel_acceso || 0);
         
-        // Normalización de fecha para evitar desfases de zona horaria
-        const [y, mes, d] = m.fecha_proceso.split('-');
-        const fechaNormalizada = new Date(parseInt(y), parseInt(mes) - 1, parseInt(d));
-
         return {
           ...m,
-          nombre_empleado: empData?.nombre || 'SISTEMA',
+          nombre_empleado: emp?.nombre || 'SISTEMA/AUTO',
           depto_nombre: deptoInfo.nombre,
           depto_color: deptoInfo.color,
-          fecha_corta: `${d}/${mes}`,
-          raw_date: fechaNormalizada
+          fecha_corta: m.fecha_proceso ? m.fecha_proceso.split('-').reverse().slice(0, 2).join('/') : '--/--',
+          raw_date: m.fecha_proceso ? new Date(m.fecha_proceso) : new Date()
         };
       });
 
       setMetricas(dataProcesada);
     } catch (err) {
-      console.error("Falla en Auditoría:", err);
+      console.error("Error crítico en Auditoría:", err);
     } finally {
       setLoading(false);
     }
@@ -76,31 +75,36 @@ export default function AuditoriaQuirurgicaFinal() {
     if (deptoSeleccionado) {
       filtradas = filtradas.filter(m => m.depto_nombre === deptoSeleccionado);
     }
-
+    const hoy = new Date();
     if (rangoDias !== 'todo') {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
       const limite = new Date();
       limite.setDate(hoy.getDate() - (rangoDias as number));
-      limite.setHours(0, 0, 0, 0);
       filtradas = filtradas.filter(m => m.raw_date >= limite);
+    } else if (fechaInicio && fechaFin) {
+      filtradas = filtradas.filter(m => {
+        const d = m.raw_date;
+        return d >= new Date(fechaInicio) && d <= new Date(fechaFin);
+      });
     }
-
     return filtradas;
-  }, [metricas, deptoSeleccionado, rangoDias]);
+  }, [metricas, deptoSeleccionado, rangoDias, fechaInicio, fechaFin]);
 
   const insights = useMemo(() => {
-    if (metricasFiltradas.length === 0) return { fugas: 0, avgScore: 0, total: 0 };
-    const fugas = metricasFiltradas.reduce((acc, curr) => acc + (Number(curr.horas_exceso) || 0), 0);
-    const avgScore = metricasFiltradas.reduce((acc, curr) => acc + (Number(curr.eficiencia_score) || 0), 0) / metricasFiltradas.length;
-    return { fugas, avgScore, total: metricasFiltradas.length };
+    const data = metricasFiltradas;
+    if (data.length === 0) return { fugas: 0, avgScore: 0, lista: [] };
+    const fugas = data.reduce((acc, curr) => acc + (Number(curr.horas_exceso) || 0), 0);
+    const avgScore = data.reduce((acc, curr) => acc + (Number(curr.eficiencia_score) || 0), 0) / data.length;
+    const lista = [];
+    if (fugas > 5) lista.push({ tipo: 'COSTO', titulo: 'Fuga Crítica', desc: 'Exceso de horas detectado.' });
+    return { fugas, avgScore, lista };
   }, [metricasFiltradas]);
 
   const radarData = useMemo(() => {
     const departamentos = ['OPERATIVO', 'SUPERVISIÓN', 'ADMIN', 'SOPORTE/IT'];
     return departamentos.map(d => {
       const dData = metricasFiltradas.filter(m => m.depto_nombre === d);
-      const score = dData.length === 0 ? 0 : dData.reduce((acc, c) => acc + Number(c.eficiencia_score), 0) / dData.length;
+      const total = dData.length || 1;
+      const score = dData.reduce((acc, c) => acc + Number(c.eficiencia_score || 0), 0) / total;
       return { subject: d, A: score };
     });
   }, [metricasFiltradas]);
@@ -112,89 +116,111 @@ export default function AuditoriaQuirurgicaFinal() {
           <div className="flex items-center gap-4">
             <button 
               onClick={() => router.back()} 
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all font-black text-blue-500 text-sm"
+              className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all group"
             >
-              ← VOLVER
+              <span className="text-blue-500 group-hover:text-blue-400 font-black">←</span>
             </button>
             <div>
               <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter">
                 AUDITORÍA <span className="text-blue-500">QUIRÚRGICA 2.0</span>
               </h1>
-              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.3em]">Datos activos: {insights.total} registros</p>
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.3em]">Diagnóstico Temporal Avanzado</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10">
+          
+          <div className="flex flex-wrap items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10">
             {[{ l: 'Hoy', v: 1 }, { l: '7D', v: 7 }, { l: '30D', v: 30 }, { l: 'Todo', v: 'todo' }].map(btn => (
-              <button key={btn.l} onClick={() => setRangoDias(btn.v as any)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${rangoDias === btn.v ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}>{btn.l}</button>
+              <button 
+                key={btn.l} 
+                onClick={() => setRangoDias(btn.v as any)} 
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${rangoDias === btn.v ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}
+              >
+                {btn.l}
+              </button>
             ))}
           </div>
         </div>
 
+        {/* METRICAS PRINCIPALES */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5">
-            <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Promedio Periodo</p>
-            <h2 className="text-4xl font-black text-white">{Math.round(insights.avgScore)}%</h2>
-          </div>
-          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5">
-            <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Fuga Detectada</p>
-            <h2 className="text-4xl font-black text-white">{insights.fugas.toFixed(1)}h</h2>
-          </div>
-          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 text-blue-500">
-            <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Muestreo Total</p>
-            <h2 className="text-4xl font-black">{insights.total}</h2>
-          </div>
+            <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Promedio Periodo</p>
+                <h2 className="text-4xl font-black text-white">{Math.round(insights.avgScore)}%</h2>
+            </div>
+            <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Fuga Detectada</p>
+                <h2 className="text-4xl font-black text-white">{insights.fugas.toFixed(1)}h</h2>
+            </div>
+            <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Analítica Insight</p>
+                <h2 className="text-4xl font-black text-blue-500">{insights.lista.length}</h2>
+            </div>
         </div>
 
+        {/* GRAFICOS */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#1e293b" />
-                <PolarAngleAxis dataKey="subject" tick={{fill: '#475569', fontSize: 10}} />
-                <Radar name="Score" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={[...metricasFiltradas].reverse()}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis dataKey="fecha_corta" stroke="#475569" fontSize={9} />
-                <YAxis stroke="#475569" fontSize={9} />
-                <Line type="monotone" dataKey="eficiencia_score" stroke="#3b82f6" strokeWidth={3} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+            <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-4 text-center">Matriz Departamental</p>
+                <ResponsiveContainer width="100%" height="90%">
+                    <RadarChart data={radarData}>
+                        <PolarGrid stroke="#1e293b" />
+                        <PolarAngleAxis dataKey="subject" tick={{fill: '#475569', fontSize: 10}} />
+                        <Radar name="Score" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                        <Tooltip contentStyle={{backgroundColor: '#0f172a', border: 'none'}} />
+                    </RadarChart>
+                </ResponsiveContainer>
+            </div>
+            <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80">
+                <p className="text-[10px] font-black text-slate-500 uppercase mb-4 text-center">Deriva de Eficiencia</p>
+                <ResponsiveContainer width="100%" height="90%">
+                    <LineChart data={[...metricasFiltradas].reverse()}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                        <XAxis dataKey="fecha_corta" stroke="#475569" fontSize={9} />
+                        <YAxis stroke="#475569" fontSize={9} />
+                        <Tooltip contentStyle={{backgroundColor: '#0f172a', border: 'none'}} />
+                        <Line type="monotone" dataKey="eficiencia_score" stroke="#3b82f6" strokeWidth={3} dot={false} />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
         </div>
 
-        <div className="bg-[#0f172a] rounded-[32px] border border-white/5 overflow-hidden shadow-2xl">
-          <table className="w-full text-left">
-            <thead className="text-[9px] font-black uppercase text-slate-600 tracking-widest bg-black/20">
-              <tr>
-                <th className="p-6">Empleado / Fecha</th>
-                <th className="p-6 text-center">Presencia</th>
-                <th className="p-6 text-center">Fuga</th>
-                <th className="p-6 text-right">Score</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {metricasFiltradas.length === 0 ? (
-                <tr><td colSpan={4} className="p-10 text-center font-bold italic text-slate-600 uppercase">Sin datos en el rango seleccionado</td></tr>
-              ) : (
-                metricasFiltradas.map((m) => (
-                  <tr key={m.id} className="hover:bg-blue-600/5 transition-all">
-                    <td className="p-6">
-                      <p className="text-[12px] font-black text-white uppercase">{m.nombre_empleado}</p>
-                      <p className="text-[9px] text-slate-600 font-mono">{m.fecha_proceso}</p>
-                    </td>
-                    <td className="p-6 text-center text-slate-400 font-mono">{m.horas_totales_presencia}h</td>
-                    <td className="p-6 text-center font-black text-rose-500">+{m.horas_exceso}</td>
-                    <td className="p-6 text-right font-black font-mono text-blue-500">{Math.round(m.eficiencia_score)}%</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        {/* TABLA DE REGISTROS */}
+        <div className="bg-[#0f172a] rounded-[32px] border border-white/5 overflow-hidden">
+            <table className="w-full text-left">
+                <thead className="text-[9px] font-black uppercase text-slate-600 tracking-widest bg-black/20">
+                    <tr>
+                        <th className="p-6">Identificador</th>
+                        <th className="p-6 text-center">Presencia</th>
+                        <th className="p-6 text-center">Fuga (h)</th>
+                        <th className="p-6 text-right">Score Audit</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                    {loading ? (
+                      <tr><td colSpan={4} className="p-10 text-center animate-pulse font-black italic">Sincronizando con Base de Datos...</td></tr>
+                    ) : metricasFiltradas.length === 0 ? (
+                      <tr><td colSpan={4} className="p-10 text-center text-slate-500 font-black italic">No se han generado auditorías para este periodo.</td></tr>
+                    ) : (
+                      metricasFiltradas.map((m) => (
+                        <tr key={m.id} className="hover:bg-blue-600/5 transition-all">
+                            <td className="p-6">
+                                <p className="text-[12px] font-black text-white uppercase">{m.nombre_empleado}</p>
+                                <p className="text-[9px] text-slate-600 font-mono italic">{m.fecha_proceso}</p>
+                            </td>
+                            <td className="p-6 text-center text-slate-400 font-mono text-[11px]">{m.horas_totales_presencia || 0}h</td>
+                            <td className="p-6 text-center">
+                                <span className={`text-[11px] font-black ${Number(m.horas_exceso) > 0 ? 'text-rose-500' : 'text-slate-500'}`}>+{m.horas_exceso || 0}</span>
+                            </td>
+                            <td className="p-6 text-right">
+                                <span className={`text-lg font-black font-mono ${Number(m.eficiencia_score) > 85 ? 'text-blue-500' : 'text-rose-600'}`}>
+                                  {Math.round(m.eficiencia_score || 0)}
+                                </span>
+                            </td>
+                        </tr>
+                      ))
+                    )}
+                </tbody>
+            </table>
         </div>
       </div>
     </main>
