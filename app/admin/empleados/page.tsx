@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -18,16 +18,36 @@ export default function GestionEmpleados() {
   const [nuevo, setNuevo] = useState(estadoInicial);
   const router = useRouter();
 
+  // Función de carga envuelta en useCallback para estabilidad
+  const fetchEmpleados = useCallback(async () => {
+    const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
+    if (data) setEmpleados(data);
+  }, []);
+
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
+    
+    // Carga inicial
     fetchEmpleados();
-  }, []);
 
-  const fetchEmpleados = async () => {
-    const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
-    if (data) setEmpleados(data);
-  };
+    // AJUSTE TIEMPO REAL: Suscripción al canal de cambios en la tabla empleados
+    const channel = supabase
+      .channel('realtime_personal_management')
+      .on(
+        'postgres_changes', 
+        { event: '*', schema: 'public', table: 'empleados' }, 
+        () => {
+          fetchEmpleados(); // Recarga los datos ante cualquier cambio detectado
+        }
+      )
+      .subscribe();
+
+    // Limpieza de suscripción al desmontar el componente
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchEmpleados]);
 
   const obtenerOpcionesNivel = () => {
     const r = nuevo.rol;
@@ -60,7 +80,8 @@ export default function GestionEmpleados() {
       await supabase.from('empleados').insert([payload]);
     }
     cancelarEdicion();
-    fetchEmpleados();
+    // No es estrictamente necesario llamar a fetchEmpleados aquí 
+    // porque la suscripción lo hará automáticamente por nosotros
   };
 
   const cancelarEdicion = () => {
@@ -77,10 +98,8 @@ export default function GestionEmpleados() {
 
   return (
     <main className="min-h-screen bg-[#050a14] text-white font-sans flex flex-col">
-      {/* SECCIÓN FIJA SUPERIOR (Sticky Header) */}
       <div className="sticky top-0 z-50 bg-[#050a14]/95 backdrop-blur-md p-4 border-b border-white/10 shadow-2xl">
         <div className="max-w-[100%] mx-auto">
-          {/* MEMBRETE */}
           <div className="flex justify-between items-end mb-6">
             <div>
               <h1 className="text-2xl font-black italic uppercase text-white">
@@ -100,7 +119,6 @@ export default function GestionEmpleados() {
             </div>
           </div>
 
-          {/* EDITOR LINEAL FIJO */}
           <div className={`p-4 rounded-[20px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5 bg-[#0f172a]'}`}>
             <form onSubmit={handleGuardar} className="flex flex-wrap lg:flex-nowrap gap-3 items-end">
               <div className="flex-1 min-w-[150px]">
@@ -161,7 +179,6 @@ export default function GestionEmpleados() {
         </div>
       </div>
 
-      {/* ÁREA DE LISTADO (Scrollable Content) */}
       <div className="flex-1 p-4 overflow-auto">
         <div className="max-w-[100%] mx-auto bg-[#0f172a] rounded-[30px] border border-white/5">
           <table className="w-full text-left">
@@ -194,7 +211,6 @@ export default function GestionEmpleados() {
                       <p className="text-[10px] font-mono text-amber-500 hidden group-hover:block font-bold">PIN: {emp.pin_seguridad}</p>
                     </div>
                   </td>
-                  {/* NUEVA COLUMNA: LEVEL / A.REP */}
                   <td className="p-5 text-center font-black">
                     <span className="text-white text-[12px]">{emp.nivel_acceso}</span>
                     <span className="text-slate-600 mx-2">/</span>
@@ -205,7 +221,7 @@ export default function GestionEmpleados() {
                   <td className="p-5 text-center flex gap-2 justify-center">
                     <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all">Editar</button>
                     <button 
-                      onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} 
+                      onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); }} 
                       className={`px-4 py-1.5 rounded-lg font-black text-[11px] uppercase border transition-all ${emp.activo ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-600 border-rose-600/20 hover:bg-rose-600/10'}`}
                     >
                       {emp.activo ? 'Activo' : 'Inactivo'}
