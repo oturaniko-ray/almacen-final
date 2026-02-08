@@ -28,26 +28,32 @@ export default function AuditoriaQuirurgicaFinal() {
   const fetchAuditoria = useCallback(async () => {
     setLoading(true);
     try {
-      // Intento de carga con relación; si falla la relación, al menos trae los datos de la tabla principal
+      // Forzamos la obtención de datos ignorando errores de relación si el RLS es parcial
       const { data, error } = await supabase
         .from('reportes_auditoria')
-        .select('*, empleados(nombre, nivel_acceso)')
+        .select(`
+          *,
+          empleados (
+            nombre,
+            nivel_acceso
+          )
+        `)
         .order('fecha_proceso', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error en Fetch Supabase:", error.message);
+        throw error;
+      }
       
       if (!data || data.length === 0) {
-        console.warn("No se encontraron registros en la tabla reportes_auditoria.");
         setMetricas([]);
         return;
       }
 
       const dataProcesada = data.map(m => {
-        // Manejo de relación robusto (detecta si es array u objeto)
         const rel = Array.isArray(m.empleados) ? m.empleados[0] : m.empleados;
         const deptoInfo = getDepto(rel?.nivel_acceso);
         
-        // Normalización de fecha segura
         const fechaParts = m.fecha_proceso ? m.fecha_proceso.split('-') : null;
         const rawDate = fechaParts 
           ? new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2])) 
@@ -55,7 +61,7 @@ export default function AuditoriaQuirurgicaFinal() {
 
         return {
           ...m,
-          nombre_empleado: rel?.nombre || `ID: ${m.empleado_id?.slice(0,8)}...`, // Fallback si falla la relación
+          nombre_empleado: rel?.nombre || `ID: ${m.empleado_id?.slice(0,8)}`,
           depto_nombre: deptoInfo.nombre,
           depto_color: deptoInfo.color,
           fecha_corta: fechaParts ? `${fechaParts[2]}/${fechaParts[1]}` : '--/--',
@@ -65,13 +71,15 @@ export default function AuditoriaQuirurgicaFinal() {
 
       setMetricas(dataProcesada);
     } catch (err) {
-      console.error("Error Crítico de Auditoría:", err);
+      console.error("Falla Crítica de Auditoría:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchAuditoria(); }, [fetchAuditoria]);
+  useEffect(() => { 
+    fetchAuditoria(); 
+  }, [fetchAuditoria]);
 
   const metricasFiltradas = useMemo(() => {
     let filtradas = [...metricas];
@@ -83,7 +91,6 @@ export default function AuditoriaQuirurgicaFinal() {
       hoy.setHours(0,0,0,0);
       const limite = new Date();
       limite.setDate(hoy.getDate() - (rangoDias as number));
-      limite.setHours(0,0,0,0);
       filtradas = filtradas.filter(m => m.raw_date >= limite);
     }
     return filtradas;
@@ -108,7 +115,6 @@ export default function AuditoriaQuirurgicaFinal() {
   return (
     <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* HEADER */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 border-b border-white/5 pb-6">
           <div className="flex items-center gap-6">
             <button 
@@ -121,7 +127,7 @@ export default function AuditoriaQuirurgicaFinal() {
               <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter leading-none">
                 AUDITORÍA <span className="text-blue-500">QUIRÚRGICA</span>
               </h1>
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mt-1">Registros procesados: {insights.total}</p>
+              <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mt-1">Sincronización: {insights.total} registros</p>
             </div>
           </div>
           <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-xl border border-white/10">
@@ -141,35 +147,9 @@ export default function AuditoriaQuirurgicaFinal() {
             <p className="text-[10px] font-black text-slate-500 uppercase mb-2 italic tracking-widest">Horas de Fuga</p>
             <h2 className="text-4xl font-black text-rose-500">{insights.fugas.toFixed(1)}h</h2>
           </div>
-          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl">
+          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl text-blue-500">
             <p className="text-[10px] font-black text-slate-500 uppercase mb-2 italic tracking-widest">Total Analizado</p>
-            <h2 className="text-4xl font-black text-blue-500">{insights.total}</h2>
-          </div>
-        </div>
-
-        {/* CHARTS SECTION */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80 shadow-2xl relative overflow-hidden">
-            <p className="text-[9px] font-black text-slate-600 uppercase mb-4 absolute top-6 left-8 tracking-widest">Balance de Departamentos</p>
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#1e293b" />
-                <PolarAngleAxis dataKey="subject" tick={{fill: '#475569', fontSize: 9, fontWeight: 'bold'}} />
-                <Radar name="Score" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80 shadow-2xl relative overflow-hidden">
-            <p className="text-[9px] font-black text-slate-600 uppercase mb-4 absolute top-6 left-8 tracking-widest">Evolución de Eficiencia</p>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={[...metricasFiltradas].reverse()}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis dataKey="fecha_corta" stroke="#475569" fontSize={9} fontStyle="italic" />
-                <YAxis stroke="#475569" fontSize={9} />
-                <Tooltip contentStyle={{backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '12px'}} />
-                <Line type="monotone" dataKey="eficiencia_score" stroke="#3b82f6" strokeWidth={4} dot={{r: 4, fill: '#3b82f6'}} activeDot={{r: 6}} />
-              </LineChart>
-            </ResponsiveContainer>
+            <h2 className="text-4xl font-black">{insights.total}</h2>
           </div>
         </div>
 
@@ -186,9 +166,9 @@ export default function AuditoriaQuirurgicaFinal() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {loading ? (
-                <tr><td colSpan={4} className="p-20 text-center font-black italic text-blue-500 animate-pulse uppercase tracking-[0.3em]">Accediendo a la red de datos...</td></tr>
+                <tr><td colSpan={4} className="p-20 text-center font-black italic text-blue-500 animate-pulse uppercase tracking-[0.3em]">Consultando protocolos...</td></tr>
               ) : metricasFiltradas.length === 0 ? (
-                <tr><td colSpan={4} className="p-20 text-center font-bold italic text-slate-700 uppercase tracking-widest underline decoration-rose-900/30 underline-offset-8">Base de datos sin registros en rango</td></tr>
+                <tr><td colSpan={4} className="p-20 text-center font-bold italic text-slate-700 uppercase tracking-widest">No se detectan datos (Verificar RLS)</td></tr>
               ) : (
                 metricasFiltradas.map((m) => (
                   <tr key={m.id} className="hover:bg-blue-600/5 transition-all group">
@@ -197,16 +177,8 @@ export default function AuditoriaQuirurgicaFinal() {
                       <p className="text-[9px] text-slate-600 font-mono italic mt-0.5">{m.fecha_proceso}</p>
                     </td>
                     <td className="p-6 text-center text-slate-400 font-mono text-[11px]">{m.horas_totales_presencia || 0}h</td>
-                    <td className="p-6 text-center">
-                      <span className={`text-[11px] font-black px-3 py-1 rounded-full ${Number(m.horas_exceso) > 0 ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'text-slate-700'}`}>
-                        +{m.horas_exceso || 0}
-                      </span>
-                    </td>
-                    <td className="p-6 text-right">
-                      <span className={`text-xl font-black font-mono ${Number(m.eficiencia_score) > 80 ? 'text-blue-500' : 'text-rose-600'}`}>
-                        {Math.round(m.eficiencia_score || 0)}%
-                      </span>
-                    </td>
+                    <td className="p-6 text-center font-black text-rose-500">+{m.horas_exceso}</td>
+                    <td className="p-6 text-right font-black font-mono text-blue-500 text-lg">{Math.round(m.eficiencia_score)}%</td>
                   </tr>
                 ))
               )}
