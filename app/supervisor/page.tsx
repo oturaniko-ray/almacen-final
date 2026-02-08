@@ -6,10 +6,9 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// --- FÓRMULA DE HAVERSINE PARA GEOLOCALIZACIÓN ---
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
-  const R = 6371e3; // Radio de la tierra en metros
+  const R = 6371e3; 
   const p1 = lat1 * Math.PI / 180;
   const p2 = lat2 * Math.PI / 180;
   const dPhi = (lat2 - lat1) * Math.PI / 180;
@@ -25,21 +24,18 @@ export default function SupervisorPage() {
   const [config, setConfig] = useState({ lat: 0, lon: 0, radio: 100, qr_exp: 30000 });
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [modo, setModo] = useState<'qr' | 'manual'>('qr');
-  
-  // Estados de lectura y buffer
   const [qrData, setQrData] = useState<string | null>(null);
   const [pinEmpleado, setPinEmpleado] = useState('');
   const [pinAutorizador, setPinAutorizador] = useState('');
   const [lecturaLista, setLecturaLista] = useState(false);
   const [animar, setAnimar] = useState(false);
   
-  // Estado de alerta GPS solicitado
-  const [mensajeGPS, setMensajeGPS] = useState<{ texto: string; visible: boolean } | null>(null);
+  // Estado para el emergente ámbar solicitado
+  const [alertaGps, setAlertaGps] = useState<{ visible: boolean; metros: number }>({ visible: false, metros: 0 });
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const router = useRouter();
 
-  // --- CARGA DE CONFIGURACIÓN Y GPS ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -53,31 +49,17 @@ export default function SupervisorPage() {
           lat: parseFloat(m.almacen_lat) || 0,
           lon: parseFloat(m.almacen_lon) || 0,
           radio: parseInt(m.radio_maximo) || 100,
-          qr_exp: parseInt(m.timer_token) || 60000
+          qr_exp: parseInt(m.timer_token) || 30000
         });
       }
     };
     loadConfig();
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => setGps({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      (err) => console.error("Error GPS:", err),
-      { enableHighAccuracy: true }
-    );
+    const watchId = navigator.geolocation.watchPosition((pos) => {
+      setGps({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+    }, null, { enableHighAccuracy: true });
     return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
-
-  // --- LÓGICA DE ALERTA Y REINICIO ---
-  const mostrarAlertaGPS = (metros: number) => {
-    setMensajeGPS({ texto: `Supervisor fuera de rango: (${Math.round(metros)}m)`, visible: true });
-    
-    // Bloqueo y limpieza de buffer por 2 segundos
-    setTimeout(() => {
-      setMensajeGPS(null);
-      setDireccion(null);
-      resetLectura();
-    }, 2000);
-  };
 
   const resetLectura = useCallback(() => {
     if (scannerRef.current?.isScanning) {
@@ -90,46 +72,52 @@ export default function SupervisorPage() {
     setModo('qr');
   }, []);
 
-  // --- VALIDACIÓN DE ENTRADA AL MÓDULO ---
-  const intentarEntrarQR = (dir: 'entrada' | 'salida') => {
-    const distancia = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
-    if (distancia > config.radio) {
-      mostrarAlertaGPS(distancia);
+  // Función para manejar el fuera de rango
+  const manejarFueraDeRango = (distancia: number) => {
+    setAlertaGps({ visible: true, metros: Math.round(distancia) });
+    setDireccion(null);
+    resetLectura();
+    setTimeout(() => setAlertaGps({ visible: false, metros: 0 }), 2000);
+  };
+
+  // Validar radio antes de entrar al menú QR
+  const checkRadioAntesDeEntrar = (dir: 'entrada' | 'salida') => {
+    const dist = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
+    if (dist > config.radio) {
+      manejarFueraDeRango(dist);
       return;
     }
     setDireccion(dir);
   };
 
-  // --- PROCESO DE REGISTRO CON DOBLE VALIDACIÓN GPS ---
   const registrarAcceso = async () => {
-    const distanciaFinal = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
-    if (distanciaFinal > config.radio) {
-      mostrarAlertaGPS(distanciaFinal);
+    // Validar radio antes de procesar la lectura (borra buffer si sale del rango)
+    const dist = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
+    if (dist > config.radio) {
+      manejarFueraDeRango(dist);
       return;
     }
 
-    if (!qrData || !pinAutorizador) return;
+    if ((modo === 'qr' && !qrData) || !pinAutorizador) return;
     setAnimar(true);
 
     try {
-      // 1. Validar PIN del Supervisor (Autorizador)
-      const { data: sup } = await supabase.from('empleados')
-        .select('id')
-        .eq('documento_id', user.documento_id)
-        .eq('pin', pinAutorizador)
-        .single();
-
+      const { data: sup } = await supabase.from('empleados').select('id').eq('documento_id', user.documento_id).eq('pin', pinAutorizador).single();
       if (!sup) throw new Error("PIN SUPERVISOR INCORRECTO");
 
-      // 2. Procesar QR (Extracción de ID y Timestamp)
-      const [empId, timestamp] = qrData.split('|');
-      const tiempoQR = parseInt(timestamp);
-      
-      if (Date.now() - tiempoQR > config.qr_exp) throw new Error("TOKEN QR EXPIRADO");
+      let empIdFinal = '';
+      if (modo === 'qr' && qrData) {
+        const [empId, timestamp] = qrData.split('|');
+        if (Date.now() - parseInt(timestamp) > config.qr_exp) throw new Error("QR EXPIRADO");
+        empIdFinal = empId;
+      } else {
+        const { data: emp } = await supabase.from('empleados').select('id').eq('documento_id', qrData).eq('pin', pinEmpleado).single();
+        if (!emp) throw new Error("DATOS DE EMPLEADO INCORRECTOS");
+        empIdFinal = emp.id;
+      }
 
-      // 3. Registrar en base de datos
       const { error } = await supabase.rpc('registrar_jornada_v2', {
-        p_empleado_id: empId,
+        p_empleado_id: empIdFinal,
         p_supervisor_id: user.id,
         p_tipo: direccion,
         p_lat: gps.lat,
@@ -137,111 +125,54 @@ export default function SupervisorPage() {
       });
 
       if (error) throw error;
-
       alert("REGISTRO EXITOSO");
       setDireccion(null);
       resetLectura();
     } catch (err: any) {
-      alert(err.message || "ERROR EN REGISTRO");
+      alert(err.message);
     } finally {
       setAnimar(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#020617] text-white p-4 font-sans">
+    <main className="min-h-screen bg-[#050a14] text-white p-4 font-sans">
       
       {/* EMERGENTE ÁMBAR SOLICITADO */}
-      {mensajeGPS?.visible && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-amber-500 text-black px-10 py-12 rounded-[40px] border-4 border-white shadow-[0_0_60px_rgba(245,158,11,0.6)] animate-in zoom-in duration-200">
-            <p className="text-2xl font-black uppercase text-center italic leading-tight">
-              {mensajeGPS.texto}
+      {alertaGps.visible && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+          <div className="bg-amber-500 text-black p-8 rounded-[30px] border-4 border-white shadow-2xl animate-in zoom-in duration-200">
+            <p className="text-xl font-black uppercase italic text-center leading-none">
+              Supervisor fuera de rango: ({alertaGps.metros}m)
             </p>
-            <div className="mt-4 h-1 bg-black/20 w-full overflow-hidden">
-              <div className="h-full bg-black animate-[progress_2s_linear]"></div>
-            </div>
           </div>
         </div>
       )}
 
-      <div className="max-w-md mx-auto pt-6">
-        <header className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
-          <div>
-            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Módulo de Control</p>
-            <h1 className="text-xl font-black italic">SUPERVISOR</h1>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] font-bold text-slate-500 uppercase">{user?.nombre}</p>
-            <p className={`text-[9px] font-black ${calcularDistancia(gps.lat, gps.lon, config.lat, config.lon) <= config.radio ? 'text-emerald-500' : 'text-rose-500'}`}>
-              GPS ACTIVO
-            </p>
-          </div>
-        </header>
-
+      <div className="max-w-md mx-auto pt-10">
         {!direccion ? (
-          <div className="grid gap-4">
-            <button 
-              onClick={() => intentarEntrarQR('entrada')}
-              className="bg-emerald-600 hover:bg-emerald-500 p-10 rounded-[35px] shadow-xl transition-all active:scale-95 group"
-            >
-              <span className="block text-[10px] font-black text-emerald-200 mb-1 opacity-60">AUDITORÍA</span>
-              <span className="text-3xl font-black italic uppercase tracking-tighter">Registrar Entrada</span>
-            </button>
-
-            <button 
-              onClick={() => intentarEntrarQR('salida')}
-              className="bg-rose-600 hover:bg-rose-500 p-10 rounded-[35px] shadow-xl transition-all active:scale-95"
-            >
-              <span className="block text-[10px] font-black text-rose-200 mb-1 opacity-60">AUDITORÍA</span>
-              <span className="text-3xl font-black italic uppercase tracking-tighter">Registrar Salida</span>
-            </button>
-
-            <button onClick={() => router.push('/reportes')} className="mt-6 text-slate-500 font-black text-[10px] uppercase tracking-[0.3em]">← Volver al Panel</button>
+          <div className="flex flex-col gap-4">
+            <button onClick={() => checkRadioAntesDeEntrar('entrada')} className="w-full bg-emerald-600 p-8 rounded-3xl font-black text-2xl italic active:scale-95 transition-all shadow-lg">REGISTRAR ENTRADA</button>
+            <button onClick={() => checkRadioAntesDeEntrar('salida')} className="w-full bg-rose-600 p-8 rounded-3xl font-black text-2xl italic active:scale-95 transition-all shadow-lg">REGISTRAR SALIDA</button>
+            <button onClick={() => router.push('/reportes')} className="mt-4 text-slate-500 font-bold uppercase text-[10px] text-center tracking-widest">← VOLVER</button>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="bg-[#0f172a] p-6 rounded-[35px] border border-white/10 relative overflow-hidden">
-               <div id="reader" className="rounded-2xl overflow-hidden bg-black aspect-square"></div>
-               {modo === 'qr' && !qrData && (
-                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-48 h-48 border-2 border-blue-500/50 rounded-3xl animate-pulse"></div>
-                 </div>
-               )}
+          <div className="flex flex-col gap-4">
+            <div className="bg-black rounded-3xl overflow-hidden aspect-square border-2 border-white/10 relative">
+               <div id="reader" className="w-full h-full"></div>
+               {qrData && <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center border-4 border-emerald-500 animate-pulse"><span className="bg-emerald-500 text-white px-4 py-1 rounded-full font-black text-[10px]">CAPTURA EXITOSA</span></div>}
             </div>
 
-            <div className="space-y-3">
-              <input 
-                type="password" 
-                placeholder="PIN SUPERVISOR" 
-                value={pinAutorizador}
-                onChange={e => setPinAutorizador(e.target.value)}
-                className="w-full bg-[#020617] border-2 border-blue-600 p-5 rounded-2xl text-center text-2xl font-black text-white outline-none focus:shadow-[0_0_15px_rgba(37,99,235,0.3)]"
-              />
-              
-              <button 
-                onClick={registrarAcceso}
-                disabled={animar}
-                className="w-full bg-blue-600 p-6 rounded-[25px] font-black text-xl italic uppercase tracking-widest shadow-2xl active:scale-95 transition-all"
-              >
-                {animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
-              </button>
-
-              <button 
-                onClick={() => { setDireccion(null); resetLectura(); }}
-                className="w-full text-center py-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest"
-              >
-                ← CANCELAR OPERACIÓN
-              </button>
-            </div>
+            <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-xl font-black border-4 border-blue-600 text-white outline-none" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} />
+            
+            <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">
+              {animar ? '...' : 'CONFIRMAR'}
+            </button>
+            
+            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← CANCELAR</button>
           </div>
         )}
       </div>
-
-      <style jsx global>{`
-        @keyframes progress { from { width: 100%; } to { width: 0%; } }
-        #reader video { border-radius: 20px !important; object-fit: cover !important; }
-      `}</style>
     </main>
   );
 }
