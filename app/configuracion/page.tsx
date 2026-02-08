@@ -53,7 +53,6 @@ export default function ConfigMaestraPage() {
     }
   };
 
-  // --- SISTEMA DE NOTIFICACIÓN DE DATOS ACTUALIZADOS ---
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 4000);
@@ -78,7 +77,6 @@ export default function ConfigMaestraPage() {
         if (error) throw error;
       }
       
-      // Feedback visual inmediato de "Datos Actualizados"
       showNotification(`DATOS ACTUALIZADOS: ${tabActual.toUpperCase()}`, 'success');
       
     } catch (err) {
@@ -98,7 +96,7 @@ export default function ConfigMaestraPage() {
     <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* NOTIFICACIÓN EMERGENTE (TOAST) */}
+        {/* NOTIFICACIÓN EMERGENTE */}
         {mensaje.tipo && (
           <div className={`fixed top-10 right-1/2 translate-x-1/2 z-[5000] px-10 py-5 rounded-[25px] border-2 shadow-2xl animate-in slide-in-from-top-10 duration-500 ${
               mensaje.tipo === 'success' ? 'bg-blue-600/90 border-blue-400 text-white' : 'bg-rose-600/90 border-rose-400 text-white'
@@ -147,7 +145,7 @@ export default function ConfigMaestraPage() {
                 <div className="h-full flex flex-col animate-in fade-in">
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="bg-[#020617] p-6 rounded-[30px] border border-white/5">
-                      <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Rango de Tolerancia (Metros)</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Rango de Tolerancia (Metros):</p>
                       <select 
                         value={config.radio_maximo} 
                         onChange={e => setConfig({...config, radio_maximo: e.target.value})}
@@ -157,7 +155,7 @@ export default function ConfigMaestraPage() {
                       </select>
                     </div>
                     <div className="bg-[#020617] p-6 rounded-[30px] border border-white/5">
-                      <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Ajuste de Ubicación</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Ajuste de Ubicación:</p>
                       <div className="space-y-1">
                         <p className="text-[11px] font-mono text-blue-500 leading-none truncate">LAT: {config.almacen_lat}</p>
                         <p className="text-[11px] font-mono text-emerald-500 leading-none truncate">LON: {config.almacen_lon}</p>
@@ -177,7 +175,7 @@ export default function ConfigMaestraPage() {
               {tabActual === 'seguridad' && (
                 <div className="space-y-6 animate-in slide-in-from-bottom-4">
                   <div className="bg-[#020617] p-8 rounded-[40px] border border-white/5">
-                    <p className="text-[12px] font-black text-blue-500 uppercase block mb-4 tracking-widest">Expiración Token QR (Minutos)</p>
+                    <p className="text-[12px] font-black text-blue-500 uppercase block mb-4 tracking-widest">Expiración Token QR (Minutos):</p>
                     <select 
                       value={msAMinutos(config.timer_token)} 
                       onChange={e => setConfig({...config, timer_token: minutosAMs(e.target.value)})}
@@ -187,7 +185,7 @@ export default function ConfigMaestraPage() {
                     </select>
                   </div>
                   <div className="bg-[#020617] p-8 rounded-[40px] border border-white/5">
-                    <p className="text-[12px] font-black text-blue-500 uppercase block mb-4 tracking-widest">Timeout Inactividad (Minutos)</p>
+                    <p className="text-[12px] font-black text-blue-500 uppercase block mb-4 tracking-widest">Timeout Inactividad (Minutos):</p>
                     <select 
                       value={msAMinutos(config.timer_inactividad)} 
                       onChange={e => setConfig({...config, timer_inactividad: minutosAMs(e.target.value)})}
@@ -202,7 +200,7 @@ export default function ConfigMaestraPage() {
               {tabActual === 'laboral' && (
                 <div className="animate-in fade-in space-y-8">
                   <div className="bg-[#020617] p-12 rounded-[45px] border border-white/5 text-center">
-                    <p className="text-[12px] font-black text-slate-500 uppercase mb-8 tracking-[0.4em]">Tope Máximo de Jornada LABORAL</p>
+                    <p className="text-[12px] font-black text-slate-500 uppercase mb-8 tracking-[0.4em]">Tope Máximo de Jornada LABORAL:</p>
                     <div className="flex items-center justify-center gap-6">
                         <select 
                           value={msAHoras(config.maximo_labor)} 
@@ -214,9 +212,10 @@ export default function ConfigMaestraPage() {
                         <span className="text-3xl font-black text-slate-800 uppercase italic">HRS</span>
                     </div>
                   </div>
-                  <div className="bg-blue-500/5 p-8 rounded-[30px] border border-blue-500/10 space-y-4 text-center">
-                    <p className="text-[12px] font-bold text-slate-400 uppercase leading-relaxed italic">
-                      "El tiempo seleccionado en esta opción solo servirá para dar alertas en los temporizadores del sistema y reportes que están llegando al tope de las horas laborables fijadas acá"
+                  <div className="bg-amber-500/5 p-8 rounded-[30px] border border-amber-500/20 space-y-4 text-center">
+                    {/* TEXTO PARPADEANTE AMBAR */}
+                    <p className="text-[12px] font-bold text-amber-500 uppercase leading-relaxed italic animate-pulse">
+                      "El tiempo seleccionado servirá para dar alertas en los temporizadores del sistema y reportes indicando que están llegando al tope de las horas laborables fijadas acá"
                     </p>
                   </div>
                 </div>
@@ -224,7 +223,7 @@ export default function ConfigMaestraPage() {
 
               {tabActual === 'interfaz' && (
                 <div className="bg-[#020617] p-10 rounded-[40px] border border-white/5 animate-in fade-in">
-                  <p className="text-[12px] font-black text-blue-500 uppercase block mb-4 tracking-widest">Identidad del Sistema</p>
+                  <p className="text-[12px] font-black text-blue-500 uppercase block mb-4 tracking-widest">Identidad del Sistema:</p>
                   <input 
                     type="text" 
                     value={config.empresa_nombre || ''} 

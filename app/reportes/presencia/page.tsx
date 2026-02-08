@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -15,10 +15,9 @@ export default function PresenciaPage() {
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
-    // AJUSTE SENIOR: Conversión explícita de valor de texto a numérico (ms)
+    // 1. Sincronización de configuración (Texto a Número)
     const { data: config } = await supabase.from('sistema_config').select('valor').eq('clave', 'maximo_labor').single();
     if (config) {
-        // Almacenamos el valor convertido a número (milisegundos)
         setMaxLabor(parseFloat(config.valor) || 0);
     }
 
@@ -39,10 +38,14 @@ export default function PresenciaPage() {
     if (sessionData) setUser(JSON.parse(sessionData));
     fetchData();
     const interval = setInterval(() => setAhora(new Date()), 1000);
-    const channel = supabase.channel('presencia_v8')
+
+    // AJUSTE SENIOR: Suscripción a cambios de configuración para tiempo real total
+    const channel = supabase.channel('presencia_v9')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sistema_config' }, () => fetchData())
       .subscribe();
+
     return () => { clearInterval(interval); supabase.removeChannel(channel); };
   }, [fetchData]);
 
@@ -80,14 +83,14 @@ export default function PresenciaPage() {
     XLSX.writeFile(wb, "Monitor_Presencia.xlsx");
   };
 
-  const filtrarYOrdenar = (esPresente: boolean) => {
+  const filtrarYOrdenar = (esPresente: boolean, tab: string) => {
     return empleados
       .filter(e => {
         const n = e.nivel;
-        const matchesTab = tabActiva === 'empleado' ? (n === 1 || n === 2) :
-                         tabActiva === 'supervisor' ? (n === 3) :
-                         tabActiva === 'administrador' ? (n >= 4 && n <= 7) :
-                         tabActiva === 'técnico' ? (n >= 8 && n <= 10) : false;
+        const matchesTab = tab === 'empleado' ? (n === 1 || n === 2) :
+                         tab === 'supervisor' ? (n === 3) :
+                         tab === 'administrador' ? (n >= 4 && n <= 7) :
+                         tab === 'técnico' ? (n >= 8 && n <= 10) : false;
         return matchesTab && e.en_almacen === esPresente;
       })
       .sort((a, b) => {
@@ -97,8 +100,15 @@ export default function PresenciaPage() {
       });
   };
 
-  const presentes = filtrarYOrdenar(true);
-  const ausentes = filtrarYOrdenar(false);
+  // Datos filtrados para la tab actual
+  const presentes = useMemo(() => filtrarYOrdenar(true, tabActiva), [empleados, tabActiva]);
+  const ausentes = useMemo(() => filtrarYOrdenar(false, tabActiva), [empleados, tabActiva]);
+
+  // Cantidad de excedidos para la métrica de atención
+  const cantidadExcedidos = presentes.filter(e => {
+    const ms = calcularTiempoRaw(e.ultimaJornada?.hora_entrada);
+    return maxLabor > 0 && ms > maxLabor;
+  }).length;
 
   return (
     <main className="min-h-screen bg-[#050a14] p-4 text-white font-sans">
@@ -124,24 +134,38 @@ export default function PresenciaPage() {
           </div>
         </div>
 
-        {/* TABS */}
+        {/* TABS CON CONTEO POR ROL */}
         <div className="flex gap-1 mb-10 justify-center">
-          {['empleado', 'supervisor', 'administrador', 'técnico'].map(p => (
-            <button key={p} onClick={() => setTabActiva(p)} className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${tabActiva === p ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-slate-500 hover:text-white'}`}>{p}s</button>
-          ))}
+          {['empleado', 'supervisor', 'administrador', 'técnico'].map(p => {
+            const conteoRol = filtrarYOrdenar(true, p).length;
+            return (
+              <button 
+                key={p} 
+                onClick={() => setTabActiva(p)} 
+                className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${tabActiva === p ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+              >
+                {p}s ({conteoRol})
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
           {/* COLUMNA PRESENTES */}
           <div className="flex-1">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-6 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></span>
-              PRESENTES ({presentes.length})
-            </h3>
+            <div className="flex items-center gap-4 mb-6">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></span>
+                PRESENTES ({presentes.length})
+              </h3>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-lime-400 bg-lime-400/10 px-3 py-1 rounded-full border border-lime-400/20">
+                Requieren atención ({cantidadExcedidos})
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               {presentes.map(e => {
                 const ms = calcularTiempoRaw(e.ultimaJornada?.hora_entrada);
-                // AUDITORÍA DE TIEMPO: ms transcurridos vs tope configurado (ambos en ms)
                 const esExcedido = maxLabor > 0 && ms > maxLabor;
                 
                 return (
