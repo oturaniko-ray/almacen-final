@@ -55,10 +55,15 @@ export default function AuditoriaInteligente() {
     return deptoSeleccionado ? metricas.filter(m => m.depto_nombre === deptoSeleccionado) : metricas;
   }, [metricas, deptoSeleccionado]);
 
-  // MOTOR DE RECOMENDACIONES LÓGICAS
+  // MOTOR DE RECOMENDACIONES LÓGICAS CORREGIDO
   const insights = useMemo(() => {
     const data = metricasFiltradas;
-    if (data.length === 0) return [];
+    const lista: any[] = [];
+    
+    // Si no hay datos, devolvemos el objeto con valores en cero en lugar de un array vacío
+    if (data.length === 0) {
+      return { fugas: 0, avgScore: 0, incidencias: 0, lista: [] };
+    }
 
     const total = data.length;
     const fugas = data.reduce((acc, curr) => acc + (Number(curr.horas_exceso) || 0), 0);
@@ -66,9 +71,6 @@ export default function AuditoriaInteligente() {
     const incidencias = data.filter(d => d.incidencia_tipo !== 'normal').length;
     const ratioIncidencia = (incidencias / total) * 100;
 
-    const lista: any[] = [];
-
-    // Lógica 1: Fuga Crítica
     if (fugas > 15) {
       lista.push({
         tipo: 'CRÍTICO',
@@ -79,7 +81,6 @@ export default function AuditoriaInteligente() {
       });
     }
 
-    // Lógica 2: Eficiencia Baja
     if (avgScore < 75) {
       lista.push({
         tipo: 'ADVERTENCIA',
@@ -90,7 +91,6 @@ export default function AuditoriaInteligente() {
       });
     }
 
-    // Lógica 3: Estabilidad
     if (ratioIncidencia < 10 && avgScore > 90) {
       lista.push({
         tipo: 'OPTIMO',
@@ -101,7 +101,7 @@ export default function AuditoriaInteligente() {
       });
     }
 
-    return { fugas, avgScore, incidencias, lista, deptoData: [] }; // simplificado para el return
+    return { fugas, avgScore, incidencias, lista };
   }, [metricasFiltradas]);
 
   const deptoData = useMemo(() => {
@@ -131,9 +131,9 @@ export default function AuditoriaInteligente() {
           <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase">REGRESAR</button>
         </div>
 
-        {/* RECOMENDACIONES IA (Insights Section) */}
+        {/* RECOMENDACIONES IA */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-            {insights.lista.map((ins: any, i: number) => (
+            {insights.lista && insights.lista.map((ins: any, i: number) => (
                 <div key={i} className={`${ins.bg} p-6 rounded-[24px] border border-white/5 flex flex-col gap-2`}>
                     <div className="flex justify-between items-center">
                         <span className={`text-[8px] font-black px-2 py-0.5 rounded ${ins.color} border border-current opacity-70`}>{ins.tipo}</span>
@@ -143,8 +143,8 @@ export default function AuditoriaInteligente() {
                     <p className="text-[11px] text-slate-400 font-medium leading-relaxed">{ins.desc}</p>
                 </div>
             ))}
-            {insights.lista.length === 0 && (
-                <div className="bg-blue-500/5 p-6 rounded-[24px] border border-white/5 flex items-center justify-center">
+            {(!insights.lista || insights.lista.length === 0) && (
+                <div className="bg-blue-500/5 p-6 rounded-[24px] border border-white/5 flex items-center justify-center col-span-full">
                     <p className="text-[10px] font-black text-slate-500 uppercase">Sin anomalías críticas detectadas</p>
                 </div>
             )}
@@ -185,7 +185,11 @@ export default function AuditoriaInteligente() {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                    {metricasFiltradas.map((m) => (
+                    {metricasFiltradas.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-10 text-center text-slate-500 font-bold uppercase text-[10px] tracking-widest">Sin registros para mostrar</td>
+                      </tr>
+                    ) : metricasFiltradas.map((m) => (
                         <tr key={m.id} className="hover:bg-white/[0.02] transition-all">
                             <td className="p-6 font-black text-[12px] uppercase">{m.nombre_empleado} <br/><span className="text-[9px] text-slate-600 font-mono font-normal">{m.fecha_proceso}</span></td>
                             <td className="p-6 text-center">
