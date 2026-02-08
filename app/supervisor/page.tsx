@@ -52,6 +52,8 @@ export default function SupervisorPage() {
     return () => eventos.forEach(e => document.removeEventListener(e, reset));
   }, [resetTimerInactividad]);
 
+  // ... (resto del código igual hasta el useEffect de carga de configuración)
+
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { router.push('/'); return; }
@@ -61,13 +63,21 @@ export default function SupervisorPage() {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        
+        // LIMPIEZA Y CONVERSIÓN DE COORDENADAS (TEXTO A NÚMERO)
         const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
         const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
+        
+        // AJUSTE DE AUDITORÍA: Se cambia 'radio_permitido' por 'radio_maximo'
+        // Se aplica parseInt para convertir el string de la DB en número operable
+        const parsedRadio = parseInt(m.radio_maximo) || 100;
+        const parsedExp = parseInt(m.timer_token) || 30000;
+
         setConfig({
           lat: isNaN(parsedLat) ? 0 : parsedLat,
           lon: isNaN(parsedLon) ? 0 : parsedLon,
-          radio: parseInt(m.radio_permitido) || 100,
-          qr_exp: parseInt(m.qr_expiracion) || 30000
+          radio: parsedRadio,
+          qr_exp: parsedExp
         });
       }
     };
@@ -78,6 +88,8 @@ export default function SupervisorPage() {
     }, null, { enableHighAccuracy: true });
     return () => navigator.geolocation.clearWatch(watchId);
   }, [router]);
+
+// ... (resto del código igual)
 
   useEffect(() => {
     if (config.lat !== 0 && gps.lat !== 0) {
