@@ -14,8 +14,10 @@ export default function AuditoriaQuirurgicaFinal() {
   const [loading, setLoading] = useState(true);
   const [deptoSeleccionado, setDeptoSeleccionado] = useState<string | null>(null);
   
-  // Mantenemos 'todo' para garantizar visibilidad inmediata de los registros existentes
+  // Cambiado a 'todo' para asegurar visibilidad inicial de los datos existentes
   const [rangoDias, setRangoDias] = useState<number | 'todo'>('todo');
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
 
   const router = useRouter();
 
@@ -41,9 +43,11 @@ export default function AuditoriaQuirurgicaFinal() {
       if (error) throw error;
       
       const dataProcesada = (data || []).map(m => {
+        // Manejo robusto de la relación con empleados
         const empData = Array.isArray(m.empleados) ? m.empleados[0] : m.empleados;
         const deptoInfo = getDepto(empData?.nivel_acceso || 1);
         
+        // Normalización de fecha para evitar desfases de zona horaria
         const [y, mes, d] = m.fecha_proceso.split('-');
         const fechaNormalizada = new Date(parseInt(y), parseInt(mes) - 1, parseInt(d));
 
@@ -105,18 +109,18 @@ export default function AuditoriaQuirurgicaFinal() {
     <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 border-b border-white/5 pb-6">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <button 
               onClick={() => router.back()} 
-              className="text-slate-500 hover:text-blue-500 font-bold uppercase text-[10px] tracking-[0.2em] italic transition-all flex items-center gap-2 group"
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all font-black text-blue-500 text-sm"
             >
-              <span className="text-lg group-hover:-translate-x-1 transition-transform">←</span> VOLVER ATRÁS
+              ← VOLVER
             </button>
             <div>
               <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter">
                 AUDITORÍA <span className="text-blue-500">QUIRÚRGICA 2.0</span>
               </h1>
-              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.3em]">Muestreo activo: {insights.total} registros</p>
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.3em]">Datos activos: {insights.total} registros</p>
             </div>
           </div>
           <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10">
@@ -127,31 +131,31 @@ export default function AuditoriaQuirurgicaFinal() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl">
-            <p className="text-[10px] font-black text-slate-500 uppercase mb-2 italic">Promedio Periodo</p>
+          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5">
+            <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Promedio Periodo</p>
             <h2 className="text-4xl font-black text-white">{Math.round(insights.avgScore)}%</h2>
           </div>
-          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl">
-            <p className="text-[10px] font-black text-slate-500 uppercase mb-2 italic">Fuga Detectada</p>
+          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5">
+            <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Fuga Detectada</p>
             <h2 className="text-4xl font-black text-white">{insights.fugas.toFixed(1)}h</h2>
           </div>
-          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 shadow-xl text-blue-500">
-            <p className="text-[10px] font-black text-slate-500 uppercase mb-2 italic">Total Auditorías</p>
+          <div className="bg-[#0f172a] p-6 rounded-[24px] border border-white/5 text-blue-500">
+            <p className="text-[10px] font-black text-slate-500 uppercase mb-2">Muestreo Total</p>
             <h2 className="text-4xl font-black">{insights.total}</h2>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80 shadow-2xl">
+          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
                 <PolarGrid stroke="#1e293b" />
-                <PolarAngleAxis dataKey="subject" tick={{fill: '#475569', fontSize: 10, fontWeight: 'bold'}} />
+                <PolarAngleAxis dataKey="subject" tick={{fill: '#475569', fontSize: 10}} />
                 <Radar name="Score" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80 shadow-2xl">
+          <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 h-80">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={[...metricasFiltradas].reverse()}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -163,9 +167,9 @@ export default function AuditoriaQuirurgicaFinal() {
           </div>
         </div>
 
-        <div className="bg-[#0f172a] rounded-[32px] border border-white/5 overflow-hidden shadow-2xl mb-10">
+        <div className="bg-[#0f172a] rounded-[32px] border border-white/5 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
-            <thead className="text-[9px] font-black uppercase text-slate-600 tracking-widest bg-black/20 italic">
+            <thead className="text-[9px] font-black uppercase text-slate-600 tracking-widest bg-black/20">
               <tr>
                 <th className="p-6">Empleado / Fecha</th>
                 <th className="p-6 text-center">Presencia</th>
@@ -174,20 +178,18 @@ export default function AuditoriaQuirurgicaFinal() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {loading ? (
-                <tr><td colSpan={4} className="p-10 text-center font-black italic text-blue-500 animate-pulse uppercase tracking-widest">Sincronizando Auditoría...</td></tr>
-              ) : metricasFiltradas.length === 0 ? (
-                <tr><td colSpan={4} className="p-10 text-center font-bold italic text-slate-600 uppercase">Sin registros en el rango actual</td></tr>
+              {metricasFiltradas.length === 0 ? (
+                <tr><td colSpan={4} className="p-10 text-center font-bold italic text-slate-600 uppercase">Sin datos en el rango seleccionado</td></tr>
               ) : (
                 metricasFiltradas.map((m) => (
-                  <tr key={m.id} className="hover:bg-blue-600/5 transition-all group">
+                  <tr key={m.id} className="hover:bg-blue-600/5 transition-all">
                     <td className="p-6">
-                      <p className="text-[12px] font-black text-white uppercase group-hover:text-blue-400 transition-colors">{m.nombre_empleado}</p>
-                      <p className="text-[9px] text-slate-600 font-mono italic">{m.fecha_proceso}</p>
+                      <p className="text-[12px] font-black text-white uppercase">{m.nombre_empleado}</p>
+                      <p className="text-[9px] text-slate-600 font-mono">{m.fecha_proceso}</p>
                     </td>
                     <td className="p-6 text-center text-slate-400 font-mono">{m.horas_totales_presencia}h</td>
                     <td className="p-6 text-center font-black text-rose-500">+{m.horas_exceso}</td>
-                    <td className="p-6 text-right font-black font-mono text-blue-500 text-lg">{Math.round(m.eficiencia_score)}%</td>
+                    <td className="p-6 text-right font-black font-mono text-blue-500">{Math.round(m.eficiencia_score)}%</td>
                   </tr>
                 ))
               )}
