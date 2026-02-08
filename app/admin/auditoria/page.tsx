@@ -127,27 +127,27 @@ export default function AuditoriaInteligenteQuirurgica() {
     XLSX.writeFile(wb, `Reporte_Auditoria_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  // 1. Membrete dinámico actualizado
-  const infoHeader = useMemo(() => {
-    const ref = dataIndividual.length > 0 ? dataIndividual[0] : dataFiltradaTemp[0];
-    if (!ref) return { nombre: '---', rol: '---', nivel: '---' };
-    return { 
-      nombre: ref.nombre_empleado, 
-      rol: ref.rol_empleado, 
-      nivel: ref.nivel_acceso 
+  // Identidad del Operador Logueado para el Membrete
+  const operador = useMemo(() => {
+    if (metricas.length === 0) return { nombre: 'SESIÓN ACTIVA', rol: 'ADMINISTRADOR', nivel: 'S/N' };
+    const ref = metricas[0]; // Se asume el primer registro como contexto de sesión por RLS
+    return {
+      nombre: ref.nombre_empleado,
+      rol: ref.rol_empleado,
+      nivel: ref.nivel_acceso
     };
-  }, [dataIndividual, dataFiltradaTemp]);
+  }, [metricas]);
 
   return (
     <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-4rem)]">
         
-        {/* HEADER / MEMBRETE REVISADO */}
+        {/* MEMBRETE: OPERADOR LOGUEADO */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-6 border-b border-white/5 pb-6 shrink-0">
           <div>
-            <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter">AUDITORÍA <span className="text-blue-500">QUIRÚRGICA 2.0</span></h1>
+            <h1 className="text-3xl font-black italic text-white uppercase tracking-tighter">CENTRO DE <span className="text-blue-500">AUDITORÍA</span></h1>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-1 italic">
-              {infoHeader.nombre} - <span className="text-blue-400">{infoHeader.rol}</span> (<span className="text-blue-400">NIVEL {infoHeader.nivel}</span>)
+              OPERADOR: {operador.nombre} - <span className="text-blue-400">{operador.rol}</span> (<span className="text-blue-400">NIVEL {operador.nivel}</span>)
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
@@ -160,7 +160,7 @@ export default function AuditoriaInteligenteQuirurgica() {
           </div>
         </div>
 
-        {/* NAVEGACIÓN */}
+        {/* NAVEGACIÓN Y BOTÓN VOLVER */}
         <div className="flex items-center justify-between gap-4 mb-6 shrink-0">
           <div className="flex gap-3 overflow-x-auto pb-1">
             {[{ id: 'global', label: 'Dashboard Global' }, { id: 'atencion', label: 'Requiere Atención', alert: insightsIA.length > 0 }, { id: 'individual', label: 'Auditoría por Empleado' }].map(tab => (
@@ -238,7 +238,7 @@ export default function AuditoriaInteligenteQuirurgica() {
                 <div className="relative flex-1">
                   <input 
                     type="text" 
-                    placeholder="Buscar por Nombre o Documento..." 
+                    placeholder="Buscar Auditado por Nombre o Documento..." 
                     value={busquedaEmpleado} 
                     onChange={(e) => setBusquedaEmpleado(e.target.value)} 
                     className="w-full bg-black/40 border border-white/10 p-5 pr-14 rounded-2xl text-white font-black text-xl focus:border-blue-600 outline-none transition-all" 
@@ -270,20 +270,20 @@ export default function AuditoriaInteligenteQuirurgica() {
                       </ResponsiveContainer>
                     </div>
 
-                    {/* 2. Etiqueta de Identidad centrado debajo del gráfico */}
+                    {/* BADGE DE IDENTIDAD DEL AUDITADO */}
                     <div className="mt-8 flex justify-center">
                       <div className="bg-black/60 px-8 py-4 rounded-3xl border border-blue-500/20 text-center">
                         <p className="text-xl font-black text-white uppercase tracking-tighter">
                           {dataIndividual[0].nombre_empleado}
                         </p>
                         <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mt-1">
-                          ID: {dataIndividual[0].doc_empleado} • {dataIndividual[0].rol_empleado}
+                          DOCUMENTO: {dataIndividual[0].doc_empleado} • ROL: {dataIndividual[0].rol_empleado}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-[#0f172a] rounded-[32px] border border-white/5 overflow-hidden">
+                  <div className="bg-[#0f172a] rounded-[32px] border border-white/5 overflow-hidden shadow-2xl">
                     <table className="w-full text-left">
                       <thead className="text-[9px] font-black uppercase text-slate-600 bg-black/20">
                         <tr><th className="p-6">Fecha</th><th className="p-6 text-center">Presencia</th><th className="p-6 text-center text-rose-500">Fuga</th><th className="p-6 text-right">Score</th></tr>
