@@ -135,23 +135,14 @@ export default function SupervisorPage() {
     const inputBusqueda = qrData.trim();
 
     try {
-      // 1. LOCALIZACIÓN ROBUSTA DEL EMPLEADO (Prioriza ID, luego Email)
-      let { data: emp, error: empErr } = await supabase
+      // BÚSQUEDA QUIRÚRGICA: Unificada para evitar fugas de lógica
+      const { data: emp, error: empErr } = await supabase
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
-        .eq('documento_id', inputBusqueda)
+        .or(`documento_id.eq."${inputBusqueda}",email.eq."${inputBusqueda.toLowerCase()}"`)
         .maybeSingle();
 
-      if (!emp) {
-        const { data: empEmail } = await supabase
-          .from('empleados')
-          .select('id, nombre, pin_seguridad, activo, documento_id, email')
-          .eq('email', inputBusqueda.toLowerCase())
-          .maybeSingle();
-        emp = empEmail;
-      }
-
-      if (empErr) throw new Error(`DB_SEARCH_ERROR: ${JSON.stringify(empErr)}`);
+      if (empErr) throw new Error(`DB_ERROR: ${empErr.message}`);
       if (!emp) throw new Error("ID NO REGISTRADO");
       if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
 
@@ -166,8 +157,7 @@ export default function SupervisorPage() {
         .in('rol', ['supervisor', 'admin', 'Administrador'])
         .maybeSingle();
 
-      if (autErr) throw new Error(`DB_AUTH_ERROR: ${JSON.stringify(autErr)}`);
-      if (!aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
+      if (autErr || !aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
 
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
@@ -180,12 +170,9 @@ export default function SupervisorPage() {
           estado: 'activo' 
         }]);
         
-        if (insErr) throw new Error(`DB_TRIGGER_BLOCK: ${JSON.stringify(insErr)}`);
+        if (insErr) throw new Error(`ERROR JORNADA: ${insErr.message}`);
         
-        await supabase.from('empleados').update({ 
-          en_almacen: true, 
-          ultimo_ingreso: ahora 
-        }).eq('id', emp.id);
+        await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
 
       } else {
         const { data: j, error: jErr } = await supabase
@@ -197,8 +184,7 @@ export default function SupervisorPage() {
           .limit(1)
           .maybeSingle();
 
-        if (jErr) throw jErr;
-        if (!j) throw new Error("SIN ENTRADA ACTIVA");
+        if (jErr || !j) throw new Error("SIN ENTRADA ACTIVA");
 
         const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
         
@@ -209,19 +195,16 @@ export default function SupervisorPage() {
           estado: 'finalizado' 
         }).eq('id', j.id);
 
-        if (updErr) throw new Error(`DB_UPDATE_ERROR: ${JSON.stringify(updErr)}`);
+        if (updErr) throw new Error(`ERROR SALIDA: ${updErr.message}`);
 
-        await supabase.from('empleados').update({ 
-          en_almacen: false, 
-          ultima_salida: ahora 
-        }).eq('id', emp.id);
+        await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
 
       showNotification("REGISTRO EXITOSO ✅", "success");
       setTimeout(resetLectura, 2000);
     } catch (e: any) { 
       showNotification(e.message, "error");
-      setTimeout(resetLectura, 2000);
+      setTimeout(resetLectura, 4000);
     } finally { 
       setAnimar(false); 
     }
@@ -296,7 +279,6 @@ export default function SupervisorPage() {
 
             {modo === 'manual' && !lecturaLista && (
               <div className="space-y-2">
-                <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-xl text-center"><p className="text-amber-500 text-[9px] font-black uppercase italic">⚠️ Requiere Validación Administrativa</p></div>
                 <input type="password" placeholder="PIN TRABAJADOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-2 border-white/10 text-white outline-none" value={pinEmpleado} onChange={e => setPinEmpleado(e.target.value)} />
               </div>
             )}
