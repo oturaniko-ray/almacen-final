@@ -132,23 +132,37 @@ export default function SupervisorPage() {
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
+    
+    // Normalización de entrada para búsqueda
+    const inputBusqueda = qrData.trim();
+
     try {
-      // 1. Localizar empleado para obtener su ID real (UUID) y Nombre
-      const { data: emp, error: empErr } = await supabase
+      // 1. LOCALIZACIÓN ROBUSTA DEL EMPLEADO (Prioriza ID, luego Email)
+      let { data: emp, error: empErr } = await supabase
         .from('empleados')
-        .select('id, nombre, pin_seguridad, activo')
-        .or(`documento_id.eq."${qrData}",email.eq."${qrData}"`)
+        .select('id, nombre, pin_seguridad, activo, documento_id, email')
+        .eq('documento_id', inputBusqueda)
         .maybeSingle();
+
+      if (!emp) {
+        const { data: empEmail } = await supabase
+          .from('empleados')
+          .select('id, nombre, pin_seguridad, activo, documento_id, email')
+          .eq('email', inputBusqueda.toLowerCase())
+          .maybeSingle();
+        emp = empEmail;
+      }
 
       if (empErr) throw empErr;
       if (!emp) throw new Error("ID NO REGISTRADO");
       if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
 
+      // 2. Validación de PIN (solo en modo manual)
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
 
-      // 2. Validar Supervisor
+      // 3. Validación de Supervisor
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -162,7 +176,7 @@ export default function SupervisorPage() {
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        // AJUSTE QUIRÚRGICO: jornadas.empleado_id = empleados.id
+        // CREACIÓN DE REGISTRO PARA EMPLEADO (NUEVO O EXISTENTE)
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -179,12 +193,14 @@ export default function SupervisorPage() {
         }).eq('id', emp.id);
 
       } else {
-        // Salida: Buscar registro activo basado en el ID real
+        // Salida: Buscar registro activo
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
           .eq('empleado_id', emp.id)
           .is('hora_salida', null)
+          .order('hora_entrada', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (jErr) throw jErr;
