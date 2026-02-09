@@ -47,7 +47,7 @@ export default function SupervisorPage() {
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (text) => {
-          // CORRECCIÓN QUIRÚRGICA: NORMALIZACIÓN DE LECTURA DE SCANNER
+          // LÓGICA QUIRÚRGICA: Normalización de entrada QR
           setQrData(text.trim().toUpperCase());
           setLecturaLista(true);
           setAnimar(true);
@@ -75,11 +75,10 @@ export default function SupervisorPage() {
   const registrarAcceso = async () => {
     if (!pinAutorizador) return;
 
-    // DETERMINAR ID A BUSCAR Y NORMALIZAR
+    // LÓGICA QUIRÚRGICA: Normalización de ID Manual o QR
     const finalID = (modo === 'manual' ? idEmpleado : qrData).trim().toUpperCase();
 
     try {
-      // 1. VALIDAR EMPLEADO
       const { data: empleado, error: e1 } = await supabase
         .from('empleados')
         .select('*')
@@ -87,9 +86,8 @@ export default function SupervisorPage() {
         .single();
 
       if (e1 || !empleado) throw new Error("ID NO REGISTRADO");
-      if (empleado.pin_seguridad !== pinEmpleado && modo === 'manual') throw new Error("PIN EMPLEADO INCORRECTO");
+      if (modo === 'manual' && empleado.pin_seguridad !== pinEmpleado) throw new Error("PIN EMPLEADO INCORRECTO");
 
-      // 2. VALIDAR SUPERVISOR (PIN)
       const { data: supervisor, error: e2 } = await supabase
         .from('empleados')
         .select('*')
@@ -99,7 +97,6 @@ export default function SupervisorPage() {
 
       if (e2 || !supervisor) throw new Error("PIN SUPERVISOR INVÁLIDO");
 
-      // 3. REGISTRAR ASISTENCIA
       const { error: e3 } = await supabase.from('asistencias').insert([{
         empleado_id: empleado.id,
         supervisor_id: supervisor.id,
@@ -115,7 +112,7 @@ export default function SupervisorPage() {
       resetLectura();
     } catch (err: any) {
       alert(err.message);
-      // REQUISITO PROTOCOLO SENIOR: VUELVE AL FOCO INICIAL EN CASO DE ERROR
+      // PROTOCOLO SENIOR: Limpieza y foco tras error
       setPinAutorizador('');
       if(modo === 'manual') setIdEmpleado('');
     }
@@ -126,7 +123,7 @@ export default function SupervisorPage() {
       <div className="w-full max-w-md bg-[#0f172a] rounded-[40px] border border-white/5 shadow-2xl p-8 relative overflow-hidden">
         {!direccion ? (
           <div className="space-y-6">
-            <h1 className="text-3xl font-black italic text-white text-center uppercase tracking-tighter">CENTRO DE <span className="text-blue-500 font-black">CONTROL</span></h1>
+            <h1 className="text-3xl font-black italic text-white text-center uppercase tracking-tighter">CENTRO DE <span className=\"text-blue-500 font-black\">CONTROL</span></h1>
             <button onClick={() => setDireccion('entrada')} className="w-full py-8 bg-blue-600 rounded-[24px] font-black text-2xl uppercase italic shadow-lg shadow-blue-900/40 active:scale-95 transition-all">Entrada</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-8 bg-rose-600/10 border border-rose-600/20 text-rose-500 rounded-[24px] font-black text-2xl uppercase italic active:scale-95 transition-all">Salida</button>
           </div>
@@ -155,11 +152,11 @@ export default function SupervisorPage() {
             )}
 
             {(lecturaLista || (modo === 'manual' && idEmpleado && pinEmpleado)) && (
-              <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-4 border-blue-600 text-white outline-none" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
+              <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-2 bg-[#050a14] rounded-2xl text-center text-xl font-black border-4 border-blue-600 text-white outline-none" style={{ fontSize: '60%' }} value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
             )}
             
-            <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95 transition-all">{animar ? 'PROCESANDO...' : 'CONFIRMAR OPERACIÓN'}</button>
-            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← CANCELAR Y VOLVER</button>
+            <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">{animar ? '...' : 'CONFIRMAR'}</button>
+            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← VOLVER ATRÁS</button>
           </div>
         )}
       </div>

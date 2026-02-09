@@ -32,12 +32,11 @@ export default function GestionEmpleados() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // CORRECCIÓN QUIRÚRGICA: NORMALIZACIÓN DE DATOS ANTES DE GUARDAR
+    // LÓGICA QUIRÚRGICA: Normalización de datos en el guardado
     const empleadoData = {
       ...nuevo,
       nombre: nuevo.nombre.trim().toUpperCase(),
-      documento_id: nuevo.documento_id.trim().toUpperCase(),
-      email: nuevo.email.trim().toLowerCase()
+      documento_id: nuevo.documento_id.trim().toUpperCase()
     };
 
     if (editando) {
@@ -67,7 +66,6 @@ export default function GestionEmpleados() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 border-b border-white/5 pb-8">
           <div>
             <h1 className="text-4xl font-black italic text-white uppercase tracking-tighter">Gestión de <span className="text-blue-500">Personal</span></h1>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-2 italic">Panel Administrativo de Recursos Humanos</p>
           </div>
           <div className="flex gap-4">
             <button onClick={exportToExcel} className="px-6 py-3 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white rounded-2xl border border-emerald-600/20 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20">Descargar DB</button>
@@ -112,7 +110,7 @@ export default function GestionEmpleados() {
           <div className="lg:col-span-8">
             <div className="bg-[#0f172a] rounded-[32px] border border-white/5 shadow-2xl overflow-hidden">
               <div className="p-6 bg-white/5 border-b border-white/5">
-                <input type="text" placeholder="Filtrar por nombre o documento..." className="w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-white font-bold text-xs outline-none focus:border-blue-500 transition-all" value={filtro} onChange={e => setFiltro(e.target.value)} />
+                <input type=\"text\" placeholder=\"Filtrar por nombre o documento...\" className=\"w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-white font-bold text-xs outline-none focus:border-blue-500 transition-all\" value={filtro} onChange={e => setFiltro(e.target.value)} />
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -129,7 +127,7 @@ export default function GestionEmpleados() {
                       <tr key={emp.id} className="hover:bg-blue-600/5 transition-all group">
                         <td className="p-5">
                           <p className="text-white font-black text-xs uppercase group-hover:text-blue-400 transition-colors">{emp.nombre}</p>
-                          <p className="text-[9px] text-slate-500 font-mono mt-1">{emp.documento_id} • {emp.email}</p>
+                          <p className="text-[9px] text-slate-500 font-mono mt-1">{emp.documento_id}</p>
                         </td>
                         <td className="p-5 text-center">
                           <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${emp.rol === 'admin' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : emp.rol === 'supervisor' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : 'bg-slate-500/10 text-slate-500 border border-slate-500/20'}`}>
