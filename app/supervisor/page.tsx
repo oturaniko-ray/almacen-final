@@ -41,7 +41,7 @@ export default function SupervisorPage() {
       if (scannerRef.current?.isScanning) scannerRef.current.stop();
       localStorage.clear();
       router.push('/');
-    }, 90000); // 90 segundos fijos
+    }, 90000); 
   }, [router]);
 
   useEffect(() => {
@@ -96,11 +96,11 @@ export default function SupervisorPage() {
           showNotification("QR EXPIRADO", "error"); 
           return '';
         }
-        return docId.trim().toUpperCase(); // Normalización de salida
+        return docId; // Retorna original (preserva minúsculas)
       }
-      return cleanText.toUpperCase();
+      return cleanText;
     } catch { 
-      return cleanText.toUpperCase(); 
+      return cleanText; 
     }
   };
 
@@ -132,42 +132,68 @@ export default function SupervisorPage() {
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
-    
-    // NORMALIZACIÓN QUIRÚRGICA DEL ID
-    const idLimpio = qrData.trim().toUpperCase();
-
     try {
-      // Corrección de la consulta .or() para evitar fallos de parsing
-      const { data: emp, error: errorEmp } = await supabase
+      // Búsqueda en tabla maestra sin forzar uppercase en la query
+      const { data: emp, error: errEmp } = await supabase
         .from('empleados')
         .select('*')
-        .or(`documento_id.eq.${idLimpio},email.eq.${idLimpio.toLowerCase()}`)
+        .or(`documento_id.eq."${qrData}",email.eq."${qrData}"`)
         .maybeSingle();
 
-      if (!emp || errorEmp) throw new Error("ID NO REGISTRADO");
-      if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) throw new Error("PIN TRABAJADOR INCORRECTO");
+      if (!emp) throw new Error("ID NO REGISTRADO");
       
-      const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', String(pinAutorizador)).in('rol', ['supervisor', 'admin', 'Administrador']).maybeSingle();
+      // Validación de PIN respetando minúsculas
+      if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
+        throw new Error("PIN TRABAJADOR INCORRECTO");
+      }
+
+      const { data: aut } = await supabase
+        .from('empleados')
+        .select('nombre')
+        .eq('pin_seguridad', String(pinAutorizador))
+        .in('rol', ['supervisor', 'admin', 'Administrador'])
+        .maybeSingle();
+
       if (!aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
 
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
+
       if (direccion === 'entrada') {
-        await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: ahora, autoriza_entrada: firma, estado: 'activo' }]);
+        // Lógica corregida: No importa si no hay registros en jornadas previos
+        await supabase.from('jornadas').insert([{ 
+          empleado_id: emp.id, 
+          nombre_empleado: emp.nombre, 
+          hora_entrada: ahora, 
+          autoriza_entrada: firma, 
+          estado: 'activo' 
+        }]);
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
       } else {
-        const { data: j } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
+        // Para salida sí buscamos el registro activo actual
+        const { data: j } = await supabase
+          .from('jornadas')
+          .select('*')
+          .eq('empleado_id', emp.id)
+          .is('hora_salida', null)
+          .maybeSingle();
+
         if (!j) throw new Error("SIN ENTRADA ACTIVA");
+
         const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
-        await supabase.from('jornadas').update({ hora_salida: ahora, horas_trabajadas: horas, autoriza_salida: firma, estado: 'finalizado' }).eq('id', j.id);
+        await supabase.from('jornadas').update({ 
+          hora_salida: ahora, 
+          horas_trabajadas: horas, 
+          autoriza_salida: firma, 
+          estado: 'finalizado' 
+        }).eq('id', j.id);
         await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
+
       showNotification("REGISTRO EXITOSO ✅", "success");
       setTimeout(resetLectura, 2000);
     } catch (e: any) { 
       showNotification(e.message, "error");
-      // PROTOCOLO SENIOR: Retorno al foco inicial en error
-      setPinAutorizador('');
-      if (modo === 'manual') setPinEmpleado('');
+      setTimeout(resetLectura, 2000);
     } finally { setAnimar(false); }
   };
 
@@ -231,8 +257,8 @@ export default function SupervisorPage() {
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
-                    {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
+                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
+                    {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
                     {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
                   </>
                 ) : <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>}
