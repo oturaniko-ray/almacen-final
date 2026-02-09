@@ -26,137 +26,221 @@ export default function GestionEmpleados() {
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
+    
     fetchEmpleados();
+
+    const channel = supabase
+      .channel('realtime_personal_management')
+      .on(
+        'postgres_changes', 
+        { event: '*', schema: 'public', table: 'empleados' }, 
+        () => {
+          fetchEmpleados();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchEmpleados]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const obtenerOpcionesNivel = () => {
+    const r = nuevo.rol;
+    if (r === 'empleado') return [1, 2];
+    if (r === 'supervisor') return [3];
+    if (r === 'admin') return [4, 5, 6, 7];
+    if (r === 'tecnico') return [8, 9, 10];
+    return [1];
+  };
+
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // LÓGICA QUIRÚRGICA: Normalización de datos en el guardado
-    const empleadoData = {
+
+    // Saneamiento de espacios laterales respetando el case original
+    const docSaneado = nuevo.documento_id.trim();
+    const pinSaneado = nuevo.pin_seguridad.trim();
+
+    const { data: existe } = await supabase
+      .from('empleados')
+      .select('id, nombre')
+      .eq('pin_seguridad', pinSaneado)
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
+      .single();
+
+    if (existe) {
+      alert(`⚠️ ERROR: El PIN ya está asignado a ${existe.nombre}. Elija uno nuevo.`);
+      document.getElementById('pin_input')?.focus();
+      return;
+    }
+
+    const payload = { 
       ...nuevo,
-      nombre: nuevo.nombre.trim().toUpperCase(),
-      documento_id: nuevo.documento_id.trim().toUpperCase()
+      documento_id: docSaneado,
+      pin_seguridad: pinSaneado
     };
 
-    if (editando) {
-      const { error } = await supabase.from('empleados').update(empleadoData).eq('id', editando.id);
-      if (!error) { setEditando(null); setNuevo(estadoInicial); fetchEmpleados(); }
-    } else {
-      const { error } = await supabase.from('empleados').insert([empleadoData]);
-      if (!error) { setNuevo(estadoInicial); fetchEmpleados(); }
+    try {
+      if (editando) {
+        await supabase.from('empleados').update(payload).eq('id', editando.id);
+      } else {
+        await supabase.from('empleados').insert([payload]);
+      }
+      cancelarEdicion();
+    } catch (error) {
+      console.error("Error guardando empleado:", error);
+      alert("Error al procesar la solicitud.");
     }
   };
 
-  const exportToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(empleados);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Empleados");
-    XLSX.writeFile(wb, "Nomina_Empleados.xlsx");
+  const cancelarEdicion = () => {
+    setEditando(null);
+    setNuevo(estadoInicial);
   };
 
-  const filtrados = empleados.filter(e => 
-    e.nombre.toLowerCase().includes(filtro.toLowerCase()) || 
-    e.documento_id.includes(filtro)
-  );
+  const exportarExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(empleados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Personal");
+    XLSX.writeFile(wb, "Gestion_Personal.xlsx");
+  };
 
   return (
-    <main className="min-h-screen bg-[#020617] p-4 md:p-10 text-slate-300 font-sans">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 border-b border-white/5 pb-8">
-          <div>
-            <h1 className="text-4xl font-black italic text-white uppercase tracking-tighter">Gestión de <span className="text-blue-500">Personal</span></h1>
+    <main className="min-h-screen bg-[#050a14] text-white font-sans flex flex-col">
+      <div className="sticky top-0 z-50 bg-[#050a14]/95 backdrop-blur-md p-4 border-b border-white/10 shadow-2xl">
+        <div className="max-w-[100%] mx-auto">
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <h1 className="text-2xl font-black italic uppercase text-white">
+                GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
+              </h1>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                {user?.nombre} <span className="text-blue-500">{user?.rol}</span> ({user?.nivel_acceso})
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all hover:bg-emerald-600/40">
+                📊 EXPORTAR
+              </button>
+              <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10">
+                VOLVER
+              </button>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <button onClick={exportToExcel} className="px-6 py-3 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white rounded-2xl border border-emerald-600/20 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20">Descargar DB</button>
-            <button onClick={() => router.back()} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all">Regresar</button>
+
+          <div className={`p-4 rounded-[20px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5 bg-[#0f172a]'}`}>
+            <form onSubmit={handleGuardar} className="flex flex-wrap lg:flex-nowrap gap-3 items-end">
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Nombre completo</label>
+                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
+              </div>
+              <div className="w-[110px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">DNI/NIE/PASS</label>
+                {/* Se eliminó la clase uppercase para permitir minúsculas visualmente */}
+                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
+              </div>
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Email</label>
+                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value.toLowerCase()})} required />
+              </div>
+              <div className="w-[75px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Pin</label>
+                <input id="pin_input" className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center font-mono" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
+              </div>
+              <div className="w-[120px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Rol</label>
+                <select className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[10px] font-black outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value, nivel_acceso: e.target.value === 'supervisor' ? 3 : e.target.value === 'admin' ? 4 : e.target.value === 'tecnico' ? 8 : 1})}>
+                  <option value="empleado">EMPLEADO</option>
+                  <option value="supervisor">SUPERVISOR</option>
+                  <option value="admin">ADMINISTRADOR</option>
+                  <option value="tecnico">TÉCNICO</option>
+                </select>
+              </div>
+              <div className="w-[75px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2 text-center">Reporte</label>
+                <select className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[10px] font-black text-center" value={nuevo.permiso_reportes ? 'si' : 'no'} onChange={e => setNuevo({...nuevo, permiso_reportes: e.target.value === 'si'})}>
+                  <option value="no">NO</option>
+                  <option value="si">SÍ</option>
+                </select>
+              </div>
+              <div className="w-[75px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2 text-center">Acceso</label>
+                <select className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[10px] font-black text-center" value={nuevo.nivel_acceso} onChange={e => setNuevo({...nuevo, nivel_acceso: parseInt(e.target.value)})}>
+                  {obtenerOpcionesNivel().map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              
+              <div className="flex flex-col gap-1">
+                {editando && (
+                  <button type="button" onClick={cancelarEdicion} className="bg-rose-600 hover:bg-rose-500 text-white rounded-lg p-1 text-[9px] font-black transition-all">
+                    ✕ CANCELAR
+                  </button>
+                )}
+                <button type="submit" className={`p-2.5 w-[70px] rounded-xl font-black text-xs uppercase transition-all shadow-lg ${editando ? 'bg-amber-500' : 'bg-blue-600'}`}>
+                  OK
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <div className="bg-black/20 p-2 border border-white/5 rounded-xl flex items-center">
+             <input type="text" placeholder="BUSCAR..." className="w-full bg-transparent px-4 text-[11px] font-black uppercase outline-none" value={filtro} onChange={e => setFiltro(e.target.value)} />
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-4">
-            <div className="bg-[#0f172a] p-8 rounded-[32px] border border-white/5 shadow-2xl sticky top-10">
-              <h2 className="text-xl font-black text-white uppercase italic mb-6 tracking-tight">{editando ? 'Editar Empleado' : 'Nuevo Ingreso'}</h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <input type="text" placeholder="NOMBRE COMPLETO" className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-xs outline-none focus:border-blue-500 transition-all uppercase" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
-                <input type="text" placeholder="DOCUMENTO ID / DNI" className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-xs outline-none focus:border-blue-500 transition-all" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
-                <input type="email" placeholder="CORREO ELECTRÓNICO" className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-xs outline-none focus:border-blue-500 transition-all" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value})} required />
-                <input type="password" placeholder="PIN SEGURIDAD (4-6 DÍGITOS)" className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-xs outline-none focus:border-blue-500 transition-all text-center" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <select className="bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-[10px] outline-none focus:border-blue-500 transition-all uppercase" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value})}>
-                    <option value="empleado">Empleado</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                  <select className="bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-[10px] outline-none focus:border-blue-500 transition-all uppercase" value={nuevo.nivel_acceso} onChange={e => setNuevo({...nuevo, nivel_acceso: Number(e.target.value)})}>
-                    {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Nivel {n}</option>)}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
-                  <input type="checkbox" id="permiso" checked={nuevo.permiso_reportes} onChange={e => setNuevo({...nuevo, permiso_reportes: e.target.checked})} className="w-5 h-5 accent-blue-600" />
-                  <label htmlFor="permiso" className="text-[10px] font-black uppercase text-slate-400 cursor-pointer">Permiso para Reportes</label>
-                </div>
-
-                <div className="flex gap-2 pt-4">
-                  <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-4 rounded-xl text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-blue-900/20">{editando ? 'Actualizar' : 'Registrar'}</button>
-                  {editando && <button type="button" onClick={() => {setEditando(null); setNuevo(estadoInicial);}} className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white px-6 rounded-xl font-black text-[10px] uppercase transition-all border border-rose-600/20">X</button>}
-                </div>
-              </form>
-            </div>
-          </div>
-
-          <div className="lg:col-span-8">
-            <div className="bg-[#0f172a] rounded-[32px] border border-white/5 shadow-2xl overflow-hidden">
-              <div className="p-6 bg-white/5 border-b border-white/5">
-                <input type=\"text\" placeholder=\"Filtrar por nombre o documento...\" className=\"w-full bg-black/40 border border-white/10 p-4 rounded-2xl text-white font-bold text-xs outline-none focus:border-blue-500 transition-all\" value={filtro} onChange={e => setFiltro(e.target.value)} />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-black/20 text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] italic">
-                      <th className="p-5">Empleado</th>
-                      <th className="p-5 text-center">Rol</th>
-                      <th className="p-5 text-center">Nivel/Reportes</th>
-                      <th className="p-5 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {filtrados.map((emp) => (
-                      <tr key={emp.id} className="hover:bg-blue-600/5 transition-all group">
-                        <td className="p-5">
-                          <p className="text-white font-black text-xs uppercase group-hover:text-blue-400 transition-colors">{emp.nombre}</p>
-                          <p className="text-[9px] text-slate-500 font-mono mt-1">{emp.documento_id}</p>
-                        </td>
-                        <td className="p-5 text-center">
-                          <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${emp.rol === 'admin' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : emp.rol === 'supervisor' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : 'bg-slate-500/10 text-slate-500 border border-slate-500/20'}`}>
-                            {emp.rol}
-                          </span>
-                        </td>
-                        <td className="p-5 text-center font-black">
-                          <span className="text-white text-[12px]">{emp.nivel_acceso}</span>
-                          <span className="text-slate-600 mx-2">/</span>
-                          <span className={emp.permiso_reportes ? 'text-emerald-500 text-[11px]' : 'text-rose-500 text-[11px]'}>
-                            {emp.permiso_reportes ? 'SI' : 'NO'}
-                          </span>
-                        </td>
-                        <td className="p-5 text-center flex gap-2 justify-center">
-                          <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all">Editar</button>
-                          <button 
-                            onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); fetchEmpleados(); }} 
-                            className={`px-4 py-1.5 rounded-lg font-black text-[11px] uppercase border transition-all ${emp.activo ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-600 border-rose-600/20 hover:bg-rose-600 hover:text-white'}`}
-                          >
-                            {emp.activo ? 'Activo' : 'Baja'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+      <div className="flex-1 p-4 overflow-auto">
+        <div className="max-w-[100%] mx-auto bg-[#0f172a] rounded-[30px] border border-white/5">
+          <table className="w-full text-left">
+            <thead className="text-[11px] font-black text-slate-500 uppercase tracking-widest bg-black/20 sticky top-0 z-40 backdrop-blur-sm shadow-sm">
+              <tr>
+                <th className="p-5">Empleado</th>
+                <th className="p-5">DNI / Email</th>
+                <th className="p-5 text-center">Rol / Pin</th>
+                <th className="p-5 text-center">Level / A.Rep</th>
+                <th className="p-5 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {empleados.filter(e => e.nombre.toLowerCase().includes(filtro.toLowerCase())).map((emp) => (
+                <tr key={emp.id} className="hover:bg-white/[0.01] transition-colors">
+                  <td className="p-5">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/10'}`}></div>
+                      <p className="font-black text-[14px] uppercase text-white leading-none tracking-tight">{emp.nombre}</p>
+                    </div>
+                  </td>
+                  <td className="p-5 font-mono text-[11px]">
+                    <span className="text-white block">{emp.documento_id}</span>
+                    <span className="text-slate-500 text-[11px]">{emp.email}</span>
+                  </td>
+                  <td className="p-5 text-center">
+                    <p className="text-[10px] font-black uppercase text-blue-400">{emp.rol}</p>
+                    <div className="group relative mt-1">
+                      <p className="text-[10px] font-mono text-slate-600 group-hover:hidden tracking-widest">••••</p>
+                      <p className="text-[10px] font-mono text-amber-500 hidden group-hover:block font-bold">PIN: {emp.pin_seguridad}</p>
+                    </div>
+                  </td>
+                  <td className="p-5 text-center font-black">
+                    <span className="text-white text-[12px]">{emp.nivel_acceso}</span>
+                    <span className="text-slate-600 mx-2">/</span>
+                    <span className={emp.permiso_reportes ? 'text-emerald-500 text-[11px]' : 'text-rose-500 text-[11px]'}>
+                      {emp.permiso_reportes ? 'SI' : 'NO'}
+                    </span>
+                  </td>
+                  <td className="p-5 text-center flex gap-2 justify-center">
+                    <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all">Editar</button>
+                    <button 
+                      onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); }} 
+                      className={`px-4 py-1.5 rounded-lg font-black text-[11px] uppercase border transition-all ${emp.activo ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-600 border-rose-600/20 hover:bg-rose-600/10'}`}
+                    >
+                      {emp.activo ? 'Activo' : 'Inactivo'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </main>
