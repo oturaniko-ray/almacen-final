@@ -86,17 +86,21 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
+  // RESTAURACIÓN QUIRÚRGICA DEL ALGORITMO DE LECTURA
   const procesarQR = (texto: string) => {
     const cleanText = texto.replace(/[\n\r]/g, '').trim();
     try {
       const decoded = atob(cleanText);
       if (decoded.includes('|')) {
-        const [docId, timestamp] = decoded.split('|');
-        if (Date.now() - parseInt(timestamp) > config.qr_exp) {
+        const parts = decoded.split('|');
+        const docId = parts[0];
+        const timestamp = parseInt(parts[1]);
+        
+        if (Date.now() - timestamp > config.qr_exp) {
           showNotification("QR EXPIRADO", "error"); 
           return '';
         }
-        return docId; // Retorna original (preserva minúsculas)
+        return docId; // Retorna el ID tal cual (respeta minúsculas)
       }
       return cleanText;
     } catch { 
@@ -133,8 +137,8 @@ export default function SupervisorPage() {
     setAnimar(true);
     const ahora = new Date().toISOString();
     try {
-      // Búsqueda en tabla maestra sin forzar uppercase en la query
-      const { data: emp, error: errEmp } = await supabase
+      // Consulta directa a la tabla maestra para evitar el fallo por falta de registros en jornadas
+      const { data: emp } = await supabase
         .from('empleados')
         .select('*')
         .or(`documento_id.eq."${qrData}",email.eq."${qrData}"`)
@@ -142,7 +146,6 @@ export default function SupervisorPage() {
 
       if (!emp) throw new Error("ID NO REGISTRADO");
       
-      // Validación de PIN respetando minúsculas
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
@@ -159,7 +162,6 @@ export default function SupervisorPage() {
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        // Lógica corregida: No importa si no hay registros en jornadas previos
         await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -169,7 +171,6 @@ export default function SupervisorPage() {
         }]);
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
       } else {
-        // Para salida sí buscamos el registro activo actual
         const { data: j } = await supabase
           .from('jornadas')
           .select('*')
