@@ -18,6 +18,7 @@ export default function GestionEmpleados() {
   const [nuevo, setNuevo] = useState(estadoInicial);
   const router = useRouter();
 
+  // Función de carga envuelta en useCallback para estabilidad
   const fetchEmpleados = useCallback(async () => {
     const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
     if (data) setEmpleados(data);
@@ -27,19 +28,22 @@ export default function GestionEmpleados() {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) setUser(JSON.parse(sessionData));
     
+    // Carga inicial
     fetchEmpleados();
 
+    // AJUSTE TIEMPO REAL: Suscripción al canal de cambios en la tabla empleados
     const channel = supabase
       .channel('realtime_personal_management')
       .on(
         'postgres_changes', 
         { event: '*', schema: 'public', table: 'empleados' }, 
         () => {
-          fetchEmpleados();
+          fetchEmpleados(); // Recarga los datos ante cualquier cambio detectado
         }
       )
       .subscribe();
 
+    // Limpieza de suscripción al desmontar el componente
     return () => {
       supabase.removeChannel(channel);
     };
@@ -56,15 +60,10 @@ export default function GestionEmpleados() {
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Saneamiento de espacios laterales respetando el case original
-    const docSaneado = nuevo.documento_id.trim();
-    const pinSaneado = nuevo.pin_seguridad.trim();
-
     const { data: existe } = await supabase
       .from('empleados')
       .select('id, nombre')
-      .eq('pin_seguridad', pinSaneado)
+      .eq('pin_seguridad', nuevo.pin_seguridad)
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .single();
 
@@ -74,23 +73,15 @@ export default function GestionEmpleados() {
       return;
     }
 
-    const payload = { 
-      ...nuevo,
-      documento_id: docSaneado,
-      pin_seguridad: pinSaneado
-    };
-
-    try {
-      if (editando) {
-        await supabase.from('empleados').update(payload).eq('id', editando.id);
-      } else {
-        await supabase.from('empleados').insert([payload]);
-      }
-      cancelarEdicion();
-    } catch (error) {
-      console.error("Error guardando empleado:", error);
-      alert("Error al procesar la solicitud.");
+    const payload = { ...nuevo };
+    if (editando) {
+      await supabase.from('empleados').update(payload).eq('id', editando.id);
+    } else {
+      await supabase.from('empleados').insert([payload]);
     }
+    cancelarEdicion();
+    // No es estrictamente necesario llamar a fetchEmpleados aquí 
+    // porque la suscripción lo hará automáticamente por nosotros
   };
 
   const cancelarEdicion = () => {
@@ -136,8 +127,7 @@ export default function GestionEmpleados() {
               </div>
               <div className="w-[110px]">
                 <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">DNI/NIE/PASS</label>
-                {/* Se eliminó la clase uppercase para permitir minúsculas visualmente */}
-                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
+                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center uppercase" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
               </div>
               <div className="flex-1 min-w-[150px]">
                 <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Email</label>

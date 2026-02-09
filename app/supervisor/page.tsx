@@ -86,21 +86,17 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // RESTAURACIÓN QUIRÚRGICA DEL ALGORITMO DE LECTURA
   const procesarQR = (texto: string) => {
     const cleanText = texto.replace(/[\n\r]/g, '').trim();
     try {
       const decoded = atob(cleanText);
       if (decoded.includes('|')) {
-        const parts = decoded.split('|');
-        const docId = parts[0];
-        const timestamp = parseInt(parts[1]);
-        
-        if (Date.now() - timestamp > config.qr_exp) {
+        const [docId, timestamp] = decoded.split('|');
+        if (Date.now() - parseInt(timestamp) > config.qr_exp) {
           showNotification("QR EXPIRADO", "error"); 
           return '';
         }
-        return docId; // Retorna el ID tal cual (respeta minúsculas)
+        return docId;
       }
       return cleanText;
     } catch { 
@@ -137,7 +133,7 @@ export default function SupervisorPage() {
     setAnimar(true);
     const ahora = new Date().toISOString();
     try {
-      // Consulta directa a la tabla maestra para evitar el fallo por falta de registros en jornadas
+      // AJUSTE QUIRÚRGICO: Búsqueda independiente en tabla empleados
       const { data: emp } = await supabase
         .from('empleados')
         .select('*')
@@ -145,7 +141,7 @@ export default function SupervisorPage() {
         .maybeSingle();
 
       if (!emp) throw new Error("ID NO REGISTRADO");
-      
+
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
@@ -162,15 +158,19 @@ export default function SupervisorPage() {
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        await supabase.from('jornadas').insert([{ 
+        // AJUSTE: Permite entrada sin verificar historial previo en jornadas
+        const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
           hora_entrada: ahora, 
           autoriza_entrada: firma, 
           estado: 'activo' 
         }]);
+        if (insErr) throw insErr;
+        
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
       } else {
+        // Para la salida sí requerimos una entrada activa
         const { data: j } = await supabase
           .from('jornadas')
           .select('*')
@@ -181,12 +181,14 @@ export default function SupervisorPage() {
         if (!j) throw new Error("SIN ENTRADA ACTIVA");
 
         const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
-        await supabase.from('jornadas').update({ 
+        const { error: updErr } = await supabase.from('jornadas').update({ 
           hora_salida: ahora, 
           horas_trabajadas: horas, 
           autoriza_salida: firma, 
           estado: 'finalizado' 
         }).eq('id', j.id);
+        if (updErr) throw updErr;
+
         await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
 
@@ -195,7 +197,9 @@ export default function SupervisorPage() {
     } catch (e: any) { 
       showNotification(e.message, "error");
       setTimeout(resetLectura, 2000);
-    } finally { setAnimar(false); }
+    } finally { 
+      setAnimar(false); 
+    }
   };
 
   const resetLectura = () => {
@@ -258,8 +262,8 @@ export default function SupervisorPage() {
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
-                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
-                    {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
+                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
+                    {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
                     {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
                   </>
                 ) : <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>}
