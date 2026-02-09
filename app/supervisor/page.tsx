@@ -132,10 +132,12 @@ export default function SupervisorPage() {
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
+    
+    // Normalización de entrada para búsqueda
     const inputBusqueda = qrData.trim();
 
     try {
-      // 1. Obtener datos del empleado - Ajuste de tipado para Next.js
+      // 1. LOCALIZACIÓN ROBUSTA DEL EMPLEADO (Prioriza ID, luego Email)
       let { data: emp, error: empErr } = await supabase
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
@@ -151,15 +153,16 @@ export default function SupervisorPage() {
         emp = empEmail;
       }
 
-      if (empErr) throw new Error(`ERROR BUSQUEDA: ${JSON.stringify(empErr)}`);
+      if (empErr) throw empErr;
       if (!emp) throw new Error("ID NO REGISTRADO");
       if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
 
+      // 2. Validación de PIN (solo en modo manual)
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
 
-      // 2. Validar Supervisor
+      // 3. Validación de Supervisor
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -167,11 +170,13 @@ export default function SupervisorPage() {
         .in('rol', ['supervisor', 'admin', 'Administrador'])
         .maybeSingle();
 
-      if (autErr || !aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
+      if (autErr) throw autErr;
+      if (!aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
 
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
+        // CREACIÓN DE REGISTRO PARA EMPLEADO (NUEVO O EXISTENTE)
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -180,7 +185,7 @@ export default function SupervisorPage() {
           estado: 'activo' 
         }]);
         
-        if (insErr) throw new Error(`FALLO REGISTRO (TRIGGER?): ${JSON.stringify(insErr)}`);
+        if (insErr) throw insErr;
         
         await supabase.from('empleados').update({ 
           en_almacen: true, 
@@ -188,6 +193,7 @@ export default function SupervisorPage() {
         }).eq('id', emp.id);
 
       } else {
+        // Salida: Buscar registro activo
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
@@ -197,7 +203,8 @@ export default function SupervisorPage() {
           .limit(1)
           .maybeSingle();
 
-        if (jErr || !j) throw new Error("SIN ENTRADA ACTIVA");
+        if (jErr) throw jErr;
+        if (!j) throw new Error("SIN ENTRADA ACTIVA");
 
         const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
         
@@ -208,7 +215,7 @@ export default function SupervisorPage() {
           estado: 'finalizado' 
         }).eq('id', j.id);
 
-        if (updErr) throw new Error(`FALLO SALIDA: ${JSON.stringify(updErr)}`);
+        if (updErr) throw updErr;
 
         await supabase.from('empleados').update({ 
           en_almacen: false, 
@@ -220,7 +227,7 @@ export default function SupervisorPage() {
       setTimeout(resetLectura, 2000);
     } catch (e: any) { 
       showNotification(e.message, "error");
-      setTimeout(resetLectura, 4000);
+      setTimeout(resetLectura, 2000);
     } finally { 
       setAnimar(false); 
     }
@@ -232,13 +239,13 @@ export default function SupervisorPage() {
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 6000);
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
   };
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative font-sans overflow-hidden">
       {mensaje.tipo && (
-        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl max-w-[90%] break-words text-center ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
+        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
