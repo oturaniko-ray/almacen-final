@@ -133,10 +133,10 @@ export default function SupervisorPage() {
     setAnimar(true);
     const ahora = new Date().toISOString();
     try {
-      // 1. Localizar empleado independientemente de jornadas
+      // AJUSTE QUIRÚRGICO: Localizar empleado vinculando tabla maestra
       const { data: emp, error: empErr } = await supabase
         .from('empleados')
-        .select('*')
+        .select('id, nombre, pin_seguridad, activo')
         .or(`documento_id.eq."${qrData}",email.eq."${qrData}"`)
         .maybeSingle();
 
@@ -144,12 +144,10 @@ export default function SupervisorPage() {
       if (!emp) throw new Error("ID NO REGISTRADO");
       if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
 
-      // 2. Validar PIN si el modo es manual
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
 
-      // 3. Validar PIN de supervisor/autorizador
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -163,7 +161,7 @@ export default function SupervisorPage() {
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        // AJUSTE: Creación directa de registro para empleado nuevo
+        // VINCULACIÓN: jornadas/empleado_id con empleados/id
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -173,13 +171,9 @@ export default function SupervisorPage() {
         }]);
         if (insErr) throw insErr;
         
-        await supabase.from('empleados').update({ 
-          en_almacen: true, 
-          ultimo_ingreso: ahora 
-        }).eq('id', emp.id);
+        await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
 
       } else {
-        // Búsqueda de entrada abierta para salida
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
@@ -200,10 +194,7 @@ export default function SupervisorPage() {
         }).eq('id', j.id);
         if (updErr) throw updErr;
 
-        await supabase.from('empleados').update({ 
-          en_almacen: false, 
-          ultima_salida: ahora 
-        }).eq('id', emp.id);
+        await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
 
       showNotification("REGISTRO EXITOSO ✅", "success");
