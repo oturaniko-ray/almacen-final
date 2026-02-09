@@ -133,7 +133,7 @@ export default function SupervisorPage() {
     setAnimar(true);
     const ahora = new Date().toISOString();
     try {
-      // AJUSTE QUIRÚRGICO: Localizar empleado vinculando tabla maestra
+      // 1. Localizar empleado para obtener su ID real (UUID) y Nombre
       const { data: emp, error: empErr } = await supabase
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo')
@@ -148,6 +148,7 @@ export default function SupervisorPage() {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
 
+      // 2. Validar Supervisor
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -161,7 +162,7 @@ export default function SupervisorPage() {
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        // VINCULACIÓN: jornadas/empleado_id con empleados/id
+        // AJUSTE QUIRÚRGICO: jornadas.empleado_id = empleados.id
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -169,11 +170,16 @@ export default function SupervisorPage() {
           autoriza_entrada: firma, 
           estado: 'activo' 
         }]);
+        
         if (insErr) throw insErr;
         
-        await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
+        await supabase.from('empleados').update({ 
+          en_almacen: true, 
+          ultimo_ingreso: ahora 
+        }).eq('id', emp.id);
 
       } else {
+        // Salida: Buscar registro activo basado en el ID real
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
@@ -192,9 +198,13 @@ export default function SupervisorPage() {
           autoriza_salida: firma, 
           estado: 'finalizado' 
         }).eq('id', j.id);
+
         if (updErr) throw updErr;
 
-        await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
+        await supabase.from('empleados').update({ 
+          en_almacen: false, 
+          ultima_salida: ahora 
+        }).eq('id', emp.id);
       }
 
       showNotification("REGISTRO EXITOSO ✅", "success");
