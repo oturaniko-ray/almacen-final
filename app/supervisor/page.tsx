@@ -95,17 +95,17 @@ export default function SupervisorPage() {
     const inputBusqueda = qrData.trim();
 
     try {
-      // 1. Obtener datos del empleado desde la tabla MAESTRA
+      // 1. LOCALIZACIÓN DEL EMPLEADO - Se igualan los select para evitar error de tipado
       let { data: emp, error: empErr } = await supabase
         .from('empleados')
-        .select('id, nombre, pin_seguridad, activo, documento_id')
+        .select('id, nombre, pin_seguridad, activo, documento_id, email')
         .eq('documento_id', inputBusqueda)
         .maybeSingle();
 
       if (!emp) {
         const { data: empEmail } = await supabase
           .from('empleados')
-          .select('id, nombre, pin_seguridad, activo')
+          .select('id, nombre, pin_seguridad, activo, documento_id, email')
           .eq('email', inputBusqueda.toLowerCase())
           .maybeSingle();
         emp = empEmail;
@@ -119,7 +119,7 @@ export default function SupervisorPage() {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
 
-      // 2. Validar Supervisor
+      // 2. VALIDAR SUPERVISOR
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -132,7 +132,6 @@ export default function SupervisorPage() {
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        // INSERCIÓN: jornadas/empleado_id vinculado con empleados/id
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -146,7 +145,7 @@ export default function SupervisorPage() {
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
 
       } else {
-        // Lógica de Salida
+        // SALIDA: Buscar registro activo
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
@@ -175,10 +174,10 @@ export default function SupervisorPage() {
       showNotification("REGISTRO EXITOSO ✅", "success");
       setTimeout(resetLectura, 2000);
     } catch (e: any) { 
-      // Captura quirúrgica del error stringificado para depuración técnica
       showNotification(e.message, "error");
-      console.error("Detalle técnico del error:", e.message);
-      setTimeout(resetLectura, 4000); // Más tiempo para leer el error JSON
+      console.error("Detalle técnico:", e.message);
+      // Regresar foco al input inicial según Protocolo Senior
+      setTimeout(resetLectura, 4000); 
     } finally { setAnimar(false); }
   };
 
@@ -188,7 +187,7 @@ export default function SupervisorPage() {
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 6000); // Aumentado para leer JSON
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 6000);
   };
 
   return (
