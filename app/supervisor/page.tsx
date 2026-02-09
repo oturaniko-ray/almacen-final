@@ -6,7 +6,6 @@ import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// Lógica de distancia geofencing
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
   const R = 6371e3; 
@@ -96,7 +95,7 @@ export default function SupervisorPage() {
     const inputBusqueda = qrData.trim();
 
     try {
-      // 1. Obtener datos del empleado desde la tabla MAESTRA (id es el UUID)
+      // 1. Obtener datos del empleado desde la tabla MAESTRA
       let { data: emp, error: empErr } = await supabase
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo, documento_id')
@@ -112,7 +111,7 @@ export default function SupervisorPage() {
         emp = empEmail;
       }
 
-      if (empErr) throw empErr;
+      if (empErr) throw new Error(`ERROR BUSQUEDA: ${JSON.stringify(empErr)}`);
       if (!emp) throw new Error("ID NO REGISTRADO EN EMPLEADOS");
       if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
 
@@ -128,12 +127,12 @@ export default function SupervisorPage() {
         .in('rol', ['supervisor', 'admin', 'Administrador'])
         .maybeSingle();
 
-      if (autErr || !aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
+      if (autErr || !aut) throw new Error("PIN SUPERVISOR INVÁLIDO O ERROR DB");
 
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        // INSERCIÓN QUIRÚRGICA: Usamos el ID de la tabla empleados
+        // INSERCIÓN: jornadas/empleado_id vinculado con empleados/id
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -142,10 +141,7 @@ export default function SupervisorPage() {
           estado: 'activo' 
         }]);
         
-        if (insErr) {
-            console.error("Error Trigger/DB:", insErr);
-            throw new Error(`DB ERROR: ${insErr.message}`);
-        }
+        if (insErr) throw new Error(`FALLO INSERCIÓN (TRIGGER?): ${JSON.stringify(insErr)}`);
         
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
 
@@ -160,7 +156,7 @@ export default function SupervisorPage() {
           .limit(1)
           .maybeSingle();
 
-        if (jErr || !j) throw new Error("SIN ENTRADA ACTIVA");
+        if (jErr || !j) throw new Error("SIN ENTRADA ACTIVA O ERROR DE SESIÓN");
 
         const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
         
@@ -171,7 +167,7 @@ export default function SupervisorPage() {
           estado: 'finalizado' 
         }).eq('id', j.id);
 
-        if (updErr) throw updErr;
+        if (updErr) throw new Error(`FALLO SALIDA: ${JSON.stringify(updErr)}`);
 
         await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
@@ -179,8 +175,10 @@ export default function SupervisorPage() {
       showNotification("REGISTRO EXITOSO ✅", "success");
       setTimeout(resetLectura, 2000);
     } catch (e: any) { 
+      // Captura quirúrgica del error stringificado para depuración técnica
       showNotification(e.message, "error");
-      setTimeout(resetLectura, 2000);
+      console.error("Detalle técnico del error:", e.message);
+      setTimeout(resetLectura, 4000); // Más tiempo para leer el error JSON
     } finally { setAnimar(false); }
   };
 
@@ -190,13 +188,15 @@ export default function SupervisorPage() {
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 6000); // Aumentado para leer JSON
   };
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative font-sans overflow-hidden">
       {mensaje.tipo && (
-        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
+        <div className={`fixed top-10 z-[100] px-6 py-4 rounded-2xl font-bold shadow-2xl max-w-[90%] break-words text-center ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>
+          {mensaje.texto}
+        </div>
       )}
 
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
