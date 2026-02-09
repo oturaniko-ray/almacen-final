@@ -132,8 +132,6 @@ export default function SupervisorPage() {
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
-    
-    // Normalización de entrada para búsqueda
     const inputBusqueda = qrData.trim();
 
     try {
@@ -153,16 +151,14 @@ export default function SupervisorPage() {
         emp = empEmail;
       }
 
-      if (empErr) throw empErr;
+      if (empErr) throw new Error(`DB_SEARCH_ERROR: ${JSON.stringify(empErr)}`);
       if (!emp) throw new Error("ID NO REGISTRADO");
       if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
 
-      // 2. Validación de PIN (solo en modo manual)
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
 
-      // 3. Validación de Supervisor
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -170,13 +166,12 @@ export default function SupervisorPage() {
         .in('rol', ['supervisor', 'admin', 'Administrador'])
         .maybeSingle();
 
-      if (autErr) throw autErr;
+      if (autErr) throw new Error(`DB_AUTH_ERROR: ${JSON.stringify(autErr)}`);
       if (!aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
 
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
       if (direccion === 'entrada') {
-        // CREACIÓN DE REGISTRO PARA EMPLEADO (NUEVO O EXISTENTE)
         const { error: insErr } = await supabase.from('jornadas').insert([{ 
           empleado_id: emp.id, 
           nombre_empleado: emp.nombre, 
@@ -185,7 +180,7 @@ export default function SupervisorPage() {
           estado: 'activo' 
         }]);
         
-        if (insErr) throw insErr;
+        if (insErr) throw new Error(`DB_TRIGGER_BLOCK: ${JSON.stringify(insErr)}`);
         
         await supabase.from('empleados').update({ 
           en_almacen: true, 
@@ -193,7 +188,6 @@ export default function SupervisorPage() {
         }).eq('id', emp.id);
 
       } else {
-        // Salida: Buscar registro activo
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
@@ -215,7 +209,7 @@ export default function SupervisorPage() {
           estado: 'finalizado' 
         }).eq('id', j.id);
 
-        if (updErr) throw updErr;
+        if (updErr) throw new Error(`DB_UPDATE_ERROR: ${JSON.stringify(updErr)}`);
 
         await supabase.from('empleados').update({ 
           en_almacen: false, 
@@ -239,13 +233,13 @@ export default function SupervisorPage() {
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 6000);
   };
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative font-sans overflow-hidden">
       {mensaje.tipo && (
-        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
+        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl max-w-[90%] break-words text-center ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
