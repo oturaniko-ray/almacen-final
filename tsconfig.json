@@ -18,13 +18,8 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",
-// tsconfig.json - Opción A (si estás en MountTaiSoftware/proyectos/control/)
-"paths": {
-  "@/*": ["./*"],
-  "@componentes/*": ["./app/configuracion/componentes/*"]
-}
- },
+    "baseUrl": "."
+  },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
