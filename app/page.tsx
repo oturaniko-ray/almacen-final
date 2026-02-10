@@ -2,14 +2,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { 
-  MembreteSuperior, 
-  BotonAcceso, 
-  NotificacionSistema, 
-  CampoEntrada, 
-  ContenedorPrincipal 
-} from '../configuracion/componentes';
-
+import MembreteSuperior from '../configuracion/componentes/MembreteSuperior';
+import BotonAcceso from '../configuracion/componentes/BotonAcceso';
+import NotificacionSistema from '../configuracion/componentes/NotificacionSistema';
+import CampoEntrada from '../configuracion/componentes/CampoEntrada';
+import ContenedorPrincipal from '../configuracion/componentes/ContenedorPrincipal';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function LoginPage() {
