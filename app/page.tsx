@@ -215,7 +215,7 @@ export default function LoginPage() {
         visible={!!notificacion.tipo} 
       />
 
-      <MemebreteSuperior 
+      <MembreteSuperior 
         titulo={config.empresa_nombre || 'SISTEMA DE CONTROL'}
         subtitulo={paso === 'login' ? 'IDENTIFICACIÓN' : 'MENÚ PRINCIPAL'}
         usuario={tempUser}

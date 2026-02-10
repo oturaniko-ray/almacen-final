@@ -1,6 +1,6 @@
 'use client';
 
-interface MemebreteSuperiorProps {
+interface MembreteSuperiorProps {
   titulo: string;
   subtitulo: string;
   usuario?: {
@@ -13,7 +13,7 @@ interface MemebreteSuperiorProps {
   mostrarUsuario?: boolean;
 }
 
-export default function MemebreteSuperior({ 
+export default function MembreteSuperior({ 
   titulo, 
   subtitulo, 
   usuario, 
