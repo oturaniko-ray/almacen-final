@@ -129,27 +129,30 @@ export default function LoginPage() {
     const todosLosBotones = [
       { 
         label: 'ACCESO EMPLEADO', 
-        icono: '🫆', 
+        icono: '👨‍💼', 
         ruta: '/empleado', 
         minNivel: 1, 
-        color: 'bg-gradient-to-r from-emerald-600/90 to-emerald-800/80 hover:from-emerald-500 hover:to-emerald-700',
-        textColor: 'text-emerald-100'
+        color: 'bg-gradient-to-r from-emerald-600 to-emerald-800',
+        hoverColor: 'hover:from-emerald-500 hover:to-emerald-700',
+        textColor: 'text-white'
       },
       { 
         label: 'PANEL SUPERVISOR', 
-        icono: '🕖', 
+        icono: '👨‍💼', 
         ruta: '/supervisor', 
         minNivel: 3, 
-        color: 'bg-gradient-to-r from-blue-600/90 to-blue-800/80 hover:from-blue-500 hover:to-blue-700',
-        textColor: 'text-blue-100'
+        color: 'bg-gradient-to-r from-blue-600 to-blue-800',
+        hoverColor: 'hover:from-blue-500 hover:to-blue-700',
+        textColor: 'text-white'
       },
       { 
         label: 'REPORTES Y ANÁLISIS', 
         icono: '📊', 
         ruta: '/reportes', 
         minNivel: 3, 
-        color: 'bg-gradient-to-r from-slate-700/90 to-slate-900/80 hover:from-slate-600 hover:to-slate-800',
-        textColor: 'text-slate-100',
+        color: 'bg-gradient-to-r from-slate-700 to-slate-900',
+        hoverColor: 'hover:from-slate-600 hover:to-slate-800',
+        textColor: 'text-white',
         requiereReportes: true 
       },
       { 
@@ -157,16 +160,18 @@ export default function LoginPage() {
         icono: '👥', 
         ruta: '/admin', 
         minNivel: 4, 
-        color: 'bg-gradient-to-r from-amber-600/90 to-amber-800/80 hover:from-amber-500 hover:to-amber-700',
-        textColor: 'text-amber-100'
+        color: 'bg-gradient-to-r from-amber-600 to-amber-800',
+        hoverColor: 'hover:from-amber-500 hover:to-amber-700',
+        textColor: 'text-white'
       },
       { 
         label: 'CONFIGURACIÓN MAESTRA', 
-        icono: '👨‍🔧', 
+        icono: '⚙️', 
         ruta: '/configuracion', 
         minNivel: 8, 
-        color: 'bg-gradient-to-r from-rose-900/90 to-rose-950/80 hover:from-rose-800 hover:to-rose-900',
-        textColor: 'text-rose-100'
+        color: 'bg-gradient-to-r from-purple-700 to-purple-900',
+        hoverColor: 'hover:from-purple-600 hover:to-purple-800',
+        textColor: 'text-white'
       },
     ];
     
@@ -198,79 +203,79 @@ export default function LoginPage() {
     });
   };
 
-  const renderBicolorTitle = (text: string) => {
-    const words = (text || 'SISTEMA DE CONTROL').split(' ');
-    const lastWord = words.pop();
-    const firstPart = words.join(' ');
-    return (
-      <div className="text-center mb-2">
-        <h1 className="text-2xl md:text-3xl font-black italic uppercase tracking-tight leading-tight">
-          <span className="text-white/90">{firstPart} </span>
-          <span className="text-cyan-400">{lastWord}</span>
-        </h1>
-        <div className="h-0.5 w-24 mx-auto bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent mt-2"></div>
-      </div>
-    );
-  };
-
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
-      {/* Fondo decorativo */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-900/5 via-transparent to-transparent pointer-events-none"></div>
-      <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-cyan-500/3 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/2 rounded-full blur-3xl pointer-events-none"></div>
+    <main className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
+      {/* Notificación mejorada */}
       {mensaje.tipo && (
-        <div className={`fixed top-6 z-50 px-6 py-3 rounded-lg font-bold text-sm shadow-2xl animate-flash-fast border backdrop-blur-sm ${
+        <div className={`fixed top-6 z-50 px-6 py-3 rounded-lg font-bold text-sm shadow-2xl border backdrop-blur-sm transition-all duration-300 ${
           mensaje.tipo === 'success' 
-            ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' 
-            : 'bg-rose-600/20 border-rose-500/30 text-rose-300'
+            ? 'bg-green-500/10 border-green-500/30 text-green-300' 
+            : 'bg-red-500/10 border-red-500/30 text-red-300'
         }`}>
           <div className="flex items-center gap-2">
             <span className="text-lg">{mensaje.tipo === 'success' ? '✓' : '✗'}</span>
-            {mensaje.texto}
+            <span className="font-semibold">{mensaje.texto}</span>
           </div>
         </div>
       )}
 
-      {/* MEMBRETE MEJORADO */}
-      <div className="w-full max-w-md bg-gradient-to-b from-gray-900/80 to-gray-950/80 p-8 rounded-2xl border border-gray-800/50 mb-6 text-center backdrop-blur-sm shadow-2xl z-10">
-        {renderBicolorTitle(config.empresa_nombre)}
+      {/* Encabezado mejorado */}
+      <div className="w-full max-w-md bg-gradient-to-b from-gray-800/50 to-gray-900/30 p-8 rounded-2xl border border-gray-700/30 mb-8 text-center shadow-2xl backdrop-blur-sm">
+        <h1 className="text-3xl font-black uppercase tracking-tight mb-2">
+          <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+            {config.empresa_nombre || 'SISTEMA DE CONTROL'}
+          </span>
+        </h1>
         
-        <p className={`text-white font-bold text-lg uppercase tracking-[0.3em] mb-4 ${paso === 'login' ? 'animate-pulse-slow' : ''}`}>
+        <div className="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-blue-500 to-transparent my-4"></div>
+        
+        <p className={`text-lg font-bold uppercase tracking-widest text-gray-300 mb-2 ${paso === 'login' ? 'animate-pulse' : ''}`}>
           {paso === 'login' ? 'IDENTIFICACIÓN' : 'MENÚ PRINCIPAL'}
         </p>
 
         {tempUser && paso === 'selector' && (
-          <div className="mt-4 pt-4 border-t border-gray-800 flex flex-col items-center">
-            <span className="text-sm font-medium text-cyan-300 uppercase tracking-wide">{tempUser.nombre}</span>
-            <div className="flex gap-4 mt-1">
-              <span className="text-xs text-gray-400 uppercase font-bold tracking-wider bg-gray-900/50 px-3 py-1 rounded-full">
-                NIVEL: {tempUser.nivel_acceso}
+          <div className="mt-6 pt-6 border-t border-gray-700/30 flex flex-col items-center">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                {tempUser.nombre.charAt(0)}
+              </div>
+              <div className="text-left">
+                <span className="text-sm font-bold text-white block">{tempUser.nombre}</span>
+                <span className="text-xs text-gray-400">Usuario activo</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="text-xs text-white font-bold bg-blue-500/20 px-3 py-1.5 rounded-full border border-blue-500/30">
+                NIVEL {tempUser.nivel_acceso}
               </span>
-              <span className={`text-xs uppercase font-bold tracking-wider px-3 py-1 rounded-full ${
+              <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
                 tempUser.permiso_reportes 
-                  ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-800/30' 
-                  : 'bg-gray-900/50 text-gray-500'
+                  ? 'bg-green-500/20 text-green-300 border-green-500/30' 
+                  : 'bg-gray-800/50 text-gray-400 border-gray-700/30'
               }`}>
-                REPORTES: {tempUser.permiso_reportes ? 'SÍ' : 'NO'}
+                {tempUser.permiso_reportes ? '📊 Reportes' : 'Sin reportes'}
               </span>
             </div>
           </div>
         )}
       </div>
       
-      {/* CONTENEDOR PRINCIPAL */}
-      <div className="w-full max-w-md bg-gradient-to-b from-gray-900/70 to-black/70 p-8 rounded-2xl border border-gray-800/50 shadow-2xl backdrop-blur-sm z-10">
+      {/* Contenedor principal mejorado */}
+      <div className="w-full max-w-md bg-gradient-to-b from-gray-800/40 to-gray-900/20 p-8 rounded-2xl border border-gray-700/30 shadow-2xl backdrop-blur-sm">
         {paso === 'login' ? (
           <div className="space-y-6">
             <div className="relative">
-              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">👤</div>
+              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
               <input 
                 ref={idRef}
                 type="text" 
-                placeholder="ID / CORREO ELECTRÓNICO" 
-                className="w-full bg-gray-900/50 border border-gray-700/50 pl-12 pr-4 py-4 rounded-xl text-center text-sm font-medium text-white placeholder:text-gray-500 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition-all" 
+                placeholder="Usuario o correo electrónico" 
+                className="w-full bg-gray-900/50 border border-gray-700/50 pl-12 pr-4 py-4 rounded-xl text-sm font-medium text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all" 
                 value={identificador} 
                 onChange={(e) => setIdentificador(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
@@ -279,12 +284,16 @@ export default function LoginPage() {
             </div>
             
             <div className="relative">
-              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">🔒</div>
+              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
               <input 
                 ref={pinRef}
                 type="password" 
-                placeholder="PIN DE SEGURIDAD" 
-                className="w-full bg-gray-900/50 border border-gray-700/50 pl-12 pr-4 py-4 rounded-xl text-center text-sm font-black text-white tracking-[0.3em] placeholder:tracking-normal placeholder:text-gray-500 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition-all" 
+                placeholder="PIN de seguridad" 
+                className="w-full bg-gray-900/50 border border-gray-700/50 pl-12 pr-4 py-4 rounded-xl text-sm font-bold text-white tracking-widest placeholder:tracking-normal placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all" 
                 value={pin} 
                 onChange={(e) => setPin(e.target.value)} 
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
@@ -294,28 +303,39 @@ export default function LoginPage() {
             <button 
               onClick={handleLogin} 
               disabled={loading}
-              className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed p-4 rounded-xl text-white font-black uppercase italic text-sm active:scale-[0.98] transition-all shadow-lg shadow-cyan-500/20"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed p-4 rounded-xl text-white font-bold uppercase tracking-wider text-sm active:scale-[0.98] transition-all duration-200 shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-spin">⟳</span> VERIFICANDO...
-                </span>
-              ) : 'ENTRAR AL SISTEMA'}
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>VERIFICANDO...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  <span>ENTRAR AL SISTEMA</span>
+                </>
+              )}
             </button>
             
-            <div className="text-center pt-4 border-t border-gray-800/50">
-              <p className="text-xs text-gray-500 italic">
-                Sistema seguro • {new Date().getFullYear()}
+            <div className="text-center pt-6 border-t border-gray-700/30">
+              <p className="text-xs text-gray-500 font-medium">
+                Sistema seguro • Versión {new Date().getFullYear()}
               </p>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="text-center mb-8">
-              <p className="text-sm font-bold uppercase tracking-[0.4em] text-gray-500 animate-pulse-very-slow">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
                 OPCIONES DISPONIBLES
               </p>
-              <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-gray-700 to-transparent mt-2"></div>
+              <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-blue-500 to-transparent mt-3"></div>
             </div>
 
             <div className="grid gap-3">
@@ -324,15 +344,19 @@ export default function LoginPage() {
                   <button 
                     key={btn.ruta}
                     onClick={() => router.push(btn.ruta)} 
-                    className={`w-full ${btn.color} border border-white/5 p-4 rounded-xl ${btn.textColor} font-bold transition-all active:scale-[0.98] shadow-lg flex items-center justify-between group`}
+                    className={`w-full ${btn.color} ${btn.hoverColor} border border-gray-700/30 p-4 rounded-xl ${btn.textColor} font-bold transition-all duration-200 active:scale-[0.98] shadow-lg flex items-center justify-between group`}
                   >
-                    <span className="flex items-center gap-3">
-                      <span className="text-xl opacity-80 group-hover:scale-110 transition-transform">{btn.icono}</span>
-                      <span className="text-left italic uppercase text-[12px] tracking-wider">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl bg-white/10 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                        {btn.icono}
+                      </span>
+                      <span className="text-left font-semibold text-sm tracking-wide">
                         {btn.label}
                       </span>
-                    </span>
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+                    </div>
+                    <svg className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </button>
                 );
               })}
@@ -340,25 +364,25 @@ export default function LoginPage() {
             
             <button 
               onClick={logout}
-              className="w-full text-cyan-400 hover:text-cyan-300 font-bold uppercase text-xs tracking-[0.3em] mt-8 pt-4 border-t border-gray-800/50 text-center py-2 transition-colors"
+              className="w-full text-gray-400 hover:text-white font-medium text-sm tracking-wide mt-8 pt-6 border-t border-gray-700/30 text-center py-3 transition-colors duration-200 flex items-center justify-center gap-2"
             >
-              ✕ CERRAR SESIÓN
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              CERRAR SESIÓN
             </button>
           </div>
         )}
       </div>
 
       <style jsx global>{`
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .animate-pulse-very-slow { animation: pulse-very-slow 8s ease-in-out infinite; }
-        @keyframes flash-fast { 
-          0%, 100% { transform: translateY(0); opacity: 1; } 
-          10%, 30%, 50% { transform: translateY(-2px); opacity: 0.9; } 
-          20%, 40%, 60% { transform: translateY(2px); opacity: 1; } 
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
-        .animate-flash-fast { animation: flash-fast 1.5s ease-in-out; }
+        .animate-pulse {
+          animation: pulse 2s ease-in-out infinite;
+        }
       `}</style>
     </main>
   );
