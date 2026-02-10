@@ -1,8 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@componentes/*": ["configuracion/componentes/*"]
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
@@ -34,4 +31,12 @@
     "**/*.mts"
   ],
   "exclude": ["node_modules"]
+}
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@componentes/*": ["configuracion/componentes/*"]
+    }
+  }
 }
