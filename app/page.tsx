@@ -80,7 +80,7 @@ export default function PanelAdminHub() {
         {/* GRID DINÁMICO SEGÚN NIVEL DE ACCESO */}
         <div className={`grid gap-8 ${getGridCols()}`}>
           
-          {/* NIVEL 4+: PERSONAL (Administrador Base) */}
+          {/* NIVEL 4+: PERSONAL (Ubicación: app/admin/empleados) */}
           <button 
             onClick={() => router.push('/admin/empleados')} 
             className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
@@ -90,9 +90,9 @@ export default function PanelAdminHub() {
             <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Plantilla y Pins P</p>
           </button>
 
-          {/* NIVEL 4+: AUDITORÍA & REPORTES (Administrador Base) */}
+          {/* NIVEL 4+: REPORTES & AUDITORÍA (Ubicación: app/admin/reportes y app/admin/auditoria) */}
           <button 
-            onClick={() => router.push('/admin/auditoria')} 
+            onClick={() => router.push('/admin/reportes')} 
             className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
           >
             <span className="text-3xl block mb-6">📑</span>
@@ -100,7 +100,7 @@ export default function PanelAdminHub() {
             <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Reportes y Análisis</p>
           </button>
 
-          {/* NIVEL 5+: FLOTA & LOGÍSTICA (Administrador Logístico) */}
+          {/* NIVEL 5+: FLOTA & LOGÍSTICA (Ubicación: app/admin/flota) */}
           {nivelUsuario >= 5 && (
             <button 
               onClick={() => router.push('/admin/flota')} 
@@ -115,7 +115,7 @@ export default function PanelAdminHub() {
             </button>
           )}
 
-          {/* NIVEL 8+: CONFIGURACIÓN (Super Admin) */}
+          {/* NIVEL 8+: CONFIGURACIÓN (Ubicación: app/admin/configuracion) */}
           {nivelUsuario >= 8 && (
             <button 
               onClick={() => router.push('/admin/configuracion')} 
