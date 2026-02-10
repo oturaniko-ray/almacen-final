@@ -19,7 +19,7 @@ export default function MembreteSuperior({
   usuario, 
   conAnimacion = false, 
   mostrarUsuario = true 
-}: MemebreteSuperiorProps) {
+}: MembreteSuperiorProps) {
   
   const renderTituloBicolor = (texto: string) => {
     const palabras = texto.split(' ');
