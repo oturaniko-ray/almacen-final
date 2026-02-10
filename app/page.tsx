@@ -8,7 +8,7 @@ import {
   NotificacionSistema, 
   CampoEntrada, 
   ContenedorPrincipal 
-} from ''./configuracion/componentes';
+} from ''.app/configuracion/componentes';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
