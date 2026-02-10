@@ -18,8 +18,7 @@ export default function PanelAdminHub() {
     const currentUser = JSON.parse(sessionData);
     const nivel = Number(currentUser.nivel_acceso);
 
-    // Los niveles 1, 2 y 3 tienen sus propias vistas (Empleado/Supervisor)
-    // Solo niveles >= 4 pueden acceder a este Hub Administrativo
+    // SEGURIDAD: Solo niveles >= 4 pueden acceder a este Hub Administrativo
     if (nivel < 4) { 
       router.replace('/'); 
       return; 
@@ -52,7 +51,7 @@ export default function PanelAdminHub() {
 
   const nivelUsuario = Number(user?.nivel_acceso || 0);
 
-  // Determinar columnas del grid para mantener estética visual
+  // Determinar columnas del grid para mantener estética visual según el nivel
   const getGridCols = () => {
     if (nivelUsuario >= 8) return 'grid-cols-1 md:grid-cols-4';
     if (nivelUsuario >= 5) return 'grid-cols-1 md:grid-cols-3';
@@ -81,7 +80,7 @@ export default function PanelAdminHub() {
         {/* GRID DINÁMICO SEGÚN NIVEL DE ACCESO */}
         <div className={`grid gap-8 ${getGridCols()}`}>
           
-          {/* MÓDULO: PERSONAL (Nivel 4+) */}
+          {/* NIVEL 4+: PERSONAL (Administrador Base) */}
           <button 
             onClick={() => router.push('/admin/empleados')} 
             className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
@@ -91,7 +90,7 @@ export default function PanelAdminHub() {
             <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Plantilla y Pins P</p>
           </button>
 
-          {/* MÓDULO: AUDITORÍA & REPORTES (Nivel 4+) */}
+          {/* NIVEL 4+: AUDITORÍA & REPORTES (Administrador Base) */}
           <button 
             onClick={() => router.push('/admin/auditoria')} 
             className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
@@ -101,7 +100,7 @@ export default function PanelAdminHub() {
             <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Reportes y Análisis</p>
           </button>
 
-          {/* MÓDULO: FLOTA & LOGÍSTICA (Solo Nivel 5+) */}
+          {/* NIVEL 5+: FLOTA & LOGÍSTICA (Administrador Logístico) */}
           {nivelUsuario >= 5 && (
             <button 
               onClick={() => router.push('/admin/flota')} 
@@ -116,7 +115,7 @@ export default function PanelAdminHub() {
             </button>
           )}
 
-          {/* MÓDULO: CONFIGURACIÓN (Solo Nivel 8+) */}
+          {/* NIVEL 8+: CONFIGURACIÓN (Super Admin) */}
           {nivelUsuario >= 8 && (
             <button 
               onClick={() => router.push('/admin/configuracion')} 
