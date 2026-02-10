@@ -203,6 +203,19 @@ export default function LoginPage() {
     });
   };
 
+  // Función para dividir el título en dos colores
+  const renderBicolorTitle = (text: string) => {
+    const words = (text || 'SISTEMA DE CONTROL').split(' ');
+    const lastWord = words.pop();
+    const firstPart = words.join(' ');
+    return (
+      <h1 className="text-xl font-black italic uppercase tracking-tight leading-none">
+        <span className="text-white">{firstPart} </span>
+        <span className="text-blue-600">{lastWord}</span>
+      </h1>
+    );
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
@@ -220,62 +233,39 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Encabezado mejorado */}
-      <div className="w-full max-w-md bg-gradient-to-b from-gray-800/50 to-gray-900/30 p-8 rounded-2xl border border-gray-700/30 mb-8 text-center shadow-2xl backdrop-blur-sm">
-        <h1 className="text-3xl font-black uppercase tracking-tight mb-2">
-          <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-            {config.empresa_nombre || 'SISTEMA DE CONTROL'}
-          </span>
-        </h1>
+      {/* Encabezado sobrio con los cambios solicitados */}
+      <div className="w-full max-w-md bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 mb-4 text-center backdrop-blur-sm">
+        {renderBicolorTitle(config.empresa_nombre)}
         
-        <div className="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-blue-500 to-transparent my-4"></div>
-        
-        <p className={`text-lg font-bold uppercase tracking-widest text-gray-300 mb-2 ${paso === 'login' ? 'animate-pulse' : ''}`}>
+        <p className={`text-white font-bold text-[15px] uppercase tracking-wider mt-2 ${paso === 'login' ? 'animate-pulse' : ''}`}>
           {paso === 'login' ? 'IDENTIFICACIÓN' : 'MENÚ PRINCIPAL'}
         </p>
 
         {tempUser && paso === 'selector' && (
-          <div className="mt-6 pt-6 border-t border-gray-700/30 flex flex-col items-center">
-            <div className="flex items-center justify-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                {tempUser.nombre.charAt(0)}
-              </div>
-              <div className="text-left">
-                <span className="text-sm font-bold text-white block">{tempUser.nombre}</span>
-                <span className="text-xs text-gray-400">Usuario activo</span>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-xs text-white font-bold bg-blue-500/20 px-3 py-1.5 rounded-full border border-blue-500/30">
-                NIVEL {tempUser.nivel_acceso}
-              </span>
-              <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-                tempUser.permiso_reportes 
-                  ? 'bg-green-500/20 text-green-300 border-green-500/30' 
-                  : 'bg-gray-800/50 text-gray-400 border-gray-700/30'
-              }`}>
-                {tempUser.permiso_reportes ? '📊 Reportes' : 'Sin reportes'}
-              </span>
-            </div>
+          <div className="mt-3 pt-3 border-t border-gray-800/50">
+            <p className="text-xs font-medium text-gray-300">
+              <span className="text-white font-bold">{tempUser.nombre}</span>
+              <span className="text-gray-400 ml-2">(Nivel {tempUser.nivel_acceso})</span>
+            </p>
           </div>
         )}
       </div>
       
-      {/* Contenedor principal mejorado */}
-      <div className="w-full max-w-md bg-gradient-to-b from-gray-800/40 to-gray-900/20 p-8 rounded-2xl border border-gray-700/30 shadow-2xl backdrop-blur-sm">
+      {/* Contenedor principal compacto */}
+      <div className="w-full max-w-md bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 shadow-lg backdrop-blur-sm">
         {paso === 'login' ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="relative">
               <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
               <input 
                 ref={idRef}
                 type="text" 
-                placeholder="Usuario o correo electrónico" 
-                className="w-full bg-gray-900/50 border border-gray-700/50 pl-12 pr-4 py-4 rounded-xl text-sm font-medium text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all" 
+                placeholder="ID / CORREO" 
+                className="w-full bg-gray-800/50 border border-gray-700/50 pl-10 pr-4 py-3 rounded-lg text-sm font-medium text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all" 
                 value={identificador} 
                 onChange={(e) => setIdentificador(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
@@ -285,15 +275,15 @@ export default function LoginPage() {
             
             <div className="relative">
               <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
               <input 
                 ref={pinRef}
                 type="password" 
-                placeholder="PIN de seguridad" 
-                className="w-full bg-gray-900/50 border border-gray-700/50 pl-12 pr-4 py-4 rounded-xl text-sm font-bold text-white tracking-widest placeholder:tracking-normal placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all" 
+                placeholder="PIN DE SEGURIDAD" 
+                className="w-full bg-gray-800/50 border border-gray-700/50 pl-10 pr-4 py-3 rounded-lg text-sm font-bold text-white tracking-widest placeholder:tracking-normal placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all" 
                 value={pin} 
                 onChange={(e) => setPin(e.target.value)} 
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
@@ -303,11 +293,11 @@ export default function LoginPage() {
             <button 
               onClick={handleLogin} 
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed p-4 rounded-xl text-white font-bold uppercase tracking-wider text-sm active:scale-[0.98] transition-all duration-200 shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed p-3 rounded-lg text-white font-bold uppercase tracking-wider text-sm active:scale-[0.98] transition-all duration-200 shadow-md flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
-                  <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -315,7 +305,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                   </svg>
                   <span>ENTRAR AL SISTEMA</span>
@@ -323,38 +313,33 @@ export default function LoginPage() {
               )}
             </button>
             
-            <div className="text-center pt-6 border-t border-gray-700/30">
-              <p className="text-xs text-gray-500 font-medium">
-                Sistema seguro • Versión {new Date().getFullYear()}
+            <div className="text-center pt-4 border-t border-gray-800/50">
+              <p className="text-xs text-gray-500 italic">
+                @copyright RayPérez 2026
               </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="text-center mb-8">
-              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
-                OPCIONES DISPONIBLES
-              </p>
-              <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-blue-500 to-transparent mt-3"></div>
-            </div>
+          <div className="space-y-2">
+            {/* Se quita "OPCIONES DISPONIBLES" y la línea */}
 
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               {obtenerBotonesDisponibles().map((btn) => {
                 return (
                   <button 
                     key={btn.ruta}
                     onClick={() => router.push(btn.ruta)} 
-                    className={`w-full ${btn.color} ${btn.hoverColor} border border-gray-700/30 p-4 rounded-xl ${btn.textColor} font-bold transition-all duration-200 active:scale-[0.98] shadow-lg flex items-center justify-between group`}
+                    className={`w-full ${btn.color} ${btn.hoverColor} border border-gray-700/30 p-3 rounded-lg ${btn.textColor} font-bold transition-all duration-200 active:scale-[0.98] shadow-md flex items-center justify-between group`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl bg-white/10 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg bg-white/10 p-1.5 rounded group-hover:scale-110 transition-transform">
                         {btn.icono}
                       </span>
-                      <span className="text-left font-semibold text-sm tracking-wide">
+                      <span className="text-left font-semibold text-xs tracking-wide">
                         {btn.label}
                       </span>
                     </div>
-                    <svg className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
@@ -362,15 +347,21 @@ export default function LoginPage() {
               })}
             </div>
             
-            <button 
-              onClick={logout}
-              className="w-full text-gray-400 hover:text-white font-medium text-sm tracking-wide mt-8 pt-6 border-t border-gray-700/30 text-center py-3 transition-colors duration-200 flex items-center justify-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              CERRAR SESIÓN
-            </button>
+            <div className="text-center pt-4 border-t border-gray-800/50">
+              <p className="text-xs text-gray-500 italic mb-3">
+                @copyright RayPérez 2026
+              </p>
+            
+              <button 
+                onClick={logout}
+                className="w-full text-gray-400 hover:text-white font-medium text-xs tracking-wide py-2 transition-colors duration-200 flex items-center justify-center gap-2"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                CERRAR SESIÓN
+              </button>
+            </div>
           </div>
         )}
       </div>
