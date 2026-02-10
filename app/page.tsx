@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { 
-  MemebreteSuperior, 
+  MembreteSuperior, 
   BotonAcceso, 
   NotificacionSistema, 
   CampoEntrada, 
