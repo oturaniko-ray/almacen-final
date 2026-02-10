@@ -1,143 +1,238 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
-export default function PanelAdminHub() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
+export default function LoginPage() {
+  const [identificador, setIdentificador] = useState('');
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [paso, setPaso] = useState<'login' | 'selector'>('login');
+  const [tempUser, setTempUser] = useState<any>(null);
+  const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: null });
+  const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({ texto: '', tipo: null });
+
+  const idRef = useRef<HTMLInputElement>(null);
+  const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- LÓGICA DE INACTIVIDAD SIN FALLBACK ---
+  const reiniciarTemporizador = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    
+    // Solo se ejecuta si existe el valor en la configuración cargada de la DB
+    if (config.timer_inactividad) {
+      const tiempoLimite = parseInt(config.timer_inactividad);
+      
+      if (!isNaN(tiempoLimite)) {
+        timerRef.current = setTimeout(() => {
+          if (paso === 'selector') {
+            logout();
+            showNotification("Sesión cerrada por inactividad", 'error');
+          }
+        }, tiempoLimite);
+      }
+    }
+  };
 
   useEffect(() => {
-    // 1. Validación de Sesión y Seguridad Perimetral
+    if (paso === 'selector' && config.timer_inactividad) {
+      const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+      
+      eventos.forEach(evento => document.addEventListener(evento, reiniciarTemporizador));
+      reiniciarTemporizador();
+
+      return () => {
+        eventos.forEach(evento => document.removeEventListener(evento, reiniciarTemporizador));
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
+    }
+  }, [paso, config.timer_inactividad]);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      const { data } = await supabase.from('sistema_config').select('clave, valor');
+      if (data) {
+        const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        setConfig((prev: any) => ({ ...prev, ...cfgMap }));
+      }
+    };
+    fetchConfig();
+    
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { 
-      router.replace('/'); 
-      return; 
+    if (sessionData) {
+      const user = JSON.parse(sessionData);
+      if (Number(user.nivel_acceso) <= 2) router.push('/empleado');
+      else { setTempUser(user); setPaso('selector'); }
     }
-    
-    const currentUser = JSON.parse(sessionData);
-    const nivel = Number(currentUser.nivel_acceso);
-
-    // SEGURIDAD: Solo niveles >= 4 pueden acceder a este Hub Administrativo
-    if (nivel < 4) { 
-      router.replace('/'); 
-      return; 
-    }
-    
-    setUser(currentUser);
-    setLoading(false);
-
-    // 2. Protocolo de Inactividad Quirúrgica (120s)
-    let timeout: NodeJS.Timeout;
-    const resetTimer = () => {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        localStorage.removeItem('user_session');
-        router.replace('/');
-      }, 120000);
-    };
-
-    const eventos = ['mousemove', 'keydown', 'click', 'touchstart'];
-    eventos.forEach(e => window.addEventListener(e, resetTimer));
-    resetTimer();
-
-    return () => {
-      if (timeout) clearTimeout(timeout);
-      eventos.forEach(e => window.removeEventListener(e, resetTimer));
-    };
   }, [router]);
 
-  if (loading) return null;
+  const logout = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    localStorage.clear();
+    setTempUser(null);
+    setIdentificador('');
+    setPin('');
+    setPaso('login');
+  };
 
-  const nivelUsuario = Number(user?.nivel_acceso || 0);
+  const showNotification = (texto: string, tipo: 'success' | 'error') => {
+    setMensaje({ texto, tipo });
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+  };
 
-  // Determinar columnas del grid para mantener estética visual según el nivel
-  const getGridCols = () => {
-    if (nivelUsuario >= 8) return 'grid-cols-1 md:grid-cols-4';
-    if (nivelUsuario >= 5) return 'grid-cols-1 md:grid-cols-3';
-    return 'grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto';
+  const handleLogin = async () => {
+    if (!identificador || !pin) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('empleados')
+        .select('*')
+        .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
+        .eq('pin_seguridad', pin).eq('activo', true).maybeSingle();
+
+      if (error || !data) throw new Error("Credenciales inválidas");
+      
+      const userData = { 
+        ...data, 
+        nivel_acceso: Number(data.nivel_acceso),
+        permiso_reportes: !!data.permiso_reportes 
+      };
+      
+      localStorage.setItem('user_session', JSON.stringify(userData));
+
+      if (userData.nivel_acceso <= 2) {
+        router.push('/empleado');
+      } else {
+        setTempUser(userData);
+        setPaso('selector');
+      }
+    } catch (err: any) {
+      showNotification("Acceso denegado", 'error');
+      setIdentificador(''); setPin('');
+      idRef.current?.focus();
+    } finally { setLoading(false); }
+  };
+
+  const renderBicolorTitle = (text: string) => {
+    const words = (text || 'SISTEMA').split(' ');
+    const lastWord = words.pop();
+    const firstPart = words.join(' ');
+    return (
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{firstPart} </span>
+        <span className="text-blue-700">{lastWord}</span>
+      </h1>
+    );
   };
 
   return (
-    <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans flex items-center justify-center">
-      <div className="max-w-6xl w-full">
-        <header className="text-center mb-16">
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter">
-            PANEL DE <span className="text-blue-500">GESTIÓN</span>
-          </h1>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mt-3">
-            CONTROL CENTRALIZADO • NIVEL {nivelUsuario}
-          </p>
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      
+      {mensaje.tipo && (
+        <div className={`fixed top-6 z-50 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast ${
+          mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white'
+        }`}>
+          {mensaje.texto}
+        </div>
+      )}
 
-          <div className="mt-6 flex flex-col items-center gap-1 bg-white/5 py-3 px-8 rounded-2xl border border-white/5 inline-block mx-auto">
-            <p className="text-[11px] font-black text-white uppercase italic">
-              {user?.nombre} <span className="text-blue-500 mx-2">|</span> 
-              <span className="text-blue-400">{user?.rol}</span>
-            </p>
+      {/* MEMBRETE */}
+      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
+        {renderBicolorTitle(config.empresa_nombre)}
+        
+        <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${paso === 'login' ? 'animate-pulse-slow' : ''}`}>
+          {paso === 'login' ? 'Identificación' : 'Menú Principal'}
+        </p>
+
+        {tempUser && paso === 'selector' && (
+          <div className="mt-2 pt-2 border-t border-white/10 flex flex-col items-center">
+            <span className="text-sm font-normal text-white uppercase">{tempUser.nombre}</span>
+            <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">NIVEL ACCESO: {tempUser.nivel_acceso}</span>
           </div>
-        </header>
-
-        {/* GRID DINÁMICO SEGÚN NIVEL DE ACCESO */}
-        <div className={`grid gap-8 ${getGridCols()}`}>
-          
-          {/* NIVEL 4+: PERSONAL (Ubicación: app/admin/empleados) */}
-          <button 
-            onClick={() => router.push('/admin/empleados')} 
-            className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
-          >
-            <span className="text-3xl block mb-6">👥</span>
-            <h3 className="text-xl font-black uppercase italic group-hover:text-blue-500 transition-colors">Personal</h3>
-            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Plantilla y Pins P</p>
-          </button>
-
-          {/* NIVEL 4+: REPORTES & AUDITORÍA (Ubicación: app/admin/reportes y app/admin/auditoria) */}
-          <button 
-            onClick={() => router.push('/admin/reportes')} 
-            className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
-          >
-            <span className="text-3xl block mb-6">📑</span>
-            <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
-            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Reportes y Análisis</p>
-          </button>
-
-          {/* NIVEL 5+: FLOTA & LOGÍSTICA (Ubicación: app/admin/flota) */}
-          {nivelUsuario >= 5 && (
-            <button 
-              onClick={() => router.push('/admin/flota')} 
-              className="bg-[#0f172a] p-10 rounded-[45px] border-2 border-emerald-500/10 hover:border-emerald-500 transition-all text-left group shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500"
-            >
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
-                <span className="text-5xl font-black italic text-emerald-500">F</span>
-              </div>
-              <span className="text-3xl block mb-6">🚛</span>
-              <h3 className="text-xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">Flota</h3>
-              <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Gestión Operativa</p>
-            </button>
-          )}
-
-          {/* NIVEL 8+: CONFIGURACIÓN (Ubicación: app/admin/configuracion) */}
-          {nivelUsuario >= 8 && (
-            <button 
-              onClick={() => router.push('/admin/configuracion')} 
-              className="bg-[#0f172a] p-10 rounded-[45px] border-2 border-purple-500/10 hover:border-purple-500 transition-all text-left group shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-700"
-            >
-              <span className="text-3xl block mb-6">⚙️</span>
-              <h3 className="text-xl font-black uppercase italic group-hover:text-purple-500 transition-colors">Sistema</h3>
-              <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Configuración Global</p>
-            </button>
-          )}
-
-        </div>
-
-        <div className="mt-16 text-center">
-          <button 
-            onClick={() => router.push('/')} 
-            className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
-          >
-            ← Salir al Selector Principal
-          </button>
-        </div>
+        )}
       </div>
+      
+      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl">
+        {paso === 'login' ? (
+          <div className="space-y-4">
+            <input 
+              ref={idRef}
+              type="text" 
+              placeholder="ID / CORREO" 
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-bold text-white outline-none focus:border-blue-500/50" 
+              value={identificador} 
+              onChange={(e) => setIdentificador(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
+              autoFocus
+            />
+            <input 
+              ref={pinRef}
+              type="password" 
+              placeholder="PIN" 
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-sm font-black text-white tracking-[0.4em] outline-none focus:border-blue-500/50" 
+              value={pin} 
+              onChange={(e) => setPin(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            />
+            <button 
+              onClick={handleLogin} 
+              className="w-full bg-blue-600 p-4 rounded-xl text-white font-black uppercase italic text-sm active:scale-95 transition-all shadow-lg"
+            >
+              {loading ? '...' : 'Entrar'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="text-center mb-6">
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white/20 animate-pulse-very-slow">Opciones</p>
+            </div>
+
+            {[
+              { label: '🫆 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
+              { label: '🕖 panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
+              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
+              { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
+              { label: '👨‍🔧 configuración maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
+            ].map((btn) => {
+              const nivelUsuario = Number(tempUser.nivel_acceso);
+              const cumpleNivel = nivelUsuario >= btn.minNivel;
+              
+              if (btn.requiereReportes) {
+                if (!(cumpleNivel && tempUser.permiso_reportes)) return null;
+              } else if (!cumpleNivel) return null;
+
+              return (
+                <button 
+                  key={btn.ruta}
+                  onClick={() => router.push(btn.ruta)} 
+                  className={`w-full ${btn.color} p-4 rounded-xl text-white font-bold transition-all active:scale-95 shadow-lg flex items-center`}
+                >
+                  <span className="text-left italic uppercase text-[11px] flex items-center">
+                    <span className="text-[1.4em] mr-3">{btn.label.split(' ')[0]}</span>
+                    {btn.label.split(' ').slice(1).join(' ')}
+                  </span>
+                </button>
+              );
+            })}
+            
+            <button onClick={logout} className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-6 italic text-center py-2 border-t border-white/5">
+              ✕ Cerrar Sesión
+            </button>
+          </div>
+        )}
+      </div>
+
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+      `}</style>
     </main>
   );
 }
