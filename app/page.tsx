@@ -244,7 +244,7 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Encabezado sobrio con los cambios solicitados */}
+      {/* Encabezado sobrio - TODO EN UNA LÍNEA */}
       <div className="w-full max-w-md bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 mb-4 text-center backdrop-blur-sm">
         {renderBicolorTitle(config.empresa_nombre)}
         
@@ -254,10 +254,10 @@ export default function LoginPage() {
 
         {tempUser && paso === 'selector' && (
           <div className="mt-3 pt-3 border-t border-gray-800/50">
-            <p className="text-sm font-medium">
-              <span className="text-white font-bold text-base">{tempUser.nombre}</span>
-              <br />
-              <span className="text-gray-300">{obtenerRol(tempUser.nivel_acceso)}</span>
+            <p className="text-xs font-medium text-gray-300">
+              <span className="text-white font-bold text-sm">{tempUser.nombre}</span>
+              <span className="text-gray-400 mx-2">•</span>
+              <span className="text-cyan-300">{obtenerRol(tempUser.nivel_acceso)}</span>
               <span className="text-gray-400 ml-2">({tempUser.nivel_acceso})</span>
             </p>
           </div>
@@ -334,8 +334,6 @@ export default function LoginPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {/* Se quita "OPCIONES DISPONIBLES" y la línea */}
-
             <div className="grid gap-2">
               {obtenerBotonesDisponibles().map((btn) => {
                 return (
