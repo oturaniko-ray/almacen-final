@@ -1,5 +1,3 @@
-[file name]: page.tsx
-[file content begin]
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -365,4 +363,3 @@ export default function LoginPage() {
     </main>
   );
 }
-[file content end]
