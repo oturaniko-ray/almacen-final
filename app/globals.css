@@ -1,95 +1,26 @@
-/* app/globals.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* Variables CSS */
 :root {
-  --color-fondo: #000000;
-  --color-contenedor: #111111;
-  --color-membrete: #1a1a1a;
-  --color-texto: #ffffff;
-  --color-texto-secundario: #9ca3af;
-  --color-borde: rgba(255, 255, 255, 0.1);
+  --background: #ffffff;
+  --foreground: #171717;
 }
 
-/* Animaciones globales */
-@keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
-@keyframes pulse-very-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
-}
-
-@keyframes flash-fast {
-  0%, 100% { opacity: 1; }
-  10%, 30%, 50% { opacity: 0; }
-  20%, 40%, 60% { opacity: 1; }
-}
-
-@keyframes slide-in-top {
-  0% { transform: translateY(-100%); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes fade-in {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-/* Clases de utilidad */
-.animate-pulse-slow {
-  animation: pulse-slow 3s ease-in-out infinite;
-}
-
-.animate-pulse-very-slow {
-  animation: pulse-very-slow 6s ease-in-out infinite;
-}
-
-.animate-flash-fast {
-  animation: flash-fast 2s ease-in-out;
-}
-
-.animate-slide-in-top {
-  animation: slide-in-top 0.3s ease-out;
-}
-
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out;
-}
-
-/* Estilos para móviles */
-@media (max-width: 640px) {
-  .mobile-padding {
-    padding: 1rem;
-  }
-  
-  .mobile-text-sm {
-    font-size: 0.875rem;
-  }
-  
-  .mobile-text-xs {
-    font-size: 0.75rem;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
   }
 }
 
-/* Scrollbar personalizada */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 2px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
