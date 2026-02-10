@@ -1,10 +1,9 @@
-@import '@componentes/estilos.css';
-
+/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Contenido de estilos.css */
+/* Variables CSS */
 :root {
   --color-fondo: #000000;
   --color-contenedor: #111111;
