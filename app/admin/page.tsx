@@ -69,8 +69,8 @@ export default function PanelAdminHub() {
           </div>
         </header>
 
-        {/* GRID DINÁMICO SEGÚN PRIVILEGIOS */}
-        <div className={`grid gap-8 ${nivelUsuario >= 5 ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 max-w-md mx-auto'}`}>
+        {/* GRID DINÁMICO: Ajuste de columnas según permisos */}
+        <div className={`grid gap-8 ${nivelUsuario >= 5 ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto'}`}>
           
           {/* MÓDULO PERSONAL: Visible para Nivel 4 y superiores */}
           <button 
@@ -97,17 +97,15 @@ export default function PanelAdminHub() {
             </button>
           )}
           
-          {/* ACCESO RESTRINGIDO: AUDITORÍA (Solo Nivel 5+) */}
-          {nivelUsuario >= 5 && (
-            <button 
-              onClick={() => router.push('/admin/auditoria')} 
-              className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700"
-            >
-              <span className="text-3xl block mb-6">📑</span>
-              <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
-              <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Logs de Seguridad</p>
-            </button>
-          )}
+          {/* MÓDULO AUDITORÍA: Ahora visible para Nivel 4 y superiores */}
+          <button 
+            onClick={() => router.push('/admin/auditoria')} 
+            className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
+          >
+            <span className="text-3xl block mb-6">📑</span>
+            <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
+            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Logs de Seguridad</p>
+          </button>
 
         </div>
 
