@@ -18,8 +18,10 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@componentes/*": ["configuracion/componentes/*"]
     }
   },
   "include": [
@@ -31,12 +33,4 @@
     "**/*.mts"
   ],
   "exclude": ["node_modules"]
-}
-{
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@componentes/*": ["configuracion/componentes/*"]
-    }
-  }
 }
