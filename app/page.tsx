@@ -65,8 +65,17 @@ export default function LoginPage() {
     const sessionData = localStorage.getItem('user_session');
     if (sessionData) {
       const user = JSON.parse(sessionData);
-      if (Number(user.nivel_acceso) <= 2) router.push('/empleado');
-      else { setTempUser(user); setPaso('selector'); }
+      const nivel = Number(user.nivel_acceso);
+      
+      // NUEVA LÓGICA DE REDIRECCIÓN
+      if (nivel <= 2) {
+        // Nivel 1-2: Solo empleado
+        router.push('/empleado');
+      } else {
+        // Nivel 3 o más: Va al selector
+        setTempUser(user);
+        setPaso('selector');
+      }
     }
   }, [router]);
 
@@ -102,10 +111,14 @@ export default function LoginPage() {
       };
       
       localStorage.setItem('user_session', JSON.stringify(userData));
+      const nivel = userData.nivel_acceso;
 
-      if (userData.nivel_acceso <= 2) {
+      // NUEVA LÓGICA DE NAVEGACIÓN SEGÚN NIVEL
+      if (nivel <= 2) {
+        // Nivel 1-2: Va directo a empleado
         router.push('/empleado');
       } else {
+        // Nivel 3 o más: Va al selector
         setTempUser(userData);
         setPaso('selector');
       }
@@ -114,6 +127,57 @@ export default function LoginPage() {
       setIdentificador(''); setPin('');
       idRef.current?.focus();
     } finally { setLoading(false); }
+  };
+
+  // NUEVA FUNCIÓN PARA DETERMINAR QUÉ BOTONES MOSTRAR
+  const obtenerBotonesDisponibles = () => {
+    const nivel = Number(tempUser?.nivel_acceso || 0);
+    const tienePermisoReportes = tempUser?.permiso_reportes === true;
+    
+    const todosLosBotones = [
+      { label: '🫆 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
+      { label: '🕖 panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
+      { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
+      { label: '👥 gestión personal', ruta: '/admin', minNivel: 4, color: 'bg-amber-600' },
+      { label: '👨‍🔧 configuración maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
+    ];
+    
+    // Filtrar según nivel y permisos
+    return todosLosBotones.filter((btn) => {
+      // 1. Verificar nivel mínimo
+      if (nivel < btn.minNivel) return false;
+      
+      // 2. Verificar permiso especial para reportes
+      if (btn.requiereReportes && !tienePermisoReportes) return false;
+      
+      // 3. Lógica específica por nivel
+      if (nivel === 3) {
+        // Nivel 3: Solo empleado y supervisor
+        return btn.ruta === '/empleado' || btn.ruta === '/supervisor';
+      }
+      
+      if (nivel === 4) {
+        // Nivel 4: Con permiso_reportes ve reportes, sin él no
+        if (btn.ruta === '/reportes') {
+          return tienePermisoReportes;
+        }
+        // Nivel 4 siempre ve empleado, supervisor, admin
+        return btn.ruta === '/empleado' || btn.ruta === '/supervisor' || btn.ruta === '/admin';
+      }
+      
+      if (nivel === 5) {
+        // Nivel 5: Ve todo menos configuración
+        return btn.ruta !== '/configuracion';
+      }
+      
+      // Nivel 8: Ve todo
+      // Nivel 6-7: Mismo que nivel 5
+      if (nivel >= 6 && nivel <= 7) {
+        return btn.ruta !== '/configuracion';
+      }
+      
+      return true;
+    });
   };
 
   const renderBicolorTitle = (text: string) => {
@@ -150,7 +214,10 @@ export default function LoginPage() {
         {tempUser && paso === 'selector' && (
           <div className="mt-2 pt-2 border-t border-white/10 flex flex-col items-center">
             <span className="text-sm font-normal text-white uppercase">{tempUser.nombre}</span>
-            <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">NIVEL ACCESO: {tempUser.nivel_acceso}</span>
+            <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">
+              NIVEL: {tempUser.nivel_acceso} | 
+              REPORTES: {tempUser.permiso_reportes ? 'SÍ' : 'NO'}
+            </span>
           </div>
         )}
       </div>
@@ -187,23 +254,12 @@ export default function LoginPage() {
         ) : (
           <div className="space-y-3">
             <div className="text-center mb-6">
-              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white/20 animate-pulse-very-slow">Opciones</p>
+              <p className="text-[13px] font-bold uppercase tracking-[0.4em] text-white/20 animate-pulse-very-slow">
+                OPCIONES DISPONIBLES
+              </p>
             </div>
 
-            {[
-              { label: '🫆 acceso empleado', ruta: '/empleado', minNivel: 1, color: 'bg-emerald-600' },
-              { label: '🕖 panel supervisor', ruta: '/supervisor', minNivel: 3, color: 'bg-blue-600' },
-              { label: '📊 reportes y análisis', ruta: '/reportes', minNivel: 3, color: 'bg-slate-700', requiereReportes: true },
-              { label: '👥 gestión personal', ruta: '/admin', minNivel: 5, color: 'bg-amber-600' },
-              { label: '👨‍🔧 configuración maestra', ruta: '/configuracion', minNivel: 8, color: 'bg-rose-900' },
-            ].map((btn) => {
-              const nivelUsuario = Number(tempUser.nivel_acceso);
-              const cumpleNivel = nivelUsuario >= btn.minNivel;
-              
-              if (btn.requiereReportes) {
-                if (!(cumpleNivel && tempUser.permiso_reportes)) return null;
-              } else if (!cumpleNivel) return null;
-
+            {obtenerBotonesDisponibles().map((btn) => {
               return (
                 <button 
                   key={btn.ruta}
