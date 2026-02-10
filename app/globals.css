@@ -1,3 +1,5 @@
+@import '../configuracion/componentes/estilos.css';
+
 @import "tailwindcss";
 
 :root {
