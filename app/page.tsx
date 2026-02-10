@@ -122,6 +122,17 @@ export default function LoginPage() {
     } finally { setLoading(false); }
   };
 
+  // Función para obtener el rol basado en el nivel de acceso
+  const obtenerRol = (nivel: number) => {
+    if (nivel <= 2) return 'Empleado';
+    if (nivel === 3) return 'Supervisor';
+    if (nivel === 4) return 'Administrador';
+    if (nivel === 5) return 'Gerente';
+    if (nivel === 6 || nivel === 7) return 'Director';
+    if (nivel === 8) return 'Configuración Maestra';
+    return 'Usuario';
+  };
+
   const obtenerBotonesDisponibles = () => {
     const nivel = Number(tempUser?.nivel_acceso || 0);
     const tienePermisoReportes = tempUser?.permiso_reportes === true;
@@ -243,9 +254,11 @@ export default function LoginPage() {
 
         {tempUser && paso === 'selector' && (
           <div className="mt-3 pt-3 border-t border-gray-800/50">
-            <p className="text-xs font-medium text-gray-300">
-              <span className="text-white font-bold">{tempUser.nombre}</span>
-              <span className="text-gray-400 ml-2">(Nivel {tempUser.nivel_acceso})</span>
+            <p className="text-sm font-medium">
+              <span className="text-white font-bold text-base">{tempUser.nombre}</span>
+              <br />
+              <span className="text-gray-300">{obtenerRol(tempUser.nivel_acceso)}</span>
+              <span className="text-gray-400 ml-2">({tempUser.nivel_acceso})</span>
             </p>
           </div>
         )}
@@ -315,7 +328,7 @@ export default function LoginPage() {
             
             <div className="text-center pt-4 border-t border-gray-800/50">
               <p className="text-xs text-gray-500 italic">
-                @copyright RayPérez 2026
+                @Copyright RayPérez 2026
               </p>
             </div>
           </div>
@@ -349,7 +362,7 @@ export default function LoginPage() {
             
             <div className="text-center pt-4 border-t border-gray-800/50">
               <p className="text-xs text-gray-500 italic mb-3">
-                @copyright RayPérez 2026
+                @Copyright RayPérez 2026
               </p>
             
               <button 
