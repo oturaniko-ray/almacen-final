@@ -135,21 +135,28 @@ export default function SupervisorPage() {
     const inputBusqueda = qrData.trim();
 
     try {
-      // BÚSQUEDA QUIRÚRGICA: Unificada para evitar fugas de lógica
+      // BÚSQUEDA ROBUSTA: Se eliminan comillas innecesarias y se usa búsqueda directa
       const { data: emp, error: empErr } = await supabase
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
-        .or(`documento_id.eq."${inputBusqueda}",email.eq."${inputBusqueda.toLowerCase()}"`)
+        .or(`documento_id.eq.${inputBusqueda},email.eq.${inputBusqueda.toLowerCase()}`)
         .maybeSingle();
 
-      if (empErr) throw new Error(`DB_ERROR: ${empErr.message}`);
-      if (!emp) throw new Error("ID NO REGISTRADO");
+      if (empErr) throw new Error(`ERROR DB: ${empErr.message}`);
+      
+      // Si emp es null, el sistema NO encontró al empleado en la tabla empleados
+      if (!emp) {
+        console.error("Búsqueda fallida para:", inputBusqueda);
+        throw new Error("ID NO REGISTRADO");
+      }
+      
       if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
 
       if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
         throw new Error("PIN TRABAJADOR INCORRECTO");
       }
 
+      // 2. VALIDAR SUPERVISOR
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -170,7 +177,10 @@ export default function SupervisorPage() {
           estado: 'activo' 
         }]);
         
-        if (insErr) throw new Error(`ERROR JORNADA: ${insErr.message}`);
+        if (insErr) {
+            console.error("Error al insertar jornada:", insErr);
+            throw new Error(`FALLO AL GRABAR: ${insErr.message}`);
+        }
         
         await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
 
@@ -195,7 +205,7 @@ export default function SupervisorPage() {
           estado: 'finalizado' 
         }).eq('id', j.id);
 
-        if (updErr) throw new Error(`ERROR SALIDA: ${updErr.message}`);
+        if (updErr) throw new Error(`FALLO SALIDA: ${updErr.message}`);
 
         await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
