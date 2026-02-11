@@ -130,6 +130,7 @@ export default function SupervisorPage() {
     }
   }, [modo, direccion, lecturaLista]);
 
+  // FUNCIÓN PRINCIPAL DE REGISTRO CON RUTINA DE FLOTA INTEGRADA
   const registrarAcceso = async () => {
     if (gps.dist > config.radio) {
       showNotification(`FUERA DE RANGO: ${gps.dist}m`, "error"); 
@@ -139,12 +140,10 @@ export default function SupervisorPage() {
     const ahora = new Date().toISOString();
     const inputBusqueda = qrData.trim();
     const pin = pinEmpleado.toUpperCase().trim();
-    
-    // CAMBIO DE PREFIJOS: F = Flota, P = Plantilla
-    const esFlota = pin.startsWith('F');
-    const esPlantilla = pin.startsWith('P');
+    const esFlota = pin.startsWith('C');
 
     try {
+      // 1. VALIDAR SUPERVISOR
       const { data: aut, error: autErr } = await supabase
         .from('empleados')
         .select('nombre')
@@ -155,41 +154,51 @@ export default function SupervisorPage() {
       if (autErr || !aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
+      // 2. ENRUTAMIENTO LÓGICO: FLOTA O EMPLEADO
       if (esFlota) {
+        // --- PROCESO DE FLOTA ---
         const { data: vehiculo, error: vErr } = await supabase
           .from('flota')
           .select('*')
           .eq('pin_secreto', pin)
-          .or(`documento_id.eq.${inputBusqueda}`)
+          .or(`documento.eq.${inputBusqueda}`)
           .maybeSingle();
 
-        if (vErr || !vehiculo) throw new Error("PIN DE FLOTA NO REGISTRADO");
+        if (vErr || !vehiculo) throw new Error("CONDUCTOR/FLOTA NO REGISTRADO");
 
         if (direccion === 'entrada') {
-          await supabase.from('flota').update({ 
+          // Grabación de llegada
+          const { error: updErr } = await supabase.from('flota').update({ 
             hora_llegada: ahora, 
             hora_salida: null, 
             estado: 'en_patio',
             autorizado_por: aut.nombre 
           }).eq('id', vehiculo.id);
           
-          showNotification(`ENTRADA FLOTA: ${vehiculo.nombre_flota} ✅`, "success");
+          if (updErr) throw updErr;
+          showNotification(`LLEGADA FLOTA: ${vehiculo.nombre_flota} ✅`, "success");
           setTimeout(resetLectura, 2000);
         } else {
+          // Grabación de salida: Requerir Auditoría de Carga
           setTempVehiculo(vehiculo);
           setDatosFlota({ id: vehiculo.id, cant_carga: vehiculo.cant_rutas || 0, observacion: '' });
           setShowModalFlota(true);
         }
 
-      } else if (esPlantilla) {
+      } else {
+        // --- PROCESO DE EMPLEADOS (EXISTENTE) ---
         const { data: emp, error: empErr } = await supabase
           .from('empleados')
           .select('id, nombre, pin_seguridad, activo, documento_id, email')
-          .eq('pin_seguridad', pin)
+          .or(`documento_id.eq.${inputBusqueda},email.eq.${inputBusqueda.toLowerCase()}`)
           .maybeSingle();
 
-        if (empErr || !emp) throw new Error("PIN DE PLANTILLA NO ENCONTRADO");
+        if (empErr || !emp) throw new Error("ID NO REGISTRADO");
         if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
+
+        if (modo === 'manual' && String(emp.pin_seguridad) !== pin) {
+          throw new Error("PIN TRABAJADOR INCORRECTO");
+        }
 
         if (direccion === 'entrada') {
           const { error: insErr } = await supabase.from('jornadas').insert([{ 
@@ -202,7 +211,7 @@ export default function SupervisorPage() {
           if (insErr) throw insErr;
           await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
         } else {
-          const { data: j } = await supabase
+          const { data: j, error: jErr } = await supabase
             .from('jornadas')
             .select('*')
             .eq('empleado_id', emp.id)
@@ -211,21 +220,21 @@ export default function SupervisorPage() {
             .limit(1)
             .maybeSingle();
 
-          if (!j) throw new Error("SIN ENTRADA ACTIVA");
+          if (jErr || !j) throw new Error("SIN ENTRADA ACTIVA");
 
           const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
-          await supabase.from('jornadas').update({ 
+          const { error: updErr } = await supabase.from('jornadas').update({ 
             hora_salida: ahora, 
             horas_trabajadas: horas, 
             autoriza_salida: firma, 
             estado: 'finalizado' 
           }).eq('id', j.id);
+          if (updErr) throw updErr;
           await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
         }
+
         showNotification("REGISTRO EXITOSO ✅", "success");
         setTimeout(resetLectura, 2000);
-      } else {
-        throw new Error("PIN INVÁLIDO (USE F... O P...)");
       }
     } catch (e: any) { 
       showNotification(e.message, "error");
@@ -235,15 +244,18 @@ export default function SupervisorPage() {
     }
   };
 
+  // CONFIRMACIÓN DE DESPACHO CON DATOS DE AUDITORÍA
   const confirmarDespachoFlota = async () => {
     try {
       const ahora = new Date().toISOString();
-      await supabase.from('flota').update({
+      const { error } = await supabase.from('flota').update({
         hora_salida: ahora,
         cant_carga: datosFlota.cant_carga,
         observacion: datosFlota.observacion,
         estado: 'despachado'
       }).eq('id', datosFlota.id);
+
+      if (error) throw error;
 
       setShowModalFlota(false);
       showNotification("DESPACHO DE FLOTA REGISTRADO ✅", "success");
@@ -269,30 +281,44 @@ export default function SupervisorPage() {
         <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl max-w-[90%] break-words text-center ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
       )}
 
-      {/* MODAL AUDITORÍA FLOTA */}
+      {/* MODAL DE AUDITORÍA LOGÍSTICA (CANT_CARGA + OBSERVACIÓN) */}
       {showModalFlota && (
-        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="w-full max-w-md bg-[#111111] border-2 border-blue-600 rounded-[40px] p-8 shadow-[0_0_50px_rgba(37,99,235,0.2)]">
             <h2 className="text-2xl font-black text-white italic uppercase text-center mb-6 tracking-tighter">
-              Auditoría de <span className="text-blue-500">Carga (F)</span>
+              Auditoría de <span className="text-blue-500">Carga</span>
             </h2>
             <div className="space-y-6">
               <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Vehículo / Flota</p>
                 <p className="text-lg font-black text-white uppercase">{tempVehiculo?.nombre_flota}</p>
-                <p className="text-[11px] text-blue-500 font-bold tracking-widest">Plan: {tempVehiculo?.cant_rutas} RUTAS</p>
+                <p className="text-[11px] text-blue-500 font-bold">Planificado: {tempVehiculo?.cant_rutas} Rutas</p>
               </div>
+
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block ml-2">Cant. Cargada Reales</label>
-                <input type="number" className="w-full bg-black border-2 border-white/10 p-5 rounded-3xl text-4xl font-black text-center text-white focus:border-emerald-500 outline-none" value={datosFlota.cant_carga} onChange={e => setDatosFlota({...datosFlota, cant_carga: parseInt(e.target.value) || 0})} autoFocus />
+                <input 
+                  type="number" 
+                  className="w-full bg-black border-2 border-white/10 p-5 rounded-3xl text-4xl font-black text-center text-white focus:border-emerald-500 outline-none transition-all shadow-inner"
+                  value={datosFlota.cant_carga}
+                  onChange={e => setDatosFlota({...datosFlota, cant_carga: parseInt(e.target.value) || 0})}
+                  autoFocus
+                />
               </div>
+
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block ml-2">Observaciones</label>
-                <textarea className="w-full bg-black border-2 border-white/10 p-4 rounded-3xl text-sm text-white focus:border-blue-500 outline-none h-24 resize-none" placeholder="Novedades de despacho..." value={datosFlota.observacion} onChange={e => setDatosFlota({...datosFlota, observacion: e.target.value})} />
+                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block ml-2">Observaciones de Anomalías</label>
+                <textarea 
+                  className="w-full bg-black border-2 border-white/10 p-4 rounded-3xl text-sm text-white focus:border-blue-500 outline-none h-28 resize-none"
+                  placeholder="Escriba aquí si hubo novedades en la carga..."
+                  value={datosFlota.observacion}
+                  onChange={e => setDatosFlota({...datosFlota, observacion: e.target.value})}
+                />
               </div>
+
               <div className="flex gap-3">
-                <button onClick={() => setShowModalFlota(false)} className="flex-1 py-4 bg-white/5 rounded-2xl font-bold text-slate-400 uppercase text-xs">Cancelar</button>
-                <button onClick={confirmarDespachoFlota} className="flex-[2] py-4 bg-blue-600 rounded-2xl font-black text-lg uppercase italic text-white shadow-lg">Confirmar</button>
+                <button onClick={() => setShowModalFlota(false)} className="flex-1 py-4 bg-white/5 rounded-2xl font-bold text-slate-400 uppercase text-xs active:scale-95 transition-all">Cancelar</button>
+                <button onClick={confirmarDespachoFlota} className="flex-[2] py-4 bg-blue-600 rounded-2xl font-black text-lg uppercase italic text-white active:scale-95 transition-all shadow-lg shadow-blue-900/40">Confirmar</button>
               </div>
             </div>
           </div>
@@ -302,13 +328,17 @@ export default function SupervisorPage() {
       <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
         <h1 className="text-xl font-black italic uppercase leading-none">
           <span className="text-white">
-            {modo === 'menu' ? 'PANEL DE LECTURA' : modo === 'usb' ? 'SCANNER USB' : modo === 'camara' ? 'CÁMARA MÓVIL' : 'ACCESO MANUAL'}
+            {modo === 'menu' ? 'PANEL DE LECTURA' : 
+             modo === 'usb' ? 'LECTURA POR SCANNER' : 
+             modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}
           </span>
+          {modo === 'menu' && <span className="text-blue-700"> QR</span>}
         </h1>
         {user && (
           <div className="pt-3 mt-3 border-t border-white/10">
-            <p className="text-[11px] uppercase font-bold tracking-wider text-slate-400">
-              <span className="text-white">{user.nombre}</span> <span className="text-blue-600">({user.nivel_acceso})</span>
+            <p className="text-[11px] uppercase font-bold tracking-wider">
+              <span className="text-white">{user.nombre}</span> 
+              <span className="text-blue-600 ml-1">({user.nivel_acceso})</span>
             </p>
           </div>
         )}
@@ -326,7 +356,7 @@ export default function SupervisorPage() {
           <div className="flex flex-col gap-4 w-full">
             <button onClick={() => setDireccion('entrada')} className="w-full py-10 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95">ENTRADA</button>
             <button onClick={() => setDireccion('salida')} className="w-full py-10 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95">SALIDA</button>
-            <button onClick={() => { setModo('menu'); setDireccion(null); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← VOLVER</button>
+            <button onClick={() => { setModo('menu'); setDireccion(null); resetLectura(); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← VOLVER ATRÁS</button>
           </div>
         ) : (
           <div className="space-y-4 w-full">
@@ -348,14 +378,28 @@ export default function SupervisorPage() {
             </div>
 
             <div className="space-y-2">
-              <input type="text" placeholder="PIN (F... / P...)" className="w-full py-3 bg-[#050a14] rounded-2xl text-center text-xl font-black border-2 border-white/10 text-blue-400 outline-none uppercase" value={pinEmpleado} onChange={e => setPinEmpleado(e.target.value)} />
+              <input 
+                type="text" 
+                placeholder="PIN PIN (E... / C...)" 
+                className="w-full py-3 bg-[#050a14] rounded-2xl text-center text-xl font-black border-2 border-white/10 text-blue-400 outline-none uppercase" 
+                value={pinEmpleado} 
+                onChange={e => setPinEmpleado(e.target.value)} 
+              />
               {(lecturaLista || pinEmpleado.length > 3) && (
-                <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-4 border-blue-600 text-white outline-none animate-pulse" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
+                <input 
+                  type="password" 
+                  placeholder="PIN SUPERVISOR" 
+                  className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-4 border-blue-600 text-white outline-none animate-pulse" 
+                  value={pinAutorizador} 
+                  onChange={e => setPinAutorizador(e.target.value)} 
+                  onKeyDown={e => e.key === 'Enter' && registrarAcceso()} 
+                  autoFocus 
+                />
               )}
             </div>
             
             <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">{animar ? '...' : 'CONFIRMAR'}</button>
-            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] italic">← VOLVER</button>
+            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← VOLVER ATRÁS</button>
           </div>
         )}
       </div>
