@@ -46,7 +46,54 @@ export default function SupervisorPage() {
   }, [router]);
 
   useEffect(() => {
-@@ -96,11 +96,11 @@
+    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    const reset = () => resetTimerInactividad();
+    eventos.forEach(e => document.addEventListener(e, reset));
+    resetTimerInactividad();
+    return () => eventos.forEach(e => document.removeEventListener(e, reset));
+  }, [resetTimerInactividad]);
+
+  useEffect(() => {
+    const sessionData = localStorage.getItem('user_session');
+    if (!sessionData) { router.push('/'); return; }
+    setUser(JSON.parse(sessionData));
+
+    const loadConfig = async () => {
+      const { data } = await supabase.from('sistema_config').select('clave, valor');
+      if (data) {
+        const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
+        const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
+        setConfig({
+          lat: isNaN(parsedLat) ? 0 : parsedLat,
+          lon: isNaN(parsedLon) ? 0 : parsedLon,
+          radio: parseInt(m.radio_permitido) || 100,
+          qr_exp: parseInt(m.qr_expiracion) || 30000
+        });
+      }
+    };
+    loadConfig();
+
+    const watchId = navigator.geolocation.watchPosition((pos) => {
+      setGps(prev => ({ ...prev, lat: pos.coords.latitude, lon: pos.coords.longitude }));
+    }, null, { enableHighAccuracy: true });
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [router]);
+
+  useEffect(() => {
+    if (config.lat !== 0 && gps.lat !== 0) {
+      const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
+      setGps(prev => ({ ...prev, dist: Math.round(d) }));
+    }
+  }, [gps.lat, gps.lon, config]);
+
+  const procesarQR = (texto: string) => {
+    const cleanText = texto.replace(/[\n\r]/g, '').trim();
+    try {
+      const decoded = atob(cleanText);
+      if (decoded.includes('|')) {
+        const [docId, timestamp] = decoded.split('|');
+        if (Date.now() - parseInt(timestamp) > config.qr_exp) {
           showNotification("QR EXPIRADO", "error"); 
           return '';
         }
@@ -61,7 +108,31 @@ export default function SupervisorPage() {
     }
   };
 
-@@ -132,63 +132,89 @@
+  useEffect(() => {
+    if (modo === 'camara' && direccion && !lecturaLista) {
+      const scanner = new Html5Qrcode("reader");
+      scannerRef.current = scanner;
+      scanner.start(
+        { facingMode: "environment" }, 
+        { fps: 20, qrbox: { width: 250, height: 250 } }, 
+        (decoded) => {
+          const doc = procesarQR(decoded);
+          if (doc) {
+            setQrData(doc);
+            setLecturaLista(true);
+            scanner.stop();
+          }
+        }, 
+        () => {}
+      ).catch(() => {});
+      return () => { if(scannerRef.current?.isScanning) scannerRef.current.stop(); };
+    }
+  }, [modo, direccion, lecturaLista]);
+
+  const registrarAcceso = async () => {
+    if (gps.dist > config.radio) {
+      showNotification(`FUERA DE RANGO: ${gps.dist}m`, "error"); 
+      setTimeout(resetLectura, 2000); return;
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
@@ -167,7 +238,21 @@ export default function SupervisorPage() {
             {modo === 'menu' ? 'PANEL DE LECTURA' : 
              modo === 'usb' ? 'LECTURA POR SCANNER' : 
              modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}
-@@ -210,56 +236,56 @@
+          </span>
+          {modo === 'menu' && <span className="text-blue-700"> QR</span>}
+        </h1>
+        {user && (
+          <div className="pt-3 mt-3 border-t border-white/10">
+            <p className="text-[11px] uppercase font-bold tracking-wider">
+              <span className="text-white">{user.nombre}</span> 
+              <span className="text-blue-600 ml-1">({user.nivel_acceso})</span>
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[40px] border border-white/5 shadow-2xl relative">
+        {modo === 'menu' ? (
           <div className="grid gap-4 w-full">
             <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">🔌 SCANNER USB</button>
             <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">📱 CÁMARA MÓVIL</button>
