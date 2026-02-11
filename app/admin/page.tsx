@@ -46,11 +46,8 @@ const MemebreteSuperior = ({
       </p>
       {usuario && modulo && (
         <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-white font-bold text-sm">{tempUser.nombre}</span>
-              <span className="text-gray-400 mx-2">•</span>
-              <span className="text-cyan-300">{obtenerRol(tempUser.nivel_acceso)}</span>
-              <span className="text-gray-400 ml-2">({tempUser.nivel_acceso})</span>
-
+          <span className="text-sm font-normal text-white uppercase block">
+            {usuario.nombre}  •  {modulo}  ({usuario.nivel_acceso})
           </span>
         </div>
       )}
@@ -129,7 +126,7 @@ export default function PanelAdminHub() {
   if (loading) {
     return (
       <main className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
       </main>
     );
   }
