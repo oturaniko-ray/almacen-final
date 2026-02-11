@@ -46,8 +46,11 @@ const MemebreteSuperior = ({
       </p>
       {usuario && modulo && (
         <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm font-normal text-white uppercase block">
-            {usuario.nombre}  •  {modulo}  ({usuario.nivel_acceso})
+          <span className="text-white font-bold text-sm">{tempUser.nombre}</span>
+              <span className="text-gray-400 mx-2">•</span>
+              <span className="text-cyan-300">{obtenerRol(tempUser.nivel_acceso)}</span>
+              <span className="text-gray-400 ml-2">({tempUser.nivel_acceso})</span>
+
           </span>
         </div>
       )}
