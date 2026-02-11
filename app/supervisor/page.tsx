@@ -3,18 +3,251 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
-import { 
-  MemebreteSuperior, 
-  BotonAcceso, 
-  NotificacionSistema, 
-  CampoEntrada, 
-  ContenedorPrincipal 
-} from '../configuracion/componentes';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+// ------------------------------------------------------------
+// COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
+// ------------------------------------------------------------
+
+// ----- MEMBRETE SUPERIOR -----
+const MemebreteSuperior = ({ 
+  titulo, 
+  subtitulo, 
+  usuario, 
+  conAnimacion = false, 
+  mostrarUsuario = true 
+}: { 
+  titulo: string; 
+  subtitulo: string; 
+  usuario?: any; 
+  conAnimacion?: boolean; 
+  mostrarUsuario?: boolean;
+}) => {
+  const renderTituloBicolor = (texto: string) => {
+    const palabras = texto.split(' ');
+    const ultimaPalabra = palabras.pop();
+    const primerasPalabras = palabras.join(' ');
+    return (
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{primerasPalabras} </span>
+        <span className="text-blue-700">{ultimaPalabra}</span>
+      </h1>
+    );
+  };
+
+  return (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
+      {renderTituloBicolor(titulo)}
+      <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
+        {subtitulo}
+      </p>
+      {mostrarUsuario && usuario && (
+        <div className="mt-2 pt-2 border-t border-white/10">
+          <span className="text-sm font-normal text-white uppercase block">{usuario.nombre}</span>
+          <span className="text-[10px] text-white/40 uppercase font-black tracking-widest block mt-1">
+            NIVEL: {usuario.nivel_acceso} 
+            {usuario.rol && ` | ${usuario.rol.toUpperCase()}`}
+            {usuario.permiso_reportes !== undefined && ` | REPORTES: ${usuario.permiso_reportes ? 'SÍ' : 'NO'}`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ----- BOTÓN DE ACCESO -----
+const BotonAcceso = ({ 
+  texto, 
+  icono, 
+  tipo = 'primario', 
+  onClick, 
+  disabled = false, 
+  loading = false,
+  fullWidth = true,
+  className = ''
+}: { 
+  texto: string; 
+  icono?: string; 
+  tipo?: 'primario' | 'secundario' | 'peligro' | 'exito' | 'neutral'; 
+  onClick: () => void; 
+  disabled?: boolean; 
+  loading?: boolean;
+  fullWidth?: boolean;
+  className?: string;
+}) => {
+  const colores = {
+    primario: 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800',
+    secundario: 'bg-slate-700 hover:bg-slate-600 active:bg-slate-700',
+    peligro: 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800',
+    exito: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
+    neutral: 'bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/10'
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      className={`p-4 rounded-xl text-white font-bold uppercase italic 
+        text-[11px] tracking-[0.1em] active:scale-95 transition-all shadow-lg 
+        flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
+        ${fullWidth ? 'w-full' : ''} ${colores[tipo]} ${className}`}
+    >
+      {icono && <span className="text-[1.4em]">{icono}</span>}
+      {loading ? (
+        <span className="flex items-center gap-2">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150"></span>
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300"></span>
+        </span>
+      ) : (
+        texto
+      )}
+    </button>
+  );
+};
+
+// ----- NOTIFICACIÓN DE SISTEMA -----
+const NotificacionSistema = ({ 
+  mensaje, 
+  tipo, 
+  visible, 
+  duracion = 3000, 
+  onCerrar 
+}: { 
+  mensaje: string; 
+  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null; 
+  visible: boolean; 
+  duracion?: number; 
+  onCerrar?: () => void;
+}) => {
+  const [mostrar, setMostrar] = useState(visible);
+
+  useEffect(() => {
+    setMostrar(visible);
+    if (visible && duracion > 0) {
+      const timer = setTimeout(() => {
+        setMostrar(false);
+        onCerrar?.();
+      }, duracion);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, duracion, onCerrar]);
+
+  if (!mostrar) return null;
+
+  const colores = {
+    exito: 'bg-emerald-500 border-emerald-400 shadow-emerald-500/20',
+    error: 'bg-rose-500 border-rose-400 shadow-rose-500/20',
+    advertencia: 'bg-amber-500 border-amber-400 shadow-amber-500/20',
+    info: 'bg-blue-500 border-blue-400 shadow-blue-500/20'
+  };
+
+  const iconos = {
+    exito: '✅',
+    error: '❌',
+    advertencia: '⚠️',
+    info: 'ℹ️'
+  };
+
+  return (
+    <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl 
+      font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center 
+      border-2 ${colores[tipo]} text-white flex items-center gap-3`}
+    >
+      <span className="text-lg">{iconos[tipo]}</span>
+      <span>{mensaje}</span>
+    </div>
+  );
+};
+
+// ----- CAMPO DE ENTRADA -----
+const CampoEntrada = React.forwardRef<HTMLInputElement, {
+  tipo?: 'text' | 'password' | 'email' | 'number' | 'date';
+  placeholder?: string;
+  valor: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onEnter?: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  textoCentrado?: boolean;
+  mayusculas?: boolean;
+  className?: string;
+}>(({
+  tipo = 'text',
+  placeholder = '',
+  valor,
+  onChange,
+  onEnter,
+  autoFocus = false,
+  disabled = false,
+  textoCentrado = true,
+  mayusculas = false,
+  className = ''
+}, ref) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && onEnter) onEnter();
+  };
+
+  return (
+    <input
+      ref={ref}
+      type={tipo}
+      placeholder={placeholder}
+      value={valor}
+      onChange={onChange}
+      onKeyDown={handleKeyDown}
+      autoFocus={autoFocus}
+      disabled={disabled}
+      className={`w-full bg-white/5 border border-white/10 p-4 rounded-xl 
+        text-[11px] font-bold text-white outline-none transition-colors
+        disabled:opacity-50 disabled:cursor-not-allowed
+        ${textoCentrado ? 'text-center' : ''} 
+        ${mayusculas ? 'uppercase' : ''}
+        ${tipo === 'password' ? 'tracking-[0.4em]' : ''}
+        focus:border-blue-500/50 hover:border-white/20
+        ${className}`}
+    />
+  );
+});
+
+CampoEntrada.displayName = 'CampoEntrada';
+
+// ----- CONTENEDOR PRINCIPAL -----
+const ContenedorPrincipal = ({ 
+  children, 
+  maxWidth = 'sm',
+  padding = 'md',
+  className = ''
+}: { 
+  children: React.ReactNode; 
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full'; 
+  padding?: 'sm' | 'md' | 'lg' | 'xl'; 
+  className?: string;
+}) => {
+  const ancho = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    full: 'max-w-full'
+  };
+  const espaciado = {
+    sm: 'p-4',
+    md: 'p-8',
+    lg: 'p-10',
+    xl: 'p-12'
+  };
+  return (
+    <div className={`w-full ${ancho[maxWidth]} bg-[#111111] ${espaciado[padding]} 
+      rounded-[35px] border border-white/5 shadow-2xl ${className}`}>
+      {children}
+    </div>
+  );
+};
 
 // ------------------------------------------------------------
 // FUNCIÓN AUXILIAR: Calcular distancia GPS
@@ -190,7 +423,6 @@ export default function SupervisorPage() {
     const inputBusqueda = qrData.trim();
 
     // --- VALIDACIÓN 1: Buscar empleado por documento_id o email ---
-    // 🔴 CORREGIDO: Usar comillas simples para evitar error de sintaxis
     const { data: emp, error: empErr } = await supabase
       .from('empleados')
       .select('id, nombre, pin_seguridad, activo, documento_id, email')
@@ -348,19 +580,17 @@ export default function SupervisorPage() {
   };
 
   // --------------------------------------------------------
-  // 7. RENDERIZADO CON COMPONENTES UNIFICADOS
+  // 7. RENDERIZADO CON COMPONENTES INTERNOS
   // --------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
-      {/* NOTIFICACIÓN GLOBAL */}
       <NotificacionSistema
         mensaje={notificacion.mensaje}
-        tipo={notificacion.tipo || 'info'}
+        tipo={notificacion.tipo}
         visible={!!notificacion.tipo}
       />
 
-      {/* MEMBRETE SUPERIOR - MISMO ESTILO QUE LOGIN Y EMPLEADO */}
       <MemebreteSuperior
         titulo={
           modo === 'menu'
@@ -383,12 +613,9 @@ export default function SupervisorPage() {
         mostrarUsuario={!!user}
       />
 
-      {/* CONTENEDOR PRINCIPAL - MISMO ESTILO QUE LOGIN Y EMPLEADO */}
       <ContenedorPrincipal>
         {modo === 'menu' ? (
-          // ----------------------------------------------------
-          // MENÚ PRINCIPAL: 3 BOTONES DE MÉTODO DE LECTURA
-          // ----------------------------------------------------
+          // --- MENÚ PRINCIPAL ---
           <div className="grid gap-4 w-full">
             <BotonAcceso
               texto="SCANNER USB"
@@ -416,9 +643,7 @@ export default function SupervisorPage() {
             </button>
           </div>
         ) : !direccion ? (
-          // ----------------------------------------------------
-          // SELECCIÓN: ENTRADA / SALIDA
-          // ----------------------------------------------------
+          // --- SELECCIÓN ENTRADA/SALIDA ---
           <div className="flex flex-col gap-4 w-full">
             <BotonAcceso
               texto="ENTRADA"
@@ -444,12 +669,9 @@ export default function SupervisorPage() {
             </button>
           </div>
         ) : (
-          // ----------------------------------------------------
-          // PANTALLA DE LECTURA / CAPTURA DE DATOS
-          // ----------------------------------------------------
+          // --- PANTALLA DE LECTURA / CAPTURA ---
           <div className="space-y-4 w-full">
             
-            {/* INFORMACIÓN GPS - ESTILO CONSISTENTE */}
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
               <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
                 LAT: {gps.lat.toFixed(6)} | LON: {gps.lon.toFixed(6)} |{' '}
@@ -465,7 +687,6 @@ export default function SupervisorPage() {
               </p>
             </div>
 
-            {/* ÁREA DE LECTURA QR O CAMPO MANUAL */}
             <div
               className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
                 lecturaLista ? 'border-emerald-500' : 'border-white/10'
@@ -512,7 +733,6 @@ export default function SupervisorPage() {
               )}
             </div>
 
-            {/* CAMPO DE PIN TRABAJADOR (solo modo manual) */}
             {modo === 'manual' && !lecturaLista && (
               <CampoEntrada
                 tipo="password"
@@ -522,7 +742,6 @@ export default function SupervisorPage() {
               />
             )}
 
-            {/* CAMPO DE PIN SUPERVISOR (aparece cuando ya se identificó al empleado) */}
             {(lecturaLista || (modo === 'manual' && qrData && pinEmpleado)) && (
               <CampoEntrada
                 tipo="password"
@@ -534,7 +753,6 @@ export default function SupervisorPage() {
               />
             )}
 
-            {/* BOTÓN CONFIRMAR - MISMO ESTILO EN TODO EL SISTEMA */}
             <BotonAcceso
               texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
               icono="✅"
@@ -544,7 +762,6 @@ export default function SupervisorPage() {
               loading={animar}
             />
 
-            {/* BOTÓN VOLVER */}
             <button
               onClick={() => {
                 setDireccion(null);
@@ -558,15 +775,17 @@ export default function SupervisorPage() {
         )}
       </ContenedorPrincipal>
 
-      {/* ESTILOS GLOBALES PARA ANIMACIONES */}
       <style jsx global>{`
-        @keyframes scan-laser {
-          0%, 100% { top: 0%; }
-          50% { top: 100%; }
-        }
-        .animate-scan-laser {
-          animation: scan-laser 2s infinite linear;
-        }
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+        @keyframes scan-laser { 0%, 100% { top: 0%; } 50% { top: 100%; } }
+        .animate-scan-laser { animation: scan-laser 2s infinite linear; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .animate-bounce { animation: bounce 1s infinite; }
       `}</style>
     </main>
   );
