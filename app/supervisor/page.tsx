@@ -31,11 +31,6 @@ export default function SupervisorPage() {
   const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000 });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
 
-  // ESTADOS PARA LOGÍSTICA DE FLOTA
-  const [showModalFlota, setShowModalFlota] = useState(false);
-  const [datosFlota, setDatosFlota] = useState({ id: '', cant_carga: 0, observacion: '' });
-  const [tempVehiculo, setTempVehiculo] = useState<any>(null);
-
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -46,316 +41,137 @@ export default function SupervisorPage() {
       if (scannerRef.current?.isScanning) scannerRef.current.stop();
       localStorage.clear();
       router.push('/');
+    }, 90000); // 90 segundos fijos
     }, 90000); 
   }, [router]);
 
   useEffect(() => {
-    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    const reset = () => resetTimerInactividad();
-    eventos.forEach(e => document.addEventListener(e, reset));
-    resetTimerInactividad();
-    return () => eventos.forEach(e => document.removeEventListener(e, reset));
-  }, [resetTimerInactividad]);
-
-  useEffect(() => {
-    const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { router.push('/'); return; }
-    setUser(JSON.parse(sessionData));
-
-    const loadConfig = async () => {
-      const { data } = await supabase.from('sistema_config').select('clave, valor');
-      if (data) {
-        const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-        const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
-        const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
-        setConfig({
-          lat: isNaN(parsedLat) ? 0 : parsedLat,
-          lon: isNaN(parsedLon) ? 0 : parsedLon,
-          radio: parseInt(m.radio_permitido) || 100,
-          qr_exp: parseInt(m.qr_expiracion) || 30000
-        });
-      }
-    };
-    loadConfig();
-
-    const watchId = navigator.geolocation.watchPosition((pos) => {
-      setGps(prev => ({ ...prev, lat: pos.coords.latitude, lon: pos.coords.longitude }));
-    }, null, { enableHighAccuracy: true });
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [router]);
-
-  useEffect(() => {
-    if (config.lat !== 0 && gps.lat !== 0) {
-      const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
-      setGps(prev => ({ ...prev, dist: Math.round(d) }));
-    }
-  }, [gps.lat, gps.lon, config]);
-
-  const procesarQR = (texto: string) => {
-    const cleanText = texto.replace(/[\n\r]/g, '').trim();
-    try {
-      const decoded = atob(cleanText);
-      if (decoded.includes('|')) {
-        const [docId, timestamp] = decoded.split('|');
-        if (Date.now() - parseInt(timestamp) > config.qr_exp) {
+@@ -96,11 +96,11 @@
           showNotification("QR EXPIRADO", "error"); 
           return '';
         }
-        return docId;
+        return docId.trim().toUpperCase(); // Normalización de salida
+        return docId; // Retorna original (preserva minúsculas)
       }
+      return cleanText.toUpperCase();
       return cleanText;
     } catch { 
+      return cleanText.toUpperCase(); 
       return cleanText; 
     }
   };
 
-  useEffect(() => {
-    if (modo === 'camara' && direccion && !lecturaLista) {
-      const scanner = new Html5Qrcode("reader");
-      scannerRef.current = scanner;
-      scanner.start(
-        { facingMode: "environment" }, 
-        { fps: 20, qrbox: { width: 250, height: 250 } }, 
-        (decoded) => {
-          const doc = procesarQR(decoded);
-          if (doc) {
-            setQrData(doc);
-            setLecturaLista(true);
-            scanner.stop();
-          }
-        }, 
-        () => {}
-      ).catch(() => {});
-      return () => { if(scannerRef.current?.isScanning) scannerRef.current.stop(); };
-    }
-  }, [modo, direccion, lecturaLista]);
-
-  const registrarAcceso = async () => {
-    if (gps.dist > config.radio) {
-      showNotification(`FUERA DE RANGO: ${gps.dist}m`, "error"); 
-      setTimeout(resetLectura, 2000); return;
+@@ -132,42 +132,68 @@
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
-    const inputBusqueda = qrData.trim();
-    const pin = pinEmpleado.toUpperCase().trim();
     
-    // CAMBIO DE PREFIJOS: F = Flota, P = Plantilla
-    const esFlota = pin.startsWith('F');
-    const esPlantilla = pin.startsWith('P');
+    // NORMALIZACIÓN QUIRÚRGICA DEL ID
+    const idLimpio = qrData.trim().toUpperCase();
 
     try {
-      const { data: aut, error: autErr } = await supabase
+      // Corrección de la consulta .or() para evitar fallos de parsing
+      const { data: emp, error: errorEmp } = await supabase
+      // Búsqueda en tabla maestra sin forzar uppercase en la query
+      const { data: emp, error: errEmp } = await supabase
+        .from('empleados')
+        .select('*')
+        .or(`documento_id.eq.${idLimpio},email.eq.${idLimpio.toLowerCase()}`)
+        .or(`documento_id.eq."${qrData}",email.eq."${qrData}"`)
+        .maybeSingle();
+
+      if (!emp || errorEmp) throw new Error("ID NO REGISTRADO");
+      if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) throw new Error("PIN TRABAJADOR INCORRECTO");
+      if (!emp) throw new Error("ID NO REGISTRADO");
+
+      const { data: aut } = await supabase.from('empleados').select('nombre').eq('pin_seguridad', String(pinAutorizador)).in('rol', ['supervisor', 'admin', 'Administrador']).maybeSingle();
+      // Validación de PIN respetando minúsculas
+      if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
+        throw new Error("PIN TRABAJADOR INCORRECTO");
+      }
+
+      const { data: aut } = await supabase
         .from('empleados')
         .select('nombre')
         .eq('pin_seguridad', String(pinAutorizador))
         .in('rol', ['supervisor', 'admin', 'Administrador'])
         .maybeSingle();
 
-      if (autErr || !aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
+      if (!aut) throw new Error("PIN SUPERVISOR INVÁLIDO");
+
       const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
-      if (esFlota) {
-        const { data: vehiculo, error: vErr } = await supabase
-          .from('flota')
-          .select('*')
-          .eq('pin_secreto', pin)
-          .or(`documento_id.eq.${inputBusqueda}`)
-          .maybeSingle();
-
-        if (vErr || !vehiculo) throw new Error("PIN DE FLOTA NO REGISTRADO");
-
-        if (direccion === 'entrada') {
-          await supabase.from('flota').update({ 
-            hora_llegada: ahora, 
-            hora_salida: null, 
-            estado: 'en_patio',
-            autorizado_por: aut.nombre 
-          }).eq('id', vehiculo.id);
-          
-          showNotification(`ENTRADA FLOTA: ${vehiculo.nombre_flota} ✅`, "success");
-          setTimeout(resetLectura, 2000);
-        } else {
-          setTempVehiculo(vehiculo);
-          setDatosFlota({ id: vehiculo.id, cant_carga: vehiculo.cant_rutas || 0, observacion: '' });
-          setShowModalFlota(true);
-        }
-
-      } else if (esPlantilla) {
-        const { data: emp, error: empErr } = await supabase
-          .from('empleados')
-          .select('id, nombre, pin_seguridad, activo, documento_id, email')
-          .eq('pin_seguridad', pin)
-          .maybeSingle();
-
-        if (empErr || !emp) throw new Error("PIN DE PLANTILLA NO ENCONTRADO");
-        if (!emp.activo) throw new Error("EMPLEADO INACTIVO");
-
-        if (direccion === 'entrada') {
-          const { error: insErr } = await supabase.from('jornadas').insert([{ 
-            empleado_id: emp.id, 
-            nombre_empleado: emp.nombre, 
-            hora_entrada: ahora, 
-            autoriza_entrada: firma, 
-            estado: 'activo' 
-          }]);
-          if (insErr) throw insErr;
-          await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
-        } else {
-          const { data: j } = await supabase
-            .from('jornadas')
-            .select('*')
-            .eq('empleado_id', emp.id)
-            .is('hora_salida', null)
-            .order('hora_entrada', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!j) throw new Error("SIN ENTRADA ACTIVA");
-
-          const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
-          await supabase.from('jornadas').update({ 
-            hora_salida: ahora, 
-            horas_trabajadas: horas, 
-            autoriza_salida: firma, 
-            estado: 'finalizado' 
-          }).eq('id', j.id);
-          await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
-        }
-        showNotification("REGISTRO EXITOSO ✅", "success");
-        setTimeout(resetLectura, 2000);
+      if (direccion === 'entrada') {
+        await supabase.from('jornadas').insert([{ empleado_id: emp.id, nombre_empleado: emp.nombre, hora_entrada: ahora, autoriza_entrada: firma, estado: 'activo' }]);
+        // Lógica corregida: No importa si no hay registros en jornadas previos
+        await supabase.from('jornadas').insert([{ 
+          empleado_id: emp.id, 
+          nombre_empleado: emp.nombre, 
+          hora_entrada: ahora, 
+          autoriza_entrada: firma, 
+          estado: 'activo' 
+        }]);
+        await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
       } else {
-        throw new Error("PIN INVÁLIDO (USE F... O P...)");
+        const { data: j } = await supabase.from('jornadas').select('*').eq('empleado_id', emp.id).is('hora_salida', null).maybeSingle();
+        // Para salida sí buscamos el registro activo actual
+        const { data: j } = await supabase
+          .from('jornadas')
+          .select('*')
+          .eq('empleado_id', emp.id)
+          .is('hora_salida', null)
+          .maybeSingle();
+
+        if (!j) throw new Error("SIN ENTRADA ACTIVA");
+
+        const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
+        await supabase.from('jornadas').update({ hora_salida: ahora, horas_trabajadas: horas, autoriza_salida: firma, estado: 'finalizado' }).eq('id', j.id);
+        await supabase.from('jornadas').update({ 
+          hora_salida: ahora, 
+          horas_trabajadas: horas, 
+          autoriza_salida: firma, 
+          estado: 'finalizado' 
+        }).eq('id', j.id);
+        await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       }
+
+      showNotification("REGISTRO EXITOSO ✅", "success");
+      setTimeout(resetLectura, 2000);
     } catch (e: any) { 
       showNotification(e.message, "error");
-      setTimeout(resetLectura, 4000);
-    } finally { 
-      setAnimar(false); 
-    }
+      // PROTOCOLO SENIOR: Retorno al foco inicial en error
+      setPinAutorizador('');
+      if (modo === 'manual') setPinEmpleado('');
+      setTimeout(resetLectura, 2000);
+    } finally { setAnimar(false); }
   };
 
-  const confirmarDespachoFlota = async () => {
-    try {
-      const ahora = new Date().toISOString();
-      await supabase.from('flota').update({
-        hora_salida: ahora,
-        cant_carga: datosFlota.cant_carga,
-        observacion: datosFlota.observacion,
-        estado: 'despachado'
-      }).eq('id', datosFlota.id);
-
-      setShowModalFlota(false);
-      showNotification("DESPACHO DE FLOTA REGISTRADO ✅", "success");
-      resetLectura();
-    } catch (e: any) {
-      showNotification("FALLO AL GRABAR DESPACHO", "error");
-    }
-  };
-
-  const resetLectura = () => {
-    setQrData(''); setLecturaLista(false); setPinEmpleado(''); setPinAutorizador('');
-    setTempVehiculo(null);
-  };
-
-  const showNotification = (texto: string, tipo: 'success' | 'error') => {
-    setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 6000);
-  };
-
-  return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative font-sans overflow-hidden">
-      {mensaje.tipo && (
-        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl max-w-[90%] break-words text-center ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
-      )}
-
-      {/* MODAL AUDITORÍA FLOTA */}
-      {showModalFlota && (
-        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#111111] border-2 border-blue-600 rounded-[40px] p-8 shadow-[0_0_50px_rgba(37,99,235,0.2)]">
-            <h2 className="text-2xl font-black text-white italic uppercase text-center mb-6 tracking-tighter">
-              Auditoría de <span className="text-blue-500">Carga (F)</span>
-            </h2>
-            <div className="space-y-6">
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Vehículo / Flota</p>
-                <p className="text-lg font-black text-white uppercase">{tempVehiculo?.nombre_flota}</p>
-                <p className="text-[11px] text-blue-500 font-bold tracking-widest">Plan: {tempVehiculo?.cant_rutas} RUTAS</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block ml-2">Cant. Cargada Reales</label>
-                <input type="number" className="w-full bg-black border-2 border-white/10 p-5 rounded-3xl text-4xl font-black text-center text-white focus:border-emerald-500 outline-none" value={datosFlota.cant_carga} onChange={e => setDatosFlota({...datosFlota, cant_carga: parseInt(e.target.value) || 0})} autoFocus />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block ml-2">Observaciones</label>
-                <textarea className="w-full bg-black border-2 border-white/10 p-4 rounded-3xl text-sm text-white focus:border-blue-500 outline-none h-24 resize-none" placeholder="Novedades de despacho..." value={datosFlota.observacion} onChange={e => setDatosFlota({...datosFlota, observacion: e.target.value})} />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowModalFlota(false)} className="flex-1 py-4 bg-white/5 rounded-2xl font-bold text-slate-400 uppercase text-xs">Cancelar</button>
-                <button onClick={confirmarDespachoFlota} className="flex-[2] py-4 bg-blue-600 rounded-2xl font-black text-lg uppercase italic text-white shadow-lg">Confirmar</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
-        <h1 className="text-xl font-black italic uppercase leading-none">
-          <span className="text-white">
-            {modo === 'menu' ? 'PANEL DE LECTURA' : modo === 'usb' ? 'SCANNER USB' : modo === 'camara' ? 'CÁMARA MÓVIL' : 'ACCESO MANUAL'}
-          </span>
-        </h1>
-        {user && (
-          <div className="pt-3 mt-3 border-t border-white/10">
-            <p className="text-[11px] uppercase font-bold tracking-wider text-slate-400">
-              <span className="text-white">{user.nombre}</span> <span className="text-blue-600">({user.nivel_acceso})</span>
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[40px] border border-white/5 shadow-2xl relative">
-        {modo === 'menu' ? (
-          <div className="grid gap-4 w-full">
-            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">🔌 SCANNER USB</button>
-            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">📱 CÁMARA MÓVIL</button>
-            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-8 rounded-2xl text-white font-black uppercase italic text-lg border border-white/10 active:scale-95">🖋️ MANUAL</button>
-            <button onClick={() => router.push('/')} className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic">← Volver</button>
-          </div>
-        ) : !direccion ? (
-          <div className="flex flex-col gap-4 w-full">
-            <button onClick={() => setDireccion('entrada')} className="w-full py-10 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95">ENTRADA</button>
-            <button onClick={() => setDireccion('salida')} className="w-full py-10 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95">SALIDA</button>
-            <button onClick={() => { setModo('menu'); setDireccion(null); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← VOLVER</button>
-          </div>
-        ) : (
-          <div className="space-y-4 w-full">
-            <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
-              <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
-                Lat:{gps.lat.toFixed(8)}  Lon:{gps.lon.toFixed(8)}  <span className={gps.dist <= config.radio ? "text-emerald-500" : "text-rose-500"}>({gps.dist} mts)</span>
-              </p>
-            </div>
-
-            <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center relative overflow-hidden`}>
+@@ -231,35 +257,35 @@
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
                     {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
                     {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full uppercase" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
+                    {modo === 'usb' && <input autoFocus className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full" placeholder="ESPERANDO QR..." onKeyDown={e => { if(e.key==='Enter'){ const d=procesarQR((e.target as any).value); if(d){setQrData(d);setLecturaLista(true);}}}} />}
+                    {modo === 'manual' && <input autoFocus className="bg-transparent text-center text-xl font-black text-white outline-none w-full" placeholder="DOC / CORREO" value={qrData} onChange={e => setQrData(e.target.value)} />}
                     {modo !== 'manual' && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser"></div>}
                   </>
                 ) : <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>}
             </div>
 
-            <div className="space-y-2">
-              <input type="text" placeholder="PIN (F... / P...)" className="w-full py-3 bg-[#050a14] rounded-2xl text-center text-xl font-black border-2 border-white/10 text-blue-400 outline-none uppercase" value={pinEmpleado} onChange={e => setPinEmpleado(e.target.value)} />
-              {(lecturaLista || pinEmpleado.length > 3) && (
-                <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-4 border-blue-600 text-white outline-none animate-pulse" value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
-              )}
-            </div>
-            
+            {modo === 'manual' && !lecturaLista && (
+              <div className="space-y-2">
+                <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-xl text-center"><p className="text-amber-500 text-[9px] font-black uppercase italic">⚠️ Requiere Validación Administrativa</p></div>
+                <input type="password" placeholder="PIN TRABAJADOR" className="w-full py-4 bg-[#050a14] rounded-2xl text-center text-2xl font-black border-2 border-white/10 text-white outline-none" value={pinEmpleado} onChange={e => setPinEmpleado(e.target.value)} />
+              </div>
+            )}
+
+            {(lecturaLista || (modo === 'manual' && qrData && pinEmpleado)) && (
+              <input type="password" placeholder="PIN SUPERVISOR" className="w-full py-2 bg-[#050a14] rounded-2xl text-center text-xl font-black border-4 border-blue-600 text-white outline-none" style={{ fontSize: '60%' }} value={pinAutorizador} onChange={e => setPinAutorizador(e.target.value)} onKeyDown={e => e.key === 'Enter' && registrarAcceso()} autoFocus />
+            )}
+
             <button onClick={registrarAcceso} className="w-full py-6 bg-blue-600 rounded-2xl font-black text-xl uppercase italic active:scale-95">{animar ? '...' : 'CONFIRMAR'}</button>
-            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] italic">← VOLVER</button>
+            <button onClick={() => { setDireccion(null); resetLectura(); }} className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic">← VOLVER ATRÁS</button>
           </div>
         )}
       </div>
@@ -368,4 +184,3 @@ export default function SupervisorPage() {
       `}</style>
     </main>
   );
-}
