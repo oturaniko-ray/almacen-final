@@ -13,7 +13,7 @@ const supabase = createClient(
 // COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR -----
+// ----- MEMBRETE SUPERIOR (SIMPLIFICADO) -----
 const MemebreteSuperior = ({ 
   titulo, 
   subtitulo, 
@@ -47,11 +47,8 @@ const MemebreteSuperior = ({
       </p>
       {mostrarUsuario && usuario && (
         <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm font-normal text-white uppercase block">{usuario.nombre}</span>
-          <span className="text-[10px] text-white/40 uppercase font-black tracking-widest block mt-1">
-            NIVEL: {usuario.nivel_acceso} 
-            {usuario.rol && ` | ${usuario.rol.toUpperCase()}`}
-            {usuario.permiso_reportes !== undefined && ` | REPORTES: ${usuario.permiso_reportes ? 'SÍ' : 'NO'}`}
+          <span className="text-sm font-normal text-white uppercase block">
+            {usuario.nombre}•{usuario.rol?.toUpperCase() || 'SIN ROL'}({usuario.nivel_acceso})
           </span>
         </div>
       )}
@@ -59,7 +56,7 @@ const MemebreteSuperior = ({
   );
 };
 
-// ----- BOTÓN DE ACCESO -----
+// ----- BOTÓN DE ACCESO (TEXTO MÁS GRANDE) -----
 const BotonAcceso = ({ 
   texto, 
   icono, 
@@ -92,7 +89,7 @@ const BotonAcceso = ({
       onClick={onClick}
       disabled={disabled || loading}
       className={`p-4 rounded-xl text-white font-bold uppercase italic 
-        text-[11px] tracking-[0.1em] active:scale-95 transition-all shadow-lg 
+        text-[13px] tracking-[0.1em] active:scale-95 transition-all shadow-lg 
         flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
         ${fullWidth ? 'w-full' : ''} ${colores[tipo]} ${className}`}
     >
@@ -283,6 +280,9 @@ export default function SupervisorPage() {
     tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
   }>({ mensaje: '', tipo: null });
 
+  // --- NUEVO ESTADO PARA EL MODO MANUAL: advertencia de administrador ---
+  const [manualAprobado, setManualAprobado] = useState(false);
+
   // Estados de datos
   const [user, setUser] = useState<any>(null);
   const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000 });
@@ -292,6 +292,7 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
+  const warningRef = useRef<HTMLInputElement>(null); // Para enfocar el input de advertencia
 
   // --------------------------------------------------------
   // 1. CONTROL DE INACTIVIDAD
@@ -359,7 +360,6 @@ export default function SupervisorPage() {
 
   // --------------------------------------------------------
   // 3. PROCESAMIENTO DEL QR (DECODIFICAR BASE64)
-  //    🔍 AGREGAMOS LOGS PARA DEPURACIÓN
   // --------------------------------------------------------
   const procesarQR = (texto: string): string => {
     console.log('🔵 TEXTO QR CRUDO:', texto);
@@ -438,7 +438,7 @@ export default function SupervisorPage() {
 
   // --------------------------------------------------------
   // 5. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO
-  //    🔍 VALIDACIONES MEJORADAS Y LOGS
+  //    🔁 AHORA VUELVE AL ESTADO DE LECTURA (SIN CAMBIAR MODO/DIRECCIÓN)
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     // Validar GPS
@@ -455,7 +455,6 @@ export default function SupervisorPage() {
 
     console.log('🔎 BUSCANDO EMPLEADO CON:', inputBusqueda);
 
-    // Validar que no esté vacío
     if (!inputBusqueda) {
       mostrarNotificacion('ERROR: QR VACÍO', 'error');
       setAnimar(false);
@@ -464,7 +463,6 @@ export default function SupervisorPage() {
     }
 
     // --- VALIDACIÓN 1: Buscar empleado por documento_id o email ---
-    // 🔧 USAMOS `ilike` PARA BÚSQUEDA INSENSIBLE A MAYÚSCULAS
     const { data: emp, error: empErr } = await supabase
       .from('empleados')
       .select('id, nombre, pin_seguridad, activo, documento_id, email')
@@ -480,6 +478,7 @@ export default function SupervisorPage() {
       console.error('Error en consulta:', empErr);
       mostrarNotificacion(`ERROR EN BASE DE DATOS: ${empErr.message}`, 'error');
       setAnimar(false);
+      setTimeout(resetLectura, 2000);
       return;
     }
 
@@ -487,22 +486,22 @@ export default function SupervisorPage() {
       console.warn('⚠️ Empleado no encontrado');
       mostrarNotificacion('ID NO REGISTRADO', 'error');
       setAnimar(false);
-      setTimeout(resetLectura, 3000);
+      setTimeout(resetLectura, 2000);
       return;
     }
 
-    // Verificar que el empleado tenga documento_id (campo obligatorio)
     if (!emp.documento_id) {
       console.error('❌ Empleado sin documento_id:', emp);
       mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
       setAnimar(false);
+      setTimeout(resetLectura, 2000);
       return;
     }
 
     if (!emp.activo) {
       mostrarNotificacion('EMPLEADO INACTIVO', 'error');
       setAnimar(false);
-      setTimeout(resetLectura, 3000);
+      setTimeout(resetLectura, 2000);
       return;
     }
 
@@ -548,10 +547,10 @@ export default function SupervisorPage() {
           console.error('Error al insertar jornada:', insErr);
           mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
           setAnimar(false);
+          setTimeout(resetLectura, 2000);
           return;
         }
 
-        // Actualizar estado del empleado
         await supabase
           .from('empleados')
           .update({ en_almacen: true, ultimo_ingreso: ahora })
@@ -572,6 +571,7 @@ export default function SupervisorPage() {
         if (jErr || !j) {
           mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
           setAnimar(false);
+          setTimeout(resetLectura, 2000);
           return;
         }
 
@@ -592,6 +592,7 @@ export default function SupervisorPage() {
         if (updErr) {
           mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
           setAnimar(false);
+          setTimeout(resetLectura, 2000);
           return;
         }
 
@@ -603,15 +604,14 @@ export default function SupervisorPage() {
         mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
       }
 
-      // Limpiar campos y volver al menú
+      // ✅ FLUJO CONTINUO: Solo limpia los campos, NO cambia modo ni dirección
       setTimeout(() => {
-        resetLectura();
-        setDireccion(null);
-        setModo('menu');
+        resetLectura(); // Vuelve a estado de espera de QR
       }, 2000);
     } catch (e: any) {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR INESPERADO: ${e.message}`, 'error');
+      setTimeout(resetLectura, 2000);
     } finally {
       setAnimar(false);
     }
@@ -625,6 +625,7 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setPinEmpleado('');
     setPinAutorizador('');
+    // No cambiar modo ni dirección
   };
 
   const mostrarNotificacion = (
@@ -689,7 +690,10 @@ export default function SupervisorPage() {
               texto="MANUAL"
               icono="🖋️"
               tipo="neutral"
-              onClick={() => setModo('manual')}
+              onClick={() => {
+                setModo('manual');
+                setManualAprobado(false); // Reiniciar advertencia
+              }}
             />
             <button
               onClick={() => router.push('/')}
@@ -718,6 +722,7 @@ export default function SupervisorPage() {
                 setModo('menu');
                 setDireccion(null);
                 resetLectura();
+                setManualAprobado(false);
               }}
               className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest hover:text-white transition-colors"
             >
@@ -743,85 +748,113 @@ export default function SupervisorPage() {
               </p>
             </div>
 
-            <div
-              className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
-                lecturaLista ? 'border-emerald-500' : 'border-white/10'
-              } h-60 flex items-center justify-center relative overflow-hidden`}
-            >
-              {!lecturaLista ? (
-                <>
-                  {modo === 'camara' && <div id="reader" className="w-full h-full" />}
-                  {modo === 'usb' && (
-                    <input
-                      autoFocus
-                      className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase placeholder:text-white/30"
-                      placeholder="ESPERANDO QR..."
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const d = procesarQR((e.target as any).value);
-                          if (d) {
-                            setQrData(d);
-                            setLecturaLista(true);
-                          }
-                        }
-                      }}
-                    />
+            {/* 🟨 MODO MANUAL: ADVERTENCIA OBLIGATORIA */}
+            {modo === 'manual' && !manualAprobado ? (
+              <div className="space-y-4">
+                <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
+                  <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
+                  <p className="text-amber-500 font-black text-[13px] uppercase tracking-widest">
+                    Este proceso requiere de la validación de un Administrador
+                  </p>
+                </div>
+                <input
+                  ref={warningRef}
+                  type="text"
+                  placeholder="Presione ENTER para continuar"
+                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-[11px] font-bold text-white outline-none focus:border-amber-500/50 uppercase"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setManualAprobado(true);
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              /* --- LECTURA NORMAL (USB/CÁMARA) O MANUAL APROBADO --- */
+              <>
+                <div
+                  className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
+                    lecturaLista ? 'border-emerald-500' : 'border-white/10'
+                  } h-60 flex items-center justify-center relative overflow-hidden`}
+                >
+                  {!lecturaLista ? (
+                    <>
+                      {modo === 'camara' && <div id="reader" className="w-full h-full" />}
+                      {modo === 'usb' && (
+                        <input
+                          autoFocus
+                          className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase placeholder:text-white/30"
+                          placeholder="ESPERANDO QR..."
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const d = procesarQR((e.target as any).value);
+                              if (d) {
+                                setQrData(d);
+                                setLecturaLista(true);
+                              }
+                            }
+                          }}
+                        />
+                      )}
+                      {modo === 'manual' && (
+                        <CampoEntrada
+                          tipo="text"
+                          placeholder="DOCUMENTO / CORREO"
+                          valor={qrData}
+                          onChange={(e) => setQrData(e.target.value)}
+                          autoFocus
+                          textoCentrado={true}
+                          mayusculas={true}
+                        />
+                      )}
+                      {modo !== 'manual' && (
+                        <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">
+                      OK ✅
+                    </p>
                   )}
-                  {modo === 'manual' && (
-                    <CampoEntrada
-                      tipo="text"
-                      placeholder="DOCUMENTO / CORREO"
-                      valor={qrData}
-                      onChange={(e) => setQrData(e.target.value)}
-                      autoFocus
-                      textoCentrado={true}
-                      mayusculas={true}
-                    />
-                  )}
-                  {modo !== 'manual' && (
-                    <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
-                  )}
-                </>
-              ) : (
-                <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">
-                  OK ✅
-                </p>
-              )}
-            </div>
+                </div>
 
-            {modo === 'manual' && !lecturaLista && (
-              <CampoEntrada
-                tipo="password"
-                placeholder="PIN TRABAJADOR"
-                valor={pinEmpleado}
-                onChange={(e) => setPinEmpleado(e.target.value)}
-              />
+                {modo === 'manual' && !lecturaLista && (
+                  <CampoEntrada
+                    tipo="password"
+                    placeholder="PIN TRABAJADOR"
+                    valor={pinEmpleado}
+                    onChange={(e) => setPinEmpleado(e.target.value)}
+                  />
+                )}
+
+                {(lecturaLista || (modo === 'manual' && qrData && pinEmpleado)) && (
+                  <CampoEntrada
+                    tipo="password"
+                    placeholder="PIN SUPERVISOR"
+                    valor={pinAutorizador}
+                    onChange={(e) => setPinAutorizador(e.target.value)}
+                    onEnter={registrarAcceso}
+                    autoFocus
+                  />
+                )}
+
+                <BotonAcceso
+                  texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
+                  icono="✅"
+                  tipo="primario"
+                  onClick={registrarAcceso}
+                  disabled={animar}
+                  loading={animar}
+                />
+              </>
             )}
-
-            {(lecturaLista || (modo === 'manual' && qrData && pinEmpleado)) && (
-              <CampoEntrada
-                tipo="password"
-                placeholder="PIN SUPERVISOR"
-                valor={pinAutorizador}
-                onChange={(e) => setPinAutorizador(e.target.value)}
-                onEnter={registrarAcceso}
-                autoFocus
-              />
-            )}
-
-            <BotonAcceso
-              texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
-              icono="✅"
-              tipo="primario"
-              onClick={registrarAcceso}
-              disabled={animar}
-              loading={animar}
-            />
 
             <button
               onClick={() => {
                 setDireccion(null);
                 resetLectura();
+                setManualAprobado(false);
               }}
               className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic hover:text-white transition-colors"
             >
