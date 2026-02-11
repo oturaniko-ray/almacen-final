@@ -61,7 +61,7 @@ export default function SupervisorPage() {
     }
   };
 
-@@ -132,42 +132,68 @@
+@@ -132,63 +132,89 @@
     }
     setAnimar(true);
     const ahora = new Date().toISOString();
@@ -146,7 +146,49 @@ export default function SupervisorPage() {
     } finally { setAnimar(false); }
   };
 
-@@ -231,35 +257,35 @@
+  const resetLectura = () => {
+    setQrData(''); setLecturaLista(false); setPinEmpleado(''); setPinAutorizador('');
+  };
+
+  const showNotification = (texto: string, tipo: 'success' | 'error') => {
+    setMensaje({ texto, tipo });
+    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+  };
+
+  return (
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative font-sans overflow-hidden">
+      {mensaje.tipo && (
+        <div className={`fixed top-10 z-[100] px-8 py-4 rounded-2xl font-black shadow-2xl ${mensaje.tipo === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white animate-shake'}`}>{mensaje.texto}</div>
+      )}
+
+      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center">
+        <h1 className="text-xl font-black italic uppercase leading-none">
+          <span className="text-white">
+            {modo === 'menu' ? 'PANEL DE LECTURA' : 
+             modo === 'usb' ? 'LECTURA POR SCANNER' : 
+             modo === 'camara' ? 'LECTURA POR MÓVIL' : 'ACCESO MANUAL'}
+@@ -210,56 +236,56 @@
+          <div className="grid gap-4 w-full">
+            <button onClick={() => setModo('usb')} className="w-full bg-blue-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">🔌 SCANNER USB</button>
+            <button onClick={() => setModo('camara')} className="w-full bg-emerald-600 p-8 rounded-2xl text-white font-black uppercase italic text-lg active:scale-95">📱 CÁMARA MÓVIL</button>
+            <button onClick={() => setModo('manual')} className="w-full bg-white/5 p-8 rounded-2xl text-white font-black uppercase italic text-lg border border-white/10 active:scale-95">🖋️ MANUAL</button>
+            <button onClick={() => router.push('/')} className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic">← Volver</button>
+          </div>
+        ) : !direccion ? (
+          <div className="flex flex-col gap-4 w-full">
+            <button onClick={() => setDireccion('entrada')} className="w-full py-10 bg-emerald-600 rounded-[30px] font-black text-4xl italic active:scale-95">ENTRADA</button>
+            <button onClick={() => setDireccion('salida')} className="w-full py-10 bg-red-600 rounded-[30px] font-black text-4xl italic active:scale-95">SALIDA</button>
+            <button onClick={() => { setModo('menu'); setDireccion(null); resetLectura(); }} className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest">← VOLVER ATRÁS</button>
+          </div>
+        ) : (
+          <div className="space-y-4 w-full">
+            <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
+              <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
+                Lat:{gps.lat.toFixed(8)}  Lon:{gps.lon.toFixed(8)}  <span className={gps.dist <= config.radio ? "text-emerald-500" : "text-rose-500"}>({gps.dist} mts)</span>
+              </p>
+            </div>
+
+            <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center relative overflow-hidden`}>
                 {!lecturaLista ? (
                   <>
                     {modo === 'camara' && <div id="reader" className="w-full h-full"></div>}
