@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -103,15 +103,10 @@ const BotonMenuAdmin = ({
 export default function PanelAdminHub() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [config, setConfig] = useState<any>({ timer_inactividad: 120000 });
-  const [tiempoRestante, setTiempoRestante] = useState<number>(120000);
   const router = useRouter();
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
   // --------------------------------------------------------
-  // 1. CARGAR SESIÓN Y CONFIGURACIÓN
+  // 1. CARGAR SESIÓN Y VALIDAR ACCESO
   // --------------------------------------------------------
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -130,80 +125,11 @@ export default function PanelAdminHub() {
     }
 
     setUser(currentUser);
-
-    const fetchConfig = async () => {
-      const { data } = await supabase
-        .from('sistema_config')
-        .select('valor')
-        .eq('clave', 'timer_inactividad')
-        .maybeSingle();
-
-      if (data) {
-        const ms = parseInt(data.valor);
-        if (!isNaN(ms) && ms > 0) {
-          setConfig({ timer_inactividad: ms });
-          setTiempoRestante(ms);
-        }
-      }
-      setLoading(false);
-    };
-
-    fetchConfig();
+    setLoading(false);
   }, [router]);
 
   // --------------------------------------------------------
-  // 2. LÓGICA DE INACTIVIDAD (con contador visible)
-  // --------------------------------------------------------
-  const reiniciarTemporizador = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    setTiempoRestante(config.timer_inactividad);
-
-    timerRef.current = setTimeout(() => {
-      localStorage.clear();
-      router.replace('/');
-    }, config.timer_inactividad);
-
-    intervalRef.current = setInterval(() => {
-      setTiempoRestante((prev) => {
-        if (prev <= 1000) {
-          clearInterval(intervalRef.current!);
-          return 0;
-        }
-        return prev - 1000;
-      });
-    }, 1000);
-  }, [config.timer_inactividad, router]);
-
-  useEffect(() => {
-    if (!loading && config.timer_inactividad) {
-      const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-      const reset = () => reiniciarTemporizador();
-
-      eventos.forEach((e) => window.addEventListener(e, reset));
-      reiniciarTemporizador();
-
-      return () => {
-        eventos.forEach((e) => window.removeEventListener(e, reset));
-        if (timerRef.current) clearTimeout(timerRef.current);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      };
-    }
-  }, [loading, config.timer_inactividad, reiniciarTemporizador]);
-
-  // --------------------------------------------------------
-  // 3. FUNCIONES AUXILIARES
-  // --------------------------------------------------------
-  const formatearTiempo = (ms: number): string => {
-    if (ms <= 0) return '00:00';
-    const minutos = Math.floor(ms / 60000);
-    const segundos = Math.floor((ms % 60000) / 1000);
-    return `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
-  };
-
-  // --------------------------------------------------------
-  // 4. RENDERIZADO
+  // 2. RENDERIZADO
   // --------------------------------------------------------
   if (loading) {
     return (
@@ -216,47 +142,32 @@ export default function PanelAdminHub() {
   const nivel = Number(user?.nivel_acceso || 0);
   const permisoReportes = user?.permiso_reportes === true;
 
-  // ✅ REGLAS DE NEGOCIO:
-  // - Gestión de Empleado: requiere nivel >= 5
-  // - Auditoría: nivel >= 5 O (nivel 4 Y permiso_reportes = true)
-  // - Flota: requiere nivel >= 5
-
   return (
     <main className="min-h-screen bg-black p-6 md:p-10 text-white font-sans">
       <div className="max-w-7xl mx-auto">
 
-        {/* MEMBRETE SUPERIOR + INDICADOR DE INACTIVIDAD */}
-        <div className="relative">
-          <MemebreteSuperior
-            titulo="PANEL DE GESTIÓN"
-            subtitulo="CONTROL CENTRALIZADO"
-            usuario={user}
-            conAnimacion={false}
-            mostrarUsuario={true}
-          />
-          <div className="absolute top-0 right-0 mt-6 mr-6 bg-black/60 px-4 py-2 rounded-full border border-white/10">
-            <p className="text-[10px] font-black uppercase text-slate-400">
-              ⏳ INACTIVIDAD:{' '}
-              <span className={tiempoRestante < 30000 ? 'text-amber-500 animate-pulse' : 'text-white'}>
-                {formatearTiempo(tiempoRestante)}
-              </span>
-            </p>
-          </div>
-        </div>
+        {/* MEMBRETE SUPERIOR */}
+        <MemebreteSuperior
+          titulo="PANEL ADMINISTRATIVO"
+          subtitulo="CONTROL CENTRALIZADO"
+          usuario={user}
+          conAnimacion={false}
+          mostrarUsuario={true}
+        />
 
-        {/* ✅ GRID DE BOTONES – SOLO TRES: GESTIÓN DE EMPLEADO, AUDITORÍA, FLOTA */}
+        {/* GRID DE BOTONES – SOLO TRES: GESTIÓN ADMINISTRATIVA, AUDITORÍA, FLOTA */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10 max-w-4xl mx-auto">
           
-          {/* 1. GESTIÓN DE EMPLEADO (nivel >=5) */}
-          {nivel >= 5 && (
+          {/* 1. GESTIÓN ADMINISTRATIVA (nivel >=4) */}
+          {nivel >= 4 && (
             <BotonMenuAdmin
-              texto="Gestión de Empleado"
+              texto="Gestión Administrativa"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
             />
           )}
 
-          {/* 2. AUDITORÍA (nivel >=5 o nivel 4 con permiso_reportes) */}
+          {/* 2. AUDITORÍA (nivel >=5 o (nivel 4 y permiso_reportes = true)) */}
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonMenuAdmin
               texto="Auditoría"
@@ -276,8 +187,18 @@ export default function PanelAdminHub() {
 
         </div>
 
-        {/* BOTÓN CERRAR SESIÓN */}
-        <div className="mt-16 text-center">
+        {/* BOTONES DE ACCIÓN */}
+        <div className="mt-16 flex flex-col items-center gap-4">
+          
+          {/* BOTÓN VOLVER AL SELECTOR PRINCIPAL (SIN CERRAR SESIÓN) */}
+          <button
+            onClick={() => router.push('/')}
+            className="text-blue-500 font-black uppercase text-[11px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
+          >
+            ← VOLVER AL SELECTOR
+          </button>
+
+          {/* BOTÓN CERRAR SESIÓN */}
           <button
             onClick={() => {
               localStorage.clear();
@@ -287,6 +208,7 @@ export default function PanelAdminHub() {
           >
             ✕ CERRAR SESIÓN
           </button>
+
         </div>
 
       </div>
