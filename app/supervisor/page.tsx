@@ -358,22 +358,51 @@ export default function SupervisorPage() {
   }, [gps.lat, gps.lon, config]);
 
   // --------------------------------------------------------
-  // 3. PROCESAMIENTO DEL QR (decodificar base64)
+  // 3. PROCESAMIENTO DEL QR (DECODIFICAR BASE64)
+  //    🔍 AGREGAMOS LOGS PARA DEPURACIÓN
   // --------------------------------------------------------
   const procesarQR = (texto: string): string => {
+    console.log('🔵 TEXTO QR CRUDO:', texto);
+    
+    if (!texto || texto.trim() === '') {
+      console.warn('⚠️ QR vacío');
+      return '';
+    }
+
     const cleanText = texto.replace(/[\n\r]/g, '').trim();
+    console.log('🟡 TEXTO LIMPIO:', cleanText);
+
     try {
       const decoded = atob(cleanText);
+      console.log('🟢 DECODIFICADO (base64):', decoded);
+
       if (decoded.includes('|')) {
         const [docId, timestamp] = decoded.split('|');
-        if (Date.now() - parseInt(timestamp) > config.qr_exp) {
+        console.log('📄 DOCUMENTO ID EXTRAÍDO:', docId);
+        console.log('⏱️ TIMESTAMP:', timestamp);
+
+        const tiempoActual = Date.now();
+        const tiempoExpiracion = parseInt(timestamp);
+        
+        if (isNaN(tiempoExpiracion)) {
+          console.error('❌ TIMESTAMP INVÁLIDO');
+          mostrarNotificacion('QR INVÁLIDO (timestamp corrupto)', 'error');
+          return '';
+        }
+
+        if (tiempoActual - tiempoExpiracion > config.qr_exp) {
+          console.warn(`⌛ QR EXPIRADO: ${(tiempoActual - tiempoExpiracion) / 1000} segundos`);
           mostrarNotificacion('QR EXPIRADO', 'error');
           return '';
         }
-        return docId;
+
+        return docId.trim();
       }
+      
+      console.warn('⚠️ QR no contiene el separador "|", se usa el texto completo');
       return cleanText;
-    } catch {
+    } catch (error) {
+      console.error('❌ ERROR al decodificar base64:', error);
       return cleanText;
     }
   };
@@ -390,6 +419,7 @@ export default function SupervisorPage() {
           { facingMode: 'environment' },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decoded) => {
+            console.log('📷 QR detectado por cámara:', decoded);
             const doc = procesarQR(decoded);
             if (doc) {
               setQrData(doc);
@@ -408,6 +438,7 @@ export default function SupervisorPage() {
 
   // --------------------------------------------------------
   // 5. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO
+  //    🔍 VALIDACIONES MEJORADAS Y LOGS
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     // Validar GPS
@@ -420,27 +451,51 @@ export default function SupervisorPage() {
     setAnimar(true);
 
     const ahora = new Date().toISOString();
-    const inputBusqueda = qrData.trim();
+    let inputBusqueda = qrData.trim();
+
+    console.log('🔎 BUSCANDO EMPLEADO CON:', inputBusqueda);
+
+    // Validar que no esté vacío
+    if (!inputBusqueda) {
+      mostrarNotificacion('ERROR: QR VACÍO', 'error');
+      setAnimar(false);
+      setTimeout(resetLectura, 2000);
+      return;
+    }
 
     // --- VALIDACIÓN 1: Buscar empleado por documento_id o email ---
+    // 🔧 USAMOS `ilike` PARA BÚSQUEDA INSENSIBLE A MAYÚSCULAS
     const { data: emp, error: empErr } = await supabase
       .from('empleados')
       .select('id, nombre, pin_seguridad, activo, documento_id, email')
       .or(
-        `documento_id.eq.'${inputBusqueda}',email.eq.'${inputBusqueda.toLowerCase()}'`
+        `documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`
       )
       .maybeSingle();
 
+    console.log('📦 RESULTADO BÚSQUEDA:', emp);
+    console.log('❌ ERROR DB:', empErr);
+
     if (empErr) {
+      console.error('Error en consulta:', empErr);
       mostrarNotificacion(`ERROR EN BASE DE DATOS: ${empErr.message}`, 'error');
       setAnimar(false);
       return;
     }
 
     if (!emp) {
+      console.warn('⚠️ Empleado no encontrado');
       mostrarNotificacion('ID NO REGISTRADO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 3000);
+      return;
+    }
+
+    // Verificar que el empleado tenga documento_id (campo obligatorio)
+    if (!emp.documento_id) {
+      console.error('❌ Empleado sin documento_id:', emp);
+      mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
+      setAnimar(false);
       return;
     }
 
@@ -555,6 +610,7 @@ export default function SupervisorPage() {
         setModo('menu');
       }, 2000);
     } catch (e: any) {
+      console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR INESPERADO: ${e.message}`, 'error');
     } finally {
       setAnimar(false);
@@ -580,7 +636,7 @@ export default function SupervisorPage() {
   };
 
   // --------------------------------------------------------
-  // 7. RENDERIZADO CON COMPONENTES INTERNOS
+  // 7. RENDERIZADO
   // --------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
