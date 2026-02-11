@@ -48,7 +48,7 @@ const MemebreteSuperior = ({
       {mostrarUsuario && usuario && (
         <div className="mt-2 pt-2 border-t border-white/10">
           <span className="text-sm font-normal text-white uppercase block">
-            {usuario.nombre}•{usuario.rol?.toUpperCase() || 'SIN ROL'}({usuario.nivel_acceso})
+            {usuario.nombre} • {usuario.rol?.toUpperCase() || 'SIN ROL'}({usuario.nivel_acceso})
           </span>
         </div>
       )}
