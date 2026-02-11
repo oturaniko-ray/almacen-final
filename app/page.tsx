@@ -140,7 +140,7 @@ export default function LoginPage() {
     const todosLosBotones = [
       { 
         label: 'ACCESO EMPLEADO', 
-        icono: '👨‍💼', 
+        icono: '🫆​', 
         ruta: '/empleado', 
         minNivel: 1, 
         color: 'bg-gradient-to-r from-emerald-600 to-emerald-800',
@@ -149,7 +149,7 @@ export default function LoginPage() {
       },
       { 
         label: 'PANEL SUPERVISOR', 
-        icono: '👨‍💼', 
+        icono: '🛃​​', 
         ruta: '/supervisor', 
         minNivel: 3, 
         color: 'bg-gradient-to-r from-blue-600 to-blue-800',
@@ -167,7 +167,7 @@ export default function LoginPage() {
         requiereReportes: true 
       },
       { 
-        label: 'GESTIÓN PERSONAL', 
+        label: 'GESTIÓN ADMINISTRATIVA', 
         icono: '👥', 
         ruta: '/admin', 
         minNivel: 4, 
@@ -177,7 +177,7 @@ export default function LoginPage() {
       },
       { 
         label: 'CONFIGURACIÓN MAESTRA', 
-        icono: '⚙️', 
+        icono: '🛠️', 
         ruta: '/configuracion', 
         minNivel: 8, 
         color: 'bg-gradient-to-r from-purple-700 to-purple-900',

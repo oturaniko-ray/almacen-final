@@ -172,7 +172,7 @@ export default function PanelAdminHub() {
             <BotonMenuAdmin
               texto="Auditoría"
               icono="🔍"
-              onClick={() => router.push('/reportes/auditoria')}
+              onClick={() => router.push('/admin/auditoria')}
             />
           )}
 
@@ -187,28 +187,14 @@ export default function PanelAdminHub() {
 
         </div>
 
-        {/* BOTONES DE ACCIÓN */}
-        <div className="mt-16 flex flex-col items-center gap-4">
-          
-          {/* BOTÓN VOLVER AL SELECTOR PRINCIPAL (SIN CERRAR SESIÓN) */}
+        {/* BOTÓN VOLVER AL SELECTOR PRINCIPAL (SIN CERRAR SESIÓN) */}
+        <div className="mt-16 text-center">
           <button
             onClick={() => router.push('/')}
             className="text-blue-500 font-black uppercase text-[11px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
           >
             ← VOLVER AL SELECTOR
           </button>
-
-          {/* BOTÓN CERRAR SESIÓN */}
-          <button
-            onClick={() => {
-              localStorage.clear();
-              router.push('/');
-            }}
-            className="text-emerald-500 font-black uppercase text-[11px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
-          >
-            ✕ CERRAR SESIÓN
-          </button>
-
         </div>
 
       </div>
