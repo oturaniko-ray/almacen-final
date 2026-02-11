@@ -97,60 +97,6 @@ const BotonMenuAdmin = ({
   );
 };
 
-// ----- NOTIFICACIÓN DE SISTEMA (opcional) -----
-const NotificacionSistema = ({
-  mensaje,
-  tipo,
-  visible,
-  duracion = 3000,
-  onCerrar
-}: {
-  mensaje: string;
-  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
-  visible: boolean;
-  duracion?: number;
-  onCerrar?: () => void;
-}) => {
-  const [mostrar, setMostrar] = useState(visible);
-
-  useEffect(() => {
-    setMostrar(visible);
-    if (visible && duracion > 0) {
-      const timer = setTimeout(() => {
-        setMostrar(false);
-        onCerrar?.();
-      }, duracion);
-      return () => clearTimeout(timer);
-    }
-  }, [visible, duracion, onCerrar]);
-
-  if (!mostrar) return null;
-
-  const colores = {
-    exito: 'bg-emerald-500 border-emerald-400 shadow-emerald-500/20',
-    error: 'bg-rose-500 border-rose-400 shadow-rose-500/20',
-    advertencia: 'bg-amber-500 border-amber-400 shadow-amber-500/20',
-    info: 'bg-blue-500 border-blue-400 shadow-blue-500/20'
-  };
-
-  const iconos = {
-    exito: '✅',
-    error: '❌',
-    advertencia: '⚠️',
-    info: 'ℹ️'
-  };
-
-  return (
-    <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl 
-      font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center 
-      border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
-    >
-      <span className="text-lg">{iconos[tipo!]}</span>
-      <span>{mensaje}</span>
-    </div>
-  );
-};
-
 // ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
@@ -177,6 +123,7 @@ export default function PanelAdminHub() {
     const currentUser = JSON.parse(sessionData);
     const nivel = Number(currentUser.nivel_acceso);
 
+    // Nivel mínimo para acceder al panel admin: 4
     if (nivel < 4) {
       router.replace('/');
       return;
@@ -268,7 +215,11 @@ export default function PanelAdminHub() {
 
   const nivel = Number(user?.nivel_acceso || 0);
   const permisoReportes = user?.permiso_reportes === true;
-  const puedeVerReportes = nivel >= 5 || (nivel === 4 && permisoReportes);
+
+  // ✅ REGLAS DE NEGOCIO:
+  // - Gestión de Empleado: requiere nivel >= 5
+  // - Auditoría: nivel >= 5 O (nivel 4 Y permiso_reportes = true)
+  // - Flota: requiere nivel >= 5
 
   return (
     <main className="min-h-screen bg-black p-6 md:p-10 text-white font-sans">
@@ -293,61 +244,20 @@ export default function PanelAdminHub() {
           </div>
         </div>
 
-        {/* GRID DE BOTONES - 4 COLUMNAS EN PANTALLAS GRANDES */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-10">
+        {/* ✅ GRID DE BOTONES – SOLO TRES: GESTIÓN DE EMPLEADO, AUDITORÍA, FLOTA */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10 max-w-4xl mx-auto">
           
-          {/* 1. ACCESO QR */}
-          <BotonMenuAdmin
-            texto="acceso QR"
-            icono="📷"
-            onClick={() => router.push('/supervisor')}
-          />
-
-          {/* 2. MONITOR PRESENCIA */}
-          {puedeVerReportes && (
+          {/* 1. GESTIÓN DE EMPLEADO (nivel >=5) */}
+          {nivel >= 5 && (
             <BotonMenuAdmin
-              texto="Monitor Presencia"
-              icono="⏱️"
-              onClick={() => router.push('/reportes/presencia')}
+              texto="Gestión de Empleado"
+              icono="👥"
+              onClick={() => router.push('/admin/empleados')}
             />
           )}
 
-          {/* 3. REPORTES ANÁLISIS */}
-          {puedeVerReportes && (
-            <BotonMenuAdmin
-              texto="Reportes Análisis"
-              icono="📊"
-              onClick={() => router.push('/reportes/auditoria')}
-            />
-          )}
-
-          {/* 4. REPORTES ACCESOS */}
-          {puedeVerReportes && (
-            <BotonMenuAdmin
-              texto="Reportes Accesos"
-              icono="📅"
-              onClick={() => router.push('/reportes/accesos')}
-            />
-          )}
-
-          {/* 5. GESTIÓN ADMINISTRATIVA */}
-          <BotonMenuAdmin
-            texto="Gestión Administrativa"
-            icono="👥"
-            onClick={() => router.push('/admin/empleados')}
-          />
-
-          {/* 6. CONFIGURACIÓN SISTEMA (nivel >=8) */}
-          {nivel >= 8 && (
-            <BotonMenuAdmin
-              texto="Configuración Sistema"
-              icono="⚙️"
-              onClick={() => router.push('/configuracion')}
-            />
-          )}
-
-          {/* 7. AUDITORÍA */}
-          {puedeVerReportes && (
+          {/* 2. AUDITORÍA (nivel >=5 o nivel 4 con permiso_reportes) */}
+          {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonMenuAdmin
               texto="Auditoría"
               icono="🔍"
@@ -355,7 +265,7 @@ export default function PanelAdminHub() {
             />
           )}
 
-          {/* 8. FLOTA (nivel >=5) */}
+          {/* 3. FLOTA (nivel >=5) */}
           {nivel >= 5 && (
             <BotonMenuAdmin
               texto="Flota"
