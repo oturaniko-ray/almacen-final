@@ -1,143 +1,400 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
-export default function PanelAdminHub() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-  useEffect(() => {
-    // 1. Validación de Sesión y Seguridad Perimetral
-    const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { 
-      router.replace('/'); 
-      return; 
+// ------------------------------------------------------------
+// COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
+// ------------------------------------------------------------
+
+// ----- MEMBRETE SUPERIOR (con rol legible) -----
+const MemebreteSuperior = ({
+  titulo,
+  subtitulo,
+  usuario,
+  conAnimacion = false,
+  mostrarUsuario = true
+}: {
+  titulo: string;
+  subtitulo: string;
+  usuario?: any;
+  conAnimacion?: boolean;
+  mostrarUsuario?: boolean;
+}) => {
+  const renderTituloBicolor = (texto: string) => {
+    const palabras = texto.split(' ');
+    const ultimaPalabra = palabras.pop();
+    const primerasPalabras = palabras.join(' ');
+    return (
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{primerasPalabras} </span>
+        <span className="text-blue-700">{ultimaPalabra}</span>
+      </h1>
+    );
+  };
+
+  const getRolDisplay = (rol: string) => {
+    if (!rol) return 'SIN ROL';
+    const rolLower = rol.toLowerCase();
+    if (rolLower === 'admin' || rolLower === 'administrador') {
+      return 'Administración';
     }
-    
-    const currentUser = JSON.parse(sessionData);
-    const nivel = Number(currentUser.nivel_acceso);
-
-    // SEGURIDAD: Solo niveles >= 4 pueden acceder a este Hub Administrativo
-    if (nivel < 4) { 
-      router.replace('/'); 
-      return; 
-    }
-    
-    setUser(currentUser);
-    setLoading(false);
-
-    // 2. Protocolo de Inactividad Quirúrgica (120s)
-    let timeout: NodeJS.Timeout;
-    const resetTimer = () => {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        localStorage.removeItem('user_session');
-        router.replace('/');
-      }, 120000);
-    };
-
-    const eventos = ['mousemove', 'keydown', 'click', 'touchstart'];
-    eventos.forEach(e => window.addEventListener(e, resetTimer));
-    resetTimer();
-
-    return () => {
-      if (timeout) clearTimeout(timeout);
-      eventos.forEach(e => window.removeEventListener(e, resetTimer));
-    };
-  }, [router]);
-
-  if (loading) return null;
-
-  const nivelUsuario = Number(user?.nivel_acceso || 0);
-
-  // Determinar columnas del grid para mantener estética visual según el nivel
-  const getGridCols = () => {
-    if (nivelUsuario >= 8) return 'grid-cols-1 md:grid-cols-4';
-    if (nivelUsuario >= 5) return 'grid-cols-1 md:grid-cols-3';
-    return 'grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto';
+    return rol.toUpperCase();
   };
 
   return (
-    <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans flex items-center justify-center">
-      <div className="max-w-6xl w-full">
-        <header className="text-center mb-16">
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter">
-            PANEL DE <span className="text-blue-500">GESTIÓN</span>
-          </h1>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mt-3">
-            CONTROL CENTRALIZADO • NIVEL {nivelUsuario}
-          </p>
+    <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
+      {renderTituloBicolor(titulo)}
+      <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
+        {subtitulo}
+      </p>
+      {mostrarUsuario && usuario && (
+        <div className="mt-2 pt-2 border-t border-white/10">
+          <span className="text-sm font-normal text-white uppercase block">
+            {usuario.nombre}•{getRolDisplay(usuario.rol)}({usuario.nivel_acceso})
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
 
-          <div className="mt-6 flex flex-col items-center gap-1 bg-white/5 py-3 px-8 rounded-2xl border border-white/5 inline-block mx-auto">
-            <p className="text-[11px] font-black text-white uppercase italic">
-              {user?.nombre} <span className="text-blue-500 mx-2">|</span> 
-              <span className="text-blue-400">{user?.rol}</span>
+// ----- BOTÓN DE MENÚ ADMIN (estilo consistente con SupervisorPage) -----
+const BotonMenuAdmin = ({
+  texto,
+  icono,
+  onClick,
+  disabled = false,
+  className = ''
+}: {
+  texto: string;
+  icono: string;
+  onClick: () => void;
+  disabled?: boolean;
+  className?: string;
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full bg-[#0f172a] p-8 rounded-[30px] border border-white/5 
+        hover:border-blue-500 hover:scale-[1.02] transition-all text-left group 
+        shadow-2xl relative overflow-hidden active:scale-95 disabled:opacity-50 
+        disabled:cursor-not-allowed disabled:hover:border-white/5 ${className}`}
+    >
+      <span className="text-4xl block mb-4 group-hover:scale-110 transition-transform">
+        {icono}
+      </span>
+      <h3 className="text-lg font-black uppercase italic group-hover:text-blue-500 transition-colors">
+        {texto}
+      </h3>
+    </button>
+  );
+};
+
+// ----- NOTIFICACIÓN (para posibles alertas, aunque no se usa en este panel) -----
+const NotificacionSistema = ({
+  mensaje,
+  tipo,
+  visible,
+  duracion = 3000,
+  onCerrar
+}: {
+  mensaje: string;
+  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
+  visible: boolean;
+  duracion?: number;
+  onCerrar?: () => void;
+}) => {
+  const [mostrar, setMostrar] = useState(visible);
+
+  useEffect(() => {
+    setMostrar(visible);
+    if (visible && duracion > 0) {
+      const timer = setTimeout(() => {
+        setMostrar(false);
+        onCerrar?.();
+      }, duracion);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, duracion, onCerrar]);
+
+  if (!mostrar) return null;
+
+  const colores = {
+    exito: 'bg-emerald-500 border-emerald-400 shadow-emerald-500/20',
+    error: 'bg-rose-500 border-rose-400 shadow-rose-500/20',
+    advertencia: 'bg-amber-500 border-amber-400 shadow-amber-500/20',
+    info: 'bg-blue-500 border-blue-400 shadow-blue-500/20'
+  };
+
+  const iconos = {
+    exito: '✅',
+    error: '❌',
+    advertencia: '⚠️',
+    info: 'ℹ️'
+  };
+
+  return (
+    <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl 
+      font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center 
+      border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
+    >
+      <span className="text-lg">{iconos[tipo!]}</span>
+      <span>{mensaje}</span>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// COMPONENTE PRINCIPAL
+// ------------------------------------------------------------
+export default function PanelAdminHub() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState<any>({ timer_inactividad: 120000 });
+  const [tiempoRestante, setTiempoRestante] = useState<number>(120000); // ms
+  const router = useRouter();
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --------------------------------------------------------
+  // 1. CARGAR SESIÓN Y CONFIGURACIÓN
+  // --------------------------------------------------------
+  useEffect(() => {
+    const sessionData = localStorage.getItem('user_session');
+    if (!sessionData) {
+      router.replace('/');
+      return;
+    }
+
+    const currentUser = JSON.parse(sessionData);
+    const nivel = Number(currentUser.nivel_acceso);
+
+    if (nivel < 4) {
+      router.replace('/');
+      return;
+    }
+
+    setUser(currentUser);
+
+    // Cargar configuración (timer_inactividad)
+    const fetchConfig = async () => {
+      const { data } = await supabase
+        .from('sistema_config')
+        .select('clave, valor')
+        .eq('clave', 'timer_inactividad')
+        .maybeSingle();
+
+      if (data) {
+        const ms = parseInt(data.valor);
+        if (!isNaN(ms) && ms > 0) {
+          setConfig({ timer_inactividad: ms });
+          setTiempoRestante(ms);
+        }
+      }
+      setLoading(false);
+    };
+
+    fetchConfig();
+  }, [router]);
+
+  // --------------------------------------------------------
+  // 2. LÓGICA DE INACTIVIDAD (con contador visible)
+  // --------------------------------------------------------
+  const reiniciarTemporizador = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    setTiempoRestante(config.timer_inactividad);
+
+    // Timer que cierra sesión
+    timerRef.current = setTimeout(() => {
+      localStorage.clear();
+      router.replace('/');
+    }, config.timer_inactividad);
+
+    // Intervalo para actualizar el contador cada segundo
+    intervalRef.current = setInterval(() => {
+      setTiempoRestante((prev) => {
+        if (prev <= 1000) {
+          clearInterval(intervalRef.current!);
+          return 0;
+        }
+        return prev - 1000;
+      });
+    }, 1000);
+  }, [config.timer_inactividad, router]);
+
+  useEffect(() => {
+    if (!loading && config.timer_inactividad) {
+      const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+      const reset = () => reiniciarTemporizador();
+
+      eventos.forEach((e) => window.addEventListener(e, reset));
+      reiniciarTemporizador();
+
+      return () => {
+        eventos.forEach((e) => window.removeEventListener(e, reset));
+        if (timerRef.current) clearTimeout(timerRef.current);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      };
+    }
+  }, [loading, config.timer_inactividad, reiniciarTemporizador]);
+
+  // --------------------------------------------------------
+  // 3. FUNCIONES AUXILIARES
+  // --------------------------------------------------------
+  const formatearTiempo = (ms: number): string => {
+    if (ms <= 0) return '00:00';
+    const minutos = Math.floor(ms / 60000);
+    const segundos = Math.floor((ms % 60000) / 1000);
+    return `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
+  };
+
+  // --------------------------------------------------------
+  // 4. RENDERIZADO
+  // --------------------------------------------------------
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </main>
+    );
+  }
+
+  const nivel = Number(user?.nivel_acceso || 0);
+  const permisoReportes = user?.permiso_reportes === true;
+
+  // Determinar visibilidad de botones según nivel y permisos
+  const puedeVerReportes = nivel >= 5 || (nivel === 4 && permisoReportes);
+
+  return (
+    <main className="min-h-screen bg-black p-6 md:p-10 text-white font-sans">
+      <div className="max-w-7xl mx-auto">
+
+        {/* MEMBRETE SUPERIOR (con contador de inactividad) */}
+        <div className="relative">
+          <MemebreteSuperior
+            titulo="PANEL DE GESTIÓN"
+            subtitulo="CONTROL CENTRALIZADO"
+            usuario={user}
+            conAnimacion={false}
+            mostrarUsuario={true}
+          />
+          {/* Indicador de inactividad */}
+          <div className="absolute top-0 right-0 mt-6 mr-6 bg-black/60 px-4 py-2 rounded-full border border-white/10">
+            <p className="text-[10px] font-black uppercase text-slate-400">
+              ⏳ INACTIVIDAD:{' '}
+              <span className={tiempoRestante < 30000 ? 'text-amber-500 animate-pulse' : 'text-white'}>
+                {formatearTiempo(tiempoRestante)}
+              </span>
             </p>
           </div>
-        </header>
+        </div>
 
-        {/* GRID DINÁMICO SEGÚN NIVEL DE ACCESO */}
-        <div className={`grid gap-8 ${getGridCols()}`}>
+        {/* GRID DE BOTONES - 4 COLUMNAS EN PANTALLAS GRANDES */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-10">
           
-          {/* NIVEL 4+: PERSONAL (Ubicación: app/admin/empleados) */}
-          <button 
-            onClick={() => router.push('/admin/empleados')} 
-            className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
-          >
-            <span className="text-3xl block mb-6">👥</span>
-            <h3 className="text-xl font-black uppercase italic group-hover:text-blue-500 transition-colors">Personal</h3>
-            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Plantilla y Pins P</p>
-          </button>
+          {/* 1. ACCESO QR (siempre visible para nivel >=4) */}
+          <BotonMenuAdmin
+            texto="acceso QR"
+            icono="📷"
+            onClick={() => router.push('/supervisor')}
+          />
 
-          {/* NIVEL 4+: REPORTES & AUDITORÍA (Ubicación: app/admin/reportes y app/admin/auditoria) */}
-          <button 
-            onClick={() => router.push('/admin/reportes')} 
-            className="bg-[#0f172a] p-10 rounded-[45px] border border-white/5 hover:border-amber-500 transition-all text-left group shadow-2xl relative overflow-hidden active:scale-95"
-          >
-            <span className="text-3xl block mb-6">📑</span>
-            <h3 className="text-xl font-black uppercase italic group-hover:text-amber-500 transition-colors">Auditoría</h3>
-            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Reportes y Análisis</p>
-          </button>
-
-          {/* NIVEL 5+: FLOTA & LOGÍSTICA (Ubicación: app/admin/flota) */}
-          {nivelUsuario >= 5 && (
-            <button 
-              onClick={() => router.push('/admin/flota')} 
-              className="bg-[#0f172a] p-10 rounded-[45px] border-2 border-emerald-500/10 hover:border-emerald-500 transition-all text-left group shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500"
-            >
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
-                <span className="text-5xl font-black italic text-emerald-500">F</span>
-              </div>
-              <span className="text-3xl block mb-6">🚛</span>
-              <h3 className="text-xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">Flota</h3>
-              <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Gestión Operativa</p>
-            </button>
+          {/* 2. MONITOR PRESENCIA (requiere permiso reportes o nivel >=5) */}
+          {puedeVerReportes && (
+            <BotonMenuAdmin
+              texto="Monitor Presencia"
+              icono="⏱️"
+              onClick={() => router.push('/reportes/presencia')}
+            />
           )}
 
-          {/* NIVEL 8+: CONFIGURACIÓN (Ubicación: app/admin/configuracion) */}
-          {nivelUsuario >= 8 && (
-            <button 
-              onClick={() => router.push('/admin/configuracion')} 
-              className="bg-[#0f172a] p-10 rounded-[45px] border-2 border-purple-500/10 hover:border-purple-500 transition-all text-left group shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-700"
-            >
-              <span className="text-3xl block mb-6">⚙️</span>
-              <h3 className="text-xl font-black uppercase italic group-hover:text-purple-500 transition-colors">Sistema</h3>
-              <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest">Configuración Global</p>
-            </button>
+          {/* 3. REPORTES ANÁLISIS (requiere permiso reportes o nivel >=5) */}
+          {puedeVerReportes && (
+            <BotonMenuAdmin
+              texto="Reportes Análisis"
+              icono="📊"
+              onClick={() => router.push('/reportes/auditoria')}
+            />
+          )}
+
+          {/* 4. REPORTES ACCESOS (requiere permiso reportes o nivel >=5) */}
+          {puedeVerReportes && (
+            <BotonMenuAdmin
+              texto="Reportes Accesos"
+              icono="📅"
+              onClick={() => router.push('/reportes/accesos')}
+            />
+          )}
+
+          {/* 5. GESTIÓN ADMINISTRATIVA (siempre visible para nivel >=4) */}
+          <BotonMenuAdmin
+            texto="Gestión Administrativa"
+            icono="👥"
+            onClick={() => router.push('/admin/empleados')}
+          />
+
+          {/* 6. CONFIGURACIÓN SISTEMA (nivel >=8) */}
+          {nivel >= 8 && (
+            <BotonMenuAdmin
+              texto="Configuración Sistema"
+              icono="⚙️"
+              onClick={() => router.push('/configuracion')}
+            />
+          )}
+
+          {/* 7. AUDITORÍA (requiere permiso reportes o nivel >=5) */}
+          {puedeVerReportes && (
+            <BotonMenuAdmin
+              texto="Auditoría"
+              icono="🔍"
+              onClick={() => router.push('/reportes/auditoria')}
+            />
+          )}
+
+          {/* 8. FLOTA (nivel >=5) */}
+          {nivel >= 5 && (
+            <BotonMenuAdmin
+              texto="Flota"
+              icono="🚛"
+              onClick={() => router.push('/admin/flota')}
+            />
           )}
 
         </div>
 
+        {/* BOTÓN CERRAR SESIÓN */}
         <div className="mt-16 text-center">
-          <button 
-            onClick={() => router.push('/')} 
-            className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
+          <button
+            onClick={() => {
+              localStorage.clear();
+              router.push('/');
+            }}
+            className="text-emerald-500 font-black uppercase text-[11px] tracking-widest 
+              hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
           >
-            ← Salir al Selector Principal
+            ✕ CERRAR SESIÓN
           </button>
         </div>
+
       </div>
+
+      {/* ESTILOS GLOBALES */}
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+      `}</style>
     </main>
   );
 }
