@@ -12,19 +12,19 @@ const supabase = createClient(
 // COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR (con rol legible) -----
+// ----- MEMBRETE SUPERIOR (FORMATO EXACTO DE LA CAPTURA) -----
 const MemebreteSuperior = ({
   titulo,
   subtitulo,
   usuario,
-  conAnimacion = false,
-  mostrarUsuario = true
+  modulo,
+  conAnimacion = false
 }: {
   titulo: string;
   subtitulo: string;
   usuario?: any;
+  modulo?: string;
   conAnimacion?: boolean;
-  mostrarUsuario?: boolean;
 }) => {
   const renderTituloBicolor = (texto: string) => {
     const palabras = texto.split(' ');
@@ -38,25 +38,16 @@ const MemebreteSuperior = ({
     );
   };
 
-  const getRolDisplay = (rol: string) => {
-    if (!rol) return 'SIN ROL';
-    const rolLower = rol.toLowerCase();
-    if (rolLower === 'admin' || rolLower === 'administrador') {
-      return 'Administración';
-    }
-    return rol.toUpperCase();
-  };
-
   return (
     <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
       {renderTituloBicolor(titulo)}
       <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
         {subtitulo}
       </p>
-      {mostrarUsuario && usuario && (
+      {usuario && modulo && (
         <div className="mt-2 pt-2 border-t border-white/10">
           <span className="text-sm font-normal text-white uppercase block">
-            {usuario.nombre}•{getRolDisplay(usuario.rol)}({usuario.nivel_acceso})
+            {usuario.nombre} • {modulo} ({usuario.nivel_acceso})
           </span>
         </div>
       )}
@@ -64,7 +55,7 @@ const MemebreteSuperior = ({
   );
 };
 
-// ----- BOTÓN DE MENÚ ADMIN (estilo consistente) -----
+// ----- BOTÓN DE MENÚ ADMIN (CENTRADO) -----
 const BotonMenuAdmin = ({
   texto,
   icono,
@@ -83,9 +74,10 @@ const BotonMenuAdmin = ({
       onClick={onClick}
       disabled={disabled}
       className={`w-full bg-[#0f172a] p-8 rounded-[30px] border border-white/5 
-        hover:border-blue-500 hover:scale-[1.02] transition-all text-left group 
+        hover:border-blue-500 hover:scale-[1.02] transition-all 
         shadow-2xl relative overflow-hidden active:scale-95 disabled:opacity-50 
-        disabled:cursor-not-allowed disabled:border-white/5 ${className}`}
+        disabled:cursor-not-allowed disabled:border-white/5 
+        flex flex-col items-center justify-center text-center ${className}`}
     >
       <span className="text-4xl block mb-4 group-hover:scale-110 transition-transform">
         {icono}
@@ -118,7 +110,6 @@ export default function PanelAdminHub() {
     const currentUser = JSON.parse(sessionData);
     const nivel = Number(currentUser.nivel_acceso);
 
-    // Nivel mínimo para acceder al panel admin: 4
     if (nivel < 4) {
       router.replace('/');
       return;
@@ -146,22 +137,22 @@ export default function PanelAdminHub() {
     <main className="min-h-screen bg-black p-6 md:p-10 text-white font-sans">
       <div className="max-w-7xl mx-auto">
 
-        {/* MEMBRETE SUPERIOR */}
+        {/* MEMBRETE SUPERIOR – EXACTAMENTE COMO LA CAPTURA */}
         <MemebreteSuperior
           titulo="PANEL ADMINISTRATIVO"
-          subtitulo="CONTROL CENTRALIZADO"
+          subtitulo="MENÚ PRINCIPAL"
           usuario={user}
+          modulo="Panel Administrativo"
           conAnimacion={false}
-          mostrarUsuario={true}
         />
 
-        {/* GRID DE BOTONES – SOLO TRES: GESTIÓN ADMINISTRATIVA, AUDITORÍA, FLOTA */}
+        {/* GRID DE BOTONES – CENTRADOS, SOLO TRES */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10 max-w-4xl mx-auto">
           
           {/* 1. GESTIÓN ADMINISTRATIVA (nivel >=4) */}
           {nivel >= 4 && (
             <BotonMenuAdmin
-              texto="Gestión Administrativa"
+              texto="Gestión de Empleados"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
             />
@@ -171,7 +162,7 @@ export default function PanelAdminHub() {
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonMenuAdmin
               texto="Auditoría"
-              icono="🔍"
+              icono="📝"
               onClick={() => router.push('/admin/auditoria')}
             />
           )}
@@ -187,7 +178,7 @@ export default function PanelAdminHub() {
 
         </div>
 
-        {/* BOTÓN VOLVER AL SELECTOR PRINCIPAL (SIN CERRAR SESIÓN) */}
+        {/* BOTÓN VOLVER AL SELECTOR PRINCIPAL */}
         <div className="mt-16 text-center">
           <button
             onClick={() => router.push('/')}
