@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
@@ -72,7 +72,7 @@ export default function EmpleadoPage() {
     };
   }, [config.timer_inactividad]);
 
-  // --- CARGA INICIAL CON VALIDACIÓN DE NIVEL ---
+  // --- CARGA INICIAL - ACCESO PERMITIDO PARA TODOS LOS NIVELES ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) { 
@@ -83,12 +83,8 @@ export default function EmpleadoPage() {
     const userData = JSON.parse(sessionData);
     setUser(userData);
 
-    // CRÍTICO: Validar que sea nivel 1-2 (empleado)
-    if (userData.nivel_acceso > 2) {
-      mostrarNotificacion("Acceso no autorizado para esta sección", 'error');
-      setTimeout(() => router.push('/'), 1500);
-      return;
-    }
+    // **MODIFICACIÓN: PERMITIR ACCESO A TODOS LOS NIVELES (1-8)**
+    // No hay validación de nivel, todos pueden acceder
 
     const fetchConfig = async () => {
       try {
@@ -247,16 +243,17 @@ export default function EmpleadoPage() {
         </div>
       )}
 
-      {/* Encabezado (Consistente con Login) */}
+      {/* Encabezado - CONSISTENTE CON LOGINPAGE */}
       <div className="w-full max-w-md bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 mb-4 text-center backdrop-blur-sm">
         {renderBicolorTitle(config.empresa_nombre)}
         
         <p className="text-white font-bold text-[15px] uppercase tracking-wider mt-2">
-          ACCESO ALMACÉN - GENERADOR QR
+          VALIDACIÓN DE ACCESO - GENERADOR QR
         </p>
 
         {user && (
           <div className="mt-3 pt-3 border-t border-gray-800/50">
+            {/* **MISMO FORMATO QUE LOGINPAGE: Nombre • Rol (Nivel) */}
             <p className="text-xs font-medium text-gray-300">
               <span className="text-white font-bold text-sm">{user.nombre}</span>
               <span className="text-gray-400 mx-2">•</span>
@@ -433,12 +430,13 @@ export default function EmpleadoPage() {
               {/* Instrucciones */}
               <div className="text-center p-3 bg-blue-500/5 rounded-lg border border-blue-500/10">
                 <p className="text-blue-400 text-[11px] font-bold uppercase tracking-wider">
-                  INSTRUCCIONES
+                  INSTRUCCIONES PARA TODOS LOS NIVELES
                 </p>
                 <p className="text-gray-400 text-[10px] mt-1">
-                  • Muestre este código QR al lector del almacén
-                  • El token se actualiza automáticamente cada {config.time_token / 1000}s
-                  • Toque el código QR para forzar actualización de GPS
+                  • Este sistema registra todos los accesos al almacén para reportes
+                  • Muestre el código QR al lector para validar su entrada
+                  • El token se regenera automáticamente para mayor seguridad
+                  • Toque el QR para forzar actualización de GPS si es necesario
                 </p>
               </div>
             </div>
@@ -448,7 +446,7 @@ export default function EmpleadoPage() {
         {/* Pie de página y logout */}
         <div className="text-center pt-6 border-t border-gray-800/50">
           <p className="text-xs text-gray-500 italic mb-4">
-            @Copyright RayPérez 2026 • Sistema de acceso biométrico por GPS
+            @Copyright RayPérez 2026 • Sistema de registro de accesos por GPS
           </p>
           
           <button 
