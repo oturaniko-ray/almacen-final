@@ -12,7 +12,7 @@ const supabase = createClient(
 // COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR (FORMATO EXACTO DE LA CAPTURA) -----
+// ----- MEMBRETE SUPERIOR – EXACTAMENTE COMO LA CAPTURA -----
 const MemebreteSuperior = ({
   titulo,
   subtitulo,
@@ -47,7 +47,7 @@ const MemebreteSuperior = ({
       {usuario && modulo && (
         <div className="mt-2 pt-2 border-t border-white/10">
           <span className="text-sm font-normal text-white uppercase block">
-            {usuario.nombre} • {modulo} ({usuario.nivel_acceso})
+            {usuario.nombre}  •  {modulo}  ({usuario.nivel_acceso})
           </span>
         </div>
       )}
@@ -110,6 +110,7 @@ export default function PanelAdminHub() {
     const currentUser = JSON.parse(sessionData);
     const nivel = Number(currentUser.nivel_acceso);
 
+    // Nivel mínimo para acceder al panel admin: 4
     if (nivel < 4) {
       router.replace('/');
       return;
@@ -139,7 +140,7 @@ export default function PanelAdminHub() {
 
         {/* MEMBRETE SUPERIOR – EXACTAMENTE COMO LA CAPTURA */}
         <MemebreteSuperior
-          titulo="PANEL ADMINISTRATIVO"
+          titulo="GESTOR DE ACCESO"
           subtitulo="MENÚ PRINCIPAL"
           usuario={user}
           modulo="Panel Administrativo"
@@ -152,7 +153,7 @@ export default function PanelAdminHub() {
           {/* 1. GESTIÓN ADMINISTRATIVA (nivel >=4) */}
           {nivel >= 4 && (
             <BotonMenuAdmin
-              texto="Gestión de Empleados"
+              texto="Gestión Administrativa"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
             />
@@ -162,7 +163,7 @@ export default function PanelAdminHub() {
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonMenuAdmin
               texto="Auditoría"
-              icono="📝"
+              icono="🔍"
               onClick={() => router.push('/admin/auditoria')}
             />
           )}
