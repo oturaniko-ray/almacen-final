@@ -64,7 +64,7 @@ const MemebreteSuperior = ({
   );
 };
 
-// ----- BOTÓN DE MENÚ ADMIN (estilo consistente con SupervisorPage) -----
+// ----- BOTÓN DE MENÚ ADMIN (estilo consistente) -----
 const BotonMenuAdmin = ({
   texto,
   icono,
@@ -85,7 +85,7 @@ const BotonMenuAdmin = ({
       className={`w-full bg-[#0f172a] p-8 rounded-[30px] border border-white/5 
         hover:border-blue-500 hover:scale-[1.02] transition-all text-left group 
         shadow-2xl relative overflow-hidden active:scale-95 disabled:opacity-50 
-        disabled:cursor-not-allowed disabled:hover:border-white/5 ${className}`}
+        disabled:cursor-not-allowed disabled:border-white/5 ${className}`}
     >
       <span className="text-4xl block mb-4 group-hover:scale-110 transition-transform">
         {icono}
@@ -97,7 +97,7 @@ const BotonMenuAdmin = ({
   );
 };
 
-// ----- NOTIFICACIÓN (para posibles alertas, aunque no se usa en este panel) -----
+// ----- NOTIFICACIÓN DE SISTEMA (opcional) -----
 const NotificacionSistema = ({
   mensaje,
   tipo,
@@ -158,7 +158,7 @@ export default function PanelAdminHub() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<any>({ timer_inactividad: 120000 });
-  const [tiempoRestante, setTiempoRestante] = useState<number>(120000); // ms
+  const [tiempoRestante, setTiempoRestante] = useState<number>(120000);
   const router = useRouter();
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -184,11 +184,10 @@ export default function PanelAdminHub() {
 
     setUser(currentUser);
 
-    // Cargar configuración (timer_inactividad)
     const fetchConfig = async () => {
       const { data } = await supabase
         .from('sistema_config')
-        .select('clave, valor')
+        .select('valor')
         .eq('clave', 'timer_inactividad')
         .maybeSingle();
 
@@ -214,13 +213,11 @@ export default function PanelAdminHub() {
 
     setTiempoRestante(config.timer_inactividad);
 
-    // Timer que cierra sesión
     timerRef.current = setTimeout(() => {
       localStorage.clear();
       router.replace('/');
     }, config.timer_inactividad);
 
-    // Intervalo para actualizar el contador cada segundo
     intervalRef.current = setInterval(() => {
       setTiempoRestante((prev) => {
         if (prev <= 1000) {
@@ -271,15 +268,13 @@ export default function PanelAdminHub() {
 
   const nivel = Number(user?.nivel_acceso || 0);
   const permisoReportes = user?.permiso_reportes === true;
-
-  // Determinar visibilidad de botones según nivel y permisos
   const puedeVerReportes = nivel >= 5 || (nivel === 4 && permisoReportes);
 
   return (
     <main className="min-h-screen bg-black p-6 md:p-10 text-white font-sans">
       <div className="max-w-7xl mx-auto">
 
-        {/* MEMBRETE SUPERIOR (con contador de inactividad) */}
+        {/* MEMBRETE SUPERIOR + INDICADOR DE INACTIVIDAD */}
         <div className="relative">
           <MemebreteSuperior
             titulo="PANEL DE GESTIÓN"
@@ -288,7 +283,6 @@ export default function PanelAdminHub() {
             conAnimacion={false}
             mostrarUsuario={true}
           />
-          {/* Indicador de inactividad */}
           <div className="absolute top-0 right-0 mt-6 mr-6 bg-black/60 px-4 py-2 rounded-full border border-white/10">
             <p className="text-[10px] font-black uppercase text-slate-400">
               ⏳ INACTIVIDAD:{' '}
@@ -302,14 +296,14 @@ export default function PanelAdminHub() {
         {/* GRID DE BOTONES - 4 COLUMNAS EN PANTALLAS GRANDES */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-10">
           
-          {/* 1. ACCESO QR (siempre visible para nivel >=4) */}
+          {/* 1. ACCESO QR */}
           <BotonMenuAdmin
             texto="acceso QR"
             icono="📷"
             onClick={() => router.push('/supervisor')}
           />
 
-          {/* 2. MONITOR PRESENCIA (requiere permiso reportes o nivel >=5) */}
+          {/* 2. MONITOR PRESENCIA */}
           {puedeVerReportes && (
             <BotonMenuAdmin
               texto="Monitor Presencia"
@@ -318,7 +312,7 @@ export default function PanelAdminHub() {
             />
           )}
 
-          {/* 3. REPORTES ANÁLISIS (requiere permiso reportes o nivel >=5) */}
+          {/* 3. REPORTES ANÁLISIS */}
           {puedeVerReportes && (
             <BotonMenuAdmin
               texto="Reportes Análisis"
@@ -327,7 +321,7 @@ export default function PanelAdminHub() {
             />
           )}
 
-          {/* 4. REPORTES ACCESOS (requiere permiso reportes o nivel >=5) */}
+          {/* 4. REPORTES ACCESOS */}
           {puedeVerReportes && (
             <BotonMenuAdmin
               texto="Reportes Accesos"
@@ -336,7 +330,7 @@ export default function PanelAdminHub() {
             />
           )}
 
-          {/* 5. GESTIÓN ADMINISTRATIVA (siempre visible para nivel >=4) */}
+          {/* 5. GESTIÓN ADMINISTRATIVA */}
           <BotonMenuAdmin
             texto="Gestión Administrativa"
             icono="👥"
@@ -352,7 +346,7 @@ export default function PanelAdminHub() {
             />
           )}
 
-          {/* 7. AUDITORÍA (requiere permiso reportes o nivel >=5) */}
+          {/* 7. AUDITORÍA */}
           {puedeVerReportes && (
             <BotonMenuAdmin
               texto="Auditoría"
@@ -379,8 +373,7 @@ export default function PanelAdminHub() {
               localStorage.clear();
               router.push('/');
             }}
-            className="text-emerald-500 font-black uppercase text-[11px] tracking-widest 
-              hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
+            className="text-emerald-500 font-black uppercase text-[11px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
           >
             ✕ CERRAR SESIÓN
           </button>
