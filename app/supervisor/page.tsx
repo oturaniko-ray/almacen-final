@@ -13,7 +13,7 @@ const supabase = createClient(
 // COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR (SIMPLIFICADO) -----
+// ----- MEMBRETE SUPERIOR (SIMPLIFICADO Y CON ROL LEGIBLE) -----
 const MemebreteSuperior = ({ 
   titulo, 
   subtitulo, 
@@ -39,6 +39,16 @@ const MemebreteSuperior = ({
     );
   };
 
+  // 🟢 Mostrar nombre completo del rol
+  const getRolDisplay = (rol: string) => {
+    if (!rol) return 'SIN ROL';
+    const rolLower = rol.toLowerCase();
+    if (rolLower === 'admin' || rolLower === 'administrador') {
+      return 'Administración';
+    }
+    return rol.toUpperCase();
+  };
+
   return (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
       {renderTituloBicolor(titulo)}
@@ -48,7 +58,7 @@ const MemebreteSuperior = ({
       {mostrarUsuario && usuario && (
         <div className="mt-2 pt-2 border-t border-white/10">
           <span className="text-sm font-normal text-white uppercase block">
-            {usuario.nombre} • {usuario.rol?.toUpperCase() || 'SIN ROL'}({usuario.nivel_acceso})
+            {usuario.nombre}•{getRolDisplay(usuario.rol)}({usuario.nivel_acceso})
           </span>
         </div>
       )}
@@ -280,7 +290,7 @@ export default function SupervisorPage() {
     tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
   }>({ mensaje: '', tipo: null });
 
-  // --- NUEVO ESTADO PARA EL MODO MANUAL: advertencia de administrador ---
+  // Estado para modo manual: advertencia de administrador
   const [manualAprobado, setManualAprobado] = useState(false);
 
   // Estados de datos
@@ -292,7 +302,7 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
-  const warningRef = useRef<HTMLInputElement>(null); // Para enfocar el input de advertencia
+  const warningRef = useRef<HTMLInputElement>(null);
 
   // --------------------------------------------------------
   // 1. CONTROL DE INACTIVIDAD
@@ -438,7 +448,7 @@ export default function SupervisorPage() {
 
   // --------------------------------------------------------
   // 5. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO
-  //    🔁 AHORA VUELVE AL ESTADO DE LECTURA (SIN CAMBIAR MODO/DIRECCIÓN)
+  //    🔍 AHORA CON VALIDACIÓN DE D UPLICIDAD DE ENTRADA/SALIDA
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     // Validar GPS
@@ -528,6 +538,53 @@ export default function SupervisorPage() {
       return;
     }
 
+    // 🟢 VALIDACIÓN DE D UPLICIDAD DE ENTRADA/SALIDA
+    if (direccion === 'entrada') {
+      // Verificar si ya tiene una entrada activa
+      const { data: jornadaActiva, error: actErr } = await supabase
+        .from('jornadas')
+        .select('id')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .maybeSingle();
+
+      if (actErr) {
+        console.error('Error al verificar jornada activa:', actErr);
+        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
+        setAnimar(false);
+        return;
+      }
+
+      if (jornadaActiva) {
+        mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+    } else { // salida
+      // Verificar que exista una entrada activa
+      const { data: jornadaActiva, error: actErr } = await supabase
+        .from('jornadas')
+        .select('id, hora_entrada')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .maybeSingle();
+
+      if (actErr) {
+        console.error('Error al verificar jornada activa:', actErr);
+        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
+        setAnimar(false);
+        return;
+      }
+
+      if (!jornadaActiva) {
+        mostrarNotificacion('NO HAY ENTRADA REGISTRADA', 'advertencia');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+    }
+
     const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
     try {
@@ -559,6 +616,7 @@ export default function SupervisorPage() {
         mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
       } else {
         // --- REGISTRAR SALIDA ---
+        // Ya verificamos que existe jornada activa, la obtenemos de nuevo (o podemos usar la guardada)
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
