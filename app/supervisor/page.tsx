@@ -41,7 +41,7 @@ export default function SupervisorPage() {
       if (scannerRef.current?.isScanning) scannerRef.current.stop();
       localStorage.clear();
       router.push('/');
-       }, 90000); 
+    }, 90000); 
   }, [router]);
 
   useEffect(() => {
