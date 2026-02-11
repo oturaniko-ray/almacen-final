@@ -156,9 +156,8 @@ const NotificacionSistema = ({
   return (
     <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl 
       font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center 
-      border-2 ${colores[tipo]} text-white flex items-center gap-3`}
-    >
-      <span className="text-lg">{iconos[tipo]}</span>
+    border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
+<span className="text-lg">{iconos[tipo!]}</span>
       <span>{mensaje}</span>
     </div>
   );
