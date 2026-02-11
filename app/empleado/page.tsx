@@ -6,6 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// Mantenemos EXACTA la misma función de cálculo de distancia
 function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3; 
   const p1 = lat1 * Math.PI / 180;
@@ -17,6 +18,17 @@ function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
+// Función para obtener rol (consistente con login)
+const obtenerRol = (nivel: number) => {
+  if (nivel <= 2) return 'Empleado';
+  if (nivel === 3) return 'Supervisor';
+  if (nivel === 4) return 'Administrador';
+  if (nivel === 5) return 'Gerente';
+  if (nivel === 6 || nivel === 7) return 'Director';
+  if (nivel === 8) return 'Configuración Maestra';
+  return 'Usuario';
+};
+
 export default function EmpleadoPage() {
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState('');
@@ -24,8 +36,14 @@ export default function EmpleadoPage() {
   const [errorGps, setErrorGps] = useState('');
   const [distancia, setDistancia] = useState<number | null>(null);
   const [mensajeFlash, setMensajeFlash] = useState('');
+  const [cargando, setCargando] = useState(false);
   const [config, setConfig] = useState<any>({ 
-    empresa_nombre: '', almacen_lat: 0, almacen_lon: 0, radio_maximo: 50, timer_inactividad: 120000, time_token: 5000 
+    empresa_nombre: '', 
+    almacen_lat: 0, 
+    almacen_lon: 0, 
+    radio_maximo: 50, 
+    timer_inactividad: 120000, 
+    time_token: 5000 
   });
 
   const router = useRouter();
@@ -52,132 +70,338 @@ export default function EmpleadoPage() {
     };
   }, [config.timer_inactividad]);
 
+  // --- CARGA INICIAL DE CONFIGURACIÓN Y USUARIO ---
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { router.push('/'); return; }
-    setUser(JSON.parse(sessionData));
+    if (!sessionData) { 
+      router.push('/'); 
+      return; 
+    }
+    
+    const userData = JSON.parse(sessionData);
+    setUser(userData);
+
+    // Si es nivel > 2, redirigir al selector
+    if (userData.nivel_acceso > 2) {
+      router.push('/');
+      return;
+    }
 
     const fetchConfig = async () => {
-      const { data } = await supabase.from('sistema_config').select('clave, valor');
-      if (data) {
-        const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-        setConfig({
-          empresa_nombre: cfgMap.empresa_nombre || 'SISTEMA',
-          almacen_lat: parseFloat(cfgMap.almacen_lat || cfgMap.gps_latitud) || 0,
-          almacen_lon: parseFloat(cfgMap.almacen_lon || cfgMap.gps_longitud) || 0,
-          radio_maximo: parseInt(cfgMap.radio_maximo) || 50,
-          timer_inactividad: parseInt(cfgMap.timer_inactividad) || 120000,
-          time_token: parseInt(cfgMap.time_token) || 5000
-        });
+      setCargando(true);
+      try {
+        const { data, error } = await supabase.from('sistema_config').select('clave, valor');
+        if (error) throw error;
+        
+        if (data) {
+          const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+          setConfig({
+            empresa_nombre: cfgMap.empresa_nombre || 'SISTEMA',
+            almacen_lat: parseFloat(cfgMap.almacen_lat || cfgMap.gps_latitud) || 0,
+            almacen_lon: parseFloat(cfgMap.almacen_lon || cfgMap.gps_longitud) || 0,
+            radio_maximo: parseInt(cfgMap.radio_maximo) || 50,
+            timer_inactividad: parseInt(cfgMap.timer_inactividad) || 120000,
+            time_token: parseInt(cfgMap.time_token) || 5000
+          });
+        }
+      } catch (error) {
+        console.error('Error cargando configuración:', error);
+        setMensajeFlash('Error de configuración');
+        setTimeout(() => setMensajeFlash(''), 3000);
+      } finally {
+        setCargando(false);
       }
     };
     fetchConfig();
   }, [router]);
 
+  // --- ACTUALIZACIÓN GPS (MANTENIENDO LÓGICA ORIGINAL) ---
   const actualizarGPS = useCallback(() => {
-    setMensajeFlash("Actualizando GPS");
-    setTimeout(() => setMensajeFlash(''), 2000);
+    if (!navigator.geolocation) {
+      setErrorGps("GPS no soportado");
+      setUbicacionOk(false);
+      return;
+    }
+
+    setMensajeFlash("📍 Actualizando posición GPS...");
+    setCargando(true);
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, config.almacen_lat, config.almacen_lon);
-        setDistancia(Math.round(d));
-        if (d <= config.radio_maximo) { setUbicacionOk(true); setErrorGps(''); } 
-        else { setUbicacionOk(false); setErrorGps(`Fuera de rango (${Math.round(d)}m)`); }
+        const distanciaRedondeada = Math.round(d);
+        setDistancia(distanciaRedondeada);
+        
+        if (d <= config.radio_maximo) { 
+          setUbicacionOk(true); 
+          setErrorGps('');
+          setMensajeFlash("✓ Ubicación validada");
+        } else { 
+          setUbicacionOk(false); 
+          setErrorGps(`Fuera del radio permitido (${distanciaRedondeada}m)`); 
+          setMensajeFlash("✗ Fuera del área");
+        }
+        
+        setTimeout(() => setMensajeFlash(''), 2000);
+        setCargando(false);
       },
-      (err) => { setErrorGps("Error de señal GPS"); setUbicacionOk(false); },
-      { enableHighAccuracy: true }
+      (err) => { 
+        setErrorGps("Señal GPS no disponible"); 
+        setUbicacionOk(false); 
+        setMensajeFlash("✗ Error GPS");
+        setTimeout(() => setMensajeFlash(''), 2000);
+        setCargando(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [config]);
 
+  // --- INICIALIZAR GPS AL CARGAR CONFIGURACIÓN ---
   useEffect(() => {
-    if (config.almacen_lat === 0) return;
+    if (config.almacen_lat === 0 || !user) return;
     actualizarGPS();
-  }, [config, actualizarGPS]);
+  }, [config, user, actualizarGPS]);
 
+  // --- GENERACIÓN DE TOKEN QR (LÓGICA ORIGINAL) ---
   useEffect(() => {
     if (ubicacionOk && user) {
       const generateToken = () => {
+        // Mantenemos exactamente el mismo formato: documento_id|timestamp
         const rawToken = `${user.documento_id}|${Date.now()}`;
         setToken(btoa(rawToken));
       };
-      generateToken();
+      
+      generateToken(); // Generar inmediatamente
       const interval = setInterval(generateToken, config.time_token);
+      
       return () => clearInterval(interval);
     }
   }, [ubicacionOk, user, config.time_token]);
 
+  // --- LOGOUT ---
   const handleLogout = () => {
+    if (window.inactividadEmpleadoTimeout) {
+      clearTimeout(window.inactividadEmpleadoTimeout);
+    }
     localStorage.clear();
     router.push('/');
   };
 
+  // --- FUNCIÓN PARA TÍTULO BICOLOR (CONSISTENTE CON LOGIN) ---
   const renderBicolorTitle = (text: string) => {
-    const words = (text || 'SISTEMA').split(' ');
+    const words = (text || 'SISTEMA DE CONTROL').split(' ');
     const lastWord = words.pop();
     const firstPart = words.join(' ');
     return (
-      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+      <h1 className="text-xl font-black italic uppercase tracking-tight leading-none">
         <span className="text-white">{firstPart} </span>
-        <span className="text-blue-700">{lastWord}</span>
+        <span className="text-blue-600">{lastWord}</span>
       </h1>
     );
   };
 
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+    <main className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      
+      {/* Notificación Flash */}
       {mensajeFlash && (
-        <div className="fixed top-10 z-50 px-8 py-3 bg-blue-600 text-white rounded-full font-bold shadow-2xl animate-pulse text-xs uppercase tracking-widest">
-          📡 {mensajeFlash}
+        <div className={`fixed top-6 z-50 px-6 py-3 rounded-lg font-bold text-sm shadow-2xl border backdrop-blur-sm transition-all duration-300 ${
+          mensajeFlash.includes('✓') || mensajeFlash.includes('validada') 
+            ? 'bg-green-500/10 border-green-500/30 text-green-300' 
+            : mensajeFlash.includes('✗') || mensajeFlash.includes('Error')
+            ? 'bg-red-500/10 border-red-500/30 text-red-300'
+            : 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{mensajeFlash.includes('✓') ? '✓' : mensajeFlash.includes('✗') ? '✗' : '📍'}</span>
+            <span className="font-semibold">{mensajeFlash.replace('✓', '').replace('✗', '').trim()}</span>
+          </div>
         </div>
       )}
 
-      <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] shadow-2xl border border-white/5 mb-4 text-center">
+      {/* Encabezado (Consistente con Login) */}
+      <div className="w-full max-w-md bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 mb-4 text-center backdrop-blur-sm">
         {renderBicolorTitle(config.empresa_nombre)}
-        <p className="text-white font-bold text-[17px] uppercase tracking-[0.25em] mb-3">Mi identificador QR</p>
+        
+        <p className="text-white font-bold text-[15px] uppercase tracking-wider mt-2">
+          ACCESO ALMACÉN - IDENTIFICADOR QR
+        </p>
+
         {user && (
-          <div className="mt-2 pt-2 border-t border-white/5 flex flex-col items-center gap-1">
-            <span className="text-sm font-normal text-white uppercase">{user.nombre}</span>
-            <span className="text-[11px] font-normal text-white/50 uppercase tracking-tighter">Documento: {user.documento_id}</span>
+          <div className="mt-3 pt-3 border-t border-gray-800/50">
+            <p className="text-xs font-medium text-gray-300">
+              <span className="text-white font-bold text-sm">{user.nombre}</span>
+              <span className="text-gray-400 mx-2">•</span>
+              <span className="text-cyan-300">{obtenerRol(user.nivel_acceso)}</span>
+              <span className="text-gray-400 ml-2">({user.nivel_acceso})</span>
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1">
+              Documento: <span className="text-gray-300">{user.documento_id}</span>
+            </p>
           </div>
         )}
       </div>
       
-      <div className="w-full max-w-sm bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl flex flex-col items-center">
+      {/* Contenedor Principal */}
+      <div className="w-full max-w-md bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 shadow-lg backdrop-blur-sm">
+        
+        {/* Estado: GPS no disponible o fuera de rango */}
         {!ubicacionOk ? (
-          <div className="w-full py-10 bg-rose-500/10 rounded-[30px] border border-rose-500/20 text-center">
-            <span className="text-4xl block mb-3">📍</span>
-            <p className="text-rose-500 font-black text-xs uppercase mb-1">Acceso Denegado</p>
-            <p className="text-white/40 text-[9px] uppercase italic">{errorGps || "Calculando posición..."}</p>
-            {distancia !== null && <p className="text-white/20 text-[8px] mt-4 uppercase">Distancia actual: {distancia}m</p>}
-            <button onClick={actualizarGPS} className="mt-4 text-[10px] text-blue-500 underline uppercase font-bold tracking-widest">Reintentar GPS</button>
+          <div className="space-y-4">
+            <div className="w-full py-8 bg-gradient-to-b from-rose-900/20 to-rose-950/10 rounded-lg border border-rose-800/30 text-center">
+              <span className="text-5xl block mb-4">📍</span>
+              <div className="space-y-2">
+                <p className="text-rose-400 font-black text-sm uppercase tracking-wider">ACCESO DENEGADO</p>
+                <p className="text-rose-300/70 text-xs italic">{errorGps || "Calculando posición GPS..."}</p>
+                
+                {distancia !== null && (
+                  <div className="mt-4 bg-gray-900/50 p-3 rounded-lg">
+                    <p className="text-gray-300 text-xs">
+                      Distancia actual: <span className="text-rose-400 font-bold">{distancia}m</span>
+                    </p>
+                    <p className="text-gray-500 text-[10px] mt-1">
+                      Radio permitido: <span className="text-gray-400">{config.radio_maximo}m</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <button 
+              onClick={actualizarGPS}
+              disabled={cargando}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed p-3 rounded-lg text-white font-bold uppercase tracking-wider text-sm transition-all duration-200 shadow-md flex items-center justify-center gap-2"
+            >
+              {cargando ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>VERIFICANDO GPS...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>REINTENTAR VERIFICACIÓN GPS</span>
+                </>
+              )}
+            </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center w-full group" onClick={actualizarGPS}>
-            <div className="text-center mb-6">
-              <p className="text-[18px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">Opciones</p>
+          /* Estado: GPS válido - Mostrar QR */
+          <div className="space-y-6">
+            {/* Encabezado QR */}
+            <div className="text-center">
+              <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                TOKEN DE ACCESO VÁLIDO
+              </p>
+              <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-emerald-500 to-transparent mt-2"></div>
             </div>
-            <div className="bg-white p-6 rounded-[40px] shadow-[0_0_60px_rgba(59,130,246,0.15)] mb-6 transition-transform active:scale-90 cursor-pointer">
-              {token && <QRCodeSVG value={token} size={200} level="H" />}
+            
+            {/* QR Container (clickeable para actualizar GPS) */}
+            <div 
+              onClick={actualizarGPS}
+              className="bg-gradient-to-br from-white to-gray-100 p-6 rounded-2xl border-2 border-emerald-500/30 shadow-2xl shadow-emerald-500/10 transition-all duration-300 hover:shadow-emerald-500/20 hover:border-emerald-500/50 active:scale-[0.98] cursor-pointer group"
+            >
+              <div className="flex flex-col items-center">
+                {token ? (
+                  <QRCodeSVG 
+                    value={token} 
+                    size={200} 
+                    level="H"
+                    includeMargin={true}
+                    bgColor="#ffffff"
+                    fgColor="#111827"
+                  />
+                ) : (
+                  <div className="w-[200px] h-[200px] bg-gray-200 rounded-lg flex items-center justify-center">
+                    <svg className="animate-spin h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                )}
+                
+                <div className="mt-4 text-center space-y-2">
+                  <p className="text-emerald-500 font-black text-xs uppercase tracking-wide flex items-center justify-center gap-2">
+                    <span className="animate-pulse">●</span>
+                    TOKEN ACTIVO Y VALIDADO
+                    <span className="animate-pulse">●</span>
+                  </p>
+                  <p className="text-gray-600 text-[10px]">
+                    Actualiza cada {config.time_token / 1000} segundos
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="text-center space-y-1">
-              <p className="text-emerald-500 font-black text-[10px] uppercase tracking-wide">✓ Token activo y validado</p>
-              <p className="text-white/40 font-bold text-[9px] uppercase tracking-[0.1em]">Distancia al almacén: <span className="text-blue-500">{distancia}m</span></p>
-              <p className="text-white/20 text-[7px] uppercase mt-3 tracking-[0.2em]">Toca el QR para actualizar GPS</p>
+            
+            {/* Información de distancia y ayuda */}
+            <div className="space-y-3">
+              <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700/30">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-gray-400 text-xs uppercase font-bold">DISTANCIA AL ALMACÉN</p>
+                    <p className="text-white font-bold text-lg">{distancia}m</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-gray-400 text-xs uppercase font-bold">RADIO PERMITIDO</p>
+                    <p className="text-emerald-400 font-bold text-lg">{config.radio_maximo}m</p>
+                  </div>
+                </div>
+                <div className="mt-3 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600"
+                    style={{ width: `${Math.min(100, (distancia || 0) / config.radio_maximo * 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+              
+              <div className="text-center">
+                <p className="text-gray-500 text-[10px] italic">
+                  Toca el código QR para actualizar la posición GPS
+                </p>
+              </div>
             </div>
           </div>
         )}
-
-        <button onClick={handleLogout} className="w-full text-emerald-500 font-bold uppercase text-[11px] tracking-[0.3em] mt-8 italic py-3 border-t border-white/5 hover:text-emerald-300 transition-colors">
-          ✕ Cerrar Sesión
-        </button>
+        
+        {/* Pie de página y logout */}
+        <div className="text-center pt-6 border-t border-gray-800/50">
+          <p className="text-xs text-gray-500 italic mb-4">
+            @Copyright RayPérez 2026
+          </p>
+          
+          <button 
+            onClick={handleLogout}
+            className="w-full text-gray-400 hover:text-white font-medium text-xs tracking-wide py-2 transition-colors duration-200 flex items-center justify-center gap-2"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            CERRAR SESIÓN
+          </button>
+        </div>
       </div>
 
       <style jsx global>{`
-        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
-        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+        .animate-pulse {
+          animation: pulse 1.5s ease-in-out infinite;
+        }
       `}</style>
     </main>
   );
 }
 
-declare global { interface Window { inactividadEmpleadoTimeout: any; } }
+declare global { 
+  interface Window { 
+    inactividadEmpleadoTimeout: any; 
+  } 
+}
