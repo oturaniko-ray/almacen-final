@@ -10,21 +10,21 @@ const supabase = createClient(
 );
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
+// COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({
-  titulo,
-  subtitulo,
-  usuario,
-  conAnimacion = false,
-  mostrarUsuario = true
-}: {
-  titulo: string;
-  subtitulo: string;
-  usuario?: any;
-  conAnimacion?: boolean;
+// ----- MEMBRETE SUPERIOR (SIMPLIFICADO Y CON ROL LEGIBLE) -----
+const MemebreteSuperior = ({ 
+  titulo, 
+  subtitulo, 
+  usuario, 
+  conAnimacion = false, 
+  mostrarUsuario = true 
+}: { 
+  titulo: string; 
+  subtitulo: string; 
+  usuario?: any; 
+  conAnimacion?: boolean; 
   mostrarUsuario?: boolean;
 }) => {
   const renderTituloBicolor = (texto: string) => {
@@ -39,6 +39,16 @@ const MemebreteSuperior = ({
     );
   };
 
+  // 🟢 Mostrar nombre completo del rol
+  const getRolDisplay = (rol: string) => {
+    if (!rol) return 'SIN ROL';
+    const rolLower = rol.toLowerCase();
+    if (rolLower === 'admin' || rolLower === 'administrador') {
+      return 'Administración';
+    }
+    return rol.toUpperCase();
+  };
+
   return (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
       {renderTituloBicolor(titulo)}
@@ -47,78 +57,58 @@ const MemebreteSuperior = ({
       </p>
       {mostrarUsuario && usuario && (
         <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
-          <span className="text-sm text-white mx-2">•</span>
-          <span className="text-sm text-blue-500 normal-case">
-            {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-              ? 'Administración'
-              : usuario.rol?.toUpperCase() || 'Supervisor'}
+          <span className="text-sm font-normal text-white uppercase block">
+            {usuario.nombre}•{getRolDisplay(usuario.rol)}({usuario.nivel_acceso})
           </span>
-          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
         </div>
       )}
     </div>
   );
 };
 
-// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE, CENTRADO) -----
-const BotonOpcion = ({
-  texto,
-  icono,
-  onClick,
-  color,
-}: {
-  texto: string;
-  icono: string;
-  onClick: () => void;
-  color: string;
-}) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full ${color} p-4 rounded-xl border border-white/5 
-        active:scale-95 transition-transform shadow-lg 
-        flex flex-col items-center justify-center gap-2`}
-    >
-      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-        <span className="text-3xl">{icono}</span>
-      </div>
-      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
-        {texto}
-      </span>
-    </button>
-  );
-};
-
-// ----- BOTÓN DE ACCIÓN (para CONFIRMAR, sin círculo) -----
-const BotonAccion = ({
-  texto,
-  icono,
-  onClick,
-  disabled = false,
+// ----- BOTÓN DE ACCESO (TEXTO MÁS GRANDE) -----
+const BotonAcceso = ({ 
+  texto, 
+  icono, 
+  tipo = 'primario', 
+  onClick, 
+  disabled = false, 
   loading = false,
-}: {
-  texto: string;
-  icono?: string;
-  onClick: () => void;
-  disabled?: boolean;
+  fullWidth = true,
+  className = ''
+}: { 
+  texto: string; 
+  icono?: string; 
+  tipo?: 'primario' | 'secundario' | 'peligro' | 'exito' | 'neutral'; 
+  onClick: () => void; 
+  disabled?: boolean; 
   loading?: boolean;
+  fullWidth?: boolean;
+  className?: string;
 }) => {
+  const colores = {
+    primario: 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800',
+    secundario: 'bg-slate-700 hover:bg-slate-600 active:bg-slate-700',
+    peligro: 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800',
+    exito: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
+    neutral: 'bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/10'
+  };
+
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
-      className={`w-full bg-blue-600 p-4 rounded-xl border border-white/5
-        active:scale-95 transition-transform shadow-lg 
+      className={`p-4 rounded-xl text-white font-bold uppercase italic 
+        text-[13px] tracking-[0.1em] active:scale-95 transition-all shadow-lg 
         flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
-        text-white font-bold uppercase text-[11px] tracking-wider`}
+        ${fullWidth ? 'w-full' : ''} ${colores[tipo]} ${className}`}
     >
-      {icono && <span className="text-2xl">{icono}</span>}
+      {icono && <span className="text-[1.4em]">{icono}</span>}
       {loading ? (
         <span className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150"></span>
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300"></span>
         </span>
       ) : (
         texto
@@ -128,17 +118,17 @@ const BotonAccion = ({
 };
 
 // ----- NOTIFICACIÓN DE SISTEMA -----
-const NotificacionSistema = ({
-  mensaje,
-  tipo,
-  visible,
-  duracion = 3000,
-  onCerrar
-}: {
-  mensaje: string;
-  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
-  visible: boolean;
-  duracion?: number;
+const NotificacionSistema = ({ 
+  mensaje, 
+  tipo, 
+  visible, 
+  duracion = 3000, 
+  onCerrar 
+}: { 
+  mensaje: string; 
+  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null; 
+  visible: boolean; 
+  duracion?: number; 
   onCerrar?: () => void;
 }) => {
   const [mostrar, setMostrar] = useState(visible);
@@ -157,23 +147,23 @@ const NotificacionSistema = ({
   if (!mostrar) return null;
 
   const colores = {
-    exito: 'bg-emerald-500 border-emerald-400',
-    error: 'bg-rose-500 border-rose-400',
-    advertencia: 'bg-amber-500 border-amber-400',
-    info: 'bg-blue-500 border-blue-400',
+    exito: 'bg-emerald-500 border-emerald-400 shadow-emerald-500/20',
+    error: 'bg-rose-500 border-rose-400 shadow-rose-500/20',
+    advertencia: 'bg-amber-500 border-amber-400 shadow-amber-500/20',
+    info: 'bg-blue-500 border-blue-400 shadow-blue-500/20'
   };
+
   const iconos = {
     exito: '✅',
     error: '❌',
     advertencia: '⚠️',
-    info: 'ℹ️',
+    info: 'ℹ️'
   };
 
   return (
-    <div
-      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl
-        font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center
-        border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
+    <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl 
+      font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center 
+      border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
     >
       <span className="text-lg">{iconos[tipo!]}</span>
       <span>{mensaje}</span>
@@ -230,18 +220,19 @@ const CampoEntrada = React.forwardRef<HTMLInputElement, {
     />
   );
 });
+
 CampoEntrada.displayName = 'CampoEntrada';
 
 // ----- CONTENEDOR PRINCIPAL -----
-const ContenedorPrincipal = ({
-  children,
+const ContenedorPrincipal = ({ 
+  children, 
   maxWidth = 'sm',
   padding = 'md',
   className = ''
-}: {
-  children: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
-  padding?: 'sm' | 'md' | 'lg' | 'xl';
+}: { 
+  children: React.ReactNode; 
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full'; 
+  padding?: 'sm' | 'md' | 'lg' | 'xl'; 
   className?: string;
 }) => {
   const ancho = {
@@ -264,21 +255,6 @@ const ContenedorPrincipal = ({
     </div>
   );
 };
-
-// ----- FOOTER (VOLVER AL SELECTOR) -----
-const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright 2026
-    </p>
-    <button
-      onClick={() => router.push('/')}
-      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
-    >
-      <span className="text-lg">←</span> VOLVER AL SELECTOR
-    </button>
-  </div>
-);
 
 // ------------------------------------------------------------
 // FUNCIÓN AUXILIAR: Calcular distancia GPS
@@ -308,15 +284,14 @@ export default function SupervisorPage() {
   const [pinEmpleado, setPinEmpleado] = useState('');
   const [pinAutorizador, setPinAutorizador] = useState('');
   const [animar, setAnimar] = useState(false);
-  const [lecturaLista, setLecturaLista] = useState(false); // solo para usb/cámara
+  const [lecturaLista, setLecturaLista] = useState(false);
   const [notificacion, setNotificacion] = useState<{
     mensaje: string;
     tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
   }>({ mensaje: '', tipo: null });
 
-  // Estados para modo manual (flujo secuencial)
-  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0); // 0: warning, 1: documento, 2: pin empleado, 3: pin supervisor
-  const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+  // Estado para modo manual: advertencia de administrador
+  const [manualAprobado, setManualAprobado] = useState(false);
 
   // Estados de datos
   const [user, setUser] = useState<any>(null);
@@ -327,9 +302,7 @@ export default function SupervisorPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
-  const documentoRef = useRef<HTMLInputElement>(null);
-  const pinEmpleadoRef = useRef<HTMLInputElement>(null);
-  const pinSupervisorRef = useRef<HTMLInputElement>(null);
+  const warningRef = useRef<HTMLInputElement>(null);
 
   // --------------------------------------------------------
   // 1. CONTROL DE INACTIVIDAD
@@ -396,7 +369,7 @@ export default function SupervisorPage() {
   }, [gps.lat, gps.lon, config]);
 
   // --------------------------------------------------------
-  // 3. PROCESAMIENTO DEL QR (solo para usb/cámara)
+  // 3. PROCESAMIENTO DEL QR (DECODIFICAR BASE64)
   // --------------------------------------------------------
   const procesarQR = (texto: string): string => {
     console.log('🔵 TEXTO QR CRUDO:', texto);
@@ -445,7 +418,7 @@ export default function SupervisorPage() {
   };
 
   // --------------------------------------------------------
-  // 4. INICIO DEL ESCÁNER DE CÁMARA (solo para modo camara)
+  // 4. INICIO DEL ESCÁNER DE CÁMARA
   // --------------------------------------------------------
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
@@ -474,58 +447,8 @@ export default function SupervisorPage() {
   }, [modo, direccion, lecturaLista, config.qr_exp]);
 
   // --------------------------------------------------------
-  // 5. MANEJO DEL MODO MANUAL (flujo secuencial)
-  // --------------------------------------------------------
-  const iniciarModoManual = () => {
-    setModo('manual');
-    setPasoManual(0); // mostrar warning
-    setQrData('');
-    setPinEmpleado('');
-    setPinAutorizador('');
-    setLecturaLista(false);
-  };
-
-  // Limpiar listener al salir del modo manual
-  useEffect(() => {
-    if (modo !== 'manual' || direccion === null || pasoManual !== 0) {
-      if (enterListenerRef.current) {
-        document.removeEventListener('keydown', enterListenerRef.current);
-        enterListenerRef.current = null;
-      }
-    }
-  }, [modo, direccion, pasoManual]);
-
-  // Configurar listener para el warning (solo cuando modo manual, dirección seleccionada y pasoManual = 0)
-  useEffect(() => {
-    if (modo === 'manual' && direccion && pasoManual === 0) {
-      const handleEnter = (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          setPasoManual(1);
-          // Enfocar el campo de documento después de un pequeño delay
-          setTimeout(() => documentoRef.current?.focus(), 100);
-        }
-      };
-      enterListenerRef.current = handleEnter;
-      document.addEventListener('keydown', handleEnter);
-      return () => {
-        if (enterListenerRef.current) {
-          document.removeEventListener('keydown', enterListenerRef.current);
-          enterListenerRef.current = null;
-        }
-      };
-    }
-  }, [modo, direccion, pasoManual]);
-
-  // Reiniciar flujo manual al cambiar de dirección o salir
-  useEffect(() => {
-    if (modo !== 'manual' || !direccion) {
-      setPasoManual(0);
-    }
-  }, [modo, direccion]);
-
-  // --------------------------------------------------------
-  // 6. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO
+  // 5. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO
+  //    🔍 AHORA CON VALIDACIÓN DE D UPLICIDAD DE ENTRADA/SALIDA
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     // Validar GPS
@@ -543,7 +466,7 @@ export default function SupervisorPage() {
     console.log('🔎 BUSCANDO EMPLEADO CON:', inputBusqueda);
 
     if (!inputBusqueda) {
-      mostrarNotificacion('ERROR: DOCUMENTO VACÍO', 'error');
+      mostrarNotificacion('ERROR: QR VACÍO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
@@ -615,8 +538,9 @@ export default function SupervisorPage() {
       return;
     }
 
-    // 🟢 VALIDACIÓN DE DUPLICIDAD DE ENTRADA/SALIDA
+    // 🟢 VALIDACIÓN DE D UPLICIDAD DE ENTRADA/SALIDA
     if (direccion === 'entrada') {
+      // Verificar si ya tiene una entrada activa
       const { data: jornadaActiva, error: actErr } = await supabase
         .from('jornadas')
         .select('id')
@@ -638,6 +562,7 @@ export default function SupervisorPage() {
         return;
       }
     } else { // salida
+      // Verificar que exista una entrada activa
       const { data: jornadaActiva, error: actErr } = await supabase
         .from('jornadas')
         .select('id, hora_entrada')
@@ -664,6 +589,7 @@ export default function SupervisorPage() {
 
     try {
       if (direccion === 'entrada') {
+        // --- REGISTRAR ENTRADA ---
         const { error: insErr } = await supabase.from('jornadas').insert([
           {
             empleado_id: emp.id,
@@ -689,6 +615,8 @@ export default function SupervisorPage() {
 
         mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
       } else {
+        // --- REGISTRAR SALIDA ---
+        // Ya verificamos que existe jornada activa, la obtenemos de nuevo (o podemos usar la guardada)
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
@@ -734,16 +662,9 @@ export default function SupervisorPage() {
         mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
       }
 
-      // ✅ FLUJO CONTINUO: Limpiar campos y mantener modo/dirección
+      // ✅ FLUJO CONTINUO: Solo limpia los campos, NO cambia modo ni dirección
       setTimeout(() => {
-        resetLectura();
-        if (modo === 'manual') {
-          setPasoManual(1); // Volver al inicio del flujo manual (documento)
-          setQrData('');
-          setPinEmpleado('');
-          setPinAutorizador('');
-          setTimeout(() => documentoRef.current?.focus(), 100);
-        }
+        resetLectura(); // Vuelve a estado de espera de QR
       }, 2000);
     } catch (e: any) {
       console.error('Error inesperado:', e);
@@ -755,7 +676,7 @@ export default function SupervisorPage() {
   };
 
   // --------------------------------------------------------
-  // 7. FUNCIONES AUXILIARES
+  // 6. FUNCIONES AUXILIARES
   // --------------------------------------------------------
   const resetLectura = () => {
     setQrData('');
@@ -774,7 +695,7 @@ export default function SupervisorPage() {
   };
 
   // --------------------------------------------------------
-  // 8. RENDERIZADO
+  // 7. RENDERIZADO
   // --------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -786,7 +707,15 @@ export default function SupervisorPage() {
       />
 
       <MemebreteSuperior
-        titulo="GESTOR DE ACCESO"
+        titulo={
+          modo === 'menu'
+            ? 'PANEL DE LECTURA QR'
+            : modo === 'usb'
+            ? 'LECTURA POR SCANNER'
+            : modo === 'camara'
+            ? 'LECTURA POR MÓVIL'
+            : 'ACCESO MANUAL'
+        }
         subtitulo={
           modo === 'menu' 
             ? 'SELECCIONE MÉTODO' 
@@ -801,51 +730,59 @@ export default function SupervisorPage() {
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
-          // --- MENÚ PRINCIPAL (USB, CÁMARA, MANUAL) ---
+          // --- MENÚ PRINCIPAL ---
           <div className="grid gap-4 w-full">
-            <BotonOpcion
+            <BotonAcceso
               texto="SCANNER USB"
               icono="🔌"
+              tipo="primario"
               onClick={() => setModo('usb')}
-              color="bg-blue-600"
             />
-            <BotonOpcion
+            <BotonAcceso
               texto="CÁMARA MÓVIL"
               icono="📱"
+              tipo="exito"
               onClick={() => setModo('camara')}
-              color="bg-emerald-600"
             />
-            <BotonOpcion
+            <BotonAcceso
               texto="MANUAL"
               icono="🖋️"
-              onClick={iniciarModoManual}
-              color="bg-slate-700"
+              tipo="neutral"
+              onClick={() => {
+                setModo('manual');
+                setManualAprobado(false); // Reiniciar advertencia
+              }}
             />
-            <Footer router={router} />
+            <button
+              onClick={() => router.push('/')}
+              className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic hover:text-emerald-400 transition-colors"
+            >
+              ← VOLVER AL SELECTOR
+            </button>
           </div>
         ) : !direccion ? (
           // --- SELECCIÓN ENTRADA/SALIDA ---
           <div className="flex flex-col gap-4 w-full">
-            <BotonOpcion
+            <BotonAcceso
               texto="ENTRADA"
               icono="🟢"
+              tipo="exito"
               onClick={() => setDireccion('entrada')}
-              color="bg-emerald-600"
             />
-            <BotonOpcion
+            <BotonAcceso
               texto="SALIDA"
               icono="🔴"
+              tipo="peligro"
               onClick={() => setDireccion('salida')}
-              color="bg-rose-600"
             />
             <button
               onClick={() => {
                 setModo('menu');
                 setDireccion(null);
                 resetLectura();
-                setPasoManual(0);
+                setManualAprobado(false);
               }}
-              className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
+              className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest hover:text-white transition-colors"
             >
               ← VOLVER ATRÁS
             </button>
@@ -854,7 +791,6 @@ export default function SupervisorPage() {
           // --- PANTALLA DE LECTURA / CAPTURA ---
           <div className="space-y-4 w-full">
             
-            {/* INFORMACIÓN GPS */}
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
               <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
                 LAT: {gps.lat.toFixed(6)} | LON: {gps.lon.toFixed(6)} |{' '}
@@ -870,8 +806,30 @@ export default function SupervisorPage() {
               </p>
             </div>
 
-            {/* --- MODO USB / CÁMARA (lectura con escáner) --- */}
-            {modo !== 'manual' && (
+            {/* 🟨 MODO MANUAL: ADVERTENCIA OBLIGATORIA */}
+            {modo === 'manual' && !manualAprobado ? (
+              <div className="space-y-4">
+                <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
+                  <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
+                  <p className="text-amber-500 font-black text-[13px] uppercase tracking-widest">
+                    Este proceso requiere de la validación de un Administrador
+                  </p>
+                </div>
+                <input
+                  ref={warningRef}
+                  type="text"
+                  placeholder="Presione ENTER para continuar"
+                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-center text-[11px] font-bold text-white outline-none focus:border-amber-500/50 uppercase"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setManualAprobado(true);
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              /* --- LECTURA NORMAL (USB/CÁMARA) O MANUAL APROBADO --- */
               <>
                 <div
                   className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
@@ -897,6 +855,17 @@ export default function SupervisorPage() {
                           }}
                         />
                       )}
+                      {modo === 'manual' && (
+                        <CampoEntrada
+                          tipo="text"
+                          placeholder="DOCUMENTO / CORREO"
+                          valor={qrData}
+                          onChange={(e) => setQrData(e.target.value)}
+                          autoFocus
+                          textoCentrado={true}
+                          mayusculas={true}
+                        />
+                      )}
                       {modo !== 'manual' && (
                         <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
                       )}
@@ -908,7 +877,16 @@ export default function SupervisorPage() {
                   )}
                 </div>
 
-                {(lecturaLista || (modo === 'usb' && qrData)) && (
+                {modo === 'manual' && !lecturaLista && (
+                  <CampoEntrada
+                    tipo="password"
+                    placeholder="PIN TRABAJADOR"
+                    valor={pinEmpleado}
+                    onChange={(e) => setPinEmpleado(e.target.value)}
+                  />
+                )}
+
+                {(lecturaLista || (modo === 'manual' && qrData && pinEmpleado)) && (
                   <CampoEntrada
                     tipo="password"
                     placeholder="PIN SUPERVISOR"
@@ -919,9 +897,10 @@ export default function SupervisorPage() {
                   />
                 )}
 
-                <BotonAccion
+                <BotonAcceso
                   texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
                   icono="✅"
+                  tipo="primario"
                   onClick={registrarAcceso}
                   disabled={animar}
                   loading={animar}
@@ -929,95 +908,32 @@ export default function SupervisorPage() {
               </>
             )}
 
-            {/* --- MODO MANUAL (flujo secuencial) --- */}
-            {modo === 'manual' && (
-              <>
-                {/* PASO 0: WARNING */}
-                {pasoManual === 0 && (
-                  <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
-                    <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
-                    <p className="text-amber-500 font-black text-[13px] uppercase tracking-widest">
-                      Este proceso requiere la validación de un Administrador
-                    </p>
-                    <p className="text-amber-400/80 text-[10px] uppercase tracking-wider mt-4">
-                      Presione ENTER para continuar
-                    </p>
-                  </div>
-                )}
-
-                {/* PASO 1: DOCUMENTO / CORREO */}
-                {pasoManual === 1 && (
-                  <CampoEntrada
-                    ref={documentoRef}
-                    tipo="text"
-                    placeholder="DOCUMENTO / CORREO"
-                    valor={qrData}
-                    onChange={(e) => setQrData(e.target.value)}
-                    onEnter={() => {
-                      if (qrData.trim()) {
-                        setPasoManual(2);
-                        setTimeout(() => pinEmpleadoRef.current?.focus(), 100);
-                      }
-                    }}
-                    autoFocus
-                    textoCentrado={true}
-                    mayusculas={true}
-                  />
-                )}
-
-                {/* PASO 2: PIN TRABAJADOR */}
-                {pasoManual === 2 && (
-                  <CampoEntrada
-                    ref={pinEmpleadoRef}
-                    tipo="password"
-                    placeholder="PIN TRABAJADOR"
-                    valor={pinEmpleado}
-                    onChange={(e) => setPinEmpleado(e.target.value)}
-                    onEnter={() => {
-                      if (pinEmpleado.trim()) {
-                        setPasoManual(3);
-                        setTimeout(() => pinSupervisorRef.current?.focus(), 100);
-                      }
-                    }}
-                    autoFocus
-                    textoCentrado={true}
-                  />
-                )}
-
-                {/* PASO 3: PIN SUPERVISOR */}
-                {pasoManual === 3 && (
-                  <CampoEntrada
-                    ref={pinSupervisorRef}
-                    tipo="password"
-                    placeholder="PIN SUPERVISOR"
-                    valor={pinAutorizador}
-                    onChange={(e) => setPinAutorizador(e.target.value)}
-                    onEnter={() => {
-                      if (pinAutorizador.trim()) {
-                        registrarAcceso();
-                      }
-                    }}
-                    autoFocus
-                    textoCentrado={true}
-                  />
-                )}
-
-                {/* BOTÓN VOLVER ATRÁS (común) */}
-                <button
-                  onClick={() => {
-                    setDireccion(null);
-                    resetLectura();
-                    setPasoManual(0);
-                  }}
-                  className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors"
-                >
-                  ← VOLVER ATRÁS
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => {
+                setDireccion(null);
+                resetLectura();
+                setManualAprobado(false);
+              }}
+              className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic hover:text-white transition-colors"
+            >
+              ← VOLVER ATRÁS
+            </button>
           </div>
         )}
       </ContenedorPrincipal>
+
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+        @keyframes scan-laser { 0%, 100% { top: 0%; } 50% { top: 100%; } }
+        .animate-scan-laser { animation: scan-laser 2s infinite linear; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .animate-bounce { animation: bounce 1s infinite; }
+      `}</style>
     </main>
   );
 }
