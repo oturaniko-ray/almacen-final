@@ -108,10 +108,10 @@ const BotonAccion = ({
     <button
       onClick={onClick}
       disabled={disabled || loading}
-      className={`w-full bg-blue-600 p-4 rounded-xl border border-white/5
+      className="w-full bg-blue-600 p-4 rounded-xl border border-white/5
         active:scale-95 transition-transform shadow-lg 
         flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
-        text-white font-bold uppercase text-[11px] tracking-wider`}
+        text-white font-bold uppercase text-[11px] tracking-wider"
     >
       {icono && <span className="text-2xl">{icono}</span>}
       {loading ? (
@@ -308,19 +308,25 @@ export default function SupervisorPage() {
   const [pinEmpleado, setPinEmpleado] = useState('');
   const [pinAutorizador, setPinAutorizador] = useState('');
   const [animar, setAnimar] = useState(false);
-  const [lecturaLista, setLecturaLista] = useState(false); // solo para usb/cámara
+  const [lecturaLista, setLecturaLista] = useState(false);
   const [notificacion, setNotificacion] = useState<{
     mensaje: string;
     tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
   }>({ mensaje: '', tipo: null });
 
   // Estados para modo manual (flujo secuencial)
-  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0); // 0: warning, 1: documento, 2: pin empleado, 3: pin supervisor
+  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0);
   const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
   // Estados de datos
   const [user, setUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000 });
+  const [config, setConfig] = useState<any>({
+    lat: 0,
+    lon: 0,
+    radio: 100,
+    qr_exp: 30000,
+    timer_inactividad: 120000 // Valor por defecto: 2 minutos
+  });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
 
   // Refs
@@ -332,23 +338,31 @@ export default function SupervisorPage() {
   const pinSupervisorRef = useRef<HTMLInputElement>(null);
 
   // --------------------------------------------------------
-  // 1. CONTROL DE INACTIVIDAD
+  // 1. CONTROL DE INACTIVIDAD – usa timer_inactividad desde config
   // --------------------------------------------------------
   const resetTimerInactividad = useCallback(() => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
+    
+    // Obtener tiempo de inactividad (convertir a número)
+    const tiempoLimite = Number(config.timer_inactividad) || 120000;
+    
     timerInactividadRef.current = setTimeout(() => {
       if (scannerRef.current?.isScanning) scannerRef.current.stop();
       localStorage.clear();
       router.push('/');
-    }, 90000);
-  }, [router]);
+    }, tiempoLimite);
+  }, [config.timer_inactividad, router]);
 
   useEffect(() => {
     const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
     const reset = () => resetTimerInactividad();
     eventos.forEach((e) => document.addEventListener(e, reset));
     resetTimerInactividad();
-    return () => eventos.forEach((e) => document.removeEventListener(e, reset));
+
+    return () => {
+      eventos.forEach((e) => document.removeEventListener(e, reset));
+      if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
+    };
   }, [resetTimerInactividad]);
 
   // --------------------------------------------------------
@@ -368,11 +382,14 @@ export default function SupervisorPage() {
         const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
         const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
         const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
+        const parsedTimer = parseInt(m.timer_inactividad, 10);
+        
         setConfig({
           lat: isNaN(parsedLat) ? 0 : parsedLat,
           lon: isNaN(parsedLon) ? 0 : parsedLon,
           radio: parseInt(m.radio_permitido) || 100,
           qr_exp: parseInt(m.qr_expiracion) || 30000,
+          timer_inactividad: isNaN(parsedTimer) ? 120000 : parsedTimer,
         });
       }
     };
@@ -478,14 +495,13 @@ export default function SupervisorPage() {
   // --------------------------------------------------------
   const iniciarModoManual = () => {
     setModo('manual');
-    setPasoManual(0); // mostrar warning
+    setPasoManual(0);
     setQrData('');
     setPinEmpleado('');
     setPinAutorizador('');
     setLecturaLista(false);
   };
 
-  // Limpiar listener al salir del modo manual
   useEffect(() => {
     if (modo !== 'manual' || direccion === null || pasoManual !== 0) {
       if (enterListenerRef.current) {
@@ -495,14 +511,12 @@ export default function SupervisorPage() {
     }
   }, [modo, direccion, pasoManual]);
 
-  // Configurar listener para el warning (solo cuando modo manual, dirección seleccionada y pasoManual = 0)
   useEffect(() => {
     if (modo === 'manual' && direccion && pasoManual === 0) {
       const handleEnter = (e: KeyboardEvent) => {
         if (e.key === 'Enter') {
           e.preventDefault();
           setPasoManual(1);
-          // Enfocar el campo de documento después de un pequeño delay
           setTimeout(() => documentoRef.current?.focus(), 100);
         }
       };
@@ -517,7 +531,6 @@ export default function SupervisorPage() {
     }
   }, [modo, direccion, pasoManual]);
 
-  // Reiniciar flujo manual al cambiar de dirección o salir
   useEffect(() => {
     if (modo !== 'manual' || !direccion) {
       setPasoManual(0);
@@ -525,10 +538,9 @@ export default function SupervisorPage() {
   }, [modo, direccion]);
 
   // --------------------------------------------------------
-  // 6. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO
+  // 6. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO (EMPLEADOS)
   // --------------------------------------------------------
   const registrarAcceso = async () => {
-    // Validar GPS
     if (gps.dist > config.radio) {
       mostrarNotificacion(`FUERA DE RANGO: ${gps.dist}m`, 'error');
       setTimeout(resetLectura, 2000);
@@ -538,7 +550,7 @@ export default function SupervisorPage() {
     setAnimar(true);
 
     const ahora = new Date().toISOString();
-    let inputBusqueda = qrData.trim();
+    const inputBusqueda = qrData.trim();
 
     console.log('🔎 BUSCANDO EMPLEADO CON:', inputBusqueda);
 
@@ -549,17 +561,11 @@ export default function SupervisorPage() {
       return;
     }
 
-    // --- VALIDACIÓN 1: Buscar empleado por documento_id o email ---
     const { data: emp, error: empErr } = await supabase
       .from('empleados')
       .select('id, nombre, pin_seguridad, activo, documento_id, email')
-      .or(
-        `documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`
-      )
+      .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
       .maybeSingle();
-
-    console.log('📦 RESULTADO BÚSQUEDA:', emp);
-    console.log('❌ ERROR DB:', empErr);
 
     if (empErr) {
       console.error('Error en consulta:', empErr);
@@ -592,7 +598,6 @@ export default function SupervisorPage() {
       return;
     }
 
-    // --- VALIDACIÓN 2: PIN del trabajador (solo en modo manual) ---
     if (modo === 'manual') {
       if (String(emp.pin_seguridad) !== String(pinEmpleado)) {
         mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
@@ -601,7 +606,6 @@ export default function SupervisorPage() {
       }
     }
 
-    // --- VALIDACIÓN 3: PIN del supervisor ---
     const { data: aut, error: autErr } = await supabase
       .from('empleados')
       .select('nombre')
@@ -615,7 +619,6 @@ export default function SupervisorPage() {
       return;
     }
 
-    // 🟢 VALIDACIÓN DE DUPLICIDAD DE ENTRADA/SALIDA
     if (direccion === 'entrada') {
       const { data: jornadaActiva, error: actErr } = await supabase
         .from('jornadas')
@@ -637,121 +640,88 @@ export default function SupervisorPage() {
         setTimeout(resetLectura, 2000);
         return;
       }
-    } else { // salida
-      const { data: jornadaActiva, error: actErr } = await supabase
-        .from('jornadas')
-        .select('id, hora_entrada')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .maybeSingle();
 
-      if (actErr) {
-        console.error('Error al verificar jornada activa:', actErr);
-        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
-        setAnimar(false);
-        return;
-      }
+      const { error: insErr } = await supabase.from('jornadas').insert([
+        {
+          empleado_id: emp.id,
+          nombre_empleado: emp.nombre,
+          hora_entrada: ahora,
+          autoriza_entrada: `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`,
+          estado: 'activo',
+        },
+      ]);
 
-      if (!jornadaActiva) {
-        mostrarNotificacion('NO HAY ENTRADA REGISTRADA', 'advertencia');
+      if (insErr) {
+        console.error('Error al insertar jornada:', insErr);
+        mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
         setAnimar(false);
         setTimeout(resetLectura, 2000);
         return;
       }
-    }
 
-    const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
+      await supabase
+        .from('empleados')
+        .update({ en_almacen: true, ultimo_ingreso: ahora })
+        .eq('id', emp.id);
 
-    try {
-      if (direccion === 'entrada') {
-        const { error: insErr } = await supabase.from('jornadas').insert([
-          {
-            empleado_id: emp.id,
-            nombre_empleado: emp.nombre,
-            hora_entrada: ahora,
-            autoriza_entrada: firma,
-            estado: 'activo',
-          },
-        ]);
+      mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
+    } else {
+      const { data: j, error: jErr } = await supabase
+        .from('jornadas')
+        .select('*')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .order('hora_entrada', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-        if (insErr) {
-          console.error('Error al insertar jornada:', insErr);
-          mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
-          setAnimar(false);
-          setTimeout(resetLectura, 2000);
-          return;
-        }
-
-        await supabase
-          .from('empleados')
-          .update({ en_almacen: true, ultimo_ingreso: ahora })
-          .eq('id', emp.id);
-
-        mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
-      } else {
-        const { data: j, error: jErr } = await supabase
-          .from('jornadas')
-          .select('*')
-          .eq('empleado_id', emp.id)
-          .is('hora_salida', null)
-          .order('hora_entrada', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (jErr || !j) {
-          mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
-          setAnimar(false);
-          setTimeout(resetLectura, 2000);
-          return;
-        }
-
-        const horas = parseFloat(
-          ((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2)
-        );
-
-        const { error: updErr } = await supabase
-          .from('jornadas')
-          .update({
-            hora_salida: ahora,
-            horas_trabajadas: horas,
-            autoriza_salida: firma,
-            estado: 'finalizado',
-          })
-          .eq('id', j.id);
-
-        if (updErr) {
-          mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
-          setAnimar(false);
-          setTimeout(resetLectura, 2000);
-          return;
-        }
-
-        await supabase
-          .from('empleados')
-          .update({ en_almacen: false, ultima_salida: ahora })
-          .eq('id', emp.id);
-
-        mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
+      if (jErr || !j) {
+        mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
       }
 
-      // ✅ FLUJO CONTINUO: Limpiar campos y mantener modo/dirección
-      setTimeout(() => {
-        resetLectura();
-        if (modo === 'manual') {
-          setPasoManual(1); // Volver al inicio del flujo manual (documento)
-          setQrData('');
-          setPinEmpleado('');
-          setPinAutorizador('');
-          setTimeout(() => documentoRef.current?.focus(), 100);
-        }
-      }, 2000);
-    } catch (e: any) {
-      console.error('Error inesperado:', e);
-      mostrarNotificacion(`ERROR INESPERADO: ${e.message}`, 'error');
-      setTimeout(resetLectura, 2000);
-    } finally {
-      setAnimar(false);
+      const horas = parseFloat(
+        ((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2)
+      );
+
+      const { error: updErr } = await supabase
+        .from('jornadas')
+        .update({
+          hora_salida: ahora,
+          horas_trabajadas: horas,
+          autoriza_salida: `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`,
+          estado: 'finalizado',
+        })
+        .eq('id', j.id);
+
+      if (updErr) {
+        mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+
+      await supabase
+        .from('empleados')
+        .update({ en_almacen: false, ultima_salida: ahora })
+        .eq('id', emp.id);
+
+      mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
     }
+
+    setTimeout(() => {
+      resetLectura();
+      if (modo === 'manual') {
+        setPasoManual(1);
+        setQrData('');
+        setPinEmpleado('');
+        setPinAutorizador('');
+        setTimeout(() => documentoRef.current?.focus(), 100);
+      }
+    }, 2000);
+    setAnimar(false);
   };
 
   // --------------------------------------------------------
@@ -762,13 +732,9 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setPinEmpleado('');
     setPinAutorizador('');
-    // No cambiar modo ni dirección
   };
 
-  const mostrarNotificacion = (
-    mensaje: string,
-    tipo: 'exito' | 'error' | 'advertencia' | 'info'
-  ) => {
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia' | 'info') => {
     setNotificacion({ mensaje, tipo });
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
   };
@@ -801,43 +767,16 @@ export default function SupervisorPage() {
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
-          // --- MENÚ PRINCIPAL (USB, CÁMARA, MANUAL) ---
           <div className="grid gap-4 w-full">
-            <BotonOpcion
-              texto="SCANNER USB"
-              icono="🔌"
-              onClick={() => setModo('usb')}
-              color="bg-blue-600"
-            />
-            <BotonOpcion
-              texto="CÁMARA MÓVIL"
-              icono="📱"
-              onClick={() => setModo('camara')}
-              color="bg-emerald-600"
-            />
-            <BotonOpcion
-              texto="MANUAL"
-              icono="🖋️"
-              onClick={iniciarModoManual}
-              color="bg-slate-700"
-            />
+            <BotonOpcion texto="SCANNER USB" icono="🔌" onClick={() => setModo('usb')} color="bg-blue-600" />
+            <BotonOpcion texto="CÁMARA MÓVIL" icono="📱" onClick={() => setModo('camara')} color="bg-emerald-600" />
+            <BotonOpcion texto="MANUAL" icono="🖋️" onClick={iniciarModoManual} color="bg-slate-700" />
             <Footer router={router} />
           </div>
         ) : !direccion ? (
-          // --- SELECCIÓN ENTRADA/SALIDA ---
           <div className="flex flex-col gap-4 w-full">
-            <BotonOpcion
-              texto="ENTRADA"
-              icono="🟢"
-              onClick={() => setDireccion('entrada')}
-              color="bg-emerald-600"
-            />
-            <BotonOpcion
-              texto="SALIDA"
-              icono="🔴"
-              onClick={() => setDireccion('salida')}
-              color="bg-rose-600"
-            />
+            <BotonOpcion texto="ENTRADA" icono="🟢" onClick={() => setDireccion('entrada')} color="bg-emerald-600" />
+            <BotonOpcion texto="SALIDA" icono="🔴" onClick={() => setDireccion('salida')} color="bg-rose-600" />
             <button
               onClick={() => {
                 setModo('menu');
@@ -851,33 +790,22 @@ export default function SupervisorPage() {
             </button>
           </div>
         ) : (
-          // --- PANTALLA DE LECTURA / CAPTURA ---
           <div className="space-y-4 w-full">
             
-            {/* INFORMACIÓN GPS */}
+            {/* GPS */}
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
               <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
                 LAT: {gps.lat.toFixed(6)} | LON: {gps.lon.toFixed(6)} |{' '}
-                <span
-                  className={
-                    gps.dist <= config.radio
-                      ? 'text-emerald-500 font-bold'
-                      : 'text-rose-500 font-bold'
-                  }
-                >
+                <span className={gps.dist <= config.radio ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
                   {gps.dist} MTS
                 </span>
               </p>
             </div>
 
-            {/* --- MODO USB / CÁMARA (lectura con escáner) --- */}
-            {modo !== 'manual' && (
+            {/* --- MODO USB / CÁMARA --- */}
+            {(modo === 'usb' || modo === 'camara') && (
               <>
-                <div
-                  className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
-                    lecturaLista ? 'border-emerald-500' : 'border-white/10'
-                  } h-60 flex items-center justify-center relative overflow-hidden`}
-                >
+                <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center relative overflow-hidden`}>
                   {!lecturaLista ? (
                     <>
                       {modo === 'camara' && <div id="reader" className="w-full h-full" />}
@@ -897,14 +825,10 @@ export default function SupervisorPage() {
                           }}
                         />
                       )}
-                      {modo !== 'manual' && (
-                        <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
-                      )}
+                      <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
                     </>
                   ) : (
-                    <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">
-                      OK ✅
-                    </p>
+                    <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>
                   )}
                 </div>
 
@@ -929,10 +853,9 @@ export default function SupervisorPage() {
               </>
             )}
 
-            {/* --- MODO MANUAL (flujo secuencial) --- */}
+            {/* --- MODO MANUAL --- */}
             {modo === 'manual' && (
               <>
-                {/* PASO 0: WARNING */}
                 {pasoManual === 0 && (
                   <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
                     <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
@@ -945,7 +868,6 @@ export default function SupervisorPage() {
                   </div>
                 )}
 
-                {/* PASO 1: DOCUMENTO / CORREO */}
                 {pasoManual === 1 && (
                   <CampoEntrada
                     ref={documentoRef}
@@ -960,12 +882,11 @@ export default function SupervisorPage() {
                       }
                     }}
                     autoFocus
-                    textoCentrado={true}
-                    mayusculas={true}
+                    textoCentrado
+                    mayusculas
                   />
                 )}
 
-                {/* PASO 2: PIN TRABAJADOR */}
                 {pasoManual === 2 && (
                   <CampoEntrada
                     ref={pinEmpleadoRef}
@@ -980,11 +901,10 @@ export default function SupervisorPage() {
                       }
                     }}
                     autoFocus
-                    textoCentrado={true}
+                    textoCentrado
                   />
                 )}
 
-                {/* PASO 3: PIN SUPERVISOR */}
                 {pasoManual === 3 && (
                   <CampoEntrada
                     ref={pinSupervisorRef}
@@ -998,11 +918,10 @@ export default function SupervisorPage() {
                       }
                     }}
                     autoFocus
-                    textoCentrado={true}
+                    textoCentrado
                   />
                 )}
 
-                {/* BOTÓN VOLVER ATRÁS (común) */}
                 <button
                   onClick={() => {
                     setDireccion(null);
