@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -177,19 +177,8 @@ const NotificacionSistema = ({
   );
 };
 
-// ----- CAMPO DE ENTRADA (simplificado) -----
-const CampoEntrada = ({
-  type = 'text',
-  placeholder = '',
-  value,
-  onChange,
-  onEnter,
-  autoFocus = false,
-  disabled = false,
-  textCentered = false,
-  uppercase = false,
-  className = '',
-}: {
+// ----- CAMPO DE ENTRADA (con forwardRef para aceptar refs) -----
+interface CampoEntradaProps {
   type?: 'text' | 'password' | 'email' | 'number' | 'date';
   placeholder?: string;
   value: string;
@@ -200,13 +189,27 @@ const CampoEntrada = ({
   textCentered?: boolean;
   uppercase?: boolean;
   className?: string;
-}) => {
+}
+
+const CampoEntrada = forwardRef<HTMLInputElement, CampoEntradaProps>(({
+  type = 'text',
+  placeholder = '',
+  value,
+  onChange,
+  onEnter,
+  autoFocus = false,
+  disabled = false,
+  textCentered = false,
+  uppercase = false,
+  className = '',
+}, ref) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && onEnter) onEnter();
   };
 
   return (
     <input
+      ref={ref}
       type={type}
       placeholder={placeholder}
       value={value}
@@ -224,7 +227,9 @@ const CampoEntrada = ({
         ${className}`}
     />
   );
-};
+});
+
+CampoEntrada.displayName = 'CampoEntrada';
 
 // ----- CONTENEDOR PRINCIPAL -----
 const ContenedorPrincipal = ({
@@ -870,7 +875,6 @@ export default function SupervisorPage() {
                           }}
                         />
                       )}
-                      {/* El láser siempre visible en modo USB/Cámara (condición eliminada) */}
                       <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
                     </>
                   ) : (
