@@ -1,8 +1,8 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,58 +10,107 @@ const supabase = createClient(
 );
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO
+// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
 // ------------------------------------------------------------
 
 // ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
-  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
-    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-      <span className="text-white">GESTOR DE </span>
-      <span className="text-blue-700">ACCESO</span>
-    </h1>
-    <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
-      MENÚ PRINCIPAL
-    </p>
-    {usuario && (
-      <div className="mt-2 pt-2 border-t border-white/10">
-        <span className="text-sm text-white normal-case">{usuario.nombre}</span>
-        <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">
-          {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-            ? 'Administración'
-            : usuario.rol?.toUpperCase() || 'Administrador'}
-        </span>
-        <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
-      </div>
-    )}
-  </div>
+const MemebreteSuperior = ({
+  titulo,
+  subtitulo,
+  usuario,
+  conAnimacion = false,
+  mostrarUsuario = true
+}: {
+  titulo: string;
+  subtitulo: string;
+  usuario?: any;
+  conAnimacion?: boolean;
+  mostrarUsuario?: boolean;
+}) => {
+  const renderTituloBicolor = (texto: string) => {
+    const palabras = texto.split(' ');
+    const ultimaPalabra = palabras.pop();
+    const primerasPalabras = palabras.join(' ');
+    return (
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{primerasPalabras} </span>
+        <span className="text-blue-700">{ultimaPalabra}</span>
+      </h1>
+    );
+  };
+
+  return (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
+      {renderTituloBicolor(titulo)}
+      <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
+        {subtitulo}
+      </p>
+      {mostrarUsuario && usuario && (
+        <div className="mt-2 pt-2 border-t border-white/10">
+          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {usuario.rol === 'admin' || usuario.rol === 'Administrador'
+              ? 'Administración'
+              : usuario.rol?.toUpperCase() || 'Supervisor'}
+          </span>
+          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE) -----
+const BotonOpcion = ({
+  texto,
+  icono,
+  onClick,
+  color,
+}: {
+  texto: string;
+  icono: string;
+  onClick: () => void;
+  color: string;
+}) => (
+  <button
+    onClick={onClick}
+    className={`w-full ${color} p-4 rounded-xl border border-white/5 
+      active:scale-95 transition-transform shadow-lg 
+      flex flex-col items-center justify-center gap-2`}
+  >
+    <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+      <span className="text-3xl">{icono}</span>
+    </div>
+    <span className="text-white font-bold uppercase text-[11px] tracking-wider">
+      {texto}
+    </span>
+  </button>
 );
 
-// ----- BOTÓN DE ACCIÓN -----
+// ----- BOTÓN DE ACCIÓN (CONFIRMAR, sin círculo) -----
 const BotonAccion = ({
   texto,
   icono,
   onClick,
-  color = 'bg-blue-600',
   disabled = false,
   loading = false,
-  fullWidth = true,
 }: {
   texto: string;
   icono?: string;
   onClick: () => void;
-  color?: string;
   disabled?: boolean;
   loading?: boolean;
-  fullWidth?: boolean;
 }) => (
   <button
     onClick={onClick}
     disabled={disabled || loading}
-    className={`${fullWidth ? 'w-full' : ''} ${color} p-3 rounded-xl border border-white/5 active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider`}
+    className="w-full bg-blue-600 p-4 rounded-xl border border-white/5
+      active:scale-95 transition-transform shadow-lg 
+      flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
+      text-white font-bold uppercase text-[11px] tracking-wider"
   >
-    {icono && <span className="text-lg">{icono}</span>}
+    {icono && <span className="text-2xl">{icono}</span>}
     {loading ? (
       <span className="flex items-center gap-2">
         <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -73,6 +122,60 @@ const BotonAccion = ({
     )}
   </button>
 );
+
+// ----- NOTIFICACIÓN DE SISTEMA -----
+const NotificacionSistema = ({
+  mensaje,
+  tipo,
+  visible,
+  duracion = 3000,
+  onCerrar
+}: {
+  mensaje: string;
+  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
+  visible: boolean;
+  duracion?: number;
+  onCerrar?: () => void;
+}) => {
+  const [mostrar, setMostrar] = useState(visible);
+
+  useEffect(() => {
+    setMostrar(visible);
+    if (visible && duracion > 0) {
+      const timer = setTimeout(() => {
+        setMostrar(false);
+        onCerrar?.();
+      }, duracion);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, duracion, onCerrar]);
+
+  if (!mostrar) return null;
+
+  const colores = {
+    exito: 'bg-emerald-500 border-emerald-400',
+    error: 'bg-rose-500 border-rose-400',
+    advertencia: 'bg-amber-500 border-amber-400',
+    info: 'bg-blue-500 border-blue-400',
+  };
+  const iconos = {
+    exito: '✅',
+    error: '❌',
+    advertencia: '⚠️',
+    info: 'ℹ️',
+  };
+
+  return (
+    <div
+      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl
+        font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center
+        border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
+    >
+      <span className="text-lg">{iconos[tipo!]}</span>
+      <span>{mensaje}</span>
+    </div>
+  );
+};
 
 // ----- CAMPO DE ENTRADA (simplificado) -----
 const CampoEntrada = ({
@@ -86,8 +189,6 @@ const CampoEntrada = ({
   textCentered = false,
   uppercase = false,
   className = '',
-  label,
-  required = false,
 }: {
   type?: 'text' | 'password' | 'email' | 'number' | 'date';
   placeholder?: string;
@@ -99,37 +200,73 @@ const CampoEntrada = ({
   textCentered?: boolean;
   uppercase?: boolean;
   className?: string;
-  label?: string;
-  required?: boolean;
 }) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && onEnter) onEnter();
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-[8px] font-black text-slate-500 uppercase ml-2">{label}</label>}
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onKeyDown={handleKeyDown}
-        autoFocus={autoFocus}
-        disabled={disabled}
-        required={required}
-        className={`w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${textCentered ? 'text-center' : ''} ${uppercase ? 'uppercase' : ''} ${type === 'password' ? 'tracking-[0.4em]' : ''} focus:border-blue-500/50 hover:border-white/20 ${className}`}
-      />
+    <input
+      type={type}
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      onKeyDown={handleKeyDown}
+      autoFocus={autoFocus}
+      disabled={disabled}
+      className={`w-full bg-white/5 border border-white/10 p-4 rounded-xl 
+        text-[11px] font-bold text-white outline-none transition-colors
+        disabled:opacity-50 disabled:cursor-not-allowed
+        ${textCentered ? 'text-center' : ''} 
+        ${uppercase ? 'uppercase' : ''}
+        ${type === 'password' ? 'tracking-[0.4em]' : ''}
+        focus:border-blue-500/50 hover:border-white/20
+        ${className}`}
+    />
+  );
+};
+
+// ----- CONTENEDOR PRINCIPAL -----
+const ContenedorPrincipal = ({
+  children,
+  maxWidth = 'sm',
+  padding = 'md',
+  className = ''
+}: {
+  children: React.ReactNode;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  padding?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
+}) => {
+  const ancho = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    full: 'max-w-full'
+  };
+  const espaciado = {
+    sm: 'p-4',
+    md: 'p-8',
+    lg: 'p-10',
+    xl: 'p-12'
+  };
+  return (
+    <div className={`w-full ${ancho[maxWidth]} bg-[#111111] ${espaciado[padding]} 
+      rounded-[35px] border border-white/5 shadow-2xl ${className}`}>
+      {children}
     </div>
   );
 };
 
-// ----- FOOTER -----
+// ----- FOOTER (VOLVER AL SELECTOR) -----
 const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center mx-auto">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">@Copyright 2026</p>
+  <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
+    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
+      @Copyright 2026
+    </p>
     <button
-      onClick={() => router.push('/admin')}
+      onClick={() => router.push('/')}
       className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
     >
       <span className="text-lg">←</span> VOLVER AL SELECTOR
@@ -138,412 +275,716 @@ const Footer = ({ router }: { router: any }) => (
 );
 
 // ------------------------------------------------------------
-// COMPONENTE PRINCIPAL – GESTIÓN DE EMPLEADOS
+// FUNCIÓN AUXILIAR: Calcular distancia GPS
 // ------------------------------------------------------------
-export default function GestionEmpleados() {
+function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
+  const R = 6371e3;
+  const p1 = (lat1 * Math.PI) / 180;
+  const p2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLambda = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
+    Math.cos(p1) * Math.cos(p2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// ------------------------------------------------------------
+// COMPONENTE PRINCIPAL
+// ------------------------------------------------------------
+export default function SupervisorPage() {
+  const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
+  const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
+  const [qrData, setQrData] = useState('');
+  const [pinEmpleado, setPinEmpleado] = useState('');
+  const [pinAutorizador, setPinAutorizador] = useState('');
+  const [animar, setAnimar] = useState(false);
+  const [lecturaLista, setLecturaLista] = useState(false);
+  const [notificacion, setNotificacion] = useState<{
+    mensaje: string;
+    tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
+  }>({ mensaje: '', tipo: null });
+
+  const [manualAprobado, setManualAprobado] = useState(false);
+  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0);
+  const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+
   const [user, setUser] = useState<any>(null);
-  const [empleados, setEmpleados] = useState<any[]>([]);
-  const [editando, setEditando] = useState<any>(null);
-  const [filtro, setFiltro] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000 });
+  const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
+
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
+  const documentoRef = useRef<HTMLInputElement>(null);
+  const pinEmpleadoRef = useRef<HTMLInputElement>(null);
+  const pinSupervisorRef = useRef<HTMLInputElement>(null);
 
-  const estadoInicial = {
-    nombre: '',
-    documento_id: '',
-    email: '',
-    rol: 'empleado',
-    activo: true,
-    permiso_reportes: false,
-    nivel_acceso: 1,
-  };
-  const [nuevo, setNuevo] = useState(estadoInicial);
+  // --------------------------------------------------------
+  // 1. CONTROL DE INACTIVIDAD
+  // --------------------------------------------------------
+  const resetTimerInactividad = useCallback(() => {
+    if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
+    timerInactividadRef.current = setTimeout(() => {
+      if (scannerRef.current?.isScanning) scannerRef.current.stop();
+      localStorage.clear();
+      router.push('/');
+    }, 90000);
+  }, [router]);
 
-  // ------------------------------------------------------------
-  // CARGAR SESIÓN Y DATOS
-  // ------------------------------------------------------------
-  const fetchEmpleados = useCallback(async () => {
-    const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
-    if (data) setEmpleados(data);
-  }, []);
+  useEffect(() => {
+    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    const reset = () => resetTimerInactividad();
+    eventos.forEach((e) => document.addEventListener(e, reset));
+    resetTimerInactividad();
+    return () => eventos.forEach((e) => document.removeEventListener(e, reset));
+  }, [resetTimerInactividad]);
 
+  // --------------------------------------------------------
+  // 2. CARGA INICIAL: sesión, configuración, GPS
+  // --------------------------------------------------------
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
-      router.replace('/');
+      router.push('/');
       return;
     }
-    const currentUser = JSON.parse(sessionData);
-    if (Number(currentUser.nivel_acceso) < 4) {
-      router.replace('/');
-      return;
-    }
-    setUser(currentUser);
-    fetchEmpleados();
+    setUser(JSON.parse(sessionData));
 
-    const channel = supabase
-      .channel('empleados_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchEmpleados)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+    const loadConfig = async () => {
+      const { data } = await supabase.from('sistema_config').select('clave, valor');
+      if (data) {
+        const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
+        const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
+        setConfig({
+          lat: isNaN(parsedLat) ? 0 : parsedLat,
+          lon: isNaN(parsedLon) ? 0 : parsedLon,
+          radio: parseInt(m.radio_permitido) || 100,
+          qr_exp: parseInt(m.qr_expiracion) || 30000,
+        });
+      }
     };
-  }, [fetchEmpleados, router]);
+    loadConfig();
 
-  // ------------------------------------------------------------
-  // OPCIONES DE NIVEL SEGÚN ROL
-  // ------------------------------------------------------------
-  const obtenerOpcionesNivel = () => {
-    const r = nuevo.rol;
-    if (r === 'empleado') return [1, 2];
-    if (r === 'supervisor') return [3];
-    if (r === 'admin') return [4, 5, 6, 7];
-    if (r === 'tecnico') return [8, 9, 10];
-    return [1];
-  };
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGps((prev) => ({ ...prev, lat: pos.coords.latitude, lon: pos.coords.longitude }));
+      },
+      null,
+      { enableHighAccuracy: true }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [router]);
 
-  // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR)
-  // ------------------------------------------------------------
-  const handleGuardar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  useEffect(() => {
+    if (config.lat !== 0 && gps.lat !== 0) {
+      const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
+      setGps((prev) => ({ ...prev, dist: Math.round(d) }));
+    }
+  }, [gps.lat, gps.lon, config]);
+
+  // --------------------------------------------------------
+  // 3. PROCESAMIENTO DEL QR (solo para usb/cámara)
+  // --------------------------------------------------------
+  const procesarQR = (texto: string): string => {
+    console.log('🔵 TEXTO QR CRUDO:', texto);
+    
+    if (!texto || texto.trim() === '') {
+      console.warn('⚠️ QR vacío');
+      return '';
+    }
+
+    const cleanText = texto.replace(/[\n\r]/g, '').trim();
+    console.log('🟡 TEXTO LIMPIO:', cleanText);
 
     try {
-      if (editando) {
-        // --- ACTUALIZAR ---
-        const { error } = await supabase
-          .from('empleados')
-          .update({
-            nombre: nuevo.nombre,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            rol: nuevo.rol,
-            activo: nuevo.activo,
-            permiso_reportes: nuevo.permiso_reportes,
-            nivel_acceso: nuevo.nivel_acceso,
-          })
-          .eq('id', editando.id);
-        if (error) throw error;
-      } else {
-        // --- CREAR NUEVO: generar PIN automáticamente ---
-        const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
-        if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
-        if (!pinGenerado) throw new Error('No se pudo generar el PIN');
+      const decoded = atob(cleanText);
+      console.log('🟢 DECODIFICADO (base64):', decoded);
 
-        const { error } = await supabase.from('empleados').insert([
-          {
-            nombre: nuevo.nombre,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            pin_seguridad: pinGenerado,
-            rol: nuevo.rol,
-            activo: nuevo.activo,
-            permiso_reportes: nuevo.permiso_reportes,
-            nivel_acceso: nuevo.nivel_acceso,
-            pin_generado_en: new Date().toISOString(),
-          },
-        ]);
-        if (error) throw error;
+      if (decoded.includes('|')) {
+        const [docId, timestamp] = decoded.split('|');
+        console.log('📄 DOCUMENTO ID EXTRAÍDO:', docId);
+        console.log('⏱️ TIMESTAMP:', timestamp);
+
+        const tiempoActual = Date.now();
+        const tiempoExpiracion = parseInt(timestamp);
+        
+        if (isNaN(tiempoExpiracion)) {
+          console.error('❌ TIMESTAMP INVÁLIDO');
+          mostrarNotificacion('QR INVÁLIDO (timestamp corrupto)', 'error');
+          return '';
+        }
+
+        if (tiempoActual - tiempoExpiracion > config.qr_exp) {
+          console.warn(`⌛ QR EXPIRADO: ${(tiempoActual - tiempoExpiracion) / 1000} segundos`);
+          mostrarNotificacion('QR EXPIRADO', 'error');
+          return '';
+        }
+
+        return docId.trim();
       }
-      cancelarEdicion();
-    } catch (error: any) {
-      console.error(error);
-      alert(`Error: ${error.message}`);
-    } finally {
-      setLoading(false);
+      
+      console.warn('⚠️ QR no contiene el separador "|", se usa el texto completo');
+      return cleanText;
+    } catch (error) {
+      console.error('❌ ERROR al decodificar base64:', error);
+      return cleanText;
     }
   };
 
-  const cancelarEdicion = () => {
-    setEditando(null);
-    setNuevo(estadoInicial);
+  // --------------------------------------------------------
+  // 4. INICIO DEL ESCÁNER DE CÁMARA
+  // --------------------------------------------------------
+  useEffect(() => {
+    if (modo === 'camara' && direccion && !lecturaLista) {
+      const scanner = new Html5Qrcode('reader');
+      scannerRef.current = scanner;
+      scanner
+        .start(
+          { facingMode: 'environment' },
+          { fps: 20, qrbox: { width: 250, height: 250 } },
+          (decoded) => {
+            console.log('📷 QR detectado por cámara:', decoded);
+            const doc = procesarQR(decoded);
+            if (doc) {
+              setQrData(doc);
+              setLecturaLista(true);
+              scanner.stop();
+            }
+          },
+          () => {}
+        )
+        .catch(() => {});
+      return () => {
+        if (scannerRef.current?.isScanning) scannerRef.current.stop();
+      };
+    }
+  }, [modo, direccion, lecturaLista, config.qr_exp]);
+
+  // --------------------------------------------------------
+  // 5. MANEJO DEL MODO MANUAL (flujo secuencial)
+  // --------------------------------------------------------
+  const iniciarModoManual = () => {
+    setModo('manual');
+    setPasoManual(0);
+    setQrData('');
+    setPinEmpleado('');
+    setPinAutorizador('');
+    setLecturaLista(false);
   };
 
-  const editarEmpleado = (emp: any) => {
-    setEditando(emp);
-    setNuevo({
-      nombre: emp.nombre,
-      documento_id: emp.documento_id,
-      email: emp.email,
-      rol: emp.rol,
-      activo: emp.activo,
-      permiso_reportes: emp.permiso_reportes,
-      nivel_acceso: emp.nivel_acceso,
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  useEffect(() => {
+    if (modo !== 'manual' || direccion === null || pasoManual !== 0) {
+      if (enterListenerRef.current) {
+        document.removeEventListener('keydown', enterListenerRef.current);
+        enterListenerRef.current = null;
+      }
+    }
+  }, [modo, direccion, pasoManual]);
+
+  useEffect(() => {
+    if (modo === 'manual' && direccion && pasoManual === 0) {
+      const handleEnter = (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          setPasoManual(1);
+          setTimeout(() => documentoRef.current?.focus(), 100);
+        }
+      };
+      enterListenerRef.current = handleEnter;
+      document.addEventListener('keydown', handleEnter);
+      return () => {
+        if (enterListenerRef.current) {
+          document.removeEventListener('keydown', enterListenerRef.current);
+          enterListenerRef.current = null;
+        }
+      };
+    }
+  }, [modo, direccion, pasoManual]);
+
+  useEffect(() => {
+    if (modo !== 'manual' || !direccion) {
+      setPasoManual(0);
+    }
+  }, [modo, direccion]);
+
+  // --------------------------------------------------------
+  // 6. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO (EMPLEADOS)
+  // --------------------------------------------------------
+  const registrarAcceso = async () => {
+    if (gps.dist > config.radio) {
+      mostrarNotificacion(`FUERA DE RANGO: ${gps.dist}m`, 'error');
+      setTimeout(resetLectura, 2000);
+      return;
+    }
+
+    setAnimar(true);
+
+    const ahora = new Date().toISOString();
+    let inputBusqueda = qrData.trim();
+
+    console.log('🔎 BUSCANDO EMPLEADO CON:', inputBusqueda);
+
+    if (!inputBusqueda) {
+      mostrarNotificacion('ERROR: DOCUMENTO VACÍO', 'error');
+      setAnimar(false);
+      setTimeout(resetLectura, 2000);
+      return;
+    }
+
+    const { data: emp, error: empErr } = await supabase
+      .from('empleados')
+      .select('id, nombre, pin_seguridad, activo, documento_id, email')
+      .or(
+        `documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`
+      )
+      .maybeSingle();
+
+    if (empErr) {
+      console.error('Error en consulta:', empErr);
+      mostrarNotificacion(`ERROR EN BASE DE DATOS: ${empErr.message}`, 'error');
+      setAnimar(false);
+      setTimeout(resetLectura, 2000);
+      return;
+    }
+
+    if (!emp) {
+      console.warn('⚠️ Empleado no encontrado');
+      mostrarNotificacion('ID NO REGISTRADO', 'error');
+      setAnimar(false);
+      setTimeout(resetLectura, 2000);
+      return;
+    }
+
+    if (!emp.documento_id) {
+      console.error('❌ Empleado sin documento_id:', emp);
+      mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
+      setAnimar(false);
+      setTimeout(resetLectura, 2000);
+      return;
+    }
+
+    if (!emp.activo) {
+      mostrarNotificacion('EMPLEADO INACTIVO', 'error');
+      setAnimar(false);
+      setTimeout(resetLectura, 2000);
+      return;
+    }
+
+    if (modo === 'manual') {
+      if (String(emp.pin_seguridad) !== String(pinEmpleado)) {
+        mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
+        setAnimar(false);
+        return;
+      }
+    }
+
+    const { data: aut, error: autErr } = await supabase
+      .from('empleados')
+      .select('nombre')
+      .eq('pin_seguridad', String(pinAutorizador))
+      .in('rol', ['supervisor', 'admin', 'Administrador'])
+      .maybeSingle();
+
+    if (autErr || !aut) {
+      mostrarNotificacion('PIN SUPERVISOR INVÁLIDO', 'error');
+      setAnimar(false);
+      return;
+    }
+
+    if (direccion === 'entrada') {
+      const { data: jornadaActiva, error: actErr } = await supabase
+        .from('jornadas')
+        .select('id')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .maybeSingle();
+
+      if (actErr) {
+        console.error('Error al verificar jornada activa:', actErr);
+        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
+        setAnimar(false);
+        return;
+      }
+
+      if (jornadaActiva) {
+        mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+    } else {
+      const { data: jornadaActiva, error: actErr } = await supabase
+        .from('jornadas')
+        .select('id, hora_entrada')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .maybeSingle();
+
+      if (actErr) {
+        console.error('Error al verificar jornada activa:', actErr);
+        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
+        setAnimar(false);
+        return;
+      }
+
+      if (!jornadaActiva) {
+        mostrarNotificacion('NO HAY ENTRADA REGISTRADA', 'advertencia');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+    }
+
+    const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
+
+    try {
+      if (direccion === 'entrada') {
+        const { error: insErr } = await supabase.from('jornadas').insert([
+          {
+            empleado_id: emp.id,
+            nombre_empleado: emp.nombre,
+            hora_entrada: ahora,
+            autoriza_entrada: firma,
+            estado: 'activo',
+          },
+        ]);
+
+        if (insErr) {
+          console.error('Error al insertar jornada:', insErr);
+          mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
+
+        await supabase
+          .from('empleados')
+          .update({ en_almacen: true, ultimo_ingreso: ahora })
+          .eq('id', emp.id);
+
+        mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
+      } else {
+        const { data: j, error: jErr } = await supabase
+          .from('jornadas')
+          .select('*')
+          .eq('empleado_id', emp.id)
+          .is('hora_salida', null)
+          .order('hora_entrada', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (jErr || !j) {
+          mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
+
+        const horas = parseFloat(
+          ((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2)
+        );
+
+        const { error: updErr } = await supabase
+          .from('jornadas')
+          .update({
+            hora_salida: ahora,
+            horas_trabajadas: horas,
+            autoriza_salida: firma,
+            estado: 'finalizado',
+          })
+          .eq('id', j.id);
+
+        if (updErr) {
+          mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
+
+        await supabase
+          .from('empleados')
+          .update({ en_almacen: false, ultima_salida: ahora })
+          .eq('id', emp.id);
+
+        mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
+      }
+
+      setTimeout(() => {
+        resetLectura();
+        if (modo === 'manual') {
+          setPasoManual(1);
+          setQrData('');
+          setPinEmpleado('');
+          setPinAutorizador('');
+          setTimeout(() => documentoRef.current?.focus(), 100);
+        }
+      }, 2000);
+    } catch (e: any) {
+      console.error('Error inesperado:', e);
+      mostrarNotificacion(`ERROR INESPERADO: ${e.message}`, 'error');
+      setTimeout(resetLectura, 2000);
+    } finally {
+      setAnimar(false);
+    }
   };
 
-  const exportarExcel = () => {
-    const data = empleados.map((e) => ({
-      Nombre: e.nombre,
-      Documento: e.documento_id,
-      Email: e.email,
-      Rol: e.rol,
-      Nivel: e.nivel_acceso,
-      PIN: e.pin_seguridad,
-      Activo: e.activo ? 'SÍ' : 'NO',
-      Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Empleados');
-    XLSX.writeFile(wb, `Empleados_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  // --------------------------------------------------------
+  // 7. FUNCIONES AUXILIARES
+  // --------------------------------------------------------
+  const resetLectura = () => {
+    setQrData('');
+    setLecturaLista(false);
+    setPinEmpleado('');
+    setPinAutorizador('');
   };
 
-  const empleadosFiltrados = empleados.filter(
-    (e) =>
-      e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
-      e.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
-      e.email?.toLowerCase().includes(filtro.toLowerCase())
-  );
+  const mostrarNotificacion = (
+    mensaje: string,
+    tipo: 'exito' | 'error' | 'advertencia' | 'info'
+  ) => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
+  };
 
-  // ------------------------------------------------------------
-  // RENDERIZADO
-  // ------------------------------------------------------------
+  // --------------------------------------------------------
+  // 8. RENDERIZADO
+  // --------------------------------------------------------
   return (
-    <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
-      <div className="max-w-7xl mx-auto">
-        <MemebreteSuperior usuario={user} />
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      
+      <NotificacionSistema
+        mensaje={notificacion.mensaje}
+        tipo={notificacion.tipo}
+        visible={!!notificacion.tipo}
+      />
 
-        {/* FORMULARIO DE CREACIÓN/EDICIÓN */}
-        <div
-          className={`bg-[#0f172a] p-6 rounded-[25px] border transition-all mb-6 ${
-            editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'
-          }`}
-        >
-          <form onSubmit={handleGuardar} className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <CampoEntrada
-                label="NOMBRE COMPLETO"
-                placeholder="Nombre completo"
-                value={nuevo.nombre}
-                onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
-                required
-                autoFocus
-              />
-              <CampoEntrada
-                label="DOCUMENTO ID"
-                placeholder="DNI / NIE / PASAPORTE"
-                value={nuevo.documento_id}
-                onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
-                required
-                uppercase
-              />
-              <CampoEntrada
-                label="EMAIL"
-                placeholder="correo@ejemplo.com"
-                type="email"
-                value={nuevo.email}
-                onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
-                required
-              />
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ROL</label>
-                <select
-                  value={nuevo.rol}
-                  onChange={(e) =>
-                    setNuevo({
-                      ...nuevo,
-                      rol: e.target.value,
-                      nivel_acceso:
-                        e.target.value === 'supervisor'
-                          ? 3
-                          : e.target.value === 'admin'
-                          ? 4
-                          : e.target.value === 'tecnico'
-                          ? 8
-                          : 1,
-                    })
-                  }
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50 uppercase tracking-wider"
-                >
-                  <option value="empleado">EMPLEADO</option>
-                  <option value="supervisor">SUPERVISOR</option>
-                  <option value="admin">ADMINISTRADOR</option>
-                  <option value="tecnico">TÉCNICO</option>
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">NIVEL ACCESO</label>
-                <select
-                  value={nuevo.nivel_acceso}
-                  onChange={(e) => setNuevo({ ...nuevo, nivel_acceso: parseInt(e.target.value) })}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
-                >
-                  {obtenerOpcionesNivel().map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">PERMISO REPORTES</label>
-                <select
-                  value={nuevo.permiso_reportes ? 'si' : 'no'}
-                  onChange={(e) => setNuevo({ ...nuevo, permiso_reportes: e.target.value === 'si' })}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
-                >
-                  <option value="no">NO</option>
-                  <option value="si">SÍ</option>
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
-                <select
-                  value={nuevo.activo ? 'activo' : 'inactivo'}
-                  onChange={(e) => setNuevo({ ...nuevo, activo: e.target.value === 'activo' })}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
-                >
-                  <option value="activo">ACTIVO</option>
-                  <option value="inactivo">INACTIVO</option>
-                </select>
-              </div>
-            </div>
+      <MemebreteSuperior
+        titulo="GESTOR DE ACCESO"
+        subtitulo={
+          modo === 'menu' 
+            ? 'SELECCIONE MÉTODO' 
+            : direccion 
+            ? `${direccion.toUpperCase()}` 
+            : 'ELIJA DIRECCIÓN'
+        }
+        usuario={user}
+        conAnimacion={false}
+        mostrarUsuario={!!user}
+      />
 
-            <div className="flex justify-end gap-3 mt-2">
-              {editando && (
-                <BotonAccion texto="CANCELAR" icono="✕" color="bg-slate-600" onClick={cancelarEdicion} />
-              )}
-              <BotonAccion
-                texto={editando ? 'ACTUALIZAR' : 'CREAR EMPLEADO'}
-                icono={editando ? '✏️' : '➕'}
-                color={editando ? 'bg-amber-600' : 'bg-emerald-600'}
-                onClick={() => {}}
-                disabled={loading}
-                loading={loading}
-              />
-            </div>
-          </form>
-        </div>
-
-        {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
-            <span className="text-white/40 ml-3">🔍</span>
-            <input
-              type="text"
-              placeholder="BUSCAR EMPLEADO..."
-              className="w-full bg-transparent px-3 py-2 text-[11px] font-bold uppercase outline-none text-white"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
+      <ContenedorPrincipal>
+        {modo === 'menu' ? (
+          <div className="grid gap-4 w-full">
+            <BotonOpcion
+              texto="SCANNER USB"
+              icono="🔌"
+              onClick={() => setModo('usb')}
+              color="bg-blue-600"
             />
+            <BotonOpcion
+              texto="CÁMARA MÓVIL"
+              icono="📱"
+              onClick={() => setModo('camara')}
+              color="bg-emerald-600"
+            />
+            <BotonOpcion
+              texto="MANUAL"
+              icono="🖋️"
+              onClick={iniciarModoManual}
+              color="bg-slate-700"
+            />
+            <Footer router={router} />
           </div>
-          <BotonAccion
-            texto="EXPORTAR EXCEL"
-            icono="📊"
-            color="bg-emerald-600"
-            onClick={exportarExcel}
-            fullWidth={false}
-          />
-        </div>
-
-        {/* TABLA DE EMPLEADOS */}
-        <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-black/40 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="p-4">Empleado</th>
-                  <th className="p-4">Documento / Email</th>
-                  <th className="p-4 text-center">Rol</th>
-                  <th className="p-4 text-center">Nivel</th>
-                  <th className="p-4 text-center">PIN</th>
-                  <th className="p-4 text-center">Reportes</th>
-                  <th className="p-4 text-center">Estado</th>
-                  <th className="p-4 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {empleadosFiltrados.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'
-                          }`}
-                        />
-                        <span className="font-bold text-[13px] uppercase text-white">{emp.nombre}</span>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="text-[11px] font-mono">
-                        <span className="block text-white">{emp.documento_id}</span>
-                        <span className="text-slate-500 text-[10px]">{emp.email}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className="text-[11px] font-black uppercase text-blue-400">{emp.rol}</span>
-                    </td>
-                    <td className="p-4 text-center font-black text-white">{emp.nivel_acceso}</td>
-                    <td className="p-4 text-center">
-                      <div className="group relative inline-block">
-                        <span className="text-[11px] font-mono text-slate-600 group-hover:hidden tracking-widest">
-                          ••••••
-                        </span>
-                        <span className="text-[11px] font-mono text-amber-500 hidden group-hover:block font-bold">
-                          {emp.pin_seguridad}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span
-                        className={`text-[10px] font-black px-2 py-1 rounded-full ${
-                          emp.permiso_reportes
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-rose-500/20 text-rose-400'
-                        }`}
-                      >
-                        {emp.permiso_reportes ? 'SÍ' : 'NO'}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={async () => {
-                          await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id);
-                        }}
-                        className={`text-[10px] font-black px-3 py-1 rounded-full border ${
-                          emp.activo
-                            ? 'text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10'
-                            : 'text-rose-500 border-rose-500/30 hover:bg-rose-500/10'
-                        }`}
-                      >
-                        {emp.activo ? 'ACTIVO' : 'INACTIVO'}
-                      </button>
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={() => editarEmpleado(emp)}
-                        className="text-blue-500 hover:text-white font-black text-[10px] uppercase px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
-                      >
-                        EDITAR
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        ) : !direccion ? (
+          <div className="flex flex-col gap-4 w-full">
+            <BotonOpcion
+              texto="ENTRADA"
+              icono="🟢"
+              onClick={() => setDireccion('entrada')}
+              color="bg-emerald-600"
+            />
+            <BotonOpcion
+              texto="SALIDA"
+              icono="🔴"
+              onClick={() => setDireccion('salida')}
+              color="bg-rose-600"
+            />
+            <button
+              onClick={() => {
+                setModo('menu');
+                setDireccion(null);
+                resetLectura();
+                setPasoManual(0);
+              }}
+              className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
+            >
+              ← VOLVER ATRÁS
+            </button>
           </div>
-          {empleadosFiltrados.length === 0 && (
-            <div className="p-10 text-center">
-              <p className="text-slate-500 text-[11px] uppercase tracking-widest">
-                No hay empleados que coincidan con la búsqueda.
+        ) : (
+          <div className="space-y-4 w-full">
+            
+            <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
+              <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
+                LAT: {gps.lat.toFixed(6)} | LON: {gps.lon.toFixed(6)} |{' '}
+                <span
+                  className={
+                    gps.dist <= config.radio
+                      ? 'text-emerald-500 font-bold'
+                      : 'text-rose-500 font-bold'
+                  }
+                >
+                  {gps.dist} MTS
+                </span>
               </p>
             </div>
-          )}
-        </div>
 
-        <Footer router={router} />
-      </div>
+            {/* --- MODO USB / CÁMARA (lectura con escáner) --- */}
+            {modo !== 'manual' && (
+              <>
+                <div
+                  className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
+                    lecturaLista ? 'border-emerald-500' : 'border-white/10'
+                  } h-60 flex items-center justify-center relative overflow-hidden`}
+                >
+                  {!lecturaLista ? (
+                    <>
+                      {modo === 'camara' && <div id="reader" className="w-full h-full" />}
+                      {modo === 'usb' && (
+                        <input
+                          autoFocus
+                          className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase placeholder:text-white/30"
+                          placeholder="ESPERANDO QR..."
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const d = procesarQR((e.target as any).value);
+                              if (d) {
+                                setQrData(d);
+                                setLecturaLista(true);
+                              }
+                            }
+                          }}
+                        />
+                      )}
+                      {/* El láser siempre visible en modo USB/Cámara (condición eliminada) */}
+                      <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
+                    </>
+                  ) : (
+                    <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">
+                      OK ✅
+                    </p>
+                  )}
+                </div>
 
-      {/* ESTILOS GLOBALES (en una sola línea) */}
-      <style jsx global>{`
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-      `}</style>
+                {(lecturaLista || (modo === 'usb' && qrData)) && (
+                  <CampoEntrada
+                    type="password"
+                    placeholder="PIN SUPERVISOR"
+                    value={pinAutorizador}
+                    onChange={(e) => setPinAutorizador(e.target.value)}
+                    onEnter={registrarAcceso}
+                    autoFocus
+                  />
+                )}
+
+                <BotonAccion
+                  texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
+                  icono="✅"
+                  onClick={registrarAcceso}
+                  disabled={animar}
+                  loading={animar}
+                />
+              </>
+            )}
+
+            {/* --- MODO MANUAL (flujo secuencial) --- */}
+            {modo === 'manual' && (
+              <>
+                {pasoManual === 0 && (
+                  <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
+                    <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
+                    <p className="text-amber-500 font-black text-[13px] uppercase tracking-widest">
+                      Este proceso requiere la validación de un Administrador
+                    </p>
+                    <p className="text-amber-400/80 text-[10px] uppercase tracking-wider mt-4">
+                      Presione ENTER para continuar
+                    </p>
+                  </div>
+                )}
+
+                {pasoManual === 1 && (
+                  <CampoEntrada
+                    ref={documentoRef}
+                    type="text"
+                    placeholder="DOCUMENTO / CORREO"
+                    value={qrData}
+                    onChange={(e) => setQrData(e.target.value)}
+                    onEnter={() => {
+                      if (qrData.trim()) {
+                        setPasoManual(2);
+                        setTimeout(() => pinEmpleadoRef.current?.focus(), 100);
+                      }
+                    }}
+                    autoFocus
+                    textCentered
+                    uppercase
+                  />
+                )}
+
+                {pasoManual === 2 && (
+                  <CampoEntrada
+                    ref={pinEmpleadoRef}
+                    type="password"
+                    placeholder="PIN TRABAJADOR"
+                    value={pinEmpleado}
+                    onChange={(e) => setPinEmpleado(e.target.value)}
+                    onEnter={() => {
+                      if (pinEmpleado.trim()) {
+                        setPasoManual(3);
+                        setTimeout(() => pinSupervisorRef.current?.focus(), 100);
+                      }
+                    }}
+                    autoFocus
+                    textCentered
+                  />
+                )}
+
+                {pasoManual === 3 && (
+                  <CampoEntrada
+                    ref={pinSupervisorRef}
+                    type="password"
+                    placeholder="PIN SUPERVISOR"
+                    value={pinAutorizador}
+                    onChange={(e) => setPinAutorizador(e.target.value)}
+                    onEnter={() => {
+                      if (pinAutorizador.trim()) {
+                        registrarAcceso();
+                      }
+                    }}
+                    autoFocus
+                    textCentered
+                  />
+                )}
+
+                <button
+                  onClick={() => {
+                    setDireccion(null);
+                    resetLectura();
+                    setPasoManual(0);
+                  }}
+                  className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors"
+                >
+                  ← VOLVER ATRÁS
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </ContenedorPrincipal>
     </main>
   );
 }
