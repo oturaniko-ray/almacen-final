@@ -54,7 +54,7 @@ export default function PanelAdminHub() {
       <div className="mt-2 pt-2 border-t border-white/10">
         <span className="text-sm text-white normal-case">{user.nombre}</span>
         <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">Panel Administrativo</span>
+        <span className="text-sm text-blue-500 normal-case">{user.rol || 'Administrador'}</span>
         <span className="text-sm text-white ml-2">({user.nivel_acceso})</span>
       </div>
     </div>
@@ -75,9 +75,11 @@ export default function PanelAdminHub() {
       onClick={onClick}
       className={`w-full ${color} p-4 rounded-xl border border-white/5 
         active:scale-95 transition-transform shadow-lg 
-        flex items-center justify-start gap-4`}
+        flex flex-col items-center justify-center gap-2`}
     >
-      <span className="text-2xl">{icono}</span>
+      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+        <span className="text-3xl">{icono}</span>
+      </div>
       <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
       </span>
@@ -102,10 +104,11 @@ export default function PanelAdminHub() {
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm flex flex-col items-center">
         <Memebrete />
-        <div className="w-full space-y-3">
+
+        <div className="w-full space-y-4">
           {nivel >= 4 && (
             <BotonOpcion
-              texto="GESTIÓN DE EMPLEADOS"
+              texto="GESTIÓN ADMINISTRATIVA"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
               color="bg-amber-600"
@@ -114,7 +117,7 @@ export default function PanelAdminHub() {
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonOpcion
               texto="AUDITORÍA"
-              icono="📝​"
+              icono="📝"
               onClick={() => router.push('/admin/auditoria')}
               color="bg-blue-600"
             />
@@ -128,6 +131,7 @@ export default function PanelAdminHub() {
             />
           )}
         </div>
+
         <Footer />
       </div>
     </main>

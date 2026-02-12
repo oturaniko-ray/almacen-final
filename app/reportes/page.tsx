@@ -32,7 +32,7 @@ export default function ReportesMenuPage() {
       <div className="mt-2 pt-2 border-t border-white/10">
         <span className="text-sm text-white normal-case">{user.nombre}</span>
         <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">Reportes y Análisis</span>
+        <span className="text-sm text-blue-500 normal-case">{user.rol || 'Analista'}</span>
         <span className="text-sm text-white ml-2">({user.nivel_acceso || '0'})</span>
       </div>
     </div>
@@ -53,9 +53,11 @@ export default function ReportesMenuPage() {
       onClick={onClick}
       className={`w-full ${color} p-4 rounded-xl border border-white/5 
         active:scale-95 transition-transform shadow-lg 
-        flex items-center justify-start gap-4`}
+        flex flex-col items-center justify-center gap-2`}
     >
-      <span className="text-2xl">{icono}</span>
+      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+        <span className="text-3xl">{icono}</span>
+      </div>
       <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
       </span>
@@ -80,7 +82,8 @@ export default function ReportesMenuPage() {
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm flex flex-col items-center">
         <Memebrete />
-        <div className="w-full space-y-3">
+
+        <div className="w-full space-y-4">
           <BotonOpcion
             texto="MONITOR DE PRESENCIA"
             icono="⏱️"
@@ -94,6 +97,7 @@ export default function ReportesMenuPage() {
             color="bg-slate-700"
           />
         </div>
+
         <Footer />
       </div>
     </main>
