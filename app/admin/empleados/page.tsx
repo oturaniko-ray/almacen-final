@@ -10,43 +10,35 @@ const supabase = createClient(
 );
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
+// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO
 // ------------------------------------------------------------
 
 // ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({
-  usuario,
-  modulo = 'Gestión Administrativa'
-}: {
-  usuario?: any;
-  modulo?: string;
-}) => {
-  return (
-    <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
-      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-        <span className="text-white">GESTOR DE </span>
-        <span className="text-blue-700">ACCESO</span>
-      </h1>
-      <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
-        MENÚ PRINCIPAL
-      </p>
-      {usuario && (
-        <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
-          <span className="text-sm text-white mx-2">•</span>
-          <span className="text-sm text-blue-500 normal-case">
-            {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-              ? 'Administración'
-              : usuario.rol?.toUpperCase() || 'Administrador'}
-          </span>
-          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
-        </div>
-      )}
-    </div>
-  );
-};
+const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
+  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
+    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+      <span className="text-white">GESTOR DE </span>
+      <span className="text-blue-700">ACCESO</span>
+    </h1>
+    <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
+      MENÚ PRINCIPAL
+    </p>
+    {usuario && (
+      <div className="mt-2 pt-2 border-t border-white/10">
+        <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+        <span className="text-sm text-white mx-2">•</span>
+        <span className="text-sm text-blue-500 normal-case">
+          {usuario.rol === 'admin' || usuario.rol === 'Administrador'
+            ? 'Administración'
+            : usuario.rol?.toUpperCase() || 'Administrador'}
+        </span>
+        <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+      </div>
+    )}
+  </div>
+);
 
-// ----- BOTÓN DE ACCIÓN (redondeado, con círculo opcional) -----
+// ----- BOTÓN DE ACCIÓN -----
 const BotonAccion = ({
   texto,
   icono,
@@ -54,7 +46,7 @@ const BotonAccion = ({
   color = 'bg-blue-600',
   disabled = false,
   loading = false,
-  fullWidth = true
+  fullWidth = true,
 }: {
   texto: string;
   icono?: string;
@@ -63,96 +55,79 @@ const BotonAccion = ({
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
-}) => {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled || loading}
-      className={`${fullWidth ? 'w-full' : ''} ${color} p-3 rounded-xl border border-white/5
-        active:scale-95 transition-transform shadow-lg 
-        flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed
-        text-white font-bold uppercase text-[11px] tracking-wider`}
-    >
-      {icono && <span className="text-lg">{icono}</span>}
-      {loading ? (
-        <span className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
-        </span>
-      ) : (
-        texto
-      )}
-    </button>
-  );
-};
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled || loading}
+    className={`${fullWidth ? 'w-full' : ''} ${color} p-3 rounded-xl border border-white/5 active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider`}
+  >
+    {icono && <span className="text-lg">{icono}</span>}
+    {loading ? (
+      <span className="flex items-center gap-2">
+        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
+        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
+      </span>
+    ) : (
+      texto
+    )}
+  </button>
+);
 
-// ----- CAMPO DE ENTRADA -----
-const CampoEntrada = React.forwardRef<HTMLInputElement, {
-  tipo?: 'text' | 'password' | 'email' | 'number' | 'date';
-  placeholder?: string;
-  valor: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onEnter?: () => void;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  textoCentrado?: boolean;
-  mayusculas?: boolean;
-  className?: string;
-  label?: string;
-}>(({
-  tipo = 'text',
+// ----- CAMPO DE ENTRADA (simplificado) -----
+const CampoEntrada = ({
+  type = 'text',
   placeholder = '',
-  valor,
+  value,
   onChange,
   onEnter,
   autoFocus = false,
   disabled = false,
-  textoCentrado = false,
-  mayusculas = false,
+  textCentered = false,
+  uppercase = false,
   className = '',
-  label
-}, ref) => {
+  label,
+  required = false,
+}: {
+  type?: 'text' | 'password' | 'email' | 'number' | 'date';
+  placeholder?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onEnter?: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  textCentered?: boolean;
+  uppercase?: boolean;
+  className?: string;
+  label?: string;
+  required?: boolean;
+}) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && onEnter) onEnter();
   };
 
   return (
     <div className="flex flex-col gap-1">
-      {label && (
-        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
-          {label}
-        </label>
-      )}
+      {label && <label className="text-[8px] font-black text-slate-500 uppercase ml-2">{label}</label>}
       <input
-        ref={ref}
-        type={tipo}
+        type={type}
         placeholder={placeholder}
-        value={valor}
+        value={value}
         onChange={onChange}
         onKeyDown={handleKeyDown}
         autoFocus={autoFocus}
         disabled={disabled}
-        className={`w-full bg-white/5 border border-white/10 p-3 rounded-xl 
-          text-[11px] font-bold text-white outline-none transition-colors
-          disabled:opacity-50 disabled:cursor-not-allowed
-          ${textoCentrado ? 'text-center' : ''} 
-          ${mayusculas ? 'uppercase' : ''}
-          ${tipo === 'password' ? 'tracking-[0.4em]' : ''}
-          focus:border-blue-500/50 hover:border-white/20
-          ${className}`}
+        required={required}
+        className={`w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${textCentered ? 'text-center' : ''} ${uppercase ? 'uppercase' : ''} ${type === 'password' ? 'tracking-[0.4em]' : ''} focus:border-blue-500/50 hover:border-white/20 ${className}`}
       />
     </div>
   );
-});
-CampoEntrada.displayName = 'CampoEntrada';
+};
 
-// ----- FOOTER (VOLVER AL SELECTOR) -----
+// ----- FOOTER -----
 const Footer = ({ router }: { router: any }) => (
   <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center mx-auto">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright 2026
-    </p>
+    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">@Copyright 2026</p>
     <button
       onClick={() => router.push('/admin')}
       className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
@@ -171,10 +146,8 @@ export default function GestionEmpleados() {
   const [editando, setEditando] = useState<any>(null);
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
-  
   const router = useRouter();
 
-  // Estado del formulario – SIN pin_seguridad
   const estadoInicial = {
     nombre: '',
     documento_id: '',
@@ -182,7 +155,7 @@ export default function GestionEmpleados() {
     rol: 'empleado',
     activo: true,
     permiso_reportes: false,
-    nivel_acceso: 1
+    nivel_acceso: 1,
   };
   const [nuevo, setNuevo] = useState(estadoInicial);
 
@@ -190,10 +163,7 @@ export default function GestionEmpleados() {
   // CARGAR SESIÓN Y DATOS
   // ------------------------------------------------------------
   const fetchEmpleados = useCallback(async () => {
-    const { data } = await supabase
-      .from('empleados')
-      .select('*')
-      .order('nombre', { ascending: true });
+    const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
     if (data) setEmpleados(data);
   }, []);
 
@@ -211,13 +181,14 @@ export default function GestionEmpleados() {
     setUser(currentUser);
     fetchEmpleados();
 
-    // Suscripción en tiempo real
     const channel = supabase
       .channel('empleados_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchEmpleados)
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchEmpleados, router]);
 
   // ------------------------------------------------------------
@@ -241,7 +212,7 @@ export default function GestionEmpleados() {
 
     try {
       if (editando) {
-        // --- ACTUALIZAR: no se regenera el PIN ---
+        // --- ACTUALIZAR ---
         const { error } = await supabase
           .from('empleados')
           .update({
@@ -251,24 +222,18 @@ export default function GestionEmpleados() {
             rol: nuevo.rol,
             activo: nuevo.activo,
             permiso_reportes: nuevo.permiso_reportes,
-            nivel_acceso: nuevo.nivel_acceso
+            nivel_acceso: nuevo.nivel_acceso,
           })
           .eq('id', editando.id);
-
         if (error) throw error;
       } else {
         // --- CREAR NUEVO: generar PIN automáticamente ---
-        // 1. Llamar a la función de base de datos para obtener el nuevo PIN
-        const { data: pinGenerado, error: pinError } = await supabase
-          .rpc('generar_pin_personal');
-
+        const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        // 2. Insertar empleado con el PIN generado
-        const { error } = await supabase
-          .from('empleados')
-          .insert([{
+        const { error } = await supabase.from('empleados').insert([
+          {
             nombre: nuevo.nombre,
             documento_id: nuevo.documento_id,
             email: nuevo.email.toLowerCase(),
@@ -277,12 +242,11 @@ export default function GestionEmpleados() {
             activo: nuevo.activo,
             permiso_reportes: nuevo.permiso_reportes,
             nivel_acceso: nuevo.nivel_acceso,
-            pin_generado_en: new Date().toISOString()
-          }]);
-
+            pin_generado_en: new Date().toISOString(),
+          },
+        ]);
         if (error) throw error;
       }
-
       cancelarEdicion();
     } catch (error: any) {
       console.error(error);
@@ -292,17 +256,11 @@ export default function GestionEmpleados() {
     }
   };
 
-  // ------------------------------------------------------------
-  // CANCELAR EDICIÓN / LIMPIAR FORMULARIO
-  // ------------------------------------------------------------
   const cancelarEdicion = () => {
     setEditando(null);
     setNuevo(estadoInicial);
   };
 
-  // ------------------------------------------------------------
-  // EDITAR EMPLEADO (cargar datos en el formulario)
-  // ------------------------------------------------------------
   const editarEmpleado = (emp: any) => {
     setEditando(emp);
     setNuevo({
@@ -312,16 +270,13 @@ export default function GestionEmpleados() {
       rol: emp.rol,
       activo: emp.activo,
       permiso_reportes: emp.permiso_reportes,
-      nivel_acceso: emp.nivel_acceso
+      nivel_acceso: emp.nivel_acceso,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ------------------------------------------------------------
-  // EXPORTAR A EXCEL
-  // ------------------------------------------------------------
   const exportarExcel = () => {
-    const data = empleados.map(e => ({
+    const data = empleados.map((e) => ({
       Nombre: e.nombre,
       Documento: e.documento_id,
       Email: e.email,
@@ -329,21 +284,19 @@ export default function GestionEmpleados() {
       Nivel: e.nivel_acceso,
       PIN: e.pin_seguridad,
       Activo: e.activo ? 'SÍ' : 'NO',
-      'Reportes': e.permiso_reportes ? 'SÍ' : 'NO'
+      Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Empleados');
-    XLSX.writeFile(wb, `Empleados_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `Empleados_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // ------------------------------------------------------------
-  // FILTRAR EMPLEADOS
-  // ------------------------------------------------------------
-  const empleadosFiltrados = empleados.filter(e =>
-    e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
-    e.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
-    e.email?.toLowerCase().includes(filtro.toLowerCase())
+  const empleadosFiltrados = empleados.filter(
+    (e) =>
+      e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
+      e.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
+      e.email?.toLowerCase().includes(filtro.toLowerCase())
   );
 
   // ------------------------------------------------------------
@@ -352,56 +305,59 @@ export default function GestionEmpleados() {
   return (
     <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        
-        {/* MEMBRETE */}
-        <MemebreteSuperior usuario={user} modulo="Gestión Administrativa" />
+        <MemebreteSuperior usuario={user} />
 
         {/* FORMULARIO DE CREACIÓN/EDICIÓN */}
-        <div className={`bg-[#0f172a] p-6 rounded-[25px] border transition-all mb-6
-          ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}
+        <div
+          className={`bg-[#0f172a] p-6 rounded-[25px] border transition-all mb-6 ${
+            editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'
+          }`}
         >
           <form onSubmit={handleGuardar} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <CampoEntrada
                 label="NOMBRE COMPLETO"
                 placeholder="Nombre completo"
-                valor={nuevo.nombre}
-                onChange={(e) => setNuevo({...nuevo, nombre: e.target.value})}
+                value={nuevo.nombre}
+                onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
                 required
                 autoFocus
               />
               <CampoEntrada
                 label="DOCUMENTO ID"
                 placeholder="DNI / NIE / PASAPORTE"
-                valor={nuevo.documento_id}
-                onChange={(e) => setNuevo({...nuevo, documento_id: e.target.value})}
+                value={nuevo.documento_id}
+                onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                 required
-                mayusculas
+                uppercase
               />
               <CampoEntrada
                 label="EMAIL"
                 placeholder="correo@ejemplo.com"
-                tipo="email"
-                valor={nuevo.email}
-                onChange={(e) => setNuevo({...nuevo, email: e.target.value})}
+                type="email"
+                value={nuevo.email}
+                onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
                 required
               />
               <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
-                  ROL
-                </label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ROL</label>
                 <select
                   value={nuevo.rol}
-                  onChange={(e) => setNuevo({
-                    ...nuevo,
-                    rol: e.target.value,
-                    nivel_acceso: e.target.value === 'supervisor' ? 3 :
-                                  e.target.value === 'admin' ? 4 :
-                                  e.target.value === 'tecnico' ? 8 : 1
-                  })}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl
-                    text-[11px] font-bold text-white outline-none focus:border-blue-500/50
-                    uppercase tracking-wider"
+                  onChange={(e) =>
+                    setNuevo({
+                      ...nuevo,
+                      rol: e.target.value,
+                      nivel_acceso:
+                        e.target.value === 'supervisor'
+                          ? 3
+                          : e.target.value === 'admin'
+                          ? 4
+                          : e.target.value === 'tecnico'
+                          ? 8
+                          : 1,
+                    })
+                  }
+                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50 uppercase tracking-wider"
                 >
                   <option value="empleado">EMPLEADO</option>
                   <option value="supervisor">SUPERVISOR</option>
@@ -410,43 +366,36 @@ export default function GestionEmpleados() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
-                  NIVEL ACCESO
-                </label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">NIVEL ACCESO</label>
                 <select
                   value={nuevo.nivel_acceso}
-                  onChange={(e) => setNuevo({...nuevo, nivel_acceso: parseInt(e.target.value)})}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl
-                    text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
+                  onChange={(e) => setNuevo({ ...nuevo, nivel_acceso: parseInt(e.target.value) })}
+                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
                 >
-                  {obtenerOpcionesNivel().map(n => (
-                    <option key={n} value={n}>{n}</option>
+                  {obtenerOpcionesNivel().map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
-                  PERMISO REPORTES
-                </label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">PERMISO REPORTES</label>
                 <select
                   value={nuevo.permiso_reportes ? 'si' : 'no'}
-                  onChange={(e) => setNuevo({...nuevo, permiso_reportes: e.target.value === 'si'})}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl
-                    text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
+                  onChange={(e) => setNuevo({ ...nuevo, permiso_reportes: e.target.value === 'si' })}
+                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
                 >
                   <option value="no">NO</option>
                   <option value="si">SÍ</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
-                  ESTADO
-                </label>
+                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
                 <select
                   value={nuevo.activo ? 'activo' : 'inactivo'}
-                  onChange={(e) => setNuevo({...nuevo, activo: e.target.value === 'activo'})}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl
-                    text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
+                  onChange={(e) => setNuevo({ ...nuevo, activo: e.target.value === 'activo' })}
+                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
                 >
                   <option value="activo">ACTIVO</option>
                   <option value="inactivo">INACTIVO</option>
@@ -456,12 +405,7 @@ export default function GestionEmpleados() {
 
             <div className="flex justify-end gap-3 mt-2">
               {editando && (
-                <BotonAccion
-                  texto="CANCELAR"
-                  icono="✕"
-                  color="bg-slate-600"
-                  onClick={cancelarEdicion}
-                />
+                <BotonAccion texto="CANCELAR" icono="✕" color="bg-slate-600" onClick={cancelarEdicion} />
               )}
               <BotonAccion
                 texto={editando ? 'ACTUALIZAR' : 'CREAR EMPLEADO'}
@@ -517,10 +461,12 @@ export default function GestionEmpleados() {
                   <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`} />
-                        <span className="font-bold text-[13px] uppercase text-white">
-                          {emp.nombre}
-                        </span>
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'
+                          }`}
+                        />
+                        <span className="font-bold text-[13px] uppercase text-white">{emp.nombre}</span>
                       </div>
                     </td>
                     <td className="p-4">
@@ -530,13 +476,9 @@ export default function GestionEmpleados() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                      <span className="text-[11px] font-black uppercase text-blue-400">
-                        {emp.rol}
-                      </span>
+                      <span className="text-[11px] font-black uppercase text-blue-400">{emp.rol}</span>
                     </td>
-                    <td className="p-4 text-center font-black text-white">
-                      {emp.nivel_acceso}
-                    </td>
+                    <td className="p-4 text-center font-black text-white">{emp.nivel_acceso}</td>
                     <td className="p-4 text-center">
                       <div className="group relative inline-block">
                         <span className="text-[11px] font-mono text-slate-600 group-hover:hidden tracking-widest">
@@ -548,8 +490,12 @@ export default function GestionEmpleados() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                      <span className={`text-[10px] font-black px-2 py-1 rounded-full
-                        ${emp.permiso_reportes ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}
+                      <span
+                        className={`text-[10px] font-black px-2 py-1 rounded-full ${
+                          emp.permiso_reportes
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : 'bg-rose-500/20 text-rose-400'
+                        }`}
                       >
                         {emp.permiso_reportes ? 'SÍ' : 'NO'}
                       </span>
@@ -557,15 +503,13 @@ export default function GestionEmpleados() {
                     <td className="p-4 text-center">
                       <button
                         onClick={async () => {
-                          await supabase
-                            .from('empleados')
-                            .update({ activo: !emp.activo })
-                            .eq('id', emp.id);
+                          await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id);
                         }}
-                        className={`text-[10px] font-black px-3 py-1 rounded-full border
-                          ${emp.activo
+                        className={`text-[10px] font-black px-3 py-1 rounded-full border ${
+                          emp.activo
                             ? 'text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10'
-                            : 'text-rose-500 border-rose-500/30 hover:bg-rose-500/10'}`}
+                            : 'text-rose-500 border-rose-500/30 hover:bg-rose-500/10'
+                        }`}
                       >
                         {emp.activo ? 'ACTIVO' : 'INACTIVO'}
                       </button>
@@ -592,12 +536,10 @@ export default function GestionEmpleados() {
           )}
         </div>
 
-        {/* FOOTER */}
         <Footer router={router} />
-
       </div>
 
-      {/* ESTILOS GLOBALES */}
+      {/* ESTILOS GLOBALES (en una sola línea) */}
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
