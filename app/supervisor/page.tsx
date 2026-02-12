@@ -747,7 +747,7 @@ export default function SupervisorPage() {
           <div className="grid gap-4 w-full">
             <BotonOpcion
               texto="SCANNER USB"
-              icono="💻​"
+              icono="🔌"
               onClick={() => setModo('usb')}
               color="bg-blue-600"
             />
@@ -759,7 +759,7 @@ export default function SupervisorPage() {
             />
             <BotonOpcion
               texto="MANUAL"
-              icono="✍🏻"
+              icono="🖋️"
               onClick={() => {
                 setModo('manual');
                 setManualAprobado(false);
