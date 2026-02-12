@@ -61,7 +61,7 @@ const MemebreteSuperior = ({
   );
 };
 
-// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE, CENTRADO) -----
+// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI, ALTURA REDUCIDA) -----
 const BotonOpcion = ({
   texto,
   icono,
@@ -76,12 +76,12 @@ const BotonOpcion = ({
   return (
     <button
       onClick={onClick}
-      className={`w-full ${color} p-4 rounded-xl border border-white/5 
+      className={`w-full ${color} p-3 rounded-xl border border-white/5 
         active:scale-95 transition-transform shadow-lg 
-        flex flex-col items-center justify-center gap-2`}
+        flex flex-col items-center justify-center gap-1`}
     >
-      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-        <span className="text-3xl">{icono}</span>
+      <div className="w-12 h-12 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+        <span className="text-2xl">{icono}</span>
       </div>
       <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
@@ -90,30 +90,32 @@ const BotonOpcion = ({
   );
 };
 
-// ----- BOTÓN DE ACCIÓN (para CONFIRMAR, sin círculo) -----
+// ----- BOTÓN DE ACCIÓN (CONFIRMAR / CANCELAR) -----
 const BotonAccion = ({
   texto,
   icono,
   onClick,
   disabled = false,
   loading = false,
+  color = 'bg-blue-600'
 }: {
   texto: string;
   icono?: string;
   onClick: () => void;
   disabled?: boolean;
   loading?: boolean;
+  color?: string;
 }) => {
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
-      className="w-full bg-blue-600 p-4 rounded-xl border border-white/5
+      className={`w-full ${color} p-3 rounded-xl border border-white/5
         active:scale-95 transition-transform shadow-lg 
-        flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
-        text-white font-bold uppercase text-[11px] tracking-wider"
+        flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed
+        text-white font-bold uppercase text-[11px] tracking-wider`}
     >
-      {icono && <span className="text-2xl">{icono}</span>}
+      {icono && <span className="text-lg">{icono}</span>}
       {loading ? (
         <span className="flex items-center gap-2">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -219,7 +221,7 @@ const CampoEntrada = React.forwardRef<HTMLInputElement, {
       onKeyDown={handleKeyDown}
       autoFocus={autoFocus}
       disabled={disabled}
-      className={`w-full bg-white/5 border border-white/10 p-4 rounded-xl 
+      className={`w-full bg-white/5 border border-white/10 p-3 rounded-xl 
         text-[11px] font-bold text-white outline-none transition-colors
         disabled:opacity-50 disabled:cursor-not-allowed
         ${textoCentrado ? 'text-center' : ''} 
@@ -265,9 +267,9 @@ const ContenedorPrincipal = ({
   );
 };
 
-// ----- FOOTER (VOLVER AL SELECTOR) -----
+// ----- FOOTER (SIN LÍNEA SUPERIOR) -----
 const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
+  <div className="w-full max-w-sm mt-8 pt-4 text-center">
     <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
       @Copyright 2026
     </p>
@@ -325,7 +327,7 @@ export default function SupervisorPage() {
     lon: 0,
     radio: 100,
     qr_exp: 30000,
-    timer_inactividad: 120000 // Valor por defecto: 2 minutos
+    timer_inactividad: 120000
   });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
 
@@ -338,14 +340,11 @@ export default function SupervisorPage() {
   const pinSupervisorRef = useRef<HTMLInputElement>(null);
 
   // --------------------------------------------------------
-  // 1. CONTROL DE INACTIVIDAD – usa timer_inactividad desde config
+  // 1. CONTROL DE INACTIVIDAD
   // --------------------------------------------------------
   const resetTimerInactividad = useCallback(() => {
     if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
-    
-    // Obtener tiempo de inactividad (convertir a número)
     const tiempoLimite = Number(config.timer_inactividad) || 120000;
-    
     timerInactividadRef.current = setTimeout(() => {
       if (scannerRef.current?.isScanning) scannerRef.current.stop();
       localStorage.clear();
@@ -358,7 +357,6 @@ export default function SupervisorPage() {
     const reset = () => resetTimerInactividad();
     eventos.forEach((e) => document.addEventListener(e, reset));
     resetTimerInactividad();
-
     return () => {
       eventos.forEach((e) => document.removeEventListener(e, reset));
       if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
@@ -366,7 +364,7 @@ export default function SupervisorPage() {
   }, [resetTimerInactividad]);
 
   // --------------------------------------------------------
-  // 2. CARGA INICIAL: sesión, configuración, GPS
+  // 2. CARGA INICIAL
   // --------------------------------------------------------
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -383,7 +381,6 @@ export default function SupervisorPage() {
         const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
         const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
         const parsedTimer = parseInt(m.timer_inactividad, 10);
-        
         setConfig({
           lat: isNaN(parsedLat) ? 0 : parsedLat,
           lon: isNaN(parsedLon) ? 0 : parsedLon,
@@ -413,56 +410,35 @@ export default function SupervisorPage() {
   }, [gps.lat, gps.lon, config]);
 
   // --------------------------------------------------------
-  // 3. PROCESAMIENTO DEL QR (solo para usb/cámara)
+  // 3. PROCESAMIENTO DEL QR (solo usb/cámara)
   // --------------------------------------------------------
   const procesarQR = (texto: string): string => {
     console.log('🔵 TEXTO QR CRUDO:', texto);
-    
-    if (!texto || texto.trim() === '') {
-      console.warn('⚠️ QR vacío');
-      return '';
-    }
-
+    if (!texto || texto.trim() === '') return '';
     const cleanText = texto.replace(/[\n\r]/g, '').trim();
-    console.log('🟡 TEXTO LIMPIO:', cleanText);
-
     try {
       const decoded = atob(cleanText);
-      console.log('🟢 DECODIFICADO (base64):', decoded);
-
       if (decoded.includes('|')) {
         const [docId, timestamp] = decoded.split('|');
-        console.log('📄 DOCUMENTO ID EXTRAÍDO:', docId);
-        console.log('⏱️ TIMESTAMP:', timestamp);
-
-        const tiempoActual = Date.now();
         const tiempoExpiracion = parseInt(timestamp);
-        
         if (isNaN(tiempoExpiracion)) {
-          console.error('❌ TIMESTAMP INVÁLIDO');
-          mostrarNotificacion('QR INVÁLIDO (timestamp corrupto)', 'error');
+          mostrarNotificacion('QR INVÁLIDO', 'error');
           return '';
         }
-
-        if (tiempoActual - tiempoExpiracion > config.qr_exp) {
-          console.warn(`⌛ QR EXPIRADO: ${(tiempoActual - tiempoExpiracion) / 1000} segundos`);
+        if (Date.now() - tiempoExpiracion > config.qr_exp) {
           mostrarNotificacion('QR EXPIRADO', 'error');
           return '';
         }
-
         return docId.trim();
       }
-      
-      console.warn('⚠️ QR no contiene el separador "|", se usa el texto completo');
       return cleanText;
-    } catch (error) {
-      console.error('❌ ERROR al decodificar base64:', error);
+    } catch {
       return cleanText;
     }
   };
 
   // --------------------------------------------------------
-  // 4. INICIO DEL ESCÁNER DE CÁMARA (solo para modo camara)
+  // 4. ESCÁNER DE CÁMARA
   // --------------------------------------------------------
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
@@ -473,7 +449,6 @@ export default function SupervisorPage() {
           { facingMode: 'environment' },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decoded) => {
-            console.log('📷 QR detectado por cámara:', decoded);
             const doc = procesarQR(decoded);
             if (doc) {
               setQrData(doc);
@@ -491,7 +466,7 @@ export default function SupervisorPage() {
   }, [modo, direccion, lecturaLista, config.qr_exp]);
 
   // --------------------------------------------------------
-  // 5. MANEJO DEL MODO MANUAL (flujo secuencial)
+  // 5. MODO MANUAL
   // --------------------------------------------------------
   const iniciarModoManual = () => {
     setModo('manual');
@@ -532,13 +507,11 @@ export default function SupervisorPage() {
   }, [modo, direccion, pasoManual]);
 
   useEffect(() => {
-    if (modo !== 'manual' || !direccion) {
-      setPasoManual(0);
-    }
+    if (modo !== 'manual' || !direccion) setPasoManual(0);
   }, [modo, direccion]);
 
   // --------------------------------------------------------
-  // 6. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO (EMPLEADOS)
+  // 6. REGISTRAR ACCESO (EMPLEADOS)
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     if (gps.dist > config.radio) {
@@ -548,11 +521,8 @@ export default function SupervisorPage() {
     }
 
     setAnimar(true);
-
     const ahora = new Date().toISOString();
     const inputBusqueda = qrData.trim();
-
-    console.log('🔎 BUSCANDO EMPLEADO CON:', inputBusqueda);
 
     if (!inputBusqueda) {
       mostrarNotificacion('ERROR: DOCUMENTO VACÍO', 'error');
@@ -568,42 +538,33 @@ export default function SupervisorPage() {
       .maybeSingle();
 
     if (empErr) {
-      console.error('Error en consulta:', empErr);
-      mostrarNotificacion(`ERROR EN BASE DE DATOS: ${empErr.message}`, 'error');
+      mostrarNotificacion(`ERROR DB: ${empErr.message}`, 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
     if (!emp) {
-      console.warn('⚠️ Empleado no encontrado');
       mostrarNotificacion('ID NO REGISTRADO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
     if (!emp.documento_id) {
-      console.error('❌ Empleado sin documento_id:', emp);
       mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
     if (!emp.activo) {
       mostrarNotificacion('EMPLEADO INACTIVO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
-    if (modo === 'manual') {
-      if (String(emp.pin_seguridad) !== String(pinEmpleado)) {
-        mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
-        setAnimar(false);
-        return;
-      }
+    if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
+      mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
+      setAnimar(false);
+      return;
     }
 
     const { data: aut, error: autErr } = await supabase
@@ -619,54 +580,38 @@ export default function SupervisorPage() {
       return;
     }
 
+    const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
+
     if (direccion === 'entrada') {
-      const { data: jornadaActiva, error: actErr } = await supabase
+      const { data: jornadaActiva } = await supabase
         .from('jornadas')
         .select('id')
         .eq('empleado_id', emp.id)
         .is('hora_salida', null)
         .maybeSingle();
-
-      if (actErr) {
-        console.error('Error al verificar jornada activa:', actErr);
-        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
-        setAnimar(false);
-        return;
-      }
-
       if (jornadaActiva) {
         mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
         setAnimar(false);
         setTimeout(resetLectura, 2000);
         return;
       }
-
-      const { error: insErr } = await supabase.from('jornadas').insert([
-        {
-          empleado_id: emp.id,
-          nombre_empleado: emp.nombre,
-          hora_entrada: ahora,
-          autoriza_entrada: `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`,
-          estado: 'activo',
-        },
-      ]);
-
+      const { error: insErr } = await supabase.from('jornadas').insert([{
+        empleado_id: emp.id,
+        nombre_empleado: emp.nombre,
+        hora_entrada: ahora,
+        autoriza_entrada: firma,
+        estado: 'activo',
+      }]);
       if (insErr) {
-        console.error('Error al insertar jornada:', insErr);
         mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
         setAnimar(false);
         setTimeout(resetLectura, 2000);
         return;
       }
-
-      await supabase
-        .from('empleados')
-        .update({ en_almacen: true, ultimo_ingreso: ahora })
-        .eq('id', emp.id);
-
+      await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
       mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
     } else {
-      const { data: j, error: jErr } = await supabase
+      const { data: j } = await supabase
         .from('jornadas')
         .select('*')
         .eq('empleado_id', emp.id)
@@ -674,40 +619,26 @@ export default function SupervisorPage() {
         .order('hora_entrada', { ascending: false })
         .limit(1)
         .maybeSingle();
-
-      if (jErr || !j) {
+      if (!j) {
         mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
         setAnimar(false);
         setTimeout(resetLectura, 2000);
         return;
       }
-
-      const horas = parseFloat(
-        ((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2)
-      );
-
-      const { error: updErr } = await supabase
-        .from('jornadas')
-        .update({
-          hora_salida: ahora,
-          horas_trabajadas: horas,
-          autoriza_salida: `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`,
-          estado: 'finalizado',
-        })
-        .eq('id', j.id);
-
+      const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
+      const { error: updErr } = await supabase.from('jornadas').update({
+        hora_salida: ahora,
+        horas_trabajadas: horas,
+        autoriza_salida: firma,
+        estado: 'finalizado',
+      }).eq('id', j.id);
       if (updErr) {
         mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
         setAnimar(false);
         setTimeout(resetLectura, 2000);
         return;
       }
-
-      await supabase
-        .from('empleados')
-        .update({ en_almacen: false, ultima_salida: ahora })
-        .eq('id', emp.id);
-
+      await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
       mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
     }
 
@@ -725,7 +656,7 @@ export default function SupervisorPage() {
   };
 
   // --------------------------------------------------------
-  // 7. FUNCIONES AUXILIARES
+  // 7. AUXILIARES
   // --------------------------------------------------------
   const resetLectura = () => {
     setQrData('');
@@ -737,6 +668,15 @@ export default function SupervisorPage() {
   const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia' | 'info') => {
     setNotificacion({ mensaje, tipo });
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
+  };
+
+  const volverAtras = () => {
+    setDireccion(null);
+    resetLectura();
+    setPasoManual(0);
+    if (modo === 'camara' || modo === 'usb') {
+      setModo('menu');
+    }
   };
 
   // --------------------------------------------------------
@@ -767,14 +707,16 @@ export default function SupervisorPage() {
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
-          <div className="grid gap-4 w-full">
+          // --- MENÚ PRINCIPAL ---
+          <div className="grid gap-3 w-full">
             <BotonOpcion texto="SCANNER USB" icono="🔌" onClick={() => setModo('usb')} color="bg-blue-600" />
             <BotonOpcion texto="CÁMARA MÓVIL" icono="📱" onClick={() => setModo('camara')} color="bg-emerald-600" />
             <BotonOpcion texto="MANUAL" icono="🖋️" onClick={iniciarModoManual} color="bg-slate-700" />
             <Footer router={router} />
           </div>
         ) : !direccion ? (
-          <div className="flex flex-col gap-4 w-full">
+          // --- SELECCIÓN ENTRADA/SALIDA ---
+          <div className="flex flex-col gap-3 w-full">
             <BotonOpcion texto="ENTRADA" icono="🟢" onClick={() => setDireccion('entrada')} color="bg-emerald-600" />
             <BotonOpcion texto="SALIDA" icono="🔴" onClick={() => setDireccion('salida')} color="bg-rose-600" />
             <button
@@ -784,12 +726,13 @@ export default function SupervisorPage() {
                 resetLectura();
                 setPasoManual(0);
               }}
-              className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
+              className="mt-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
             >
               ← VOLVER ATRÁS
             </button>
           </div>
         ) : (
+          // --- PANTALLA DE LECTURA / CAPTURA ---
           <div className="space-y-4 w-full">
             
             {/* GPS */}
@@ -805,7 +748,7 @@ export default function SupervisorPage() {
             {/* --- MODO USB / CÁMARA --- */}
             {(modo === 'usb' || modo === 'camara') && (
               <>
-                <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center relative overflow-hidden`}>
+                <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-48 flex items-center justify-center relative overflow-hidden`}>
                   {!lecturaLista ? (
                     <>
                       {modo === 'camara' && <div id="reader" className="w-full h-full" />}
@@ -843,13 +786,21 @@ export default function SupervisorPage() {
                   />
                 )}
 
-                <BotonAccion
-                  texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
-                  icono="✅"
-                  onClick={registrarAcceso}
-                  disabled={animar}
-                  loading={animar}
-                />
+                <div className="flex flex-col gap-2">
+                  <BotonAccion
+                    texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
+                    icono="✅"
+                    onClick={registrarAcceso}
+                    disabled={animar}
+                    loading={animar}
+                  />
+                  <BotonAccion
+                    texto="CANCELAR"
+                    icono="✕"
+                    onClick={volverAtras}
+                    color="bg-slate-600"
+                  />
+                </div>
               </>
             )}
 
@@ -922,16 +873,22 @@ export default function SupervisorPage() {
                   />
                 )}
 
-                <button
-                  onClick={() => {
-                    setDireccion(null);
-                    resetLectura();
-                    setPasoManual(0);
-                  }}
-                  className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors"
-                >
-                  ← VOLVER ATRÁS
-                </button>
+                <div className="flex flex-col gap-2">
+                  {pasoManual > 0 && (
+                    <BotonAccion
+                      texto="CANCELAR"
+                      icono="✕"
+                      onClick={volverAtras}
+                      color="bg-slate-600"
+                    />
+                  )}
+                  <button
+                    onClick={volverAtras}
+                    className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors"
+                  >
+                    ← VOLVER ATRÁS
+                  </button>
+                </div>
               </>
             )}
           </div>
