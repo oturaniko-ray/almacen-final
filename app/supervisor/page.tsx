@@ -10,21 +10,21 @@ const supabase = createClient(
 );
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
+// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR (SIMPLIFICADO Y CON ROL LEGIBLE) -----
-const MemebreteSuperior = ({ 
-  titulo, 
-  subtitulo, 
-  usuario, 
-  conAnimacion = false, 
-  mostrarUsuario = true 
-}: { 
-  titulo: string; 
-  subtitulo: string; 
-  usuario?: any; 
-  conAnimacion?: boolean; 
+// ----- MEMBRETE SUPERIOR (EXACTO A LA CAPTURA) -----
+const MemebreteSuperior = ({
+  titulo,
+  subtitulo,
+  usuario,
+  conAnimacion = false,
+  mostrarUsuario = true
+}: {
+  titulo: string;
+  subtitulo: string;
+  usuario?: any;
+  conAnimacion?: boolean;
   mostrarUsuario?: boolean;
 }) => {
   const renderTituloBicolor = (texto: string) => {
@@ -39,76 +39,86 @@ const MemebreteSuperior = ({
     );
   };
 
-  // 🟢 Mostrar nombre completo del rol
-  const getRolDisplay = (rol: string) => {
-    if (!rol) return 'SIN ROL';
-    const rolLower = rol.toLowerCase();
-    if (rolLower === 'admin' || rolLower === 'administrador') {
-      return 'Administración';
-    }
-    return rol.toUpperCase();
-  };
-
   return (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
-      {renderTituloBicolor(titulo)}
+      {renderTituloBicolor('GESTOR DE ACCESO')}
       <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
         {subtitulo}
       </p>
       {mostrarUsuario && usuario && (
         <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm font-normal text-white uppercase block">
-            {usuario.nombre}•{getRolDisplay(usuario.rol)}({usuario.nivel_acceso})
+          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {usuario.rol === 'admin' || usuario.rol === 'Administrador'
+              ? 'Administración'
+              : usuario.rol?.toUpperCase() || 'Supervisor'}
           </span>
+          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
         </div>
       )}
     </div>
   );
 };
 
-// ----- BOTÓN DE ACCESO (TEXTO MÁS GRANDE) -----
-const BotonAcceso = ({ 
-  texto, 
-  icono, 
-  tipo = 'primario', 
-  onClick, 
-  disabled = false, 
-  loading = false,
-  fullWidth = true,
-  className = ''
-}: { 
-  texto: string; 
-  icono?: string; 
-  tipo?: 'primario' | 'secundario' | 'peligro' | 'exito' | 'neutral'; 
-  onClick: () => void; 
-  disabled?: boolean; 
-  loading?: boolean;
-  fullWidth?: boolean;
-  className?: string;
+// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE, CENTRADO) -----
+const BotonOpcion = ({
+  texto,
+  icono,
+  onClick,
+  color,
+}: {
+  texto: string;
+  icono: string;
+  onClick: () => void;
+  color: string;
 }) => {
-  const colores = {
-    primario: 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800',
-    secundario: 'bg-slate-700 hover:bg-slate-600 active:bg-slate-700',
-    peligro: 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800',
-    exito: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
-    neutral: 'bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/10'
-  };
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full ${color} p-4 rounded-xl border border-white/5 
+        active:scale-95 transition-transform shadow-lg 
+        flex flex-col items-center justify-center gap-2`}
+    >
+      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+        <span className="text-3xl">{icono}</span>
+      </div>
+      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
+        {texto}
+      </span>
+    </button>
+  );
+};
 
+// ----- BOTÓN DE ACCIÓN (para CONFIRMAR, usa mismo estilo pero sin círculo) -----
+const BotonAccion = ({
+  texto,
+  icono,
+  onClick,
+  disabled = false,
+  loading = false,
+}: {
+  texto: string;
+  icono?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) => {
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
-      className={`p-4 rounded-xl text-white font-bold uppercase italic 
-        text-[13px] tracking-[0.1em] active:scale-95 transition-all shadow-lg 
+      className={`w-full bg-blue-600 p-4 rounded-xl border border-white/5
+        active:scale-95 transition-transform shadow-lg 
         flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
-        ${fullWidth ? 'w-full' : ''} ${colores[tipo]} ${className}`}
+        text-white font-bold uppercase text-[11px] tracking-wider`}
     >
-      {icono && <span className="text-[1.4em]">{icono}</span>}
+      {icono && <span className="text-2xl">{icono}</span>}
       {loading ? (
         <span className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150"></span>
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300"></span>
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
         </span>
       ) : (
         texto
@@ -117,18 +127,18 @@ const BotonAcceso = ({
   );
 };
 
-// ----- NOTIFICACIÓN DE SISTEMA -----
-const NotificacionSistema = ({ 
-  mensaje, 
-  tipo, 
-  visible, 
-  duracion = 3000, 
-  onCerrar 
-}: { 
-  mensaje: string; 
-  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null; 
-  visible: boolean; 
-  duracion?: number; 
+// ----- NOTIFICACIÓN DE SISTEMA (sin cambios) -----
+const NotificacionSistema = ({
+  mensaje,
+  tipo,
+  visible,
+  duracion = 3000,
+  onCerrar
+}: {
+  mensaje: string;
+  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
+  visible: boolean;
+  duracion?: number;
   onCerrar?: () => void;
 }) => {
   const [mostrar, setMostrar] = useState(visible);
@@ -147,23 +157,23 @@ const NotificacionSistema = ({
   if (!mostrar) return null;
 
   const colores = {
-    exito: 'bg-emerald-500 border-emerald-400 shadow-emerald-500/20',
-    error: 'bg-rose-500 border-rose-400 shadow-rose-500/20',
-    advertencia: 'bg-amber-500 border-amber-400 shadow-amber-500/20',
-    info: 'bg-blue-500 border-blue-400 shadow-blue-500/20'
+    exito: 'bg-emerald-500 border-emerald-400',
+    error: 'bg-rose-500 border-rose-400',
+    advertencia: 'bg-amber-500 border-amber-400',
+    info: 'bg-blue-500 border-blue-400',
   };
-
   const iconos = {
     exito: '✅',
     error: '❌',
     advertencia: '⚠️',
-    info: 'ℹ️'
+    info: 'ℹ️',
   };
 
   return (
-    <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl 
-      font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center 
-      border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
+    <div
+      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl
+        font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center
+        border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
     >
       <span className="text-lg">{iconos[tipo!]}</span>
       <span>{mensaje}</span>
@@ -171,7 +181,7 @@ const NotificacionSistema = ({
   );
 };
 
-// ----- CAMPO DE ENTRADA -----
+// ----- CAMPO DE ENTRADA (sin cambios) -----
 const CampoEntrada = React.forwardRef<HTMLInputElement, {
   tipo?: 'text' | 'password' | 'email' | 'number' | 'date';
   placeholder?: string;
@@ -220,19 +230,18 @@ const CampoEntrada = React.forwardRef<HTMLInputElement, {
     />
   );
 });
-
 CampoEntrada.displayName = 'CampoEntrada';
 
-// ----- CONTENEDOR PRINCIPAL -----
-const ContenedorPrincipal = ({ 
-  children, 
+// ----- CONTENEDOR PRINCIPAL (sin cambios) -----
+const ContenedorPrincipal = ({
+  children,
   maxWidth = 'sm',
   padding = 'md',
   className = ''
-}: { 
-  children: React.ReactNode; 
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full'; 
-  padding?: 'sm' | 'md' | 'lg' | 'xl'; 
+}: {
+  children: React.ReactNode;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  padding?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }) => {
   const ancho = {
@@ -255,6 +264,21 @@ const ContenedorPrincipal = ({
     </div>
   );
 };
+
+// ----- FOOTER (VOLVER AL SELECTOR, azul, sin cerrar sesión) -----
+const Footer = ({ router }: { router: any }) => (
+  <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
+    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
+      @Copyright 2026
+    </p>
+    <button
+      onClick={() => router.push('/')}
+      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
+    >
+      <span className="text-lg">←</span> VOLVER AL SELECTOR
+    </button>
+  </div>
+);
 
 // ------------------------------------------------------------
 // FUNCIÓN AUXILIAR: Calcular distancia GPS
@@ -448,7 +472,7 @@ export default function SupervisorPage() {
 
   // --------------------------------------------------------
   // 5. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO
-  //    🔍 AHORA CON VALIDACIÓN DE D UPLICIDAD DE ENTRADA/SALIDA
+  //    🔍 AHORA CON VALIDACIÓN DE DUPLICIDAD DE ENTRADA/SALIDA
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     // Validar GPS
@@ -538,7 +562,7 @@ export default function SupervisorPage() {
       return;
     }
 
-    // 🟢 VALIDACIÓN DE D UPLICIDAD DE ENTRADA/SALIDA
+    // 🟢 VALIDACIÓN DE DUPLICIDAD DE ENTRADA/SALIDA
     if (direccion === 'entrada') {
       // Verificar si ya tiene una entrada activa
       const { data: jornadaActiva, error: actErr } = await supabase
@@ -616,7 +640,6 @@ export default function SupervisorPage() {
         mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
       } else {
         // --- REGISTRAR SALIDA ---
-        // Ya verificamos que existe jornada activa, la obtenemos de nuevo (o podemos usar la guardada)
         const { data: j, error: jErr } = await supabase
           .from('jornadas')
           .select('*')
@@ -664,7 +687,7 @@ export default function SupervisorPage() {
 
       // ✅ FLUJO CONTINUO: Solo limpia los campos, NO cambia modo ni dirección
       setTimeout(() => {
-        resetLectura(); // Vuelve a estado de espera de QR
+        resetLectura();
       }, 2000);
     } catch (e: any) {
       console.error('Error inesperado:', e);
@@ -683,7 +706,6 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setPinEmpleado('');
     setPinAutorizador('');
-    // No cambiar modo ni dirección
   };
 
   const mostrarNotificacion = (
@@ -707,15 +729,6 @@ export default function SupervisorPage() {
       />
 
       <MemebreteSuperior
-        titulo={
-          modo === 'menu'
-            ? 'PANEL DE LECTURA QR'
-            : modo === 'usb'
-            ? 'LECTURA POR SCANNER'
-            : modo === 'camara'
-            ? 'LECTURA POR MÓVIL'
-            : 'ACCESO MANUAL'
-        }
         subtitulo={
           modo === 'menu' 
             ? 'SELECCIONE MÉTODO' 
@@ -730,50 +743,45 @@ export default function SupervisorPage() {
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
-          // --- MENÚ PRINCIPAL ---
+          // --- MENÚ PRINCIPAL (botones con círculo) ---
           <div className="grid gap-4 w-full">
-            <BotonAcceso
+            <BotonOpcion
               texto="SCANNER USB"
-              icono="🔌"
-              tipo="primario"
+              icono="💻​"
               onClick={() => setModo('usb')}
+              color="bg-blue-600"
             />
-            <BotonAcceso
+            <BotonOpcion
               texto="CÁMARA MÓVIL"
               icono="📱"
-              tipo="exito"
               onClick={() => setModo('camara')}
+              color="bg-emerald-600"
             />
-            <BotonAcceso
+            <BotonOpcion
               texto="MANUAL"
-              icono="🖋️"
-              tipo="neutral"
+              icono="✍🏻"
               onClick={() => {
                 setModo('manual');
-                setManualAprobado(false); // Reiniciar advertencia
+                setManualAprobado(false);
               }}
+              color="bg-slate-700"
             />
-            <button
-              onClick={() => router.push('/')}
-              className="mt-4 text-emerald-500 font-bold uppercase text-[10px] tracking-widest text-center italic hover:text-emerald-400 transition-colors"
-            >
-              ← VOLVER AL SELECTOR
-            </button>
+            <Footer router={router} />
           </div>
         ) : !direccion ? (
-          // --- SELECCIÓN ENTRADA/SALIDA ---
+          // --- SELECCIÓN ENTRADA/SALIDA (botones con círculo) ---
           <div className="flex flex-col gap-4 w-full">
-            <BotonAcceso
+            <BotonOpcion
               texto="ENTRADA"
               icono="🟢"
-              tipo="exito"
               onClick={() => setDireccion('entrada')}
+              color="bg-emerald-600"
             />
-            <BotonAcceso
+            <BotonOpcion
               texto="SALIDA"
               icono="🔴"
-              tipo="peligro"
               onClick={() => setDireccion('salida')}
+              color="bg-rose-600"
             />
             <button
               onClick={() => {
@@ -782,13 +790,13 @@ export default function SupervisorPage() {
                 resetLectura();
                 setManualAprobado(false);
               }}
-              className="mt-4 text-slate-500 font-bold text-[10px] uppercase text-center tracking-widest hover:text-white transition-colors"
+              className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
             >
               ← VOLVER ATRÁS
             </button>
           </div>
         ) : (
-          // --- PANTALLA DE LECTURA / CAPTURA ---
+          // --- PANTALLA DE LECTURA / CAPTURA (sin cambios en la lógica) ---
           <div className="space-y-4 w-full">
             
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
@@ -812,7 +820,7 @@ export default function SupervisorPage() {
                 <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
                   <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
                   <p className="text-amber-500 font-black text-[13px] uppercase tracking-widest">
-                    Este proceso requiere de la validación de un Administrador
+                    Este proceso requiere la validación de un Administrador
                   </p>
                 </div>
                 <input
@@ -897,10 +905,9 @@ export default function SupervisorPage() {
                   />
                 )}
 
-                <BotonAcceso
+                <BotonAccion
                   texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
                   icono="✅"
-                  tipo="primario"
                   onClick={registrarAcceso}
                   disabled={animar}
                   loading={animar}
@@ -914,7 +921,7 @@ export default function SupervisorPage() {
                 resetLectura();
                 setManualAprobado(false);
               }}
-              className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest italic hover:text-white transition-colors"
+              className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors"
             >
               ← VOLVER ATRÁS
             </button>
@@ -922,11 +929,10 @@ export default function SupervisorPage() {
         )}
       </ContenedorPrincipal>
 
+      {/* Estilos globales */}
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-        @keyframes pulse-very-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-        .animate-pulse-very-slow { animation: pulse-very-slow 6s ease-in-out infinite; }
         @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
         .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
         @keyframes scan-laser { 0%, 100% { top: 0%; } 50% { top: 100%; } }

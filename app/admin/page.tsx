@@ -89,7 +89,7 @@ export default function PanelAdminHub() {
   const Footer = () => (
     <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
       <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-        @Copyright RayPérez 2026
+        @Copyright 2026
       </p>
       <button
         onClick={() => router.push('/')}
@@ -108,7 +108,7 @@ export default function PanelAdminHub() {
         <div className="w-full space-y-4">
           {nivel >= 4 && (
             <BotonOpcion
-              texto="GESTIÓN ADMINISTRATIVA"
+              texto="GESTIÓN DE EMPLEADOS"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
               color="bg-amber-600"

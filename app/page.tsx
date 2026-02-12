@@ -185,7 +185,7 @@ export default function LoginPage() {
           </span>
           <span className="text-sm text-white mx-2">•</span>
           <span className="text-sm text-blue-500 normal-case">
-            Selector Principal
+            {tempUser.rol || 'Usuario'}
           </span>
           <span className="text-sm text-white ml-2">
             ({tempUser.nivel_acceso})
@@ -222,7 +222,7 @@ export default function LoginPage() {
   const Footer = () => (
     <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
       <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-        @Copyright RayPérez 2026
+        @Copyright 2026
       </p>
       {paso === 'selector' && (
         <button

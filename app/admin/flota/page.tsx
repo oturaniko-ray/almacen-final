@@ -6,74 +6,139 @@ export default function SubmenuFlotaHub() {
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
+  // ------------------------------------------------------------
+  // VALIDACIÓN DE SESIÓN Y NIVEL DE ACCESO
+  // ------------------------------------------------------------
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) { router.replace('/'); return; }
+    if (!sessionData) {
+      router.replace('/');
+      return;
+    }
     const currentUser = JSON.parse(sessionData);
-    
-    // VALIDACIÓN NIVEL 5: Requisito operativo estricto
-    if (Number(currentUser.nivel_acceso) < 5) { 
-      router.replace('/admin'); 
-      return; 
+    if (Number(currentUser.nivel_acceso) < 5) {
+      router.replace('/admin');
+      return;
     }
     setUser(currentUser);
   }, [router]);
 
-  return (
-    <main className="min-h-screen bg-[#020617] p-8 text-white font-sans flex items-center justify-center">
-      <div className="max-w-4xl w-full">
-        <header className="text-center mb-16">
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter">
-            OPERACIONES DE <span className="text-emerald-500">FLOTA</span>
-          </h1>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mt-3">
-            Nivel 5 - Control Logístico Avanzado
-          </p>
-        </header>
+  // ------------------------------------------------------------
+  // COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
+  // ------------------------------------------------------------
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          
-          {/* ACCESO A GESTIÓN DE PERFILES */}
-          <button 
-            onClick={() => router.push('/admin/flota/gestionflota')} 
-            className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-blue-500 transition-all text-left group shadow-2xl relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
-              <span className="text-7xl font-black italic">G</span>
-            </div>
-            <span className="text-4xl block mb-6">⚙️</span>
-            <h3 className="text-xl font-black uppercase italic group-hover:text-blue-500 transition-colors">Gestión de Perfiles</h3>
-            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest leading-relaxed">
-              Alta de choferes, capacidad de rutas y <br/>generación de Smart Pins F
-            </p>
-          </button>
-
-          {/* ACCESO A REPORTES Y AUDITORÍA */}
-          <button 
-            onClick={() => router.push('/admin/flota/auditoreporte')} 
-            className="bg-[#0f172a] p-12 rounded-[45px] border border-white/5 hover:border-emerald-500 transition-all text-left group shadow-2xl relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
-              <span className="text-7xl font-black italic">A</span>
-            </div>
-            <span className="text-4xl block mb-6">📊</span>
-            <h3 className="text-xl font-black uppercase italic group-hover:text-emerald-500 transition-colors">Auditoría y Reportes</h3>
-            <p className="text-slate-500 text-[9px] mt-2 uppercase font-bold tracking-widest leading-relaxed">
-              Análisis de cumplimiento: <br/>Capacidad Nominal vs Carga Real
-            </p>
-          </button>
-
+  // ----- MEMBRETE SUPERIOR -----
+  const Memebrete = () => (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">GESTOR DE </span>
+        <span className="text-blue-700">ACCESO</span>
+      </h1>
+      <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
+        MENÚ PRINCIPAL
+      </p>
+      {user && (
+        <div className="mt-2 pt-2 border-t border-white/10">
+          <span className="text-sm text-white normal-case">{user.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {user.rol === 'admin' || user.rol === 'Administrador'
+              ? 'Administración'
+              : user.rol?.toUpperCase() || 'Operador'}
+          </span>
+          <span className="text-sm text-white ml-2">({user.nivel_acceso})</span>
         </div>
+      )}
+    </div>
+  );
 
-        <div className="mt-16 text-center">
-          <button 
-            onClick={() => router.push('/admin')} 
-            className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-all"
-          >
-            ← Volver al Panel Administrativo
-          </button>
-        </div>
+  // ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE, CENTRADO) -----
+  const BotonOpcion = ({
+    texto,
+    icono,
+    onClick,
+    color,
+    descripcion,
+  }: {
+    texto: string;
+    icono: string;
+    onClick: () => void;
+    color: string;
+    descripcion: string;
+  }) => (
+    <button
+      onClick={onClick}
+      className={`w-full ${color} p-6 rounded-xl border border-white/5 
+        active:scale-95 transition-transform shadow-lg 
+        flex flex-col items-center justify-center gap-3`}
+    >
+      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+        <span className="text-3xl">{icono}</span>
       </div>
+      <div className="space-y-1">
+        <h3 className="text-white font-bold uppercase text-[13px] tracking-wider">
+          {texto}
+        </h3>
+        <p className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
+          {descripcion}
+        </p>
+      </div>
+    </button>
+  );
+
+  // ----- FOOTER (VOLVER AL SELECTOR) -----
+  const Footer = () => (
+    <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center mx-auto">
+      <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
+        @Copyright 2026
+      </p>
+      <button
+        onClick={() => router.push('/admin')}
+        className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
+      >
+        <span className="text-lg">←</span> VOLVER AL SELECTOR
+      </button>
+    </div>
+  );
+
+  // ------------------------------------------------------------
+  // RENDERIZADO
+  // ------------------------------------------------------------
+  return (
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
+      <div className="w-full max-w-sm flex flex-col items-center">
+        <Memebrete />
+
+        <div className="w-full space-y-4">
+          {/* GESTIÓN DE PERFILES */}
+          <BotonOpcion
+            texto="Gestión de Perfiles"
+            icono="⚙️"
+            onClick={() => router.push('/admin/flota/gestionflota')}
+            color="bg-blue-600"
+            descripcion="Alta de choferes, capacidad de rutas y generación de Smart Pins F"
+          />
+
+          {/* AUDITORÍA Y REPORTES */}
+          <BotonOpcion
+            texto="Auditoría y Reportes"
+            icono="📊"
+            onClick={() => router.push('/admin/flota/auditoreporte')}
+            color="bg-emerald-600"
+            descripcion="Análisis de cumplimiento: Capacidad Nominal vs Carga Real"
+          />
+        </div>
+
+        <Footer />
+      </div>
+
+      {/* ESTILOS GLOBALES (mismos que en el resto del sistema) */}
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+      `}</style>
     </main>
   );
 }
