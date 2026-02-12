@@ -873,6 +873,7 @@ export default function SupervisorPage() {
                           }}
                         />
                       )}
+                      {/* Láser siempre visible en USB/Cámara */}
                       <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
                     </>
                   ) : (
