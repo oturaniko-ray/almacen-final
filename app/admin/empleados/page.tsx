@@ -905,8 +905,7 @@ export default function SupervisorPage() {
             )}
 
             {/* --- MODO MANUAL --- */}
-            {modo === 'manual' && (
-              <>
+{(lecturaLista || (modo === 'manual' && qrData)) && (                     
                 {pasoManual === 0 && (
                   <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
                     <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
