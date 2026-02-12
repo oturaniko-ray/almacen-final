@@ -41,7 +41,7 @@ const MemebreteSuperior = ({
 
   return (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
-      {renderTituloBicolor('GESTOR DE ACCESO')}
+      {renderTituloBicolor(titulo)}
       <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
         {subtitulo}
       </p>
@@ -127,7 +127,7 @@ const BotonAccion = ({
   );
 };
 
-// ----- NOTIFICACIÓN DE SISTEMA (sin cambios) -----
+// ----- NOTIFICACIÓN DE SISTEMA -----
 const NotificacionSistema = ({
   mensaje,
   tipo,
@@ -181,7 +181,7 @@ const NotificacionSistema = ({
   );
 };
 
-// ----- CAMPO DE ENTRADA (sin cambios) -----
+// ----- CAMPO DE ENTRADA -----
 const CampoEntrada = React.forwardRef<HTMLInputElement, {
   tipo?: 'text' | 'password' | 'email' | 'number' | 'date';
   placeholder?: string;
@@ -232,7 +232,7 @@ const CampoEntrada = React.forwardRef<HTMLInputElement, {
 });
 CampoEntrada.displayName = 'CampoEntrada';
 
-// ----- CONTENEDOR PRINCIPAL (sin cambios) -----
+// ----- CONTENEDOR PRINCIPAL -----
 const ContenedorPrincipal = ({
   children,
   maxWidth = 'sm',
@@ -269,7 +269,7 @@ const ContenedorPrincipal = ({
 const Footer = ({ router }: { router: any }) => (
   <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
     <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright RayPérez 2026
+      @Copyright 2026
     </p>
     <button
       onClick={() => router.push('/')}
@@ -729,6 +729,7 @@ export default function SupervisorPage() {
       />
 
       <MemebreteSuperior
+        titulo="GESTOR DE ACCESO"
         subtitulo={
           modo === 'menu' 
             ? 'SELECCIONE MÉTODO' 
