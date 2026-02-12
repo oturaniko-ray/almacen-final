@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -61,7 +61,7 @@ const MemebreteSuperior = ({
   );
 };
 
-// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE) -----
+// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE, CENTRADO) -----
 const BotonOpcion = ({
   texto,
   icono,
@@ -72,23 +72,25 @@ const BotonOpcion = ({
   icono: string;
   onClick: () => void;
   color: string;
-}) => (
-  <button
-    onClick={onClick}
-    className={`w-full ${color} p-4 rounded-xl border border-white/5 
-      active:scale-95 transition-transform shadow-lg 
-      flex flex-col items-center justify-center gap-2`}
-  >
-    <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-      <span className="text-3xl">{icono}</span>
-    </div>
-    <span className="text-white font-bold uppercase text-[11px] tracking-wider">
-      {texto}
-    </span>
-  </button>
-);
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full ${color} p-4 rounded-xl border border-white/5 
+        active:scale-95 transition-transform shadow-lg 
+        flex flex-col items-center justify-center gap-2`}
+    >
+      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+        <span className="text-3xl">{icono}</span>
+      </div>
+      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
+        {texto}
+      </span>
+    </button>
+  );
+};
 
-// ----- BOTÓN DE ACCIÓN (CONFIRMAR, sin círculo) -----
+// ----- BOTÓN DE ACCIÓN (para CONFIRMAR, sin círculo) -----
 const BotonAccion = ({
   texto,
   icono,
@@ -101,27 +103,29 @@ const BotonAccion = ({
   onClick: () => void;
   disabled?: boolean;
   loading?: boolean;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled || loading}
-    className="w-full bg-blue-600 p-4 rounded-xl border border-white/5
-      active:scale-95 transition-transform shadow-lg 
-      flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
-      text-white font-bold uppercase text-[11px] tracking-wider"
-  >
-    {icono && <span className="text-2xl">{icono}</span>}
-    {loading ? (
-      <span className="flex items-center gap-2">
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
-      </span>
-    ) : (
-      texto
-    )}
-  </button>
-);
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="w-full bg-blue-600 p-4 rounded-xl border border-white/5
+        active:scale-95 transition-transform shadow-lg 
+        flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
+        text-white font-bold uppercase text-[11px] tracking-wider"
+    >
+      {icono && <span className="text-2xl">{icono}</span>}
+      {loading ? (
+        <span className="flex items-center gap-2">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
+        </span>
+      ) : (
+        texto
+      )}
+    </button>
+  );
+};
 
 // ----- NOTIFICACIÓN DE SISTEMA -----
 const NotificacionSistema = ({
@@ -177,31 +181,29 @@ const NotificacionSistema = ({
   );
 };
 
-// ----- CAMPO DE ENTRADA (con forwardRef para aceptar refs) -----
-interface CampoEntradaProps {
-  type?: 'text' | 'password' | 'email' | 'number' | 'date';
+// ----- CAMPO DE ENTRADA (forwardRef, props en español) -----
+const CampoEntrada = React.forwardRef<HTMLInputElement, {
+  tipo?: 'text' | 'password' | 'email' | 'number' | 'date';
   placeholder?: string;
-  value: string;
+  valor: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onEnter?: () => void;
   autoFocus?: boolean;
   disabled?: boolean;
-  textCentered?: boolean;
-  uppercase?: boolean;
+  textoCentrado?: boolean;
+  mayusculas?: boolean;
   className?: string;
-}
-
-const CampoEntrada = forwardRef<HTMLInputElement, CampoEntradaProps>(({
-  type = 'text',
+}>(({
+  tipo = 'text',
   placeholder = '',
-  value,
+  valor,
   onChange,
   onEnter,
   autoFocus = false,
   disabled = false,
-  textCentered = false,
-  uppercase = false,
-  className = '',
+  textoCentrado = true,
+  mayusculas = false,
+  className = ''
 }, ref) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && onEnter) onEnter();
@@ -210,9 +212,9 @@ const CampoEntrada = forwardRef<HTMLInputElement, CampoEntradaProps>(({
   return (
     <input
       ref={ref}
-      type={type}
+      type={tipo}
       placeholder={placeholder}
-      value={value}
+      value={valor}
       onChange={onChange}
       onKeyDown={handleKeyDown}
       autoFocus={autoFocus}
@@ -220,9 +222,9 @@ const CampoEntrada = forwardRef<HTMLInputElement, CampoEntradaProps>(({
       className={`w-full bg-white/5 border border-white/10 p-4 rounded-xl 
         text-[11px] font-bold text-white outline-none transition-colors
         disabled:opacity-50 disabled:cursor-not-allowed
-        ${textCentered ? 'text-center' : ''} 
-        ${uppercase ? 'uppercase' : ''}
-        ${type === 'password' ? 'tracking-[0.4em]' : ''}
+        ${textoCentrado ? 'text-center' : ''} 
+        ${mayusculas ? 'uppercase' : ''}
+        ${tipo === 'password' ? 'tracking-[0.4em]' : ''}
         focus:border-blue-500/50 hover:border-white/20
         ${className}`}
     />
@@ -299,6 +301,7 @@ function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: numbe
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
 export default function SupervisorPage() {
+  // Estados de UI
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
@@ -311,13 +314,16 @@ export default function SupervisorPage() {
     tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
   }>({ mensaje: '', tipo: null });
 
+  // Estados para modo manual
   const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0);
   const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
+  // Estados de datos
   const [user, setUser] = useState<any>(null);
   const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000 });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
 
+  // Refs
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -346,7 +352,7 @@ export default function SupervisorPage() {
   }, [resetTimerInactividad]);
 
   // --------------------------------------------------------
-  // 2. CARGA INICIAL: sesión, configuración, GPS
+  // 2. CARGA INICIAL
   // --------------------------------------------------------
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -390,56 +396,39 @@ export default function SupervisorPage() {
   }, [gps.lat, gps.lon, config]);
 
   // --------------------------------------------------------
-  // 3. PROCESAMIENTO DEL QR (solo para usb/cámara)
+  // 3. PROCESAMIENTO DEL QR (solo USB/Cámara)
   // --------------------------------------------------------
   const procesarQR = (texto: string): string => {
     console.log('🔵 TEXTO QR CRUDO:', texto);
-    
     if (!texto || texto.trim() === '') {
       console.warn('⚠️ QR vacío');
       return '';
     }
-
     const cleanText = texto.replace(/[\n\r]/g, '').trim();
-    console.log('🟡 TEXTO LIMPIO:', cleanText);
-
     try {
       const decoded = atob(cleanText);
-      console.log('🟢 DECODIFICADO (base64):', decoded);
-
       if (decoded.includes('|')) {
         const [docId, timestamp] = decoded.split('|');
-        console.log('📄 DOCUMENTO ID EXTRAÍDO:', docId);
-        console.log('⏱️ TIMESTAMP:', timestamp);
-
         const tiempoActual = Date.now();
         const tiempoExpiracion = parseInt(timestamp);
-        
         if (isNaN(tiempoExpiracion)) {
-          console.error('❌ TIMESTAMP INVÁLIDO');
           mostrarNotificacion('QR INVÁLIDO (timestamp corrupto)', 'error');
           return '';
         }
-
         if (tiempoActual - tiempoExpiracion > config.qr_exp) {
-          console.warn(`⌛ QR EXPIRADO: ${(tiempoActual - tiempoExpiracion) / 1000} segundos`);
           mostrarNotificacion('QR EXPIRADO', 'error');
           return '';
         }
-
         return docId.trim();
       }
-      
-      console.warn('⚠️ QR no contiene el separador "|", se usa el texto completo');
       return cleanText;
-    } catch (error) {
-      console.error('❌ ERROR al decodificar base64:', error);
+    } catch {
       return cleanText;
     }
   };
 
   // --------------------------------------------------------
-  // 4. INICIO DEL ESCÁNER DE CÁMARA
+  // 4. ESCÁNER DE CÁMARA
   // --------------------------------------------------------
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
@@ -450,7 +439,6 @@ export default function SupervisorPage() {
           { facingMode: 'environment' },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decoded) => {
-            console.log('📷 QR detectado por cámara:', decoded);
             const doc = procesarQR(decoded);
             if (doc) {
               setQrData(doc);
@@ -468,7 +456,7 @@ export default function SupervisorPage() {
   }, [modo, direccion, lecturaLista, config.qr_exp]);
 
   // --------------------------------------------------------
-  // 5. MANEJO DEL MODO MANUAL (flujo secuencial)
+  // 5. MANEJO DEL MODO MANUAL
   // --------------------------------------------------------
   const iniciarModoManual = () => {
     setModo('manual');
@@ -515,7 +503,7 @@ export default function SupervisorPage() {
   }, [modo, direccion]);
 
   // --------------------------------------------------------
-  // 6. FUNCIÓN PRINCIPAL: REGISTRAR ACCESO (EMPLEADOS)
+  // 6. REGISTRAR ACCESO
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     if (gps.dist > config.radio) {
@@ -523,13 +511,9 @@ export default function SupervisorPage() {
       setTimeout(resetLectura, 2000);
       return;
     }
-
     setAnimar(true);
-
     const ahora = new Date().toISOString();
-    let inputBusqueda = qrData.trim();
-
-    console.log('🔎 BUSCANDO EMPLEADO CON:', inputBusqueda);
+    const inputBusqueda = qrData.trim();
 
     if (!inputBusqueda) {
       mostrarNotificacion('ERROR: DOCUMENTO VACÍO', 'error');
@@ -541,42 +525,33 @@ export default function SupervisorPage() {
     const { data: emp, error: empErr } = await supabase
       .from('empleados')
       .select('id, nombre, pin_seguridad, activo, documento_id, email')
-      .or(
-        `documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`
-      )
+      .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
       .maybeSingle();
 
     if (empErr) {
-      console.error('Error en consulta:', empErr);
       mostrarNotificacion(`ERROR EN BASE DE DATOS: ${empErr.message}`, 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
     if (!emp) {
-      console.warn('⚠️ Empleado no encontrado');
       mostrarNotificacion('ID NO REGISTRADO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
     if (!emp.documento_id) {
-      console.error('❌ Empleado sin documento_id:', emp);
       mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
     if (!emp.activo) {
       mostrarNotificacion('EMPLEADO INACTIVO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-
     if (modo === 'manual') {
       if (String(emp.pin_seguridad) !== String(pinEmpleado)) {
         mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
@@ -584,159 +559,95 @@ export default function SupervisorPage() {
         return;
       }
     }
-
     const { data: aut, error: autErr } = await supabase
       .from('empleados')
       .select('nombre')
       .eq('pin_seguridad', String(pinAutorizador))
       .in('rol', ['supervisor', 'admin', 'Administrador'])
       .maybeSingle();
-
     if (autErr || !aut) {
       mostrarNotificacion('PIN SUPERVISOR INVÁLIDO', 'error');
       setAnimar(false);
       return;
     }
 
+    const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
+
     if (direccion === 'entrada') {
-      const { data: jornadaActiva, error: actErr } = await supabase
+      const { data: jornadaActiva } = await supabase
         .from('jornadas')
         .select('id')
         .eq('empleado_id', emp.id)
         .is('hora_salida', null)
         .maybeSingle();
-
-      if (actErr) {
-        console.error('Error al verificar jornada activa:', actErr);
-        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
-        setAnimar(false);
-        return;
-      }
-
       if (jornadaActiva) {
         mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
         setAnimar(false);
         setTimeout(resetLectura, 2000);
         return;
       }
-    } else {
-      const { data: jornadaActiva, error: actErr } = await supabase
-        .from('jornadas')
-        .select('id, hora_entrada')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .maybeSingle();
-
-      if (actErr) {
-        console.error('Error al verificar jornada activa:', actErr);
-        mostrarNotificacion('ERROR AL VERIFICAR ESTADO', 'error');
-        setAnimar(false);
-        return;
-      }
-
-      if (!jornadaActiva) {
-        mostrarNotificacion('NO HAY ENTRADA REGISTRADA', 'advertencia');
+      const { error: insErr } = await supabase.from('jornadas').insert([{
+        empleado_id: emp.id,
+        nombre_empleado: emp.nombre,
+        hora_entrada: ahora,
+        autoriza_entrada: firma,
+        estado: 'activo',
+      }]);
+      if (insErr) {
+        mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
         setAnimar(false);
         setTimeout(resetLectura, 2000);
         return;
       }
-    }
-
-    const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
-
-    try {
-      if (direccion === 'entrada') {
-        const { error: insErr } = await supabase.from('jornadas').insert([
-          {
-            empleado_id: emp.id,
-            nombre_empleado: emp.nombre,
-            hora_entrada: ahora,
-            autoriza_entrada: firma,
-            estado: 'activo',
-          },
-        ]);
-
-        if (insErr) {
-          console.error('Error al insertar jornada:', insErr);
-          mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
-          setAnimar(false);
-          setTimeout(resetLectura, 2000);
-          return;
-        }
-
-        await supabase
-          .from('empleados')
-          .update({ en_almacen: true, ultimo_ingreso: ahora })
-          .eq('id', emp.id);
-
-        mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
-      } else {
-        const { data: j, error: jErr } = await supabase
-          .from('jornadas')
-          .select('*')
-          .eq('empleado_id', emp.id)
-          .is('hora_salida', null)
-          .order('hora_entrada', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (jErr || !j) {
-          mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
-          setAnimar(false);
-          setTimeout(resetLectura, 2000);
-          return;
-        }
-
-        const horas = parseFloat(
-          ((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2)
-        );
-
-        const { error: updErr } = await supabase
-          .from('jornadas')
-          .update({
-            hora_salida: ahora,
-            horas_trabajadas: horas,
-            autoriza_salida: firma,
-            estado: 'finalizado',
-          })
-          .eq('id', j.id);
-
-        if (updErr) {
-          mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
-          setAnimar(false);
-          setTimeout(resetLectura, 2000);
-          return;
-        }
-
-        await supabase
-          .from('empleados')
-          .update({ en_almacen: false, ultima_salida: ahora })
-          .eq('id', emp.id);
-
-        mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
+      await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
+      mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
+    } else {
+      const { data: j } = await supabase
+        .from('jornadas')
+        .select('*')
+        .eq('empleado_id', emp.id)
+        .is('hora_salida', null)
+        .order('hora_entrada', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!j) {
+        mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
       }
-
-      setTimeout(() => {
-        resetLectura();
-        if (modo === 'manual') {
-          setPasoManual(1);
-          setQrData('');
-          setPinEmpleado('');
-          setPinAutorizador('');
-          setTimeout(() => documentoRef.current?.focus(), 100);
-        }
-      }, 2000);
-    } catch (e: any) {
-      console.error('Error inesperado:', e);
-      mostrarNotificacion(`ERROR INESPERADO: ${e.message}`, 'error');
-      setTimeout(resetLectura, 2000);
-    } finally {
-      setAnimar(false);
+      const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
+      const { error: updErr } = await supabase.from('jornadas').update({
+        hora_salida: ahora,
+        horas_trabajadas: horas,
+        autoriza_salida: firma,
+        estado: 'finalizado',
+      }).eq('id', j.id);
+      if (updErr) {
+        mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+      await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
+      mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
     }
+
+    setTimeout(() => {
+      resetLectura();
+      if (modo === 'manual') {
+        setPasoManual(1);
+        setQrData('');
+        setPinEmpleado('');
+        setPinAutorizador('');
+        setTimeout(() => documentoRef.current?.focus(), 100);
+      }
+    }, 2000);
+    setAnimar(false);
   };
 
   // --------------------------------------------------------
-  // 7. FUNCIONES AUXILIARES
+  // 7. AUXILIARES
   // --------------------------------------------------------
   const resetLectura = () => {
     setQrData('');
@@ -745,16 +656,13 @@ export default function SupervisorPage() {
     setPinAutorizador('');
   };
 
-  const mostrarNotificacion = (
-    mensaje: string,
-    tipo: 'exito' | 'error' | 'advertencia' | 'info'
-  ) => {
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia' | 'info') => {
     setNotificacion({ mensaje, tipo });
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
   };
 
   // --------------------------------------------------------
-  // 8. RENDERIZADO – ESTRUCTURA CLARA SIN COMPARACIONES REDUNDANTES
+  // 8. RENDERIZADO – ESTRUCTURA CORREGIDA
   // --------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -782,40 +690,15 @@ export default function SupervisorPage() {
       <ContenedorPrincipal>
         {modo === 'menu' ? (
           <div className="grid gap-4 w-full">
-            <BotonOpcion
-              texto="SCANNER USB"
-              icono="🔌"
-              onClick={() => setModo('usb')}
-              color="bg-blue-600"
-            />
-            <BotonOpcion
-              texto="CÁMARA MÓVIL"
-              icono="📱"
-              onClick={() => setModo('camara')}
-              color="bg-emerald-600"
-            />
-            <BotonOpcion
-              texto="MANUAL"
-              icono="🖋️"
-              onClick={iniciarModoManual}
-              color="bg-slate-700"
-            />
+            <BotonOpcion texto="SCANNER USB" icono="🔌" onClick={() => setModo('usb')} color="bg-blue-600" />
+            <BotonOpcion texto="CÁMARA MÓVIL" icono="📱" onClick={() => setModo('camara')} color="bg-emerald-600" />
+            <BotonOpcion texto="MANUAL" icono="🖋️" onClick={iniciarModoManual} color="bg-slate-700" />
             <Footer router={router} />
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-4 w-full">
-            <BotonOpcion
-              texto="ENTRADA"
-              icono="🟢"
-              onClick={() => setDireccion('entrada')}
-              color="bg-emerald-600"
-            />
-            <BotonOpcion
-              texto="SALIDA"
-              icono="🔴"
-              onClick={() => setDireccion('salida')}
-              color="bg-rose-600"
-            />
+            <BotonOpcion texto="ENTRADA" icono="🟢" onClick={() => setDireccion('entrada')} color="bg-emerald-600" />
+            <BotonOpcion texto="SALIDA" icono="🔴" onClick={() => setDireccion('salida')} color="bg-rose-600" />
             <button
               onClick={() => {
                 setModo('menu');
@@ -831,16 +714,11 @@ export default function SupervisorPage() {
         ) : (
           <div className="space-y-4 w-full">
             
+            {/* GPS */}
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
               <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
                 LAT: {gps.lat.toFixed(6)} | LON: {gps.lon.toFixed(6)} |{' '}
-                <span
-                  className={
-                    gps.dist <= config.radio
-                      ? 'text-emerald-500 font-bold'
-                      : 'text-rose-500 font-bold'
-                  }
-                >
+                <span className={gps.dist <= config.radio ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
                   {gps.dist} MTS
                 </span>
               </p>
@@ -849,11 +727,7 @@ export default function SupervisorPage() {
             {/* --- MODO USB / CÁMARA --- */}
             {(modo === 'usb' || modo === 'camara') && (
               <>
-                <div
-                  className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
-                    lecturaLista ? 'border-emerald-500' : 'border-white/10'
-                  } h-60 flex items-center justify-center relative overflow-hidden`}
-                >
+                <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center relative overflow-hidden`}>
                   {!lecturaLista ? (
                     <>
                       {modo === 'camara' && <div id="reader" className="w-full h-full" />}
@@ -873,21 +747,18 @@ export default function SupervisorPage() {
                           }}
                         />
                       )}
-                      {/* Láser siempre visible en USB/Cámara */}
                       <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
                     </>
                   ) : (
-                    <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">
-                      OK ✅
-                    </p>
+                    <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>
                   )}
                 </div>
 
                 {(lecturaLista || (modo === 'usb' && qrData)) && (
                   <CampoEntrada
-                    type="password"
+                    tipo="password"
                     placeholder="PIN SUPERVISOR"
-                    value={pinAutorizador}
+                    valor={pinAutorizador}
                     onChange={(e) => setPinAutorizador(e.target.value)}
                     onEnter={registrarAcceso}
                     autoFocus
@@ -905,7 +776,8 @@ export default function SupervisorPage() {
             )}
 
             {/* --- MODO MANUAL --- */}
-{(lecturaLista || (modo === 'manual' && qrData)) && (                     
+            {modo === 'manual' && (
+              <>
                 {pasoManual === 0 && (
                   <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
                     <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
@@ -921,9 +793,9 @@ export default function SupervisorPage() {
                 {pasoManual === 1 && (
                   <CampoEntrada
                     ref={documentoRef}
-                    type="text"
+                    tipo="text"
                     placeholder="DOCUMENTO / CORREO"
-                    value={qrData}
+                    valor={qrData}
                     onChange={(e) => setQrData(e.target.value)}
                     onEnter={() => {
                       if (qrData.trim()) {
@@ -932,17 +804,17 @@ export default function SupervisorPage() {
                       }
                     }}
                     autoFocus
-                    textCentered
-                    uppercase
+                    textoCentrado
+                    mayusculas
                   />
                 )}
 
                 {pasoManual === 2 && (
                   <CampoEntrada
                     ref={pinEmpleadoRef}
-                    type="password"
+                    tipo="password"
                     placeholder="PIN TRABAJADOR"
-                    value={pinEmpleado}
+                    valor={pinEmpleado}
                     onChange={(e) => setPinEmpleado(e.target.value)}
                     onEnter={() => {
                       if (pinEmpleado.trim()) {
@@ -951,16 +823,16 @@ export default function SupervisorPage() {
                       }
                     }}
                     autoFocus
-                    textCentered
+                    textoCentrado
                   />
                 )}
 
                 {pasoManual === 3 && (
                   <CampoEntrada
                     ref={pinSupervisorRef}
-                    type="password"
+                    tipo="password"
                     placeholder="PIN SUPERVISOR"
-                    value={pinAutorizador}
+                    valor={pinAutorizador}
                     onChange={(e) => setPinAutorizador(e.target.value)}
                     onEnter={() => {
                       if (pinAutorizador.trim()) {
@@ -968,7 +840,7 @@ export default function SupervisorPage() {
                       }
                     }}
                     autoFocus
-                    textCentered
+                    textoCentrado
                   />
                 )}
 
