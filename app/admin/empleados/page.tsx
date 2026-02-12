@@ -228,7 +228,6 @@ const CampoEntrada = forwardRef<HTMLInputElement, CampoEntradaProps>(({
     />
   );
 });
-
 CampoEntrada.displayName = 'CampoEntrada';
 
 // ----- CONTENEDOR PRINCIPAL -----
@@ -312,7 +311,6 @@ export default function SupervisorPage() {
     tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
   }>({ mensaje: '', tipo: null });
 
-  const [manualAprobado, setManualAprobado] = useState(false);
   const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0);
   const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
@@ -756,7 +754,7 @@ export default function SupervisorPage() {
   };
 
   // --------------------------------------------------------
-  // 8. RENDERIZADO
+  // 8. RENDERIZADO – ESTRUCTURA CLARA SIN COMPARACIONES REDUNDANTES
   // --------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -848,8 +846,8 @@ export default function SupervisorPage() {
               </p>
             </div>
 
-            {/* --- MODO USB / CÁMARA (lectura con escáner) --- */}
-            {modo !== 'manual' && (
+            {/* --- MODO USB / CÁMARA --- */}
+            {(modo === 'usb' || modo === 'camara') && (
               <>
                 <div
                   className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${
@@ -905,7 +903,7 @@ export default function SupervisorPage() {
               </>
             )}
 
-            {/* --- MODO MANUAL (flujo secuencial) --- */}
+            {/* --- MODO MANUAL --- */}
             {modo === 'manual' && (
               <>
                 {pasoManual === 0 && (
