@@ -8,121 +8,26 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS (ESTILO UNIFICADO)
-// ------------------------------------------------------------
-
-// ----- MEMBRETE SUPERIOR – EXACTAMENTE COMO LA CAPTURA -----
-const MemebreteSuperior = ({
-  titulo,
-  subtitulo,
-  usuario,
-  modulo,
-  conAnimacion = false
-}: {
-  titulo: string;
-  subtitulo: string;
-  usuario?: any;
-  modulo?: string;
-  conAnimacion?: boolean;
-}) => {
-  const renderTituloBicolor = (texto: string) => {
-    const palabras = texto.split(' ');
-    const ultimaPalabra = palabras.pop();
-    const primerasPalabras = palabras.join(' ');
-    return (
-      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-        <span className="text-white">{primerasPalabras} </span>
-        <span className="text-blue-700">{ultimaPalabra}</span>
-      </h1>
-    );
-  };
-
-  return (
-    <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
-      {renderTituloBicolor(titulo)}
-      <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
-        {subtitulo}
-      </p>
-      {usuario && modulo && (
-        <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm font-normal text-white uppercase block">
-            {usuario.nombre}  •  {modulo}  ({usuario.nivel_acceso})
-          </span>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ----- BOTÓN DE MENÚ ADMIN (CENTRADO) -----
-const BotonMenuAdmin = ({
-  texto,
-  icono,
-  onClick,
-  disabled = false,
-  className = ''
-}: {
-  texto: string;
-  icono: string;
-  onClick: () => void;
-  disabled?: boolean;
-  className?: string;
-}) => {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-full bg-[#0f172a] p-8 rounded-[30px] border border-white/5 
-        hover:border-blue-500 hover:scale-[1.02] transition-all 
-        shadow-2xl relative overflow-hidden active:scale-95 disabled:opacity-50 
-        disabled:cursor-not-allowed disabled:border-white/5 
-        flex flex-col items-center justify-center text-center ${className}`}
-    >
-      <span className="text-4xl block mb-4 group-hover:scale-110 transition-transform">
-        {icono}
-      </span>
-      <h3 className="text-lg font-black uppercase italic group-hover:text-blue-500 transition-colors">
-        {texto}
-      </h3>
-    </button>
-  );
-};
-
-// ------------------------------------------------------------
-// COMPONENTE PRINCIPAL
-// ------------------------------------------------------------
 export default function PanelAdminHub() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // --------------------------------------------------------
-  // 1. CARGAR SESIÓN Y VALIDAR ACCESO
-  // --------------------------------------------------------
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
       router.replace('/');
       return;
     }
-
     const currentUser = JSON.parse(sessionData);
-    const nivel = Number(currentUser.nivel_acceso);
-
-    // Nivel mínimo para acceder al panel admin: 4
-    if (nivel < 4) {
+    if (Number(currentUser.nivel_acceso) < 4) {
       router.replace('/');
       return;
     }
-
     setUser(currentUser);
     setLoading(false);
   }, [router]);
 
-  // --------------------------------------------------------
-  // 2. RENDERIZADO
-  // --------------------------------------------------------
   if (loading) {
     return (
       <main className="min-h-screen bg-black flex items-center justify-center">
@@ -131,73 +36,113 @@ export default function PanelAdminHub() {
     );
   }
 
-  const nivel = Number(user?.nivel_acceso || 0);
-  const permisoReportes = user?.permiso_reportes === true;
+  const nivel = Number(user.nivel_acceso);
+  const permisoReportes = user.permiso_reportes === true;
 
+  // ------------------------------------------------------------
+  // COMPONENTES VISUALES INTERNOS (EXACTOS A LA CAPTURA)
+  // ------------------------------------------------------------
+  const Memebrete = () => (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">GESTOR DE </span>
+        <span className="text-blue-700">ACCESO</span>
+      </h1>
+      <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
+        MENÚ PRINCIPAL
+      </p>
+      <div className="mt-2 pt-2 border-t border-white/10">
+        <span className="text-sm font-normal text-white uppercase">
+          {user.nombre} · Panel Administrativo ({user.nivel_acceso})
+        </span>
+      </div>
+    </div>
+  );
+
+  const BotonOpcion = ({
+    texto,
+    icono,
+    onClick,
+    className = ''
+  }: {
+    texto: string;
+    icono: string;
+    onClick: () => void;
+    className?: string;
+  }) => (
+    <button
+      onClick={onClick}
+      className={`w-full bg-[#0f172a] p-4 rounded-xl border border-white/5 
+        transition-all duration-200 active:scale-95 shadow-lg 
+        flex items-center justify-start gap-4 group
+        ${className}`}
+    >
+      <span className="text-2xl group-hover:scale-110 transition-transform">{icono}</span>
+      <span className="text-white font-black uppercase italic text-[11px] tracking-widest group-hover:text-white">
+        {texto}
+      </span>
+    </button>
+  );
+
+  const Footer = () => (
+    <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
+      <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
+        @Copyright RayPérez 2026
+      </p>
+      <button
+        onClick={() => {
+          localStorage.clear();
+          router.push('/');
+        }}
+        className="text-emerald-500 font-black uppercase text-[10px] tracking-[0.2em] italic flex items-center justify-center gap-2 mx-auto hover:text-emerald-400 transition-colors"
+      >
+        <span className="text-lg">🏠</span> CERRAR SESIÓN
+      </button>
+    </div>
+  );
+
+  // ------------------------------------------------------------
+  // RENDERIZADO
+  // ------------------------------------------------------------
   return (
-    <main className="min-h-screen bg-black p-6 md:p-10 text-white font-sans">
-      <div className="max-w-7xl mx-auto">
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
+      <div className="w-full max-w-sm flex flex-col items-center">
+        <Memebrete />
 
-        {/* MEMBRETE SUPERIOR – EXACTAMENTE COMO LA CAPTURA */}
-        <MemebreteSuperior
-          titulo="GESTOR DE ACCESO"
-          subtitulo="MENÚ PRINCIPAL"
-          usuario={user}
-          modulo="Panel Administrativo"
-          conAnimacion={false}
-        />
-
-        {/* GRID DE BOTONES – CENTRADOS, SOLO TRES */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10 max-w-4xl mx-auto">
-          
-          {/* 1. GESTIÓN ADMINISTRATIVA (nivel >=4) */}
+        <div className="w-full space-y-3">
+          {/* GESTIÓN ADMINISTRATIVA – siempre visible desde nivel 4 */}
           {nivel >= 4 && (
-            <BotonMenuAdmin
-              texto="Gestión Administrativa"
+            <BotonOpcion
+              texto="GESTIÓN ADMINISTRATIVA"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
+              className="hover:bg-amber-600"
             />
           )}
 
-          {/* 2. AUDITORÍA (nivel >=5 o (nivel 4 y permiso_reportes = true)) */}
+          {/* AUDITORÍA – nivel ≥5 o (nivel 4 y permiso_reportes) */}
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
-            <BotonMenuAdmin
-              texto="Auditoría"
+            <BotonOpcion
+              texto="AUDITORÍA"
               icono="🔍"
               onClick={() => router.push('/admin/auditoria')}
+              className="hover:bg-blue-600"
             />
           )}
 
-          {/* 3. FLOTA (nivel >=5) */}
+          {/* FLOTA – nivel ≥5 */}
           {nivel >= 5 && (
-            <BotonMenuAdmin
-              texto="Flota"
+            <BotonOpcion
+              texto="FLOTA"
               icono="🚛"
               onClick={() => router.push('/admin/flota')}
+              className="hover:bg-emerald-600"
             />
           )}
-
         </div>
 
-        {/* BOTÓN VOLVER AL SELECTOR PRINCIPAL */}
-        <div className="mt-16 text-center">
-          <button
-            onClick={() => router.push('/')}
-            className="text-blue-500 font-black uppercase text-[11px] tracking-widest hover:text-white transition-all underline underline-offset-8 decoration-slate-800"
-          >
-            ← VOLVER AL SELECTOR
-          </button>
-        </div>
-
+        <Footer />
       </div>
-
-      {/* ESTILOS GLOBALES */}
-      <style jsx global>{`
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
-        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
-      `}</style>
     </main>
   );
 }
