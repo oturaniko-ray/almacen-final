@@ -3,7 +3,10 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function LoginPage() {
   const [identificador, setIdentificador] = useState('');
@@ -11,20 +14,25 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [paso, setPaso] = useState<'login' | 'selector'>('login');
   const [tempUser, setTempUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ empresa_nombre: '', timer_inactividad: null });
-  const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'exito' | 'error' | 'advertencia' | 'info' | null }>({ texto: '', tipo: null });
+  const [config, setConfig] = useState<any>({ empresa_nombre: '' });
+  const [notificacion, setNotificacion] = useState<{
+    mensaje: string;
+    tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
+  }>({ mensaje: '', tipo: null });
 
   const idRef = useRef<HTMLInputElement>(null);
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ------------------------------------------------------------
+  // CARGAR CONFIGURACIÓN Y SESIÓN
+  // ------------------------------------------------------------
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-        setConfig((prev: any) => ({ ...prev, ...cfgMap }));
+        setConfig(cfgMap);
       }
     };
     fetchConfig();
@@ -37,8 +45,10 @@ export default function LoginPage() {
     }
   }, [router]);
 
+  // ------------------------------------------------------------
+  // LOGOUT
+  // ------------------------------------------------------------
   const logout = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
     localStorage.clear();
     setTempUser(null);
     setIdentificador('');
@@ -46,11 +56,17 @@ export default function LoginPage() {
     setPaso('login');
   };
 
-  const mostrarNotificacion = (texto: string, tipo: 'exito' | 'error' | 'advertencia' | 'info') => {
-    setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: null }), 3000);
+  const mostrarNotificacion = (
+    mensaje: string,
+    tipo: 'exito' | 'error' | 'advertencia' | 'info'
+  ) => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 3000);
   };
 
+  // ------------------------------------------------------------
+  // LOGIN
+  // ------------------------------------------------------------
   const handleLogin = async () => {
     if (!identificador || !pin) {
       mostrarNotificacion('Complete todos los campos', 'advertencia');
@@ -58,39 +74,82 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('empleados')
+      const { data, error } = await supabase
+        .from('empleados')
         .select('*')
         .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
-        .eq('pin_seguridad', pin).eq('activo', true).maybeSingle();
+        .eq('pin_seguridad', pin)
+        .eq('activo', true)
+        .maybeSingle();
 
       if (error || !data) throw new Error('Credenciales inválidas');
 
       const userData = {
         ...data,
         nivel_acceso: Number(data.nivel_acceso),
-        permiso_reportes: !!data.permiso_reportes
+        permiso_reportes: !!data.permiso_reportes,
       };
       localStorage.setItem('user_session', JSON.stringify(userData));
 
       if (userData.nivel_acceso <= 2) router.push('/empleado');
-      else { setTempUser(userData); setPaso('selector'); }
-    } catch (err: any) {
+      else {
+        setTempUser(userData);
+        setPaso('selector');
+      }
+    } catch {
       mostrarNotificacion('Acceso denegado', 'error');
-      setIdentificador(''); setPin('');
+      setIdentificador('');
+      setPin('');
       idRef.current?.focus();
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // ------------------------------------------------------------
+  // FILTRO DE BOTONES POR NIVEL
+  // ------------------------------------------------------------
   const obtenerBotonesDisponibles = () => {
     const nivel = Number(tempUser?.nivel_acceso || 0);
     const tienePermisoReportes = tempUser?.permiso_reportes === true;
 
     const todosLosBotones = [
-      { label: 'ACCESO EMPLEADO', icono: '🫆', ruta: '/empleado', minNivel: 1, hover: 'hover:bg-emerald-600' },
-      { label: 'PANEL SUPERVISOR', icono: '🕖', ruta: '/supervisor', minNivel: 3, hover: 'hover:bg-blue-600' },
-      { label: 'REPORTES Y ANÁLISIS', icono: '📊', ruta: '/reportes', minNivel: 3, hover: 'hover:bg-slate-700', requiereReportes: true },
-      { label: 'GESTIÓN ADMINISTRATIVA', icono: '👥', ruta: '/admin', minNivel: 4, hover: 'hover:bg-amber-600' },
-      { label: 'CONFIGURACIÓN MAESTRA', icono: '👨‍🔧', ruta: '/configuracion', minNivel: 8, hover: 'hover:bg-rose-900' },
+      {
+        label: 'ACCESO EMPLEADO',
+        icono: '🫆',
+        ruta: '/empleado',
+        minNivel: 1,
+        color: 'bg-emerald-600',
+      },
+      {
+        label: 'PANEL SUPERVISOR',
+        icono: '🕖',
+        ruta: '/supervisor',
+        minNivel: 3,
+        color: 'bg-blue-600',
+      },
+      {
+        label: 'REPORTES Y ANÁLISIS',
+        icono: '📊',
+        ruta: '/reportes',
+        minNivel: 3,
+        color: 'bg-slate-700',
+        requiereReportes: true,
+      },
+      {
+        label: 'GESTIÓN ADMINISTRATIVA',
+        icono: '👥',
+        ruta: '/admin',
+        minNivel: 4,
+        color: 'bg-amber-600',
+      },
+      {
+        label: 'CONFIGURACIÓN MAESTRA',
+        icono: '👨‍🔧',
+        ruta: '/configuracion',
+        minNivel: 8,
+        color: 'bg-rose-900',
+      },
     ];
 
     return todosLosBotones.filter((btn) => {
@@ -108,7 +167,7 @@ export default function LoginPage() {
   };
 
   // ------------------------------------------------------------
-  // COMPONENTES VISUALES INTERNOS (EXACTOS A LA CAPTURA)
+  // COMPONENTES VISUALES – EXACTOS A LA CAPTURA
   // ------------------------------------------------------------
   const Memebrete = () => (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
@@ -116,13 +175,20 @@ export default function LoginPage() {
         <span className="text-white">GESTOR DE </span>
         <span className="text-blue-700">ACCESO</span>
       </h1>
-      <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${paso === 'login' ? 'animate-pulse-slow' : ''}`}>
-        {paso === 'login' ? 'IDENTIFICACIÓN' : 'MENÚ PRINCIPAL'}
+      <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
+        MENÚ PRINCIPAL
       </p>
       {paso === 'selector' && tempUser && (
         <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm font-normal text-white uppercase">
-            {tempUser.nombre} · Selector Principal ({tempUser.nivel_acceso})
+          <span className="text-sm text-white normal-case">
+            {tempUser.nombre}
+          </span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            Selector Principal
+          </span>
+          <span className="text-sm text-white ml-2">
+            ({tempUser.nivel_acceso})
           </span>
         </div>
       )}
@@ -133,22 +199,21 @@ export default function LoginPage() {
     texto,
     icono,
     onClick,
-    className = ''
+    color,
   }: {
     texto: string;
     icono: string;
     onClick: () => void;
-    className?: string;
+    color: string;
   }) => (
     <button
       onClick={onClick}
-      className={`w-full bg-[#0f172a] p-4 rounded-xl border border-white/5 
-        transition-all duration-200 active:scale-95 shadow-lg 
-        flex items-center justify-start gap-4 group
-        ${className}`}
+      className={`w-full ${color} p-4 rounded-xl border border-white/5 
+        active:scale-95 transition-transform shadow-lg 
+        flex items-center justify-start gap-4`}
     >
-      <span className="text-2xl group-hover:scale-110 transition-transform">{icono}</span>
-      <span className="text-white font-black uppercase italic text-[11px] tracking-widest group-hover:text-white">
+      <span className="text-2xl">{icono}</span>
+      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
       </span>
     </button>
@@ -162,7 +227,7 @@ export default function LoginPage() {
       {paso === 'selector' && (
         <button
           onClick={logout}
-          className="text-emerald-500 font-black uppercase text-[10px] tracking-[0.2em] italic flex items-center justify-center gap-2 mx-auto hover:text-emerald-400 transition-colors"
+          className="text-emerald-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto"
         >
           <span className="text-lg">🏠</span> CERRAR SESIÓN
         </button>
@@ -170,22 +235,35 @@ export default function LoginPage() {
     </div>
   );
 
+  const Notificacion = () => {
+    if (!notificacion.tipo) return null;
+    const colores = {
+      exito: 'bg-emerald-500 border-emerald-400',
+      error: 'bg-rose-500 border-rose-400',
+      advertencia: 'bg-amber-500 border-amber-400',
+      info: 'bg-blue-500 border-blue-400',
+    };
+    const iconos = {
+      exito: '✅',
+      error: '❌',
+      advertencia: '⚠️',
+      info: 'ℹ️',
+    };
+    return (
+      <div
+        className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl
+          font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center
+          border-2 ${colores[notificacion.tipo]} text-white flex items-center gap-3`}
+      >
+        <span className="text-lg">{iconos[notificacion.tipo]}</span>
+        <span>{notificacion.mensaje}</span>
+      </div>
+    );
+  };
+
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
-      {/* Notificación flotante */}
-      {mensaje.tipo && (
-        <div className={`fixed top-6 z-50 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center border-2 ${
-          mensaje.tipo === 'exito' ? 'bg-emerald-500 border-emerald-400 text-white' :
-          mensaje.tipo === 'error' ? 'bg-rose-500 border-rose-400 text-white' :
-          mensaje.tipo === 'advertencia' ? 'bg-amber-500 border-amber-400 text-white' :
-          'bg-blue-500 border-blue-400 text-white'
-        }`}>
-          <span className="text-lg mr-2">
-            {mensaje.tipo === 'exito' ? '✅' : mensaje.tipo === 'error' ? '❌' : mensaje.tipo === 'advertencia' ? '⚠️' : 'ℹ️'}
-          </span>
-          {mensaje.texto}
-        </div>
-      )}
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
+      <Notificacion />
 
       <div className="w-full max-w-sm flex flex-col items-center">
         <Memebrete />
@@ -215,7 +293,7 @@ export default function LoginPage() {
               texto={loading ? 'VERIFICANDO...' : 'ENTRAR'}
               icono="🔐"
               onClick={handleLogin}
-              className="hover:bg-blue-600"
+              color="bg-blue-600"
             />
           </div>
         ) : (
@@ -226,7 +304,7 @@ export default function LoginPage() {
                 texto={btn.label}
                 icono={btn.icono}
                 onClick={() => router.push(btn.ruta)}
-                className={btn.hover}
+                color={btn.color}
               />
             ))}
           </div>
@@ -236,10 +314,19 @@ export default function LoginPage() {
       </div>
 
       <style jsx global>{`
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
-        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+        @keyframes flash-fast {
+          0%,
+          100% { opacity: 1; }
+          10%,
+          30%,
+          50% { opacity: 0; }
+          20%,
+          40%,
+          60% { opacity: 1; }
+        }
+        .animate-flash-fast {
+          animation: flash-fast 2s ease-in-out;
+        }
       `}</style>
     </main>
   );

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function ReportesMenuPage() {
@@ -18,7 +18,7 @@ export default function ReportesMenuPage() {
   if (!user) return null;
 
   // ------------------------------------------------------------
-  // COMPONENTES VISUALES INTERNOS (EXACTOS A LA CAPTURA)
+  // COMPONENTES VISUALES – EXACTOS A LA CAPTURA
   // ------------------------------------------------------------
   const Memebrete = () => (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
@@ -30,9 +30,10 @@ export default function ReportesMenuPage() {
         MENÚ PRINCIPAL
       </p>
       <div className="mt-2 pt-2 border-t border-white/10">
-        <span className="text-sm font-normal text-white uppercase">
-          {user.nombre} · Reportes y Análisis ({user.nivel_acceso || '0'})
-        </span>
+        <span className="text-sm text-white normal-case">{user.nombre}</span>
+        <span className="text-sm text-white mx-2">•</span>
+        <span className="text-sm text-blue-500 normal-case">Reportes y Análisis</span>
+        <span className="text-sm text-white ml-2">({user.nivel_acceso || '0'})</span>
       </div>
     </div>
   );
@@ -41,22 +42,21 @@ export default function ReportesMenuPage() {
     texto,
     icono,
     onClick,
-    className = ''
+    color,
   }: {
     texto: string;
     icono: string;
     onClick: () => void;
-    className?: string;
+    color: string;
   }) => (
     <button
       onClick={onClick}
-      className={`w-full bg-[#0f172a] p-4 rounded-xl border border-white/5 
-        transition-all duration-200 active:scale-95 shadow-lg 
-        flex items-center justify-start gap-4 group
-        ${className}`}
+      className={`w-full ${color} p-4 rounded-xl border border-white/5 
+        active:scale-95 transition-transform shadow-lg 
+        flex items-center justify-start gap-4`}
     >
-      <span className="text-2xl group-hover:scale-110 transition-transform">{icono}</span>
-      <span className="text-white font-black uppercase italic text-[11px] tracking-widest group-hover:text-white">
+      <span className="text-2xl">{icono}</span>
+      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
       </span>
     </button>
@@ -68,40 +68,32 @@ export default function ReportesMenuPage() {
         @Copyright RayPérez 2026
       </p>
       <button
-        onClick={() => {
-          localStorage.clear();
-          router.push('/');
-        }}
-        className="text-emerald-500 font-black uppercase text-[10px] tracking-[0.2em] italic flex items-center justify-center gap-2 mx-auto hover:text-emerald-400 transition-colors"
+        onClick={() => router.push('/')}
+        className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto"
       >
-        <span className="text-lg">🏠</span> CERRAR SESIÓN
+        <span className="text-lg">←</span> VOLVER AL SELECTOR
       </button>
     </div>
   );
 
-  // ------------------------------------------------------------
-  // RENDERIZADO
-  // ------------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm flex flex-col items-center">
         <Memebrete />
-
         <div className="w-full space-y-3">
           <BotonOpcion
             texto="MONITOR DE PRESENCIA"
             icono="⏱️"
             onClick={() => router.push('/reportes/presencia')}
-            className="hover:bg-blue-600"
+            color="bg-blue-600"
           />
           <BotonOpcion
             texto="REPORTE DE ACCESOS"
-            icono="📅"
+            icono="🏃‍♂️‍➡️"
             onClick={() => router.push('/reportes/accesos')}
-            className="hover:bg-slate-700"
+            color="bg-slate-700"
           />
         </div>
-
         <Footer />
       </div>
     </main>
