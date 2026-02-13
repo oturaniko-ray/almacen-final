@@ -327,7 +327,7 @@ export default function LoginPage() {
               placeholder="PIN"
               className="w-full bg-white/5 border border-white/10 p-2.5 rounded-xl text-center text-[11px] font-black text-white tracking-[0.4em] outline-none focus:border-blue-500/50 uppercase"
               value={pin}
-              onChange={(e) => setPin(e.target.value)}
+              onChange={(e) => setPin(e.target.value.toUpperCase())}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             />
             <BotonAccion
