@@ -17,14 +17,11 @@ export default function ReportesMenuPage() {
 
   if (!user) return null;
 
-  // ------------------------------------------------------------
-  // COMPONENTES VISUALES – EXACTOS A LA CAPTURA
-  // ------------------------------------------------------------
   const Memebrete = () => (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
       <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
         <span className="text-white">GESTOR DE </span>
-        <span className="text-blue-700">ACCESO</span>
+        <span className="text-blue-700">REPORTES</span>
       </h1>
       <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
         MENÚ PRINCIPAL
@@ -40,11 +37,13 @@ export default function ReportesMenuPage() {
 
   const BotonOpcion = ({
     texto,
+    descripcion,
     icono,
     onClick,
     color,
   }: {
     texto: string;
+    descripcion: string;
     icono: string;
     onClick: () => void;
     color: string;
@@ -60,6 +59,9 @@ export default function ReportesMenuPage() {
       </div>
       <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
+      </span>
+      <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
+        {descripcion}
       </span>
     </button>
   );
@@ -86,12 +88,14 @@ export default function ReportesMenuPage() {
         <div className="w-full space-y-4">
           <BotonOpcion
             texto="MONITOR DE PRESENCIA"
+            descripcion="Visualización en tiempo real de empleados en almacén"
             icono="⏱️"
             onClick={() => router.push('/reportes/presencia')}
             color="bg-blue-600"
           />
           <BotonOpcion
             texto="REPORTE DE ACCESOS"
+            descripcion="Historial de jornadas y accesos"
             icono="🏃‍♂️‍➡️"
             onClick={() => router.push('/reportes/accesos')}
             color="bg-slate-700"

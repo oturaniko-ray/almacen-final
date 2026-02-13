@@ -31,8 +31,8 @@ export default function SubmenuFlotaHub() {
   const Memebrete = () => (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
       <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-        <span className="text-white">GESTOR DE </span>
-        <span className="text-blue-700">ACCESO</span>
+        <span className="text-white">GESTIÓN DE </span>
+        <span className="text-blue-700">FLOTA</span>
       </h1>
       <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
         MENÚ PRINCIPAL

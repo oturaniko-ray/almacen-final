@@ -39,14 +39,11 @@ export default function PanelAdminHub() {
   const nivel = Number(user.nivel_acceso);
   const permisoReportes = user.permiso_reportes === true;
 
-  // ------------------------------------------------------------
-  // COMPONENTES VISUALES – EXACTOS A LA CAPTURA
-  // ------------------------------------------------------------
   const Memebrete = () => (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
       <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-        <span className="text-white">GESTOR DE </span>
-        <span className="text-blue-700">ACCESO</span>
+        <span className="text-white">GESTIÓN </span>
+        <span className="text-blue-700">ADMINISTRATIVA</span>
       </h1>
       <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
         MENÚ PRINCIPAL
@@ -62,11 +59,13 @@ export default function PanelAdminHub() {
 
   const BotonOpcion = ({
     texto,
+    descripcion,
     icono,
     onClick,
     color,
   }: {
     texto: string;
+    descripcion: string;
     icono: string;
     onClick: () => void;
     color: string;
@@ -82,6 +81,9 @@ export default function PanelAdminHub() {
       </div>
       <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
+      </span>
+      <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
+        {descripcion}
       </span>
     </button>
   );
@@ -108,7 +110,8 @@ export default function PanelAdminHub() {
         <div className="w-full space-y-4">
           {nivel >= 4 && (
             <BotonOpcion
-              texto="GESTIÓN ADMINISTRATIVA"
+              texto="GESTOR DE EMPLEADOS"
+              descripcion="Alta, baja y modificación de personal. Generación de PINs P"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
               color="bg-amber-600"
@@ -117,6 +120,7 @@ export default function PanelAdminHub() {
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonOpcion
               texto="AUDITORÍA"
+              descripcion="Análisis de eficiencia y reportes de auditoría"
               icono="🔍"
               onClick={() => router.push('/admin/auditoria')}
               color="bg-blue-600"
@@ -125,6 +129,7 @@ export default function PanelAdminHub() {
           {nivel >= 5 && (
             <BotonOpcion
               texto="FLOTA"
+              descripcion="Gestión de perfiles de flota y control de accesos"
               icono="🚛"
               onClick={() => router.push('/admin/flota')}
               color="bg-emerald-600"

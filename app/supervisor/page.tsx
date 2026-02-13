@@ -61,14 +61,16 @@ const MemebreteSuperior = ({
   );
 };
 
-// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI, ALTURA REDUCIDA) -----
+// ----- BOTÓN DE OPCIÓN CON DESCRIPCIÓN (CÍRCULO + EMOJI + TEXTO + DESCRIPCIÓN) -----
 const BotonOpcion = ({
   texto,
+  descripcion,
   icono,
   onClick,
   color,
 }: {
   texto: string;
+  descripcion: string;
   icono: string;
   onClick: () => void;
   color: string;
@@ -85,6 +87,9 @@ const BotonOpcion = ({
       </div>
       <span className="text-white font-bold uppercase text-[11px] tracking-wider">
         {texto}
+      </span>
+      <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
+        {descripcion}
       </span>
     </button>
   );
@@ -183,7 +188,7 @@ const NotificacionSistema = ({
   );
 };
 
-// ----- CAMPO DE ENTRADA -----
+// ----- CAMPO DE ENTRADA (con opción mayusculas) -----
 const CampoEntrada = React.forwardRef<HTMLInputElement, {
   tipo?: 'text' | 'password' | 'email' | 'number' | 'date';
   placeholder?: string;
@@ -207,6 +212,18 @@ const CampoEntrada = React.forwardRef<HTMLInputElement, {
   mayusculas = false,
   className = ''
 }, ref) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let newVal = e.target.value;
+    if (mayusculas) {
+      newVal = newVal.toUpperCase();
+    }
+    // Llamar al onChange original con el valor modificado
+    onChange({
+      ...e,
+      target: { ...e.target, value: newVal }
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && onEnter) onEnter();
   };
@@ -217,7 +234,7 @@ const CampoEntrada = React.forwardRef<HTMLInputElement, {
       type={tipo}
       placeholder={placeholder}
       value={valor}
-      onChange={onChange}
+      onChange={handleChange}
       onKeyDown={handleKeyDown}
       autoFocus={autoFocus}
       disabled={disabled}
@@ -707,18 +724,48 @@ export default function SupervisorPage() {
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
-          // --- MENÚ PRINCIPAL ---
+          // --- MENÚ PRINCIPAL CON DESCRIPCIONES ---
           <div className="grid gap-3 w-full">
-            <BotonOpcion texto="SCANNER USB" icono="🔌" onClick={() => setModo('usb')} color="bg-blue-600" />
-            <BotonOpcion texto="CÁMARA MÓVIL" icono="📱" onClick={() => setModo('camara')} color="bg-emerald-600" />
-            <BotonOpcion texto="MANUAL" icono="🖋️" onClick={iniciarModoManual} color="bg-slate-700" />
+            <BotonOpcion
+              texto="SCANNER USB"
+              descripcion="Lectura mediante escáner conectado"
+              icono="🔌"
+              onClick={() => setModo('usb')}
+              color="bg-blue-600"
+            />
+            <BotonOpcion
+              texto="CÁMARA MÓVIL"
+              descripcion="Lectura con cámara del dispositivo"
+              icono="📱"
+              onClick={() => setModo('camara')}
+              color="bg-emerald-600"
+            />
+            <BotonOpcion
+              texto="MANUAL"
+              descripcion="Ingreso manual de datos"
+              icono="🖋️"
+              onClick={iniciarModoManual}
+              color="bg-slate-700"
+            />
             <Footer router={router} />
           </div>
         ) : !direccion ? (
-          // --- SELECCIÓN ENTRADA/SALIDA ---
+          // --- SELECCIÓN ENTRADA/SALIDA CON DESCRIPCIONES ---
           <div className="flex flex-col gap-3 w-full">
-            <BotonOpcion texto="ENTRADA" icono="🟢" onClick={() => setDireccion('entrada')} color="bg-emerald-600" />
-            <BotonOpcion texto="SALIDA" icono="🔴" onClick={() => setDireccion('salida')} color="bg-rose-600" />
+            <BotonOpcion
+              texto="ENTRADA"
+              descripcion="Registrar llegada de empleado"
+              icono="🟢"
+              onClick={() => setDireccion('entrada')}
+              color="bg-emerald-600"
+            />
+            <BotonOpcion
+              texto="SALIDA"
+              descripcion="Registrar salida de empleado"
+              icono="🔴"
+              onClick={() => setDireccion('salida')}
+              color="bg-rose-600"
+            />
             <button
               onClick={() => {
                 setModo('menu');
@@ -783,6 +830,7 @@ export default function SupervisorPage() {
                     onChange={(e) => setPinAutorizador(e.target.value)}
                     onEnter={registrarAcceso}
                     autoFocus
+                    mayusculas={true}   // ← Forzar mayúsculas
                   />
                 )}
 
@@ -853,6 +901,7 @@ export default function SupervisorPage() {
                     }}
                     autoFocus
                     textoCentrado
+                    mayusculas={true}   // ← Forzar mayúsculas
                   />
                 )}
 
@@ -870,6 +919,7 @@ export default function SupervisorPage() {
                     }}
                     autoFocus
                     textoCentrado
+                    mayusculas={true}   // ← Forzar mayúsculas
                   />
                 )}
 
