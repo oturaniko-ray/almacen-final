@@ -61,7 +61,7 @@ const BotonAccion = ({
   <button
     onClick={onClick}
     disabled={disabled || loading}
-    className={`${fullWidth ? 'w-full' : ''} ${color} p-3 rounded-xl border border-white/5 
+    className={`${fullWidth ? 'w-full' : ''} ${color} p-2 rounded-xl border border-white/5 
       active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 
       disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider
       ${className}`}
@@ -76,26 +76,6 @@ const BotonAccion = ({
     ) : (
       texto
     )}
-  </button>
-);
-
-// ----- BOTÓN TOGGLE (ESTADO) -----
-const BotonToggle = ({
-  activo,
-  onChange,
-}: {
-  activo: boolean;
-  onChange: (activo: boolean) => void;
-}) => (
-  <button
-    type="button"
-    onClick={() => onChange(!activo)}
-    className={`px-4 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider transition-all
-      ${activo 
-        ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30 hover:bg-emerald-600/30' 
-        : 'bg-rose-600/20 text-rose-500 border-rose-500/30 hover:bg-rose-600/30'}`}
-  >
-    {activo ? 'ACTIVO' : 'INACTIVO'}
   </button>
 );
 
@@ -147,7 +127,7 @@ const CampoEntrada = ({
         autoFocus={autoFocus}
         disabled={disabled}
         required={required}
-        className={`w-full bg-white/5 border border-white/10 p-3 rounded-xl 
+        className={`w-full bg-white/5 border border-white/10 p-2.5 rounded-xl 
           text-[11px] font-bold text-white outline-none transition-colors
           disabled:opacity-70 disabled:cursor-not-allowed
           ${textCentered ? 'text-center' : ''} 
@@ -157,6 +137,67 @@ const CampoEntrada = ({
           ${disabled ? 'border-blue-500/30 text-amber-400' : ''}
           ${className}`}
       />
+    </div>
+  );
+};
+
+// ----- MODAL DE CORREO DE BIENVENIDA -----
+const ModalCorreo = ({
+  empleado,
+  onClose,
+}: {
+  empleado: any;
+  onClose: () => void;
+}) => {
+  const textoCorreo = `
+Bienvenido al sistema, ${empleado.nombre}.
+
+Tus datos de acceso son:
+- Documento: ${empleado.documento_id}
+- Email: ${empleado.email}
+- Rol: ${empleado.rol}
+- Nivel de acceso: ${empleado.nivel_acceso}
+- PIN secreto: ${empleado.pin_seguridad}
+
+Este PIN es confidencial e intransmisible. No lo compartas con nadie.
+Por razones de seguridad, te recomendamos cambiarlo en tu primer acceso.
+
+Atentamente,
+Administración del Sistema
+  `.trim();
+
+  const copiarAlPortapapeles = () => {
+    navigator.clipboard.writeText(textoCorreo);
+    alert('Texto copiado al portapapeles');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-[#1a1a1a] rounded-[25px] border border-white/10 shadow-2xl max-w-lg w-full p-6">
+        <h3 className="text-white font-black uppercase italic text-lg mb-4">
+          Correo de bienvenida
+        </h3>
+        <div className="bg-black/40 p-4 rounded-xl border border-white/10 mb-4 max-h-60 overflow-y-auto text-white/90 text-xs font-mono whitespace-pre-wrap">
+          {textoCorreo}
+        </div>
+        <div className="flex justify-end gap-3">
+          <BotonAccion
+            texto="CERRAR"
+            onClick={onClose}
+            color="bg-slate-600"
+            fullWidth={false}
+            className="px-4"
+          />
+          <BotonAccion
+            texto="COPIAR"
+            icono="📋"
+            onClick={copiarAlPortapapeles}
+            color="bg-blue-600"
+            fullWidth={false}
+            className="px-4"
+          />
+        </div>
+      </div>
     </div>
   );
 };
@@ -185,6 +226,8 @@ export default function GestionEmpleados() {
   const [editando, setEditando] = useState<any>(null);
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mostrarModalCorreo, setMostrarModalCorreo] = useState(false);
+  const [ultimoCreado, setUltimoCreado] = useState<any>(null);
   const router = useRouter();
 
   const estadoInicial = {
@@ -317,20 +360,29 @@ export default function GestionEmpleados() {
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        const { error } = await supabase.from('empleados').insert([
-          {
-            nombre: nuevo.nombre,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            pin_seguridad: pinGenerado,
-            rol: nuevo.rol,
-            activo: nuevo.activo,
-            permiso_reportes: nuevo.permiso_reportes,
-            nivel_acceso: nuevo.nivel_acceso,
-            pin_generado_en: new Date().toISOString(),
-          },
-        ]);
+        const { data: nuevoEmpleado, error } = await supabase
+          .from('empleados')
+          .insert([
+            {
+              nombre: nuevo.nombre,
+              documento_id: nuevo.documento_id,
+              email: nuevo.email.toLowerCase(),
+              pin_seguridad: pinGenerado,
+              rol: nuevo.rol,
+              activo: nuevo.activo,
+              permiso_reportes: nuevo.permiso_reportes,
+              nivel_acceso: nuevo.nivel_acceso,
+              pin_generado_en: new Date().toISOString(),
+            },
+          ])
+          .select()
+          .single();
+
         if (error) throw error;
+
+        // Mostrar modal de correo con los datos del nuevo empleado
+        setUltimoCreado(nuevoEmpleado);
+        setMostrarModalCorreo(true);
       }
 
       cancelarEdicion();
@@ -414,142 +466,138 @@ export default function GestionEmpleados() {
         {/* MEMBRETE */}
         <MemebreteSuperior usuario={user} />
 
-        {/* FORMULARIO DE CREACIÓN/EDICIÓN */}
-        <div
-          className={`bg-[#0f172a] p-6 rounded-[25px] border transition-all mb-6 ${
-            editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'
-          }`}
-        >
-          <form onSubmit={handleGuardar} className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* NOMBRE COMPLETO */}
-              <CampoEntrada
-                label="NOMBRE COMPLETO"
-                placeholder="Nombre completo"
-                value={nuevo.nombre}
-                onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
-                required
-                autoFocus
-              />
-
-              {/* DOCUMENTO ID */}
-              <CampoEntrada
-                label="DOCUMENTO ID"
-                placeholder="DNI / NIE / PASAPORTE"
-                value={nuevo.documento_id}
-                onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
-                required
-                uppercase
-              />
-
-              {/* EMAIL */}
-              <CampoEntrada
-                label="EMAIL"
-                placeholder="correo@ejemplo.com"
-                type="email"
-                value={nuevo.email}
-                onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
-                required
-              />
-
-              {/* ROL */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ROL</label>
-                <select
-                  value={nuevo.rol}
-                  onChange={(e) =>
-                    setNuevo({
-                      ...nuevo,
-                      rol: e.target.value,
-                      nivel_acceso:
-                        e.target.value === 'supervisor'
-                          ? 3
-                          : e.target.value === 'admin'
-                          ? 4
-                          : e.target.value === 'tecnico'
-                          ? 8
-                          : 1,
-                    })
-                  }
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50 uppercase tracking-wider"
-                >
-                  <option value="empleado">EMPLEADO</option>
-                  <option value="supervisor">SUPERVISOR</option>
-                  <option value="admin">ADMINISTRADOR</option>
-                  <option value="tecnico">TÉCNICO</option>
-                </select>
-              </div>
-
-              {/* NIVEL ACCESO */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">NIVEL ACCESO</label>
-                <select
-                  value={nuevo.nivel_acceso}
-                  onChange={(e) => setNuevo({ ...nuevo, nivel_acceso: parseInt(e.target.value) })}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
-                >
-                  {obtenerOpcionesNivel().map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* PERMISO REPORTES */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">PERMISO REPORTES</label>
-                <select
-                  value={nuevo.permiso_reportes ? 'si' : 'no'}
-                  onChange={(e) => setNuevo({ ...nuevo, permiso_reportes: e.target.value === 'si' })}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
-                >
-                  <option value="no">NO</option>
-                  <option value="si">SÍ</option>
-                </select>
-              </div>
-
-              {/* ESTADO (BOTÓN TOGGLE) */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
-                <BotonToggle
-                  activo={nuevo.activo}
-                  onChange={(activo) => setNuevo({ ...nuevo, activo })}
-                />
-              </div>
-
-              {/* PIN DE SEGURIDAD – SOLO VISIBLE EN MODO EDICIÓN (LECTURA) */}
-              {editando && (
+        {/* FORMULARIO DE CREACIÓN/EDICIÓN – FIJO ARRIBA */}
+        <div className="sticky top-0 z-40 bg-black pt-2 pb-4">
+          <div
+            className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${
+              editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'
+            }`}
+          >
+            <form onSubmit={handleGuardar} className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+                {/* NOMBRE COMPLETO */}
                 <CampoEntrada
-                  label="PIN ASIGNADO"
-                  value={editando.pin_seguridad || ''}
-                  disabled
-                  textCentered
-                  uppercase
-                  className="border-blue-500/30"
+                  label="NOMBRE"
+                  placeholder="Nombre completo"
+                  value={nuevo.nombre}
+                  onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
+                  required
+                  autoFocus
                 />
-              )}
-            </div>
 
-            {/* BOTONES DE ACCIÓN */}
-            <div className="flex justify-end gap-3 mt-2">
-              {/* Botón CANCELAR siempre visible: limpia el formulario y sale del modo edición/creación */}
-              <BotonAccion
-                texto="CANCELAR"
-                icono="✕"
-                color="bg-slate-600"
-                onClick={cancelarEdicion}
-              />
-              <BotonAccion
-                texto={editando ? 'ACTUALIZAR' : 'CREAR EMPLEADO'}
-                icono={editando ? '✏️' : '➕'}
-                color={editando ? 'bg-amber-600' : 'bg-emerald-600'}
-                onClick={() => {}}
-                disabled={loading}
-                loading={loading}
-              />
-            </div>
-          </form>
+                {/* DOCUMENTO ID */}
+                <CampoEntrada
+                  label="DOCUMENTO"
+                  placeholder="DNI / NIE"
+                  value={nuevo.documento_id}
+                  onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
+                  required
+                  uppercase
+                />
+
+                {/* EMAIL */}
+                <CampoEntrada
+                  label="EMAIL"
+                  placeholder="correo@ejemplo.com"
+                  type="email"
+                  value={nuevo.email}
+                  onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
+                  required
+                />
+
+                {/* ROL */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ROL</label>
+                  <select
+                    value={nuevo.rol}
+                    onChange={(e) =>
+                      setNuevo({
+                        ...nuevo,
+                        rol: e.target.value,
+                        nivel_acceso:
+                          e.target.value === 'supervisor'
+                            ? 3
+                            : e.target.value === 'admin'
+                            ? 4
+                            : e.target.value === 'tecnico'
+                            ? 8
+                            : 1,
+                      })
+                    }
+                    className="w-full bg-white/5 border border-white/10 p-2.5 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50 uppercase tracking-wider"
+                  >
+                    <option value="empleado">EMPLEADO</option>
+                    <option value="supervisor">SUPERVISOR</option>
+                    <option value="admin">ADMINISTRADOR</option>
+                    <option value="tecnico">TÉCNICO</option>
+                  </select>
+                </div>
+
+                {/* NIVEL ACCESO */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase ml-2">NIVEL</label>
+                  <select
+                    value={nuevo.nivel_acceso}
+                    onChange={(e) => setNuevo({ ...nuevo, nivel_acceso: parseInt(e.target.value) })}
+                    className="w-full bg-white/5 border border-white/10 p-2.5 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
+                  >
+                    {obtenerOpcionesNivel().map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* PERMISO REPORTES */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase ml-2">REPORTES</label>
+                  <select
+                    value={nuevo.permiso_reportes ? 'si' : 'no'}
+                    onChange={(e) => setNuevo({ ...nuevo, permiso_reportes: e.target.value === 'si' })}
+                    className="w-full bg-white/5 border border-white/10 p-2.5 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
+                  >
+                    <option value="no">NO</option>
+                    <option value="si">SÍ</option>
+                  </select>
+                </div>
+
+                {/* PIN DE SEGURIDAD – SOLO VISIBLE EN MODO EDICIÓN */}
+                {editando && (
+                  <CampoEntrada
+                    label="PIN ASIGNADO"
+                    value={editando.pin_seguridad || ''}
+                    disabled
+                    textCentered
+                    uppercase
+                    className="border-blue-500/30"
+                  />
+                )}
+              </div>
+
+              {/* BOTONES DE ACCIÓN – EN LA MISMA LÍNEA */}
+              <div className="flex justify-end gap-2 mt-1">
+                <BotonAccion
+                  texto="CANCELAR"
+                  icono="✕"
+                  color="bg-slate-600"
+                  onClick={cancelarEdicion}
+                  fullWidth={false}
+                  className="px-4 py-2"
+                />
+                <BotonAccion
+                  texto={editando ? 'ACTUALIZAR' : 'CREAR EMPLEADO'}
+                  icono={editando ? '✏️' : '➕'}
+                  color={editando ? 'bg-amber-600' : 'bg-emerald-600'}
+                  onClick={() => {}}
+                  disabled={loading}
+                  loading={loading}
+                  fullWidth={false}
+                  className="px-4 py-2"
+                />
+              </div>
+            </form>
+          </div>
         </div>
 
         {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
@@ -563,6 +611,14 @@ export default function GestionEmpleados() {
               value={filtro}
               onChange={(e) => setFiltro(e.target.value)}
             />
+            {filtro && (
+              <button
+                onClick={() => setFiltro('')}
+                className="mr-2 text-white/60 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            )}
           </div>
           <BotonAccion
             texto="EXPORTAR EXCEL"
@@ -573,11 +629,11 @@ export default function GestionEmpleados() {
           />
         </div>
 
-        {/* TABLA DE EMPLEADOS */}
-        <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden">
+        {/* TABLA DE EMPLEADOS CON SCROLL */}
+        <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-black/40 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              <thead className="bg-black/40 text-[10px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30">
                 <tr>
                   <th className="p-4">Empleado</th>
                   <th className="p-4">Documento / Email</th>
@@ -607,9 +663,9 @@ export default function GestionEmpleados() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="text-[11px] font-mono">
+                      <div className="text-[12px] font-mono">
                         <span className="block text-white">{emp.documento_id}</span>
-                        <span className="text-slate-500 text-[10px]">{emp.email}</span>
+                        <span className="text-slate-500 text-[11px]">{emp.email}</span>
                       </div>
                     </td>
                     <td className="p-4 text-center">
@@ -684,10 +740,22 @@ export default function GestionEmpleados() {
         <Footer router={router} />
       </div>
 
-      {/* ESTILOS GLOBALES */}
+      {/* MODAL DE CORREO */}
+      {mostrarModalCorreo && ultimoCreado && (
+        <ModalCorreo
+          empleado={ultimoCreado}
+          onClose={() => setMostrarModalCorreo(false)}
+        />
+      )}
+
+      {/* ESTILOS GLOBALES – para selects y opciones visibles */}
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        select option {
+          background-color: #1f2937;
+          color: white;
+        }
       `}</style>
     </main>
   );
