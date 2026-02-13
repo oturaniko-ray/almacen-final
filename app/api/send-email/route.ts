@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     //    - En desarrollo: usar onboarding@resend.dev (no requiere verificación)
     //    - En producción: usar el dominio verificado (definir en variable de entorno)
     const from = process.env.NODE_ENV === 'production'
-      ? `sistema@${process.env.VERIFIED_DOMAIN || 'tudominio.com'}`  // En producción, usa tu dominio
+      ? `sistema@$gestiontotal.com{process.env.VERIFIED_DOMAIN || 'tudominio.com'}`  // En producción, usa tu dominio
       : 'onboarding@resend.dev';
 
     // 4. Enviar el correo
