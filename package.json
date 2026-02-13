@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
+    "@react-email/components": "^1.0.7",
     "@supabase/supabase-js": "^2.90.1",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.1.0",
@@ -19,8 +20,10 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-email": "^5.2.8",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.7.0",
+    "resend": "^6.9.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
