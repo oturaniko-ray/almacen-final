@@ -108,7 +108,7 @@ export default function PanelAdminHub() {
         <div className="w-full space-y-4">
           {nivel >= 4 && (
             <BotonOpcion
-              texto="GESTIÓN DE EMPLEADOS"
+              texto="GESTIÓN ADMINISTRATIVA"
               icono="👥"
               onClick={() => router.push('/admin/empleados')}
               color="bg-amber-600"
@@ -117,7 +117,7 @@ export default function PanelAdminHub() {
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonOpcion
               texto="AUDITORÍA"
-              icono="📝"
+              icono="🔍"
               onClick={() => router.push('/admin/auditoria')}
               color="bg-blue-600"
             />

@@ -1,864 +1,238 @@
 'use client';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { Html5Qrcode } from 'html5-qrcode';
+import * as XLSX from 'xlsx';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-// ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
-// ------------------------------------------------------------
-
-// ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({
-  titulo,
-  subtitulo,
-  usuario,
-  conAnimacion = false,
-  mostrarUsuario = true
-}: {
-  titulo: string;
-  subtitulo: string;
-  usuario?: any;
-  conAnimacion?: boolean;
-  mostrarUsuario?: boolean;
-}) => {
-  const renderTituloBicolor = (texto: string) => {
-    const palabras = texto.split(' ');
-    const ultimaPalabra = palabras.pop();
-    const primerasPalabras = palabras.join(' ');
-    return (
-      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-        <span className="text-white">{primerasPalabras} </span>
-        <span className="text-blue-700">{ultimaPalabra}</span>
-      </h1>
-    );
-  };
-
-  return (
-    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
-      {renderTituloBicolor(titulo)}
-      <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
-        {subtitulo}
-      </p>
-      {mostrarUsuario && usuario && (
-        <div className="mt-2 pt-2 border-t border-white/10">
-          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
-          <span className="text-sm text-white mx-2">•</span>
-          <span className="text-sm text-blue-500 normal-case">
-            {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-              ? 'Administración'
-              : usuario.rol?.toUpperCase() || 'Supervisor'}
-          </span>
-          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE, CENTRADO) -----
-const BotonOpcion = ({
-  texto,
-  icono,
-  onClick,
-  color,
-}: {
-  texto: string;
-  icono: string;
-  onClick: () => void;
-  color: string;
-}) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full ${color} p-4 rounded-xl border border-white/5 
-        active:scale-95 transition-transform shadow-lg 
-        flex flex-col items-center justify-center gap-2`}
-    >
-      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-        <span className="text-3xl">{icono}</span>
-      </div>
-      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
-        {texto}
-      </span>
-    </button>
-  );
-};
-
-// ----- BOTÓN DE ACCIÓN (para CONFIRMAR, sin círculo) -----
-const BotonAccion = ({
-  texto,
-  icono,
-  onClick,
-  disabled = false,
-  loading = false,
-}: {
-  texto: string;
-  icono?: string;
-  onClick: () => void;
-  disabled?: boolean;
-  loading?: boolean;
-}) => {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled || loading}
-      className="w-full bg-blue-600 p-4 rounded-xl border border-white/5
-        active:scale-95 transition-transform shadow-lg 
-        flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed
-        text-white font-bold uppercase text-[11px] tracking-wider"
-    >
-      {icono && <span className="text-2xl">{icono}</span>}
-      {loading ? (
-        <span className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
-        </span>
-      ) : (
-        texto
-      )}
-    </button>
-  );
-};
-
-// ----- NOTIFICACIÓN DE SISTEMA -----
-const NotificacionSistema = ({
-  mensaje,
-  tipo,
-  visible,
-  duracion = 3000,
-  onCerrar
-}: {
-  mensaje: string;
-  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
-  visible: boolean;
-  duracion?: number;
-  onCerrar?: () => void;
-}) => {
-  const [mostrar, setMostrar] = useState(visible);
-
-  useEffect(() => {
-    setMostrar(visible);
-    if (visible && duracion > 0) {
-      const timer = setTimeout(() => {
-        setMostrar(false);
-        onCerrar?.();
-      }, duracion);
-      return () => clearTimeout(timer);
-    }
-  }, [visible, duracion, onCerrar]);
-
-  if (!mostrar) return null;
-
-  const colores = {
-    exito: 'bg-emerald-500 border-emerald-400',
-    error: 'bg-rose-500 border-rose-400',
-    advertencia: 'bg-amber-500 border-amber-400',
-    info: 'bg-blue-500 border-blue-400',
-  };
-  const iconos = {
-    exito: '✅',
-    error: '❌',
-    advertencia: '⚠️',
-    info: 'ℹ️',
-  };
-
-  return (
-    <div
-      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl
-        font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center
-        border-2 ${colores[tipo!]} text-white flex items-center gap-3`}
-    >
-      <span className="text-lg">{iconos[tipo!]}</span>
-      <span>{mensaje}</span>
-    </div>
-  );
-};
-
-// ----- CAMPO DE ENTRADA (forwardRef, props en español) -----
-const CampoEntrada = React.forwardRef<HTMLInputElement, {
-  tipo?: 'text' | 'password' | 'email' | 'number' | 'date';
-  placeholder?: string;
-  valor: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onEnter?: () => void;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  textoCentrado?: boolean;
-  mayusculas?: boolean;
-  className?: string;
-}>(({
-  tipo = 'text',
-  placeholder = '',
-  valor,
-  onChange,
-  onEnter,
-  autoFocus = false,
-  disabled = false,
-  textoCentrado = true,
-  mayusculas = false,
-  className = ''
-}, ref) => {
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && onEnter) onEnter();
-  };
-
-  return (
-    <input
-      ref={ref}
-      type={tipo}
-      placeholder={placeholder}
-      value={valor}
-      onChange={onChange}
-      onKeyDown={handleKeyDown}
-      autoFocus={autoFocus}
-      disabled={disabled}
-      className={`w-full bg-white/5 border border-white/10 p-4 rounded-xl 
-        text-[11px] font-bold text-white outline-none transition-colors
-        disabled:opacity-50 disabled:cursor-not-allowed
-        ${textoCentrado ? 'text-center' : ''} 
-        ${mayusculas ? 'uppercase' : ''}
-        ${tipo === 'password' ? 'tracking-[0.4em]' : ''}
-        focus:border-blue-500/50 hover:border-white/20
-        ${className}`}
-    />
-  );
-});
-CampoEntrada.displayName = 'CampoEntrada';
-
-// ----- CONTENEDOR PRINCIPAL -----
-const ContenedorPrincipal = ({
-  children,
-  maxWidth = 'sm',
-  padding = 'md',
-  className = ''
-}: {
-  children: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
-  padding?: 'sm' | 'md' | 'lg' | 'xl';
-  className?: string;
-}) => {
-  const ancho = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
-    full: 'max-w-full'
-  };
-  const espaciado = {
-    sm: 'p-4',
-    md: 'p-8',
-    lg: 'p-10',
-    xl: 'p-12'
-  };
-  return (
-    <div className={`w-full ${ancho[maxWidth]} bg-[#111111] ${espaciado[padding]} 
-      rounded-[35px] border border-white/5 shadow-2xl ${className}`}>
-      {children}
-    </div>
-  );
-};
-
-// ----- FOOTER (VOLVER AL SELECTOR) -----
-const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright 2026
-    </p>
-    <button
-      onClick={() => router.push('/')}
-      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
-    >
-      <span className="text-lg">←</span> VOLVER AL SELECTOR
-    </button>
-  </div>
-);
-
-// ------------------------------------------------------------
-// FUNCIÓN AUXILIAR: Calcular distancia GPS
-// ------------------------------------------------------------
-function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
-  const R = 6371e3;
-  const p1 = (lat1 * Math.PI) / 180;
-  const p2 = (lat2 * Math.PI) / 180;
-  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const dLambda = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
-    Math.cos(p1) * Math.cos(p2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-// ------------------------------------------------------------
-// COMPONENTE PRINCIPAL
-// ------------------------------------------------------------
-export default function SupervisorPage() {
-  // Estados de UI
-  const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
-  const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
-  const [qrData, setQrData] = useState('');
-  const [pinEmpleado, setPinEmpleado] = useState('');
-  const [pinAutorizador, setPinAutorizador] = useState('');
-  const [animar, setAnimar] = useState(false);
-  const [lecturaLista, setLecturaLista] = useState(false);
-  const [notificacion, setNotificacion] = useState<{
-    mensaje: string;
-    tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
-  }>({ mensaje: '', tipo: null });
-
-  // Estados para modo manual
-  const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0);
-  const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
-
-  // Estados de datos
+export default function GestionEmpleados() {
   const [user, setUser] = useState<any>(null);
-  const [config, setConfig] = useState<any>({ lat: 0, lon: 0, radio: 100, qr_exp: 30000 });
-  const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
-
-  // Refs
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
+  const [empleados, setEmpleados] = useState<any[]>([]);
+  const [editando, setEditando] = useState<any>(null);
+  const [filtro, setFiltro] = useState('');
+  
+  const estadoInicial = { 
+    nombre: '', documento_id: '', email: '', pin_seguridad: '', rol: 'empleado', activo: true, permiso_reportes: false, nivel_acceso: 1 
+  };
+  const [nuevo, setNuevo] = useState(estadoInicial);
   const router = useRouter();
-  const documentoRef = useRef<HTMLInputElement>(null);
-  const pinEmpleadoRef = useRef<HTMLInputElement>(null);
-  const pinSupervisorRef = useRef<HTMLInputElement>(null);
 
-  // --------------------------------------------------------
-  // 1. CONTROL DE INACTIVIDAD
-  // --------------------------------------------------------
-  const resetTimerInactividad = useCallback(() => {
-    if (timerInactividadRef.current) clearTimeout(timerInactividadRef.current);
-    timerInactividadRef.current = setTimeout(() => {
-      if (scannerRef.current?.isScanning) scannerRef.current.stop();
-      localStorage.clear();
-      router.push('/');
-    }, 90000);
-  }, [router]);
+  // Función de carga envuelta en useCallback para estabilidad
+  const fetchEmpleados = useCallback(async () => {
+    const { data } = await supabase.from('empleados').select('*').order('nombre', { ascending: true });
+    if (data) setEmpleados(data);
+  }, []);
 
-  useEffect(() => {
-    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    const reset = () => resetTimerInactividad();
-    eventos.forEach((e) => document.addEventListener(e, reset));
-    resetTimerInactividad();
-    return () => eventos.forEach((e) => document.removeEventListener(e, reset));
-  }, [resetTimerInactividad]);
-
-  // --------------------------------------------------------
-  // 2. CARGA INICIAL
-  // --------------------------------------------------------
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) {
-      router.push('/');
-      return;
-    }
-    setUser(JSON.parse(sessionData));
+    if (sessionData) setUser(JSON.parse(sessionData));
+    
+    // Carga inicial
+    fetchEmpleados();
 
-    const loadConfig = async () => {
-      const { data } = await supabase.from('sistema_config').select('clave, valor');
-      if (data) {
-        const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-        const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
-        const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
-        setConfig({
-          lat: isNaN(parsedLat) ? 0 : parsedLat,
-          lon: isNaN(parsedLon) ? 0 : parsedLon,
-          radio: parseInt(m.radio_permitido) || 100,
-          qr_exp: parseInt(m.qr_expiracion) || 30000,
-        });
-      }
+    // AJUSTE TIEMPO REAL: Suscripción al canal de cambios en la tabla empleados
+    const channel = supabase
+      .channel('realtime_personal_management')
+      .on(
+        'postgres_changes', 
+        { event: '*', schema: 'public', table: 'empleados' }, 
+        () => {
+          fetchEmpleados(); // Recarga los datos ante cualquier cambio detectado
+        }
+      )
+      .subscribe();
+
+    // Limpieza de suscripción al desmontar el componente
+    return () => {
+      supabase.removeChannel(channel);
     };
-    loadConfig();
+  }, [fetchEmpleados]);
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setGps((prev) => ({ ...prev, lat: pos.coords.latitude, lon: pos.coords.longitude }));
-      },
-      null,
-      { enableHighAccuracy: true }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [router]);
-
-  useEffect(() => {
-    if (config.lat !== 0 && gps.lat !== 0) {
-      const d = calcularDistancia(gps.lat, gps.lon, config.lat, config.lon);
-      setGps((prev) => ({ ...prev, dist: Math.round(d) }));
-    }
-  }, [gps.lat, gps.lon, config]);
-
-  // --------------------------------------------------------
-  // 3. PROCESAMIENTO DEL QR (solo USB/Cámara)
-  // --------------------------------------------------------
-  const procesarQR = (texto: string): string => {
-    console.log('🔵 TEXTO QR CRUDO:', texto);
-    if (!texto || texto.trim() === '') {
-      console.warn('⚠️ QR vacío');
-      return '';
-    }
-    const cleanText = texto.replace(/[\n\r]/g, '').trim();
-    try {
-      const decoded = atob(cleanText);
-      if (decoded.includes('|')) {
-        const [docId, timestamp] = decoded.split('|');
-        const tiempoActual = Date.now();
-        const tiempoExpiracion = parseInt(timestamp);
-        if (isNaN(tiempoExpiracion)) {
-          mostrarNotificacion('QR INVÁLIDO (timestamp corrupto)', 'error');
-          return '';
-        }
-        if (tiempoActual - tiempoExpiracion > config.qr_exp) {
-          mostrarNotificacion('QR EXPIRADO', 'error');
-          return '';
-        }
-        return docId.trim();
-      }
-      return cleanText;
-    } catch {
-      return cleanText;
-    }
+  const obtenerOpcionesNivel = () => {
+    const r = nuevo.rol;
+    if (r === 'empleado') return [1, 2];
+    if (r === 'supervisor') return [3];
+    if (r === 'admin') return [4, 5, 6, 7];
+    if (r === 'tecnico') return [8, 9, 10];
+    return [1];
   };
 
-  // --------------------------------------------------------
-  // 4. ESCÁNER DE CÁMARA
-  // --------------------------------------------------------
-  useEffect(() => {
-    if (modo === 'camara' && direccion && !lecturaLista) {
-      const scanner = new Html5Qrcode('reader');
-      scannerRef.current = scanner;
-      scanner
-        .start(
-          { facingMode: 'environment' },
-          { fps: 20, qrbox: { width: 250, height: 250 } },
-          (decoded) => {
-            const doc = procesarQR(decoded);
-            if (doc) {
-              setQrData(doc);
-              setLecturaLista(true);
-              scanner.stop();
-            }
-          },
-          () => {}
-        )
-        .catch(() => {});
-      return () => {
-        if (scannerRef.current?.isScanning) scannerRef.current.stop();
-      };
-    }
-  }, [modo, direccion, lecturaLista, config.qr_exp]);
-
-  // --------------------------------------------------------
-  // 5. MANEJO DEL MODO MANUAL
-  // --------------------------------------------------------
-  const iniciarModoManual = () => {
-    setModo('manual');
-    setPasoManual(0);
-    setQrData('');
-    setPinEmpleado('');
-    setPinAutorizador('');
-    setLecturaLista(false);
-  };
-
-  useEffect(() => {
-    if (modo !== 'manual' || direccion === null || pasoManual !== 0) {
-      if (enterListenerRef.current) {
-        document.removeEventListener('keydown', enterListenerRef.current);
-        enterListenerRef.current = null;
-      }
-    }
-  }, [modo, direccion, pasoManual]);
-
-  useEffect(() => {
-    if (modo === 'manual' && direccion && pasoManual === 0) {
-      const handleEnter = (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          setPasoManual(1);
-          setTimeout(() => documentoRef.current?.focus(), 100);
-        }
-      };
-      enterListenerRef.current = handleEnter;
-      document.addEventListener('keydown', handleEnter);
-      return () => {
-        if (enterListenerRef.current) {
-          document.removeEventListener('keydown', enterListenerRef.current);
-          enterListenerRef.current = null;
-        }
-      };
-    }
-  }, [modo, direccion, pasoManual]);
-
-  useEffect(() => {
-    if (modo !== 'manual' || !direccion) {
-      setPasoManual(0);
-    }
-  }, [modo, direccion]);
-
-  // --------------------------------------------------------
-  // 6. REGISTRAR ACCESO
-  // --------------------------------------------------------
-  const registrarAcceso = async () => {
-    if (gps.dist > config.radio) {
-      mostrarNotificacion(`FUERA DE RANGO: ${gps.dist}m`, 'error');
-      setTimeout(resetLectura, 2000);
-      return;
-    }
-    setAnimar(true);
-    const ahora = new Date().toISOString();
-    const inputBusqueda = qrData.trim();
-
-    if (!inputBusqueda) {
-      mostrarNotificacion('ERROR: DOCUMENTO VACÍO', 'error');
-      setAnimar(false);
-      setTimeout(resetLectura, 2000);
-      return;
-    }
-
-    const { data: emp, error: empErr } = await supabase
+  const handleGuardar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data: existe } = await supabase
       .from('empleados')
-      .select('id, nombre, pin_seguridad, activo, documento_id, email')
-      .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
-      .maybeSingle();
+      .select('id, nombre')
+      .eq('pin_seguridad', nuevo.pin_seguridad)
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
+      .single();
 
-    if (empErr) {
-      mostrarNotificacion(`ERROR EN BASE DE DATOS: ${empErr.message}`, 'error');
-      setAnimar(false);
-      setTimeout(resetLectura, 2000);
-      return;
-    }
-    if (!emp) {
-      mostrarNotificacion('ID NO REGISTRADO', 'error');
-      setAnimar(false);
-      setTimeout(resetLectura, 2000);
-      return;
-    }
-    if (!emp.documento_id) {
-      mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
-      setAnimar(false);
-      setTimeout(resetLectura, 2000);
-      return;
-    }
-    if (!emp.activo) {
-      mostrarNotificacion('EMPLEADO INACTIVO', 'error');
-      setAnimar(false);
-      setTimeout(resetLectura, 2000);
-      return;
-    }
-    if (modo === 'manual') {
-      if (String(emp.pin_seguridad) !== String(pinEmpleado)) {
-        mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
-        setAnimar(false);
-        return;
-      }
-    }
-    const { data: aut, error: autErr } = await supabase
-      .from('empleados')
-      .select('nombre')
-      .eq('pin_seguridad', String(pinAutorizador))
-      .in('rol', ['supervisor', 'admin', 'Administrador'])
-      .maybeSingle();
-    if (autErr || !aut) {
-      mostrarNotificacion('PIN SUPERVISOR INVÁLIDO', 'error');
-      setAnimar(false);
+    if (existe) {
+      alert(`⚠️ ERROR: El PIN ya está asignado a ${existe.nombre}. Elija uno nuevo.`);
+      document.getElementById('pin_input')?.focus();
       return;
     }
 
-    const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
-
-    if (direccion === 'entrada') {
-      const { data: jornadaActiva } = await supabase
-        .from('jornadas')
-        .select('id')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .maybeSingle();
-      if (jornadaActiva) {
-        mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
-      const { error: insErr } = await supabase.from('jornadas').insert([{
-        empleado_id: emp.id,
-        nombre_empleado: emp.nombre,
-        hora_entrada: ahora,
-        autoriza_entrada: firma,
-        estado: 'activo',
-      }]);
-      if (insErr) {
-        mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
-      await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
-      mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
+    const payload = { ...nuevo };
+    if (editando) {
+      await supabase.from('empleados').update(payload).eq('id', editando.id);
     } else {
-      const { data: j } = await supabase
-        .from('jornadas')
-        .select('*')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .order('hora_entrada', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!j) {
-        mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
-      const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
-      const { error: updErr } = await supabase.from('jornadas').update({
-        hora_salida: ahora,
-        horas_trabajadas: horas,
-        autoriza_salida: firma,
-        estado: 'finalizado',
-      }).eq('id', j.id);
-      if (updErr) {
-        mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
-      await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
-      mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
+      await supabase.from('empleados').insert([payload]);
     }
-
-    setTimeout(() => {
-      resetLectura();
-      if (modo === 'manual') {
-        setPasoManual(1);
-        setQrData('');
-        setPinEmpleado('');
-        setPinAutorizador('');
-        setTimeout(() => documentoRef.current?.focus(), 100);
-      }
-    }, 2000);
-    setAnimar(false);
+    cancelarEdicion();
+    // No es estrictamente necesario llamar a fetchEmpleados aquí 
+    // porque la suscripción lo hará automáticamente por nosotros
   };
 
-  // --------------------------------------------------------
-  // 7. AUXILIARES
-  // --------------------------------------------------------
-  const resetLectura = () => {
-    setQrData('');
-    setLecturaLista(false);
-    setPinEmpleado('');
-    setPinAutorizador('');
+  const cancelarEdicion = () => {
+    setEditando(null);
+    setNuevo(estadoInicial);
   };
 
-  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia' | 'info') => {
-    setNotificacion({ mensaje, tipo });
-    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
+  const exportarExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(empleados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Personal");
+    XLSX.writeFile(wb, "Gestion_Personal.xlsx");
   };
 
-  // --------------------------------------------------------
-  // 8. RENDERIZADO – ESTRUCTURA CORREGIDA
-  // --------------------------------------------------------
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
-      
-      <NotificacionSistema
-        mensaje={notificacion.mensaje}
-        tipo={notificacion.tipo}
-        visible={!!notificacion.tipo}
-      />
-
-      <MemebreteSuperior
-        titulo="GESTOR DE ACCESO"
-        subtitulo={
-          modo === 'menu' 
-            ? 'SELECCIONE MÉTODO' 
-            : direccion 
-            ? `${direccion.toUpperCase()}` 
-            : 'ELIJA DIRECCIÓN'
-        }
-        usuario={user}
-        conAnimacion={false}
-        mostrarUsuario={!!user}
-      />
-
-      <ContenedorPrincipal>
-        {modo === 'menu' ? (
-          <div className="grid gap-4 w-full">
-            <BotonOpcion texto="SCANNER USB" icono="🔌" onClick={() => setModo('usb')} color="bg-blue-600" />
-            <BotonOpcion texto="CÁMARA MÓVIL" icono="📱" onClick={() => setModo('camara')} color="bg-emerald-600" />
-            <BotonOpcion texto="MANUAL" icono="🖋️" onClick={iniciarModoManual} color="bg-slate-700" />
-            <Footer router={router} />
-          </div>
-        ) : !direccion ? (
-          <div className="flex flex-col gap-4 w-full">
-            <BotonOpcion texto="ENTRADA" icono="🟢" onClick={() => setDireccion('entrada')} color="bg-emerald-600" />
-            <BotonOpcion texto="SALIDA" icono="🔴" onClick={() => setDireccion('salida')} color="bg-rose-600" />
-            <button
-              onClick={() => {
-                setModo('menu');
-                setDireccion(null);
-                resetLectura();
-                setPasoManual(0);
-              }}
-              className="mt-4 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
-            >
-              ← VOLVER ATRÁS
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4 w-full">
-            
-            {/* GPS */}
-            <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
-              <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
-                LAT: {gps.lat.toFixed(6)} | LON: {gps.lon.toFixed(6)} |{' '}
-                <span className={gps.dist <= config.radio ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
-                  {gps.dist} MTS
-                </span>
+    <main className="min-h-screen bg-[#050a14] text-white font-sans flex flex-col">
+      <div className="sticky top-0 z-50 bg-[#050a14]/95 backdrop-blur-md p-4 border-b border-white/10 shadow-2xl">
+        <div className="max-w-[100%] mx-auto">
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <h1 className="text-2xl font-black italic uppercase text-white">
+                GESTIÓN DE <span className="text-blue-500">PERSONAL</span>
+              </h1>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                {user?.nombre} <span className="text-blue-500">{user?.rol}</span> ({user?.nivel_acceso})
               </p>
             </div>
-
-            {/* --- MODO USB / CÁMARA --- */}
-            {(modo === 'usb' || modo === 'camara') && (
-              <>
-                <div className={`bg-[#050a14] p-4 rounded-[30px] border-2 ${lecturaLista ? 'border-emerald-500' : 'border-white/10'} h-60 flex items-center justify-center relative overflow-hidden`}>
-                  {!lecturaLista ? (
-                    <>
-                      {modo === 'camara' && <div id="reader" className="w-full h-full" />}
-                      {modo === 'usb' && (
-                        <input
-                          autoFocus
-                          className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase placeholder:text-white/30"
-                          placeholder="ESPERANDO QR..."
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const d = procesarQR((e.target as any).value);
-                              if (d) {
-                                setQrData(d);
-                                setLecturaLista(true);
-                              }
-                            }
-                          }}
-                        />
-                      )}
-                      <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
-                    </>
-                  ) : (
-                    <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>
-                  )}
-                </div>
-
-                {(lecturaLista || (modo === 'usb' && qrData)) && (
-                  <CampoEntrada
-                    tipo="password"
-                    placeholder="PIN SUPERVISOR"
-                    valor={pinAutorizador}
-                    onChange={(e) => setPinAutorizador(e.target.value)}
-                    onEnter={registrarAcceso}
-                    autoFocus
-                  />
-                )}
-
-                <BotonAccion
-                  texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
-                  icono="✅"
-                  onClick={registrarAcceso}
-                  disabled={animar}
-                  loading={animar}
-                />
-              </>
-            )}
-
-            {/* --- MODO MANUAL --- */}
-            {modo === 'manual' && (
-              <>
-                {pasoManual === 0 && (
-                  <div className="bg-amber-500/20 border-2 border-amber-500 p-6 rounded-2xl text-center animate-pulse">
-                    <span className="text-amber-500 text-2xl block mb-2">⚠️</span>
-                    <p className="text-amber-500 font-black text-[13px] uppercase tracking-widest">
-                      Este proceso requiere la validación de un Administrador
-                    </p>
-                    <p className="text-amber-400/80 text-[10px] uppercase tracking-wider mt-4">
-                      Presione ENTER para continuar
-                    </p>
-                  </div>
-                )}
-
-                {pasoManual === 1 && (
-                  <CampoEntrada
-                    ref={documentoRef}
-                    tipo="text"
-                    placeholder="DOCUMENTO / CORREO"
-                    valor={qrData}
-                    onChange={(e) => setQrData(e.target.value)}
-                    onEnter={() => {
-                      if (qrData.trim()) {
-                        setPasoManual(2);
-                        setTimeout(() => pinEmpleadoRef.current?.focus(), 100);
-                      }
-                    }}
-                    autoFocus
-                    textoCentrado
-                    mayusculas
-                  />
-                )}
-
-                {pasoManual === 2 && (
-                  <CampoEntrada
-                    ref={pinEmpleadoRef}
-                    tipo="password"
-                    placeholder="PIN TRABAJADOR"
-                    valor={pinEmpleado}
-                    onChange={(e) => setPinEmpleado(e.target.value)}
-                    onEnter={() => {
-                      if (pinEmpleado.trim()) {
-                        setPasoManual(3);
-                        setTimeout(() => pinSupervisorRef.current?.focus(), 100);
-                      }
-                    }}
-                    autoFocus
-                    textoCentrado
-                  />
-                )}
-
-                {pasoManual === 3 && (
-                  <CampoEntrada
-                    ref={pinSupervisorRef}
-                    tipo="password"
-                    placeholder="PIN SUPERVISOR"
-                    valor={pinAutorizador}
-                    onChange={(e) => setPinAutorizador(e.target.value)}
-                    onEnter={() => {
-                      if (pinAutorizador.trim()) {
-                        registrarAcceso();
-                      }
-                    }}
-                    autoFocus
-                    textoCentrado
-                  />
-                )}
-
-                <button
-                  onClick={() => {
-                    setDireccion(null);
-                    resetLectura();
-                    setPasoManual(0);
-                  }}
-                  className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors"
-                >
-                  ← VOLVER ATRÁS
-                </button>
-              </>
-            )}
+            <div className="flex gap-2">
+              <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all hover:bg-emerald-600/40">
+                📊 EXPORTAR
+              </button>
+              <button onClick={() => router.push('/admin')} className="bg-slate-800 px-6 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10">
+                VOLVER
+              </button>
+            </div>
           </div>
-        )}
-      </ContenedorPrincipal>
+
+          <div className={`p-4 rounded-[20px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5 bg-[#0f172a]'}`}>
+            <form onSubmit={handleGuardar} className="flex flex-wrap lg:flex-nowrap gap-3 items-end">
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Nombre completo</label>
+                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.nombre} onChange={e => setNuevo({...nuevo, nombre: e.target.value})} required />
+              </div>
+              <div className="w-[110px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">DNI/NIE/PASS</label>
+                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center uppercase" value={nuevo.documento_id} onChange={e => setNuevo({...nuevo, documento_id: e.target.value})} required />
+              </div>
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Email</label>
+                <input className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500" value={nuevo.email} onChange={e => setNuevo({...nuevo, email: e.target.value.toLowerCase()})} required />
+              </div>
+              <div className="w-[75px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Pin</label>
+                <input id="pin_input" className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[11px] outline-none focus:border-blue-500 text-center font-mono" value={nuevo.pin_seguridad} onChange={e => setNuevo({...nuevo, pin_seguridad: e.target.value})} required />
+              </div>
+              <div className="w-[120px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2">Rol</label>
+                <select className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[10px] font-black outline-none focus:border-blue-500" value={nuevo.rol} onChange={e => setNuevo({...nuevo, rol: e.target.value, nivel_acceso: e.target.value === 'supervisor' ? 3 : e.target.value === 'admin' ? 4 : e.target.value === 'tecnico' ? 8 : 1})}>
+                  <option value="empleado">EMPLEADO</option>
+                  <option value="supervisor">SUPERVISOR</option>
+                  <option value="admin">ADMINISTRADOR</option>
+                  <option value="tecnico">TÉCNICO</option>
+                </select>
+              </div>
+              <div className="w-[75px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2 text-center">Reporte</label>
+                <select className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[10px] font-black text-center" value={nuevo.permiso_reportes ? 'si' : 'no'} onChange={e => setNuevo({...nuevo, permiso_reportes: e.target.value === 'si'})}>
+                  <option value="no">NO</option>
+                  <option value="si">SÍ</option>
+                </select>
+              </div>
+              <div className="w-[75px]">
+                <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block ml-2 text-center">Acceso</label>
+                <select className="w-full bg-black/40 p-2.5 rounded-xl border border-white/10 text-[10px] font-black text-center" value={nuevo.nivel_acceso} onChange={e => setNuevo({...nuevo, nivel_acceso: parseInt(e.target.value)})}>
+                  {obtenerOpcionesNivel().map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              
+              <div className="flex flex-col gap-1">
+                {editando && (
+                  <button type="button" onClick={cancelarEdicion} className="bg-rose-600 hover:bg-rose-500 text-white rounded-lg p-1 text-[9px] font-black transition-all">
+                    ✕ CANCELAR
+                  </button>
+                )}
+                <button type="submit" className={`p-2.5 w-[70px] rounded-xl font-black text-xs uppercase transition-all shadow-lg ${editando ? 'bg-amber-500' : 'bg-blue-600'}`}>
+                  OK
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <div className="bg-black/20 p-2 border border-white/5 rounded-xl flex items-center">
+             <input type="text" placeholder="BUSCAR..." className="w-full bg-transparent px-4 text-[11px] font-black uppercase outline-none" value={filtro} onChange={e => setFiltro(e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 p-4 overflow-auto">
+        <div className="max-w-[100%] mx-auto bg-[#0f172a] rounded-[30px] border border-white/5">
+          <table className="w-full text-left">
+            <thead className="text-[11px] font-black text-slate-500 uppercase tracking-widest bg-black/20 sticky top-0 z-40 backdrop-blur-sm shadow-sm">
+              <tr>
+                <th className="p-5">Empleado</th>
+                <th className="p-5">DNI / Email</th>
+                <th className="p-5 text-center">Rol / Pin</th>
+                <th className="p-5 text-center">Level / A.Rep</th>
+                <th className="p-5 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {empleados.filter(e => e.nombre.toLowerCase().includes(filtro.toLowerCase())).map((emp) => (
+                <tr key={emp.id} className="hover:bg-white/[0.01] transition-colors">
+                  <td className="p-5">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/10'}`}></div>
+                      <p className="font-black text-[14px] uppercase text-white leading-none tracking-tight">{emp.nombre}</p>
+                    </div>
+                  </td>
+                  <td className="p-5 font-mono text-[11px]">
+                    <span className="text-white block">{emp.documento_id}</span>
+                    <span className="text-slate-500 text-[11px]">{emp.email}</span>
+                  </td>
+                  <td className="p-5 text-center">
+                    <p className="text-[10px] font-black uppercase text-blue-400">{emp.rol}</p>
+                    <div className="group relative mt-1">
+                      <p className="text-[10px] font-mono text-slate-600 group-hover:hidden tracking-widest">••••</p>
+                      <p className="text-[10px] font-mono text-amber-500 hidden group-hover:block font-bold">PIN: {emp.pin_seguridad}</p>
+                    </div>
+                  </td>
+                  <td className="p-5 text-center font-black">
+                    <span className="text-white text-[12px]">{emp.nivel_acceso}</span>
+                    <span className="text-slate-600 mx-2">/</span>
+                    <span className={emp.permiso_reportes ? 'text-emerald-500 text-[11px]' : 'text-rose-500 text-[11px]'}>
+                      {emp.permiso_reportes ? 'SI' : 'NO'}
+                    </span>
+                  </td>
+                  <td className="p-5 text-center flex gap-2 justify-center">
+                    <button onClick={() => { setEditando(emp); setNuevo(emp); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="text-blue-500 hover:text-white font-black text-[11px] uppercase px-4 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all">Editar</button>
+                    <button 
+                      onClick={async () => { await supabase.from('empleados').update({ activo: !emp.activo }).eq('id', emp.id); }} 
+                      className={`px-4 py-1.5 rounded-lg font-black text-[11px] uppercase border transition-all ${emp.activo ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-600 border-rose-600/20 hover:bg-rose-600/10'}`}
+                    >
+                      {emp.activo ? 'Activo' : 'Inactivo'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </main>
   );
 }
