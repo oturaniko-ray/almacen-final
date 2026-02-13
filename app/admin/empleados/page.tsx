@@ -18,7 +18,7 @@ const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
   <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
     <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
       <span className="text-white">GESTOR DE </span>
-      <span className="text-blue-700">ACCESO</span>
+      <span className="text-blue-700">EMPLEADOS</span>
     </h1>
     <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
       MENÚ PRINCIPAL
@@ -47,6 +47,7 @@ const BotonAccion = ({
   disabled = false,
   loading = false,
   fullWidth = true,
+  className = '',
 }: {
   texto: string;
   icono?: string;
@@ -55,13 +56,15 @@ const BotonAccion = ({
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
+  className?: string;
 }) => (
   <button
     onClick={onClick}
     disabled={disabled || loading}
     className={`${fullWidth ? 'w-full' : ''} ${color} p-3 rounded-xl border border-white/5 
       active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 
-      disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider`}
+      disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider
+      ${className}`}
   >
     {icono && <span className="text-lg">{icono}</span>}
     {loading ? (
@@ -73,6 +76,26 @@ const BotonAccion = ({
     ) : (
       texto
     )}
+  </button>
+);
+
+// ----- BOTÓN TOGGLE (ESTADO) -----
+const BotonToggle = ({
+  activo,
+  onChange,
+}: {
+  activo: boolean;
+  onChange: (activo: boolean) => void;
+}) => (
+  <button
+    type="button"
+    onClick={() => onChange(!activo)}
+    className={`px-4 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider transition-all
+      ${activo 
+        ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30 hover:bg-emerald-600/30' 
+        : 'bg-rose-600/20 text-rose-500 border-rose-500/30 hover:bg-rose-600/30'}`}
+  >
+    {activo ? 'ACTIVO' : 'INACTIVO'}
   </button>
 );
 
@@ -154,7 +177,7 @@ const Footer = ({ router }: { router: any }) => (
 );
 
 // ------------------------------------------------------------
-// COMPONENTE PRINCIPAL – GESTIÓN DE EMPLEADOS
+// COMPONENTE PRINCIPAL – GESTOR DE EMPLEADOS
 // ------------------------------------------------------------
 export default function GestionEmpleados() {
   const [user, setUser] = useState<any>(null);
@@ -164,7 +187,6 @@ export default function GestionEmpleados() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Estado del formulario – SIN pin_seguridad
   const estadoInicial = {
     nombre: '',
     documento_id: '',
@@ -224,6 +246,45 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
+  // VALIDACIONES DE DUPLICADOS
+  // ------------------------------------------------------------
+  const validarDuplicados = async (): Promise<boolean> => {
+    const { data: docExistente, error: errDoc } = await supabase
+      .from('empleados')
+      .select('id, nombre')
+      .eq('documento_id', nuevo.documento_id)
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
+      .maybeSingle();
+
+    if (errDoc) {
+      alert('Error al validar documento ID');
+      return false;
+    }
+    if (docExistente) {
+      alert(`⚠️ El documento ID ya está registrado para ${docExistente.nombre}.`);
+      return false;
+    }
+
+    const { data: emailExistente, error: errEmail } = await supabase
+      .from('empleados')
+      .select('id, nombre')
+      .eq('email', nuevo.email.toLowerCase())
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
+      .maybeSingle();
+
+    if (errEmail) {
+      alert('Error al validar email');
+      return false;
+    }
+    if (emailExistente) {
+      alert(`⚠️ El email ya está registrado para ${emailExistente.nombre}.`);
+      return false;
+    }
+
+    return true;
+  };
+
+  // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR)
   // ------------------------------------------------------------
   const handleGuardar = async (e: React.FormEvent) => {
@@ -231,8 +292,13 @@ export default function GestionEmpleados() {
     setLoading(true);
 
     try {
+      const esValido = await validarDuplicados();
+      if (!esValido) {
+        setLoading(false);
+        return;
+      }
+
       if (editando) {
-        // --- ACTUALIZAR: no se regenera el PIN, no se envía ---
         const { error } = await supabase
           .from('empleados')
           .update({
@@ -245,10 +311,8 @@ export default function GestionEmpleados() {
             nivel_acceso: nuevo.nivel_acceso,
           })
           .eq('id', editando.id);
-
         if (error) throw error;
       } else {
-        // --- CREAR NUEVO: generar PIN automáticamente ---
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
@@ -266,14 +330,21 @@ export default function GestionEmpleados() {
             pin_generado_en: new Date().toISOString(),
           },
         ]);
-
         if (error) throw error;
       }
 
       cancelarEdicion();
     } catch (error: any) {
       console.error(error);
-      alert(`Error: ${error.message}`);
+      if (error.message?.includes('duplicate key') || error.code === '23505') {
+        if (error.message?.includes('pin_seguridad')) {
+          alert('Error: El PIN generado ya existe. Por favor intente nuevamente.');
+        } else {
+          alert('Error: El registro ya existe. Verifique los datos.');
+        }
+      } else {
+        alert(`Error: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -288,7 +359,7 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // EDITAR EMPLEADO (cargar datos en el formulario, SIN pin_seguridad)
+  // EDITAR EMPLEADO
   // ------------------------------------------------------------
   const editarEmpleado = (emp: any) => {
     setEditando(emp);
@@ -305,7 +376,7 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // EXPORTAR A EXCEL
+  // EXPORTAR EXCEL
   // ------------------------------------------------------------
   const exportarExcel = () => {
     const data = empleados.map((e) => ({
@@ -343,7 +414,7 @@ export default function GestionEmpleados() {
         {/* MEMBRETE */}
         <MemebreteSuperior usuario={user} />
 
-        {/* FORMULARIO DE CREACIÓN/EDICIÓN – SIN CAMPO PIN EDITABLE */}
+        {/* FORMULARIO DE CREACIÓN/EDICIÓN */}
         <div
           className={`bg-[#0f172a] p-6 rounded-[25px] border transition-all mb-6 ${
             editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'
@@ -438,17 +509,13 @@ export default function GestionEmpleados() {
                 </select>
               </div>
 
-              {/* ESTADO */}
+              {/* ESTADO (BOTÓN TOGGLE) */}
               <div className="flex flex-col gap-1">
                 <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
-                <select
-                  value={nuevo.activo ? 'activo' : 'inactivo'}
-                  onChange={(e) => setNuevo({ ...nuevo, activo: e.target.value === 'activo' })}
-                  className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
-                >
-                  <option value="activo">ACTIVO</option>
-                  <option value="inactivo">INACTIVO</option>
-                </select>
+                <BotonToggle
+                  activo={nuevo.activo}
+                  onChange={(activo) => setNuevo({ ...nuevo, activo })}
+                />
               </div>
 
               {/* PIN DE SEGURIDAD – SOLO VISIBLE EN MODO EDICIÓN (LECTURA) */}
@@ -466,14 +533,13 @@ export default function GestionEmpleados() {
 
             {/* BOTONES DE ACCIÓN */}
             <div className="flex justify-end gap-3 mt-2">
-              {editando && (
-                <BotonAccion
-                  texto="CANCELAR"
-                  icono="✕"
-                  color="bg-slate-600"
-                  onClick={cancelarEdicion}
-                />
-              )}
+              {/* Botón CANCELAR siempre visible: limpia el formulario y sale del modo edición/creación */}
+              <BotonAccion
+                texto="CANCELAR"
+                icono="✕"
+                color="bg-slate-600"
+                onClick={cancelarEdicion}
+              />
               <BotonAccion
                 texto={editando ? 'ACTUALIZAR' : 'CREAR EMPLEADO'}
                 icono={editando ? '✏️' : '➕'}
