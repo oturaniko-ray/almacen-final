@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { BienvenidaEmpleado } from '../../../emails/BienvenidaEmpleado';
+import BienvenidaEmpleado from '../../../emails/BienvenidaEmpleado';
 
 export async function POST(request: Request) {
   try {
-    // Verificar que la API key está definida
+    // 1. Verificar API key
     if (!process.env.RESEND_API_KEY) {
-      console.error('❌ RESEND_API_KEY no está definida en el entorno');
+      console.error('❌ RESEND_API_KEY no definida');
       return NextResponse.json(
         { error: 'Error de configuración del servidor: falta API key' },
         { status: 500 }
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
 
     const resend = new Resend(process.env.RESEND_API_KEY);
 
+    // 2. Obtener datos del cuerpo de la petición
     const { nombre, documento_id, email, rol, nivel_acceso, pin_seguridad, to } = await request.json();
 
     if (!nombre || !email || !pin_seguridad) {
@@ -24,10 +25,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // 3. Configurar el remitente según el entorno
+    //    - En desarrollo: usar onboarding@resend.dev (no requiere verificación)
+    //    - En producción: usar el dominio verificado (definir en variable de entorno)
     const from = process.env.NODE_ENV === 'production'
-      ? 'sistema@tudominio.com'   // ← CAMBIA POR TU DOMINIO VERIFICADO EN PRODUCCIÓN
-      : 'onboarding@resend.dev';   // ← Para desarrollo, usa la dirección de prueba
+      ? `sistema@${process.env.VERIFIED_DOMAIN || 'tudominio.com'}`  // En producción, usa tu dominio
+      : 'onboarding@resend.dev';
 
+    // 4. Enviar el correo
     const { data, error } = await resend.emails.send({
       from,
       to: to || email,
@@ -50,7 +55,7 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('✅ Correo enviado correctamente:', data);
+    console.log('✅ Correo enviado:', data);
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     console.error('❌ Error en API send-email:', error);
