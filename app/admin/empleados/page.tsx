@@ -94,7 +94,7 @@ const CampoEntrada = ({
   type?: 'text' | 'password' | 'email' | 'number' | 'date';
   placeholder?: string;
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onEnter?: () => void;
   autoFocus?: boolean;
   disabled?: boolean;
@@ -126,11 +126,12 @@ const CampoEntrada = ({
         required={required}
         className={`w-full bg-white/5 border border-white/10 p-3 rounded-xl 
           text-[11px] font-bold text-white outline-none transition-colors
-          disabled:opacity-50 disabled:cursor-not-allowed
+          disabled:opacity-70 disabled:cursor-not-allowed
           ${textCentered ? 'text-center' : ''} 
           ${uppercase ? 'uppercase' : ''}
           ${type === 'password' ? 'tracking-[0.4em]' : ''}
           focus:border-blue-500/50 hover:border-white/20
+          ${disabled ? 'border-blue-500/30 text-amber-400' : ''}
           ${className}`}
       />
     </div>
@@ -231,7 +232,7 @@ export default function GestionEmpleados() {
 
     try {
       if (editando) {
-        // --- ACTUALIZAR: no se regenera el PIN ---
+        // --- ACTUALIZAR: no se regenera el PIN, no se envía ---
         const { error } = await supabase
           .from('empleados')
           .update({
@@ -248,13 +249,10 @@ export default function GestionEmpleados() {
         if (error) throw error;
       } else {
         // --- CREAR NUEVO: generar PIN automáticamente ---
-        // 1. Llamar a la función de base de datos para obtener el nuevo PIN
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
-
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        // 2. Insertar empleado con el PIN generado
         const { error } = await supabase.from('empleados').insert([
           {
             nombre: nuevo.nombre,
@@ -345,7 +343,7 @@ export default function GestionEmpleados() {
         {/* MEMBRETE */}
         <MemebreteSuperior usuario={user} />
 
-        {/* FORMULARIO DE CREACIÓN/EDICIÓN – SIN CAMPO PIN */}
+        {/* FORMULARIO DE CREACIÓN/EDICIÓN – SIN CAMPO PIN EDITABLE */}
         <div
           className={`bg-[#0f172a] p-6 rounded-[25px] border transition-all mb-6 ${
             editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'
@@ -452,6 +450,18 @@ export default function GestionEmpleados() {
                   <option value="inactivo">INACTIVO</option>
                 </select>
               </div>
+
+              {/* PIN DE SEGURIDAD – SOLO VISIBLE EN MODO EDICIÓN (LECTURA) */}
+              {editando && (
+                <CampoEntrada
+                  label="PIN ASIGNADO"
+                  value={editando.pin_seguridad || ''}
+                  disabled
+                  textCentered
+                  uppercase
+                  className="border-blue-500/30"
+                />
+              )}
             </div>
 
             {/* BOTONES DE ACCIÓN */}
