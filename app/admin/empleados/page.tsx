@@ -10,8 +10,10 @@ const supabase = createClient(
 );
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS (sin cambios)
+// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO
 // ------------------------------------------------------------
+
+// ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
   <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
     <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
@@ -36,6 +38,7 @@ const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
   </div>
 );
 
+// ----- BOTÓN DE ACCIÓN -----
 const BotonAccion = ({
   texto,
   icono,
@@ -76,8 +79,69 @@ const BotonAccion = ({
   </button>
 );
 
-const CampoEntrada = ({ ... }) => ( /* igual que antes, sin cambios */ );
+// ----- CAMPO DE ENTRADA (implementación completa) -----
+const CampoEntrada = ({
+  type = 'text',
+  placeholder = '',
+  value,
+  onChange,
+  onEnter,
+  autoFocus = false,
+  disabled = false,
+  textCentered = false,
+  uppercase = false,
+  className = '',
+  label,
+  required = false,
+}: {
+  type?: 'text' | 'password' | 'email' | 'number' | 'date';
+  placeholder?: string;
+  value: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onEnter?: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  textCentered?: boolean;
+  uppercase?: boolean;
+  className?: string;
+  label?: string;
+  required?: boolean;
+}) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && onEnter) onEnter();
+  };
 
+  return (
+    <div className="flex flex-col gap-1">
+      {label && (
+        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
+          {label}
+        </label>
+      )}
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        onKeyDown={handleKeyDown}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        required={required}
+        className={`w-full bg-white/5 border border-white/10 p-2.5 rounded-xl 
+          text-[11px] font-bold text-white outline-none transition-colors
+          disabled:opacity-70 disabled:cursor-not-allowed
+          ${textCentered ? 'text-center' : ''} 
+          ${uppercase ? 'uppercase' : ''}
+          ${type === 'password' ? 'tracking-[0.4em]' : ''}
+          focus:border-blue-500/50 hover:border-white/20
+          ${disabled ? 'border-blue-500/30 text-amber-400' : ''}
+          ${className}`}
+      />
+    </div>
+  );
+};
+
+// ----- FOOTER (VOLVER AL SELECTOR) -----
 const Footer = ({ router }: { router: any }) => (
   <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
     <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
@@ -110,7 +174,7 @@ const enviarCorreoEmpleado = async (
         rol: empleado.rol,
         nivel_acceso: empleado.nivel_acceso,
         pin_seguridad: empleado.pin_seguridad,
-        to: to || empleado.email, // si se pasa 'to', usarlo; si no, el email del empleado
+        to: to || empleado.email,
       }),
     });
 
@@ -132,7 +196,7 @@ export default function GestionEmpleados() {
   const [editando, setEditando] = useState<any>(null);
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
-  const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null); // id del empleado al que se le envía correo
+  const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
   const router = useRouter();
 
   const estadoInicial = {
@@ -147,7 +211,7 @@ export default function GestionEmpleados() {
   const [nuevo, setNuevo] = useState(estadoInicial);
 
   // ------------------------------------------------------------
-  // CARGAR SESIÓN Y DATOS (igual)
+  // CARGAR SESIÓN Y DATOS
   // ------------------------------------------------------------
   const fetchEmpleados = useCallback(async () => {
     const { data } = await supabase
@@ -182,7 +246,19 @@ export default function GestionEmpleados() {
   }, [fetchEmpleados, router]);
 
   // ------------------------------------------------------------
-  // VALIDACIONES (igual)
+  // OPCIONES DE NIVEL SEGÚN ROL
+  // ------------------------------------------------------------
+  const obtenerOpcionesNivel = () => {
+    const r = nuevo.rol;
+    if (r === 'empleado') return [1, 2];
+    if (r === 'supervisor') return [3];
+    if (r === 'admin') return [4, 5, 6, 7];
+    if (r === 'tecnico') return [8, 9, 10];
+    return [1];
+  };
+
+  // ------------------------------------------------------------
+  // VALIDACIONES DE DUPLICADOS
   // ------------------------------------------------------------
   const validarDuplicados = async (): Promise<boolean> => {
     const { data: docExistente, error: errDoc } = await supabase
@@ -249,7 +325,6 @@ export default function GestionEmpleados() {
           .eq('id', editando.id);
         if (error) throw error;
 
-        // Si se actualizó el email, ofrecer reenviar (opcional, no automático)
         alert('Empleado actualizado correctamente.');
       } else {
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
@@ -276,7 +351,6 @@ export default function GestionEmpleados() {
 
         if (error) throw error;
 
-        // ENVIAR CORREO REAL
         const resultado = await enviarCorreoEmpleado(nuevoEmpleado);
         if (resultado.success) {
           alert('Empleado creado y correo enviado correctamente.');
@@ -309,13 +383,16 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // RESTO DE FUNCIONES (cancelar, editar, exportar) – IGUAL
+  // CANCELAR EDICIÓN
   // ------------------------------------------------------------
   const cancelarEdicion = () => {
     setEditando(null);
     setNuevo(estadoInicial);
   };
 
+  // ------------------------------------------------------------
+  // EDITAR EMPLEADO
+  // ------------------------------------------------------------
   const editarEmpleado = (emp: any) => {
     setEditando(emp);
     setNuevo({
@@ -330,6 +407,9 @@ export default function GestionEmpleados() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // ------------------------------------------------------------
+  // EXPORTAR EXCEL
+  // ------------------------------------------------------------
   const exportarExcel = () => {
     const data = empleados.map((e) => ({
       Nombre: e.nombre,
@@ -347,6 +427,9 @@ export default function GestionEmpleados() {
     XLSX.writeFile(wb, `Empleados_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // ------------------------------------------------------------
+  // FILTRAR EMPLEADOS
+  // ------------------------------------------------------------
   const empleadosFiltrados = empleados.filter(
     (e) =>
       e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -355,19 +438,18 @@ export default function GestionEmpleados() {
   );
 
   // ------------------------------------------------------------
-  // RENDERIZADO (con botón REENVIAR CORREO)
+  // RENDERIZADO
   // ------------------------------------------------------------
   return (
     <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         <MemebreteSuperior usuario={user} />
 
-        {/* FORMULARIO (igual) */}
+        {/* FORMULARIO STICKY */}
         <div className="sticky top-0 z-40 bg-black pt-2 pb-4">
           <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
             <form onSubmit={handleGuardar} className="flex flex-col gap-3">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
-                {/* Campos (igual que antes) */}
                 <CampoEntrada
                   label="NOMBRE"
                   placeholder="Nombre completo"
@@ -476,7 +558,7 @@ export default function GestionEmpleados() {
           </div>
         </div>
 
-        {/* BARRA DE BÚSQUEDA (igual) */}
+        {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
             <span className="text-white/40 ml-3">🔍</span>
@@ -505,7 +587,7 @@ export default function GestionEmpleados() {
           />
         </div>
 
-        {/* TABLA CON BOTÓN REENVIAR CORREO */}
+        {/* TABLA CON SCROLL Y BOTÓN REENVIAR */}
         <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -636,7 +718,7 @@ export default function GestionEmpleados() {
   );
 }
 
-// Función auxiliar (debe estar fuera del componente)
+// Función auxiliar fuera del componente
 function obtenerOpcionesNivel() {
   return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 }
