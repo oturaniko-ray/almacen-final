@@ -4,7 +4,7 @@ import BienvenidaEmpleado from '../../../emails/BienvenidaEmpleado';
 
 export async function POST(request: Request) {
   try {
-    // 1. Verificar API key
+    // Verificar API key
     if (!process.env.RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY no definida');
       return NextResponse.json(
@@ -15,7 +15,6 @@ export async function POST(request: Request) {
 
     const resend = new Resend(process.env.RESEND_API_KEY);
 
-    // 2. Obtener datos del cuerpo de la petición
     const { nombre, documento_id, email, rol, nivel_acceso, pin_seguridad, to } = await request.json();
 
     if (!nombre || !email || !pin_seguridad) {
@@ -25,14 +24,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Configurar el remitente según el entorno
-    //    - En desarrollo: usar onboarding@resend.dev (no requiere verificación)
-    //    - En producción: usar el dominio verificado (definir en variable de entorno)
+    // Determinar el remitente según el entorno
+    // En desarrollo: usar onboarding@resend.dev (sin verificación)
+    // En producción: usar el dominio verificado gestiontotal.com
     const from = process.env.NODE_ENV === 'production'
-      ? `sistema@$gestiontotal.com{process.env.VERIFIED_DOMAIN || 'tudominio.com'}`  // En producción, usa tu dominio
+      ? 'sistema@gestiontotal.com'   // ← dominio verificado
       : 'onboarding@resend.dev';
 
-    // 4. Enviar el correo
     const { data, error } = await resend.emails.send({
       from,
       to: to || email,
@@ -55,7 +53,6 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('✅ Correo enviado:', data);
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     console.error('❌ Error en API send-email:', error);

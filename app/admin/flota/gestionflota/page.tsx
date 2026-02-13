@@ -1,225 +1,642 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-export default function GestionFlotaAdmin() {
-  const [unidades, setUnidades] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    nombre_completo: '',
-    documento_id: '',
-    nombre_flota: '',
-    cant_rutas: 0 // Definida como capacidad nominal del perfil
-  });
+// ------------------------------------------------------------
+// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO
+// ------------------------------------------------------------
 
-  const fetchFlota = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('flota')
-        .select('*')
-        .order('nombre_flota', { ascending: true });
-      if (error) throw error;
-      if (data) setUnidades(data);
-    } catch (err) {
-      console.error("Error fetching flota:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+// ----- MEMBRETE SUPERIOR -----
+const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
+  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
+    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+      <span className="text-white">GESTOR DE </span>
+      <span className="text-blue-700">FLOTA</span>
+    </h1>
+    <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
+      MENÚ PRINCIPAL
+    </p>
+    {usuario && (
+      <div className="mt-2 pt-2 border-t border-white/10">
+        <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+        <span className="text-sm text-white mx-2">•</span>
+        <span className="text-sm text-blue-500 normal-case">
+          {usuario.rol === 'admin' || usuario.rol === 'Administrador'
+            ? 'Administración'
+            : usuario.rol?.toUpperCase() || 'Administrador'}
+        </span>
+        <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+      </div>
+    )}
+  </div>
+);
 
-  useEffect(() => { fetchFlota(); }, [fetchFlota]);
+// ----- BOTÓN DE ACCIÓN -----
+const BotonAccion = ({
+  texto,
+  icono,
+  onClick,
+  color = 'bg-blue-600',
+  disabled = false,
+  loading = false,
+  fullWidth = true,
+  className = '',
+}: {
+  texto: string;
+  icono?: string;
+  onClick: () => void;
+  color?: string;
+  disabled?: boolean;
+  loading?: boolean;
+  fullWidth?: boolean;
+  className?: string;
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled || loading}
+    className={`${fullWidth ? 'w-full' : ''} ${color} p-2 rounded-xl border border-white/5 
+      active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 
+      disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider
+      ${className}`}
+  >
+    {icono && <span className="text-lg">{icono}</span>}
+    {loading ? (
+      <span className="flex items-center gap-2">
+        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
+        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
+      </span>
+    ) : (
+      texto
+    )}
+  </button>
+);
 
-  // ALGORITMO SMART PIN: F + DDMM + NN
-  const generarPinFlota = async () => {
-    const hoy = new Date();
-    const ddmm = `${String(hoy.getDate()).padStart(2, '0')}${String(hoy.getMonth() + 1).padStart(2, '0')}`;
-    
-    const { count } = await supabase
-      .from('flota')
-      .select('*', { count: 'exact', head: true })
-      .like('pin_secreto', `F${ddmm}%`);
+// ----- BOTÓN TOGGLE (ACTIVO/INACTIVO) -----
+const BotonToggle = ({
+  activo,
+  onChange,
+}: {
+  activo: boolean;
+  onChange: (activo: boolean) => void;
+}) => (
+  <button
+    type="button"
+    onClick={() => onChange(!activo)}
+    className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider transition-all
+      ${activo 
+        ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30 hover:bg-emerald-600/30' 
+        : 'bg-rose-600/20 text-rose-500 border-rose-500/30 hover:bg-rose-600/30'}`}
+  >
+    {activo ? 'ACTIVO' : 'INACTIVO'}
+  </button>
+);
 
-    const correlativo = String((count || 0) + 1).padStart(2, '0');
-    return `F${ddmm}${correlativo}`;
-  };
-
-  const guardarUnidad = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const pin = await generarPinFlota();
-      const { error } = await supabase.from('flota').insert([{
-        nombre_completo: form.nombre_completo,
-        documento_id: form.documento_id,
-        nombre_flota: form.nombre_flota,
-        cant_rutas: form.cant_rutas, // Capacidad asignada al perfil
-        pin_secreto: pin,
-        estado: 'despachado'
-      }]);
-
-      if (error) throw error;
-      
-      setShowModal(false);
-      setForm({ nombre_completo: '', documento_id: '', nombre_flota: '', cant_rutas: 0 });
-      fetchFlota();
-      alert(`PERFIL CREADO - PIN ASIGNADO: ${pin}`);
-    } catch (err: any) {
-      alert("Error al crear perfil: " + err.message);
-    }
-  };
-
-  const eliminarUnidad = async (id: string) => {
-    if (!confirm("¿Desea eliminar este perfil de flota? Esta acción no se puede deshacer.")) return;
-    const { error } = await supabase.from('flota').delete().eq('id', id);
-    if (!error) fetchFlota();
+// ----- CAMPO DE ENTRADA -----
+const CampoEntrada = ({
+  type = 'text',
+  placeholder = '',
+  value,
+  onChange,
+  onEnter,
+  autoFocus = false,
+  disabled = false,
+  textCentered = false,
+  uppercase = false,
+  className = '',
+  label,
+  required = false,
+}: {
+  type?: 'text' | 'password' | 'email' | 'number' | 'date';
+  placeholder?: string;
+  value: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onEnter?: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  textCentered?: boolean;
+  uppercase?: boolean;
+  className?: string;
+  label?: string;
+  required?: boolean;
+}) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && onEnter) onEnter();
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
+    <div className="flex flex-col gap-1">
+      {label && (
+        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
+          {label}
+        </label>
+      )}
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        onKeyDown={handleKeyDown}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        required={required}
+        className={`w-full bg-white/5 border border-white/10 p-2.5 rounded-xl 
+          text-[11px] font-bold text-white outline-none transition-colors
+          disabled:opacity-70 disabled:cursor-not-allowed
+          ${textCentered ? 'text-center' : ''} 
+          ${uppercase ? 'uppercase' : ''}
+          ${type === 'password' ? 'tracking-[0.4em]' : ''}
+          focus:border-blue-500/50 hover:border-white/20
+          ${disabled ? 'border-blue-500/30 text-amber-400' : ''}
+          ${className}`}
+      />
+    </div>
+  );
+};
+
+// ----- FOOTER (VOLVER AL SELECTOR) -----
+const Footer = ({ router }: { router: any }) => (
+  <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
+    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
+      @Copyright 2026
+    </p>
+    <button
+      onClick={() => router.push('/admin/flota')}
+      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
+    >
+      <span className="text-lg">←</span> VOLVER AL SELECTOR
+    </button>
+  </div>
+);
+
+// ------------------------------------------------------------
+// COMPONENTE PRINCIPAL – GESTIÓN DE PERFILES DE FLOTA
+// ------------------------------------------------------------
+export default function GestionFlota() {
+  const [user, setUser] = useState<any>(null);
+  const [perfiles, setPerfiles] = useState<any[]>([]);
+  const [editando, setEditando] = useState<any>(null);
+  const [filtro, setFiltro] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
+  const router = useRouter();
+
+  const estadoInicial = {
+    nombre_completo: '',
+    documento_id: '',
+    nombre_flota: '',
+    cant_choferes: 1,
+    cant_rutas: 0,
+    activo: true,
+  };
+  const [nuevo, setNuevo] = useState(estadoInicial);
+
+  // ------------------------------------------------------------
+  // MOSTRAR NOTIFICACIÓN
+  // ------------------------------------------------------------
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
+  };
+
+  // ------------------------------------------------------------
+  // CARGAR SESIÓN Y DATOS
+  // ------------------------------------------------------------
+  const fetchPerfiles = useCallback(async () => {
+    const { data } = await supabase
+      .from('flota_perfil')
+      .select('*')
+      .order('nombre_completo', { ascending: true });
+    if (data) setPerfiles(data);
+  }, []);
+
+  useEffect(() => {
+    const sessionData = localStorage.getItem('user_session');
+    if (!sessionData) {
+      router.replace('/');
+      return;
+    }
+    const currentUser = JSON.parse(sessionData);
+    // Nivel mínimo para gestión de flota: 5 (según reglas)
+    if (Number(currentUser.nivel_acceso) < 5) {
+      router.replace('/admin');
+      return;
+    }
+    setUser(currentUser);
+    fetchPerfiles();
+
+    const channel = supabase
+      .channel('flota_perfil_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flota_perfil' }, fetchPerfiles)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchPerfiles, router]);
+
+  // ------------------------------------------------------------
+  // VALIDACIONES DE DUPLICADOS (documento_id único)
+  // ------------------------------------------------------------
+  const validarDuplicados = async (): Promise<boolean> => {
+    const { data: docExistente, error: errDoc } = await supabase
+      .from('flota_perfil')
+      .select('id, nombre_completo')
+      .eq('documento_id', nuevo.documento_id)
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
+      .maybeSingle();
+
+    if (errDoc) {
+      mostrarNotificacion('Error al validar documento ID', 'error');
+      return false;
+    }
+    if (docExistente) {
+      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${docExistente.nombre_completo}.`, 'advertencia');
+      return false;
+    }
+
+    return true;
+  };
+
+  // ------------------------------------------------------------
+  // GUARDAR (CREAR O ACTUALIZAR)
+  // ------------------------------------------------------------
+  const handleGuardar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const esValido = await validarDuplicados();
+      if (!esValido) {
+        setLoading(false);
+        return;
+      }
+
+      if (editando) {
+        // --- ACTUALIZAR (no se regenera el PIN) ---
+        const { error } = await supabase
+          .from('flota_perfil')
+          .update({
+            nombre_completo: nuevo.nombre_completo,
+            documento_id: nuevo.documento_id,
+            nombre_flota: nuevo.nombre_flota,
+            cant_choferes: nuevo.cant_choferes,
+            cant_rutas: nuevo.cant_rutas,
+            activo: nuevo.activo,
+          })
+          .eq('id', editando.id);
+        if (error) throw error;
+
+        mostrarNotificacion('Perfil actualizado correctamente.', 'exito');
+      } else {
+        // --- CREAR NUEVO: generar PIN automáticamente ---
+        const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_flota');
+        if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
+        if (!pinGenerado) throw new Error('No se pudo generar el PIN');
+
+        const { error } = await supabase
+          .from('flota_perfil')
+          .insert([
+            {
+              nombre_completo: nuevo.nombre_completo,
+              documento_id: nuevo.documento_id,
+              nombre_flota: nuevo.nombre_flota,
+              cant_choferes: nuevo.cant_choferes,
+              cant_rutas: nuevo.cant_rutas,
+              activo: nuevo.activo,
+              pin_secreto: pinGenerado,
+              fecha_creacion: new Date().toISOString(),
+            },
+          ]);
+        if (error) throw error;
+
+        mostrarNotificacion('Perfil de flota creado correctamente.', 'exito');
+      }
+
+      cancelarEdicion();
+    } catch (error: any) {
+      console.error(error);
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // CANCELAR EDICIÓN
+  // ------------------------------------------------------------
+  const cancelarEdicion = () => {
+    setEditando(null);
+    setNuevo(estadoInicial);
+  };
+
+  // ------------------------------------------------------------
+  // EDITAR PERFIL
+  // ------------------------------------------------------------
+  const editarPerfil = (perfil: any) => {
+    setEditando(perfil);
+    setNuevo({
+      nombre_completo: perfil.nombre_completo,
+      documento_id: perfil.documento_id,
+      nombre_flota: perfil.nombre_flota || '',
+      cant_choferes: perfil.cant_choferes || 1,
+      cant_rutas: perfil.cant_rutas || 0,
+      activo: perfil.activo !== false,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ------------------------------------------------------------
+  // EXPORTAR EXCEL
+  // ------------------------------------------------------------
+  const exportarExcel = () => {
+    const data = perfiles.map((p) => ({
+      Nombre: p.nombre_completo,
+      Documento: p.documento_id,
+      Flota: p.nombre_flota,
+      Choferes: p.cant_choferes,
+      Rutas: p.cant_rutas,
+      PIN: p.pin_secreto,
+      Activo: p.activo ? 'SÍ' : 'NO',
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Flota');
+    XLSX.writeFile(wb, `Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // ------------------------------------------------------------
+  // FILTRAR PERFILES
+  // ------------------------------------------------------------
+  const perfilesFiltrados = perfiles.filter(
+    (p) =>
+      p.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) ||
+      p.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
+      p.nombre_flota?.toLowerCase().includes(filtro.toLowerCase())
+  );
+
+  // ------------------------------------------------------------
+  // RENDERIZADO
+  // ------------------------------------------------------------
+  return (
+    <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        
-        {/* MEMBRETE GESTOR */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 border-b border-white/5 pb-8">
-          <div>
-            <h1 className="text-4xl font-black italic text-white uppercase tracking-tighter">
-              GESTOR DE <span className="text-blue-500">FLOTA</span>
-            </h1>
-            <p className="text-[10px] font-black text-slate-500 tracking-[0.4em] uppercase mt-2">
-              Configuración de Capacidad y Perfiles Logísticos
-            </p>
-          </div>
-          <button 
-            onClick={() => setShowModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-5 rounded-[20px] font-black text-xs uppercase tracking-widest transition-all shadow-[0_10px_30px_rgba(37,99,235,0.2)] active:scale-95"
-          >
-            + Registrar Nueva Flota
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="h-64 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-blue-500"></div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {unidades.map((u) => (
-              <div key={u.id} className="bg-[#0f172a] border border-white/5 p-8 rounded-[35px] relative group hover:border-blue-500/30 transition-all duration-500">
-                <div className="absolute top-6 right-6">
-                  <div className={`w-3 h-3 rounded-full ${u.estado === 'en_patio' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-700'}`}></div>
-                </div>
-                
-                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">{u.nombre_flota}</p>
-                <h3 className="text-2xl font-black text-white uppercase leading-tight mb-6">{u.nombre_completo}</h3>
-                
-                <div className="space-y-4 bg-black/20 p-5 rounded-2xl mb-8">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase">Smart PIN:</span>
-                    <span className="text-emerald-400 font-mono font-black text-sm">{u.pin_secreto}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase">Documento:</span>
-                    <span className="text-white font-bold text-xs">{u.documento_id}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-white/5">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase italic">Capacidad Nominal:</span>
-                    <span className="text-blue-500 font-black text-lg">{u.cant_rutas} <small className="text-[10px]">RUTAS</small></span>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => eliminarUnidad(u.id)}
-                  className="w-full py-4 bg-rose-600/5 hover:bg-rose-600 text-rose-600 hover:text-white rounded-2xl text-[10px] font-black uppercase transition-all border border-rose-600/20"
-                >
-                  Dar de Baja Perfil
-                </button>
-              </div>
-            ))}
+        {/* NOTIFICACIÓN FLOTANTE */}
+        {notificacion.tipo && (
+          <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center border-2 ${
+            notificacion.tipo === 'exito' ? 'bg-emerald-500 border-emerald-400' :
+            notificacion.tipo === 'error' ? 'bg-rose-500 border-rose-400' :
+            'bg-amber-500 border-amber-400'
+          } text-white flex items-center gap-3`}>
+            <span className="text-lg">
+              {notificacion.tipo === 'exito' ? '✅' : notificacion.tipo === 'error' ? '❌' : '⚠️'}
+            </span>
+            <span>{notificacion.mensaje}</span>
           </div>
         )}
+
+        <MemebreteSuperior usuario={user} />
+
+        {/* FORMULARIO STICKY */}
+        <div className="sticky top-0 z-40 bg-black pt-2 pb-4">
+          <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
+            <form onSubmit={handleGuardar} className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                {/* NOMBRE COMPLETO */}
+                <CampoEntrada
+                  label="NOMBRE COMPLETO"
+                  placeholder="Nombre completo"
+                  value={nuevo.nombre_completo}
+                  onChange={(e) => setNuevo({ ...nuevo, nombre_completo: e.target.value })}
+                  required
+                  autoFocus
+                />
+
+                {/* DOCUMENTO ID */}
+                <CampoEntrada
+                  label="DOCUMENTO ID"
+                  placeholder="DNI / NIE"
+                  value={nuevo.documento_id}
+                  onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
+                  required
+                  uppercase
+                />
+
+                {/* NOMBRE FLOTA */}
+                <CampoEntrada
+                  label="NOMBRE FLOTA"
+                  placeholder="Empresa / Unión"
+                  value={nuevo.nombre_flota}
+                  onChange={(e) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
+                />
+
+                {/* CANTIDAD DE CHOFERES */}
+                <CampoEntrada
+                  type="number"
+                  label="CHOFERES"
+                  placeholder="1"
+                  value={String(nuevo.cant_choferes)}
+                  onChange={(e) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 1 })}
+                  textCentered
+                />
+
+                {/* CANTIDAD DE RUTAS */}
+                <CampoEntrada
+                  type="number"
+                  label="RUTAS"
+                  placeholder="0"
+                  value={String(nuevo.cant_rutas)}
+                  onChange={(e) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
+                  textCentered
+                />
+
+                {/* ESTADO (TOGGLE) */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
+                  <BotonToggle
+                    activo={nuevo.activo}
+                    onChange={(activo) => setNuevo({ ...nuevo, activo })}
+                  />
+                </div>
+
+                {/* PIN ASIGNADO (solo lectura en edición) */}
+                {editando && (
+                  <CampoEntrada
+                    label="PIN ASIGNADO"
+                    value={editando.pin_secreto || ''}
+                    disabled
+                    textCentered
+                    uppercase
+                    className="border-blue-500/30"
+                  />
+                )}
+              </div>
+
+              {/* BOTONES DE ACCIÓN */}
+              <div className="flex justify-end gap-2 mt-1">
+                <BotonAccion
+                  texto="CANCELAR"
+                  icono="✕"
+                  color="bg-slate-600"
+                  onClick={cancelarEdicion}
+                  fullWidth={false}
+                  className="px-4 py-2"
+                />
+                <BotonAccion
+                  texto={editando ? 'ACTUALIZAR' : 'CREAR PERFIL'}
+                  icono={editando ? '✏️' : '➕'}
+                  color={editando ? 'bg-amber-600' : 'bg-emerald-600'}
+                  onClick={() => {}}
+                  disabled={loading}
+                  loading={loading}
+                  fullWidth={false}
+                  className="px-4 py-2"
+                />
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
+            <span className="text-white/40 ml-3">🔍</span>
+            <input
+              type="text"
+              placeholder="BUSCAR PERFIL..."
+              className="w-full bg-transparent px-3 py-2 text-[11px] font-bold uppercase outline-none text-white"
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+            />
+            {filtro && (
+              <button
+                onClick={() => setFiltro('')}
+                className="mr-2 text-white/60 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <BotonAccion
+            texto="EXPORTAR EXCEL"
+            icono="📊"
+            color="bg-emerald-600"
+            onClick={exportarExcel}
+            fullWidth={false}
+          />
+        </div>
+
+        {/* TABLA CON SCROLL */}
+        <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-black/40 text-[10px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30">
+                <tr>
+                  <th className="p-4">Nombre</th>
+                  <th className="p-4">Documento</th>
+                  <th className="p-4">Flota</th>
+                  <th className="p-4 text-center">Choferes</th>
+                  <th className="p-4 text-center">Rutas</th>
+                  <th className="p-4 text-center">PIN</th>
+                  <th className="p-4 text-center">Estado</th>
+                  <th className="p-4 text-center" colSpan={2}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {perfilesFiltrados.map((perfil) => (
+                  <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="p-4">
+                      <span className="font-bold text-[13px] uppercase text-white">
+                        {perfil.nombre_completo}
+                      </span>
+                    </td>
+                    <td className="p-4 font-mono text-[12px]">
+                      {perfil.documento_id}
+                    </td>
+                    <td className="p-4">
+                      {perfil.nombre_flota || '-'}
+                    </td>
+                    <td className="p-4 text-center font-black">
+                      {perfil.cant_choferes}
+                    </td>
+                    <td className="p-4 text-center font-black">
+                      {perfil.cant_rutas}
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className="group relative inline-block">
+                        <span className="text-[11px] font-mono text-slate-600 group-hover:hidden tracking-widest">
+                          ••••••
+                        </span>
+                        <span className="text-[11px] font-mono text-amber-500 hidden group-hover:block font-bold">
+                          {perfil.pin_secreto}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={async () => {
+                          await supabase
+                            .from('flota_perfil')
+                            .update({ activo: !perfil.activo })
+                            .eq('id', perfil.id);
+                        }}
+                        className={`text-[10px] font-black px-3 py-1 rounded-full border ${
+                          perfil.activo
+                            ? 'text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10'
+                            : 'text-rose-500 border-rose-500/30 hover:bg-rose-500/10'
+                        }`}
+                      >
+                        {perfil.activo ? 'ACTIVO' : 'INACTIVO'}
+                      </button>
+                    </td>
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={() => editarPerfil(perfil)}
+                        className="text-blue-500 hover:text-white font-black text-[10px] uppercase px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
+                      >
+                        EDITAR
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {perfilesFiltrados.length === 0 && (
+            <div className="p-10 text-center">
+              <p className="text-slate-500 text-[11px] uppercase tracking-widest">
+                No hay perfiles que coincidan con la búsqueda.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <Footer router={router} />
       </div>
 
-      {/* MODAL DE ALTA QUIRÚRGICA */}
-      {showModal && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
-          <form 
-            onSubmit={guardarUnidad} 
-            className="bg-[#0f172a] border-2 border-blue-600/20 w-full max-w-xl rounded-[45px] p-10 shadow-2xl relative overflow-hidden"
-          >
-            <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
-            
-            <h2 className="text-3xl font-black text-white uppercase italic mb-8">
-              Configurar <span className="text-blue-500">Perfil de Flota</span>
-            </h2>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-2 block tracking-widest">Nombre Completo Conductor</label>
-                <input 
-                  required 
-                  type="text" 
-                  className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-blue-500 transition-all font-bold" 
-                  value={form.nombre_completo} 
-                  onChange={e => setForm({...form, nombre_completo: e.target.value.toUpperCase()})} 
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-2 block tracking-widest">Documento ID</label>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-blue-500 transition-all font-bold" 
-                    value={form.documento_id} 
-                    onChange={e => setForm({...form, documento_id: e.target.value})} 
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-2 block tracking-widest">Nombre / Placa Flota</label>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-blue-500 transition-all font-bold" 
-                    value={form.nombre_flota} 
-                    onChange={e => setForm({...form, nombre_flota: e.target.value.toUpperCase()})} 
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase ml-2 mb-2 block tracking-widest underline decoration-blue-500 underline-offset-4">Capacidad de Carga (Rutas Planificadas)</label>
-                <input 
-                  required 
-                  type="number" 
-                  className="w-full bg-black/40 border border-white/10 p-6 rounded-2xl text-4xl font-black text-center text-blue-500 outline-none focus:border-emerald-500 transition-all" 
-                  value={form.cant_rutas} 
-                  onChange={e => setForm({...form, cant_rutas: parseInt(e.target.value) || 0})} 
-                />
-                <p className="text-[9px] text-slate-600 mt-2 italic px-2">Este valor servirá como base de comparación contra la carga real diaria.</p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                type="button" 
-                onClick={() => setShowModal(false)} 
-                className="flex-1 py-5 bg-white/5 text-slate-500 rounded-2xl font-black text-xs uppercase italic hover:bg-white/10 transition-all"
-              >
-                Cerrar
-              </button>
-              <button 
-                type="submit" 
-                className="flex-[2] py-5 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase italic shadow-lg shadow-blue-900/40 active:scale-95 transition-all"
-              >
-                Generar Perfil y PIN F
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-    </div>
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes flash-fast {
+          0%, 100% { opacity: 1; }
+          10%, 30%, 50% { opacity: 0; }
+          20%, 40%, 60% { opacity: 1; }
+        }
+        .animate-flash-fast {
+          animation: flash-fast 2s ease-in-out;
+        }
+        select option {
+          background-color: #1f2937;
+          color: white;
+        }
+      `}</style>
+    </main>
   );
 }
