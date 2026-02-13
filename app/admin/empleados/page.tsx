@@ -79,7 +79,7 @@ const BotonAccion = ({
   </button>
 );
 
-// ----- CAMPO DE ENTRADA (implementación completa) -----
+// ----- CAMPO DE ENTRADA -----
 const CampoEntrada = ({
   type = 'text',
   placeholder = '',
@@ -197,6 +197,7 @@ export default function GestionEmpleados() {
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
+  const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const router = useRouter();
 
   const estadoInicial = {
@@ -209,6 +210,14 @@ export default function GestionEmpleados() {
     nivel_acceso: 1,
   };
   const [nuevo, setNuevo] = useState(estadoInicial);
+
+  // ------------------------------------------------------------
+  // MOSTRAR NOTIFICACIÓN UNIFICADA
+  // ------------------------------------------------------------
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
+  };
 
   // ------------------------------------------------------------
   // CARGAR SESIÓN Y DATOS
@@ -269,11 +278,11 @@ export default function GestionEmpleados() {
       .maybeSingle();
 
     if (errDoc) {
-      alert('Error al validar documento ID');
+      mostrarNotificacion('Error al validar documento ID', 'error');
       return false;
     }
     if (docExistente) {
-      alert(`⚠️ El documento ID ya está registrado para ${docExistente.nombre}.`);
+      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${docExistente.nombre}.`, 'advertencia');
       return false;
     }
 
@@ -285,11 +294,11 @@ export default function GestionEmpleados() {
       .maybeSingle();
 
     if (errEmail) {
-      alert('Error al validar email');
+      mostrarNotificacion('Error al validar email', 'error');
       return false;
     }
     if (emailExistente) {
-      alert(`⚠️ El email ya está registrado para ${emailExistente.nombre}.`);
+      mostrarNotificacion(`⚠️ El email ya está registrado para ${emailExistente.nombre}.`, 'advertencia');
       return false;
     }
 
@@ -325,7 +334,7 @@ export default function GestionEmpleados() {
           .eq('id', editando.id);
         if (error) throw error;
 
-        alert('Empleado actualizado correctamente.');
+        mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
       } else {
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
@@ -353,16 +362,16 @@ export default function GestionEmpleados() {
 
         const resultado = await enviarCorreoEmpleado(nuevoEmpleado);
         if (resultado.success) {
-          alert('Empleado creado y correo enviado correctamente.');
+          mostrarNotificacion('Empleado creado y correo enviado correctamente.', 'exito');
         } else {
-          alert(`Empleado creado, pero falló el envío del correo: ${resultado.error}`);
+          mostrarNotificacion(`Empleado creado, pero falló el envío del correo: ${resultado.error}`, 'advertencia');
         }
       }
 
       cancelarEdicion();
     } catch (error: any) {
       console.error(error);
-      alert(`Error: ${error.message}`);
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -376,9 +385,9 @@ export default function GestionEmpleados() {
     const resultado = await enviarCorreoEmpleado(empleado);
     setEnviandoCorreo(null);
     if (resultado.success) {
-      alert('Correo reenviado correctamente.');
+      mostrarNotificacion('Correo reenviado correctamente.', 'exito');
     } else {
-      alert(`Error al reenviar correo: ${resultado.error}`);
+      mostrarNotificacion(`Error al reenviar correo: ${resultado.error}`, 'error');
     }
   };
 
@@ -443,6 +452,20 @@ export default function GestionEmpleados() {
   return (
     <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
       <div className="max-w-7xl mx-auto">
+        {/* NOTIFICACIÓN FLOTANTE UNIFICADA */}
+        {notificacion.tipo && (
+          <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center border-2 ${
+            notificacion.tipo === 'exito' ? 'bg-emerald-500 border-emerald-400' :
+            notificacion.tipo === 'error' ? 'bg-rose-500 border-rose-400' :
+            'bg-amber-500 border-amber-400'
+          } text-white flex items-center gap-3`}>
+            <span className="text-lg">
+              {notificacion.tipo === 'exito' ? '✅' : notificacion.tipo === 'error' ? '❌' : '⚠️'}
+            </span>
+            <span>{notificacion.mensaje}</span>
+          </div>
+        )}
+
         <MemebreteSuperior usuario={user} />
 
         {/* FORMULARIO STICKY */}
@@ -709,6 +732,14 @@ export default function GestionEmpleados() {
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes flash-fast {
+          0%, 100% { opacity: 1; }
+          10%, 30%, 50% { opacity: 0; }
+          20%, 40%, 60% { opacity: 1; }
+        }
+        .animate-flash-fast {
+          animation: flash-fast 2s ease-in-out;
+        }
         select option {
           background-color: #1f2937;
           color: white;
