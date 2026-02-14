@@ -613,11 +613,11 @@ export default function GestionEmpleados() {
           </div>
         </div>
 
-        {/* TABLA CON SCROLL */}
+        {/* TABLA CON SCROLL – ENCABEZADO FIJO MEJORADO */}
         <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-black/40 text-[10px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30">
+              <thead className="bg-[#0f172a] text-[10px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
                   <th className="p-4">Empleado</th>
                   <th className="p-4">Documento / Email</th>

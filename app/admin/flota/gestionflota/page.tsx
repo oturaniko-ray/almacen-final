@@ -168,8 +168,8 @@ const Footer = ({ router }: { router: any }) => (
       @Copyright 2026
     </p>
     <button
-      type="button" // ← explícito para evitar envío de formulario
-      onClick={() => router.replace('/admin/flota')} // ← reemplaza la ruta actual
+      type="button"
+      onClick={() => router.push('/admin/flota')} // ← Cambiado de replace a push
       className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
     >
       <span className="text-lg">←</span> VOLVER AL SELECTOR
