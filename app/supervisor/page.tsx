@@ -480,7 +480,7 @@ export default function SupervisorPage() {
             const info = procesarQR(decoded);
             if (info) {
               setQrInfo(info);
-              setQrData(info.docId); // opcional, por si se necesita
+              setQrData(info.docId);
               setLecturaLista(true);
               scanner.stop();
             }
@@ -542,12 +542,58 @@ export default function SupervisorPage() {
   }, [modo, direccion]);
 
   // --------------------------------------------------------
-  // 6. REGISTRAR ACCESO (unificado)
+  // 6. FUNCIÓN DE RESETEO POR MODO
+  // --------------------------------------------------------
+  const resetearPorModo = (modoActual: 'usb' | 'camara' | 'manual', errorTipo?: string) => {
+    setAnimar(false);
+    
+    if (modoActual === 'usb' || modoActual === 'camara') {
+      setLecturaLista(false);
+      setQrData('');
+      setQrInfo(null);
+      setPinAutorizador('');
+      
+      // Si es error de PIN supervisor, mantener el foco en el input de PIN
+      if (errorTipo === 'pin_supervisor') {
+        setTimeout(() => {
+          const pinInput = document.querySelector('input[placeholder="PIN SUPERVISOR"]') as HTMLInputElement;
+          if (pinInput) pinInput.focus();
+        }, 100);
+      } else {
+        // Para otros errores, volver al input de lectura
+        setTimeout(() => {
+          if (modoActual === 'usb') {
+            const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+            if (usbInput) usbInput.focus();
+          }
+        }, 100);
+      }
+    } else if (modoActual === 'manual') {
+      if (errorTipo === 'pin_trabajador') {
+        setPasoManual(2);
+        setPinEmpleado('');
+        setTimeout(() => pinEmpleadoRef.current?.focus(), 100);
+      } else if (errorTipo === 'pin_administrador') {
+        setPasoManual(3);
+        setPinAutorizador('');
+        setTimeout(() => pinSupervisorRef.current?.focus(), 100);
+      } else {
+        setPasoManual(1);
+        setQrData('');
+        setPinEmpleado('');
+        setPinAutorizador('');
+        setTimeout(() => documentoRef.current?.focus(), 100);
+      }
+    }
+  };
+
+  // --------------------------------------------------------
+  // 7. REGISTRAR ACCESO (unificado)
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     if (gps.dist > config.radio) {
       mostrarNotificacion(`FUERA DE RANGO: ${gps.dist}m`, 'error');
-      setTimeout(resetLectura, 2000);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
       return;
     }
 
@@ -558,25 +604,21 @@ export default function SupervisorPage() {
 
     if (!inputBusqueda) {
       mostrarNotificacion('ERROR: DOCUMENTO VACÍO', 'error');
-      setAnimar(false);
-      setTimeout(resetLectura, 2000);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
       return;
     }
 
     // --- Determinar tipo de QR ---
     let tipo = '';
     if (modo === 'manual') {
-      // En modo manual, no tenemos prefijo. Buscaremos en ambas tablas.
       tipo = 'desconocido';
     } else {
-      // En modo automático, usamos qrInfo
       if (qrInfo) {
         tipo = qrInfo.tipo;
       } else {
-        // Si no hay info (por alguna razón), intentamos decodificar de nuevo con el texto completo? 
-        // Pero qrInfo debería estar.
         mostrarNotificacion('ERROR: Información de QR no disponible', 'error');
         setAnimar(false);
+        resetearPorModo(modo as 'usb' | 'camara' | 'manual');
         return;
       }
     }
@@ -585,7 +627,6 @@ export default function SupervisorPage() {
     let registro = null;
 
     if (modo === 'manual') {
-      // Buscar primero en empleados
       const { data: emp } = await supabase
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
@@ -594,7 +635,6 @@ export default function SupervisorPage() {
       if (emp) {
         registro = { ...emp, tipo: 'empleado' };
       } else {
-        // Buscar en flota_perfil
         const { data: flota } = await supabase
           .from('flota_perfil')
           .select('*')
@@ -605,7 +645,6 @@ export default function SupervisorPage() {
         }
       }
     } else {
-      // Modo automático
       if (tipo === 'P') {
         const { data: emp, error: empErr } = await supabase
           .from('empleados')
@@ -615,7 +654,7 @@ export default function SupervisorPage() {
         if (empErr) {
           mostrarNotificacion(`ERROR DB: ${empErr.message}`, 'error');
           setAnimar(false);
-          setTimeout(resetLectura, 2000);
+          resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
         if (emp) {
@@ -630,7 +669,7 @@ export default function SupervisorPage() {
         if (flotaErr) {
           mostrarNotificacion(`ERROR DB: ${flotaErr.message}`, 'error');
           setAnimar(false);
-          setTimeout(resetLectura, 2000);
+          resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
         if (flota) {
@@ -642,26 +681,26 @@ export default function SupervisorPage() {
     if (!registro) {
       mostrarNotificacion('ID NO REGISTRADO', 'error');
       setAnimar(false);
-      setTimeout(resetLectura, 2000);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
       return;
     }
 
     if (registro.tipo === 'empleado' && !registro.documento_id) {
       mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
       setAnimar(false);
-      setTimeout(resetLectura, 2000);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
       return;
     }
     if (registro.tipo === 'empleado' && !registro.activo) {
       mostrarNotificacion('EMPLEADO INACTIVO', 'error');
       setAnimar(false);
-      setTimeout(resetLectura, 2000);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
       return;
     }
     if (registro.tipo === 'flota' && !registro.activo) {
       mostrarNotificacion('PERFIL DE FLOTA INACTIVO', 'error');
       setAnimar(false);
-      setTimeout(resetLectura, 2000);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
       return;
     }
 
@@ -670,26 +709,52 @@ export default function SupervisorPage() {
       if (registro.tipo === 'empleado' && String(registro.pin_seguridad) !== String(pinEmpleado)) {
         mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
         setAnimar(false);
+        resetearPorModo('manual', 'pin_trabajador');
         return;
       }
       if (registro.tipo === 'flota' && String(registro.pin_secreto) !== String(pinEmpleado)) {
         mostrarNotificacion('PIN CHOFER INCORRECTO', 'error');
         setAnimar(false);
+        resetearPorModo('manual', 'pin_trabajador');
         return;
       }
     }
 
-    // --- Validar PIN del supervisor (igual para ambos) ---
-    const { data: aut, error: autErr } = await supabase
-      .from('empleados')
-      .select('nombre')
-      .eq('pin_seguridad', String(pinAutorizador))
-      .in('rol', ['supervisor', 'admin', 'Administrador'])
-      .maybeSingle();
+    // --- Validar PIN del autorizador (supervisor para scanner/cámara, admin para manual) ---
+    let aut = null;
+    let autErr = null;
+
+    if (modo === 'manual') {
+      // En modo manual, validamos con administrador
+      const result = await supabase
+        .from('empleados')
+        .select('nombre')
+        .eq('pin_seguridad', String(pinAutorizador))
+        .in('rol', ['admin', 'administrador', 'Administrador'])
+        .maybeSingle();
+      aut = result.data;
+      autErr = result.error;
+    } else {
+      // En modo scanner/cámara, validamos con supervisor o admin
+      const result = await supabase
+        .from('empleados')
+        .select('nombre')
+        .eq('pin_seguridad', String(pinAutorizador))
+        .in('rol', ['supervisor', 'admin', 'administrador', 'Administrador'])
+        .maybeSingle();
+      aut = result.data;
+      autErr = result.error;
+    }
 
     if (autErr || !aut) {
-      mostrarNotificacion('PIN SUPERVISOR INVÁLIDO', 'error');
+      mostrarNotificacion(modo === 'manual' ? 'PIN ADMINISTRADOR INVÁLIDO' : 'PIN SUPERVISOR INVÁLIDO', 'error');
       setAnimar(false);
+      
+      if (modo === 'manual') {
+        resetearPorModo('manual', 'pin_administrador');
+      } else {
+        resetearPorModo(modo as 'usb' | 'camara', 'pin_supervisor');
+      }
       return;
     }
 
@@ -707,7 +772,7 @@ export default function SupervisorPage() {
         if (jornadaActiva) {
           mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
           setAnimar(false);
-          setTimeout(resetLectura, 2000);
+          resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
       } else {
@@ -720,7 +785,7 @@ export default function SupervisorPage() {
         if (!jornadaActiva) {
           mostrarNotificacion('NO HAY ENTRADA REGISTRADA', 'advertencia');
           setAnimar(false);
-          setTimeout(resetLectura, 2000);
+          resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
       }
@@ -735,7 +800,7 @@ export default function SupervisorPage() {
         if (accesoActivo) {
           mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA (FLOTA)', 'advertencia');
           setAnimar(false);
-          setTimeout(resetLectura, 2000);
+          resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
       } else {
@@ -748,7 +813,7 @@ export default function SupervisorPage() {
         if (!accesoActivo) {
           mostrarNotificacion('NO HAY ENTRADA REGISTRADA (FLOTA)', 'advertencia');
           setAnimar(false);
-          setTimeout(resetLectura, 2000);
+          resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
       }
@@ -851,7 +916,6 @@ export default function SupervisorPage() {
       }
 
       setTimeout(() => {
-        resetLectura();
         if (modo === 'manual') {
           setPasoManual(1);
           setQrData('');
@@ -859,29 +923,31 @@ export default function SupervisorPage() {
           setPinEmpleado('');
           setPinAutorizador('');
           setTimeout(() => documentoRef.current?.focus(), 100);
+        } else {
+          setLecturaLista(false);
+          setQrData('');
+          setQrInfo(null);
+          setPinAutorizador('');
+          setTimeout(() => {
+            if (modo === 'usb') {
+              const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+              if (usbInput) usbInput.focus();
+            }
+          }, 100);
         }
       }, 2000);
     } catch (e: any) {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
-      setTimeout(resetLectura, 2000);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
     } finally {
       setAnimar(false);
     }
   };
 
   // --------------------------------------------------------
-  // 7. AUXILIARES
+  // 8. AUXILIARES
   // --------------------------------------------------------
-  const resetLectura = () => {
-    setQrData('');
-    setQrInfo(null);
-    setLecturaLista(false);
-    setPinEmpleado('');
-    setPinAutorizador('');
-    setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
-  };
-
   const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia' | 'info') => {
     setNotificacion({ mensaje, tipo });
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
@@ -889,15 +955,20 @@ export default function SupervisorPage() {
 
   const volverAtras = () => {
     setDireccion(null);
-    resetLectura();
+    setQrData('');
+    setQrInfo(null);
+    setPinEmpleado('');
+    setPinAutorizador('');
+    setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
     setPasoManual(0);
+    setLecturaLista(false);
     if (modo === 'camara' || modo === 'usb') {
       setModo('menu');
     }
   };
 
   // --------------------------------------------------------
-  // 8. RENDERIZADO
+  // 9. RENDERIZADO
   // --------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -958,8 +1029,13 @@ export default function SupervisorPage() {
               onClick={() => {
                 setModo('menu');
                 setDireccion(null);
-                resetLectura();
+                setQrData('');
+                setQrInfo(null);
+                setPinEmpleado('');
+                setPinAutorizador('');
+                setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
                 setPasoManual(0);
+                setLecturaLista(false);
               }}
               className="mt-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
             >
@@ -999,6 +1075,9 @@ export default function SupervisorPage() {
                                 setQrInfo(info);
                                 setQrData(info.docId);
                                 setLecturaLista(true);
+                                setPinAutorizador('');
+                              } else {
+                                (e.target as any).value = '';
                               }
                             }
                           }}
@@ -1039,6 +1118,7 @@ export default function SupervisorPage() {
                   <>
                     {(lecturaLista || (modo === 'usb' && qrData)) && (
                       <CampoEntrada
+                        ref={pinSupervisorRef}
                         tipo="password"
                         placeholder="PIN SUPERVISOR"
                         valor={pinAutorizador}
@@ -1054,7 +1134,7 @@ export default function SupervisorPage() {
                         texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
                         icono="✅"
                         onClick={registrarAcceso}
-                        disabled={animar}
+                        disabled={animar || (!lecturaLista && modo !== 'usb')}
                         loading={animar}
                       />
                       <BotonAccion
@@ -1126,7 +1206,7 @@ export default function SupervisorPage() {
                   <CampoEntrada
                     ref={pinSupervisorRef}
                     tipo="password"
-                    placeholder="PIN SUPERVISOR"
+                    placeholder="PIN ADMINISTRADOR"
                     valor={pinAutorizador}
                     onChange={(e) => setPinAutorizador(e.target.value)}
                     onEnter={() => {
