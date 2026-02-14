@@ -320,7 +320,8 @@ export default function SupervisorPage() {
   // Estados de UI
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
-  const [qrData, setQrData] = useState('');
+  const [qrData, setQrData] = useState(''); // solo documento_id (para compatibilidad)
+  const [qrInfo, setQrInfo] = useState<{ tipo: string; docId: string; timestamp: number } | null>(null); // info completa del QR
   const [pinEmpleado, setPinEmpleado] = useState('');
   const [pinAutorizador, setPinAutorizador] = useState('');
   const [animar, setAnimar] = useState(false);
@@ -478,9 +479,8 @@ export default function SupervisorPage() {
           (decoded) => {
             const info = procesarQR(decoded);
             if (info) {
-              setQrData(info.docId);
-              // Guardamos el tipo para usarlo después (en registro)
-              // Podríamos guardarlo en un estado, pero lo pasaremos por ahora en el momento de registrar
+              setQrInfo(info);
+              setQrData(info.docId); // opcional, por si se necesita
               setLecturaLista(true);
               scanner.stop();
             }
@@ -501,6 +501,7 @@ export default function SupervisorPage() {
     setModo('manual');
     setPasoManual(0);
     setQrData('');
+    setQrInfo(null);
     setPinEmpleado('');
     setPinAutorizador('');
     setLecturaLista(false);
@@ -562,66 +563,79 @@ export default function SupervisorPage() {
       return;
     }
 
-    // --- Determinar tipo de QR (si es automático, lo sabemos porque viene de lectura; en manual, no tenemos tipo)
+    // --- Determinar tipo de QR ---
     let tipo = '';
-    // En modo manual, no tenemos prefijo, así que asumimos empleado (o podríamos pedir tipo)
     if (modo === 'manual') {
-      tipo = 'P'; // Por defecto manual es empleado, pero podríamos añadir un selector
+      // En modo manual, no tenemos prefijo. Buscaremos en ambas tablas.
+      tipo = 'desconocido';
     } else {
-      // En modo automático, necesitamos decodificar de nuevo para obtener el tipo
-      // Podríamos haberlo guardado en un estado al leer, pero por simplicidad, reprocesamos
-      const info = procesarQR(qrData); // Ojo, qrData aquí es el documento_id, no el QR completo. En realidad deberíamos guardar el raw.
-      // Mejor solución: guardar el raw al leer.
-      // Simplificamos: en modo automático, el tipo se obtiene del QR original. Pero como no lo guardamos,
-      // asumimos que en modo automático el tipo ya está en un estado.
-      // Para no complicar, en este ejemplo asumiremos que el tipo se pasa de alguna forma.
-      // Por ahora, lo dejamos como estaba: para empleados se busca en empleados, para flota se buscará en flota_perfil.
-      // Pero necesitamos saber qué buscar.
-      // En la práctica, podríamos guardar un estado 'tipoQR' al leer.
-      // Lo implementaremos así:
-      if (!tipo) {
-        // Si no tenemos tipo, intentamos deducir por la tabla (podría ser ambiguo)
-        // Mejor guardar el tipo al leer.
-        // Para este ejemplo, asumiremos que el QR de empleado y flota tienen longitudes diferentes o algo.
-        // Pero lo correcto es guardar el tipo.
-        // Lo haremos de la siguiente manera: al leer el QR, guardamos el objeto completo en un estado.
+      // En modo automático, usamos qrInfo
+      if (qrInfo) {
+        tipo = qrInfo.tipo;
+      } else {
+        // Si no hay info (por alguna razón), intentamos decodificar de nuevo con el texto completo? 
+        // Pero qrInfo debería estar.
+        mostrarNotificacion('ERROR: Información de QR no disponible', 'error');
+        setAnimar(false);
+        return;
       }
     }
 
     // --- Buscar en la tabla correspondiente ---
     let registro = null;
-    let tabla = '';
-    if (tipo === 'P' || tipo === '') {
-      // Buscar en empleados
-      const { data: emp, error: empErr } = await supabase
+
+    if (modo === 'manual') {
+      // Buscar primero en empleados
+      const { data: emp } = await supabase
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
         .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
         .maybeSingle();
-      if (empErr) {
-        mostrarNotificacion(`ERROR DB: ${empErr.message}`, 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
       if (emp) {
         registro = { ...emp, tipo: 'empleado' };
+      } else {
+        // Buscar en flota_perfil
+        const { data: flota } = await supabase
+          .from('flota_perfil')
+          .select('*')
+          .eq('documento_id', inputBusqueda)
+          .maybeSingle();
+        if (flota) {
+          registro = { ...flota, tipo: 'flota' };
+        }
       }
-    } else if (tipo === 'F') {
-      // Buscar en flota_perfil
-      const { data: flota, error: flotaErr } = await supabase
-        .from('flota_perfil')
-        .select('*')
-        .eq('documento_id', inputBusqueda)
-        .maybeSingle();
-      if (flotaErr) {
-        mostrarNotificacion(`ERROR DB: ${flotaErr.message}`, 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
-      if (flota) {
-        registro = { ...flota, tipo: 'flota' };
+    } else {
+      // Modo automático
+      if (tipo === 'P') {
+        const { data: emp, error: empErr } = await supabase
+          .from('empleados')
+          .select('id, nombre, pin_seguridad, activo, documento_id, email')
+          .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
+          .maybeSingle();
+        if (empErr) {
+          mostrarNotificacion(`ERROR DB: ${empErr.message}`, 'error');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
+        if (emp) {
+          registro = { ...emp, tipo: 'empleado' };
+        }
+      } else if (tipo === 'F') {
+        const { data: flota, error: flotaErr } = await supabase
+          .from('flota_perfil')
+          .select('*')
+          .eq('documento_id', inputBusqueda)
+          .maybeSingle();
+        if (flotaErr) {
+          mostrarNotificacion(`ERROR DB: ${flotaErr.message}`, 'error');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
+        if (flota) {
+          registro = { ...flota, tipo: 'flota' };
+        }
       }
     }
 
@@ -658,7 +672,6 @@ export default function SupervisorPage() {
         setAnimar(false);
         return;
       }
-      // Para flota, el PIN secreto está en registro.pin_secreto
       if (registro.tipo === 'flota' && String(registro.pin_secreto) !== String(pinEmpleado)) {
         mostrarNotificacion('PIN CHOFER INCORRECTO', 'error');
         setAnimar(false);
@@ -800,16 +813,13 @@ export default function SupervisorPage() {
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
         } else {
           // SALIDA de flota: necesitamos cant_carga y observacion
-          // Si estamos en modo automático y no se han ingresado, activamos el estado de flotaSalida
           if (!flotaSalida.activo) {
             setFlotaSalida(prev => ({ ...prev, activo: true }));
             setAnimar(false);
-            // Enfocar campo de carga
             setTimeout(() => cargaRef.current?.focus(), 100);
-            return; // Salimos para esperar los datos
+            return;
           }
 
-          // Ya tenemos los datos, procedemos
           const { data: accesoActivo } = await supabase
             .from('flota_accesos')
             .select('*')
@@ -840,12 +850,12 @@ export default function SupervisorPage() {
         }
       }
 
-      // Limpiar y continuar
       setTimeout(() => {
         resetLectura();
         if (modo === 'manual') {
           setPasoManual(1);
           setQrData('');
+          setQrInfo(null);
           setPinEmpleado('');
           setPinAutorizador('');
           setTimeout(() => documentoRef.current?.focus(), 100);
@@ -865,6 +875,7 @@ export default function SupervisorPage() {
   // --------------------------------------------------------
   const resetLectura = () => {
     setQrData('');
+    setQrInfo(null);
     setLecturaLista(false);
     setPinEmpleado('');
     setPinAutorizador('');
@@ -985,6 +996,7 @@ export default function SupervisorPage() {
                             if (e.key === 'Enter') {
                               const info = procesarQR((e.target as any).value);
                               if (info) {
+                                setQrInfo(info);
                                 setQrData(info.docId);
                                 setLecturaLista(true);
                               }
