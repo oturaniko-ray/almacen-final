@@ -6,6 +6,52 @@ import * as XLSX from 'xlsx';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// Función para formatear rol
+const formatearRol = (rol: string): string => {
+  if (!rol) return 'USUARIO';
+  const rolLower = rol.toLowerCase();
+  switch (rolLower) {
+    case 'admin':
+    case 'administrador':
+      return 'ADMINISTRADOR';
+    case 'supervisor':
+      return 'SUPERVISOR';
+    case 'tecnico':
+      return 'TÉCNICO';
+    case 'empleado':
+      return 'EMPLEADO';
+    default:
+      return rol.toUpperCase();
+  }
+};
+
+// ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
+const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
+  const titulo = "REPORTE DE ACCESOS";
+  const palabras = titulo.split(' ');
+  const ultimaPalabra = palabras.pop();
+  const primerasPalabras = palabras.join(' ');
+
+  return (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{primerasPalabras} </span>
+        <span className="text-blue-700">{ultimaPalabra}</span>
+      </h1>
+      {usuario && (
+        <div className="mt-2">
+          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {formatearRol(usuario.rol)}
+          </span>
+          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function ReporteAccesosPage() {
   const [jornadas, setJornadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +67,6 @@ export default function ReporteAccesosPage() {
     if (sessionData) setUser(JSON.parse(sessionData));
     fetchJornadas();
     
-    // Suscripción en tiempo real
     const ch = supabase.channel('jornadas_real')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchJornadas())
       .subscribe();
@@ -30,7 +75,6 @@ export default function ReporteAccesosPage() {
 
   const fetchJornadas = async () => {
     setLoading(true);
-    // Realizamos un JOIN (Inner Selection) para traer el documento_id desde la tabla empleados
     const { data, error } = await supabase
       .from('jornadas')
       .select(`
@@ -70,35 +114,35 @@ export default function ReporteAccesosPage() {
     return matchNombre && matchDesde && matchHasta;
   });
 
+  const exportarExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(jornadasFiltradas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
+    XLSX.writeFile(wb, "Reporte_Asistencia.xlsx");
+  };
+
   let fechaActual = "";
 
   return (
     <main className="min-h-screen bg-[#050a14] p-8 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* HEADER / MEMBRETE */}
-        <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
-          <div>
-            <h1 className="text-2xl font-black uppercase italic text-white tracking-tighter">
-                REPORTE DE <span className="text-blue-500">ACCESOS</span>
-            </h1>
-            <div className="flex gap-4 mt-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                <span className="text-white">{user?.nombre || 'S/D'}</span>
-              </p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                <span className="text-blue-500">{user?.rol || 'S/D'} ({user?.nivel_acceso || '0'})</span>
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={() => {
-                const ws = XLSX.utils.json_to_sheet(jornadasFiltradas);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
-                XLSX.writeFile(wb, "Reporte_Asistencia.xlsx");
-            }} className="bg-emerald-600 px-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20">Exportar</button>
-            <button onClick={() => router.push('/reportes')} className="bg-red-600/20 text-red-500 px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all active:scale-95">Regresar</button>
+        {/* HEADER CON MEMBRETE Y BOTONES */}
+        <div className="relative w-full mb-8">
+          <MemebreteSuperior usuario={user} />
+          <div className="absolute top-0 right-0 flex gap-3 mt-6 mr-6">
+            <button
+              onClick={exportarExcel}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              EXPORTAR
+            </button>
+            <button
+              onClick={() => router.push('/reportes')}
+              className="bg-blue-800 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              REGRESAR
+            </button>
           </div>
         </div>
 
@@ -139,11 +183,9 @@ export default function ReporteAccesosPage() {
                     )}
                     <tr className="hover:bg-white/[0.01] border-b border-white/5 transition-colors">
                       <td className="p-6">
-                        {/* NOMBRE SIMPLE (SIN BOLD/ITALIC) */}
                         <p className="uppercase text-lg tracking-tighter text-white leading-none">
                           {j.nombre_empleado}
                         </p>
-                        {/* DOCUMENTO EXTRAÍDO DE RELACIÓN EN COLOR BLANCO */}
                         <p className="text-[10px] font-bold text-white mt-2 uppercase tracking-widest">
                           {j.empleados?.documento_id || j.documento_id || 'S/D'}
                         </p>

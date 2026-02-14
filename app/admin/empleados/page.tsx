@@ -13,69 +13,75 @@ const supabase = createClient(
 // COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
-  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
-    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-      <span className="text-white">GESTOR DE </span>
-      <span className="text-blue-700">EMPLEADOS</span>
-    </h1>
-    <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
-      MENÚ PRINCIPAL
-    </p>
-    {usuario && (
-      <div className="mt-2 pt-2 border-t border-white/10">
-        <span className="text-sm text-white normal-case">{usuario.nombre}</span>
-        <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">
-          {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-            ? 'Administración'
-            : usuario.rol?.toUpperCase() || 'Administrador'}
-        </span>
-        <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
-      </div>
-    )}
-  </div>
-);
+// Función para mostrar el rol en mayúsculas y con ortografía correcta
+const formatearRol = (rol: string): string => {
+  if (!rol) return 'USUARIO';
+  const rolLower = rol.toLowerCase();
+  switch (rolLower) {
+    case 'admin':
+    case 'administrador':
+      return 'ADMINISTRADOR';
+    case 'supervisor':
+      return 'SUPERVISOR';
+    case 'tecnico':
+      return 'TÉCNICO';
+    case 'empleado':
+      return 'EMPLEADO';
+    default:
+      return rol.toUpperCase();
+  }
+};
 
-// ----- BOTÓN DE ACCIÓN -----
-const BotonAccion = ({
-  texto,
+// ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
+const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
+  const titulo = "GESTOR DE EMPLEADOS";
+  const palabras = titulo.split(' ');
+  const ultimaPalabra = palabras.pop();
+  const primerasPalabras = palabras.join(' ');
+
+  return (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{primerasPalabras} </span>
+        <span className="text-blue-700">{ultimaPalabra}</span>
+      </h1>
+      {usuario && (
+        <div className="mt-2">
+          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {formatearRol(usuario.rol)}
+          </span>
+          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ----- BOTÓN DE ACCIÓN (para cancelar y confirmar) -----
+const BotonIcono = ({
   icono,
   onClick,
   color = 'bg-blue-600',
   disabled = false,
-  loading = false,
-  fullWidth = true,
-  className = '',
+  type = 'button',
 }: {
-  texto: string;
-  icono?: string;
+  icono: string;
   onClick: () => void;
   color?: string;
   disabled?: boolean;
-  loading?: boolean;
-  fullWidth?: boolean;
-  className?: string;
+  type?: 'button' | 'submit';
 }) => (
   <button
+    type={type}
     onClick={onClick}
-    disabled={disabled || loading}
-    className={`${fullWidth ? 'w-full' : ''} ${color} p-2 rounded-xl border border-white/5 
-      active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 
-      disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider
-      ${className}`}
+    disabled={disabled}
+    className={`w-10 h-10 ${color} rounded-xl border border-white/5 
+      active:scale-95 transition-transform shadow-lg flex items-center justify-center 
+      disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl`}
   >
-    {icono && <span className="text-lg">{icono}</span>}
-    {loading ? (
-      <span className="flex items-center gap-2">
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
-      </span>
-    ) : (
-      texto
-    )}
+    {icono}
   </button>
 );
 
@@ -140,22 +146,6 @@ const CampoEntrada = ({
     </div>
   );
 };
-
-// ----- FOOTER (VOLVER AL SELECTOR) -----
-const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright 2026
-    </p>
-    <button
-      type="button"
-      onClick={() => router.push('/admin')}
-      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
-    >
-      <span className="text-lg">←</span> VOLVER AL SELECTOR
-    </button>
-  </div>
-);
 
 // ------------------------------------------------------------
 // FUNCIÓN PARA ENVIAR CORREO (EMPLEADOS)
@@ -468,14 +458,32 @@ export default function GestionEmpleados() {
           </div>
         )}
 
-        {/* CONTENEDOR STICKY (membrete + formulario + búsqueda) */}
-        <div className="sticky top-0 z-40 bg-black pt-2 pb-4 space-y-4">
+        {/* HEADER CON MEMBRETE Y BOTONES */}
+        <div className="relative w-full mb-6">
           <MemebreteSuperior usuario={user} />
+          <div className="absolute top-0 right-0 flex gap-3 mt-6 mr-6">
+            <button
+              onClick={exportarExcel}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              EXPORTAR
+            </button>
+            <button
+              onClick={() => router.push('/admin')}
+              className="bg-blue-800 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              REGRESAR
+            </button>
+          </div>
+        </div>
 
+        {/* CONTENEDOR STICKY (formulario + búsqueda) */}
+        <div className="sticky top-0 z-40 bg-black pt-2 pb-4 space-y-4">
           {/* FORMULARIO */}
           <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
             <form onSubmit={handleGuardar} className="flex flex-col gap-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-3">
+                {/* Campos principales */}
                 <CampoEntrada
                   label="NOMBRE"
                   placeholder="Nombre completo"
@@ -483,6 +491,7 @@ export default function GestionEmpleados() {
                   onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
                   required
                   autoFocus
+                  className="lg:col-span-1"
                 />
                 <CampoEntrada
                   label="DOCUMENTO"
@@ -491,6 +500,7 @@ export default function GestionEmpleados() {
                   onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                   required
                   uppercase
+                  className="lg:col-span-1"
                 />
                 <CampoEntrada
                   label="EMAIL"
@@ -499,8 +509,11 @@ export default function GestionEmpleados() {
                   value={nuevo.email}
                   onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
                   required
+                  className="lg:col-span-1"
                 />
-                <div className="flex flex-col gap-1">
+
+                {/* Rol */}
+                <div className="flex flex-col gap-1 lg:col-span-1">
                   <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ROL</label>
                   <select
                     value={nuevo.rol}
@@ -526,7 +539,9 @@ export default function GestionEmpleados() {
                     <option value="tecnico">TÉCNICO</option>
                   </select>
                 </div>
-                <div className="flex flex-col gap-1">
+
+                {/* Nivel */}
+                <div className="flex flex-col gap-1 lg:col-span-1">
                   <label className="text-[8px] font-black text-slate-500 uppercase ml-2">NIVEL</label>
                   <select
                     value={nuevo.nivel_acceso}
@@ -538,7 +553,9 @@ export default function GestionEmpleados() {
                     ))}
                   </select>
                 </div>
-                <div className="flex flex-col gap-1">
+
+                {/* Reportes */}
+                <div className="flex flex-col gap-1 lg:col-span-1">
                   <label className="text-[8px] font-black text-slate-500 uppercase ml-2">REPORTES</label>
                   <select
                     value={nuevo.permiso_reportes ? 'si' : 'no'}
@@ -549,6 +566,8 @@ export default function GestionEmpleados() {
                     <option value="si">SÍ</option>
                   </select>
                 </div>
+
+                {/* PIN (solo en edición) */}
                 {editando && (
                   <CampoEntrada
                     label="PIN ASIGNADO"
@@ -556,35 +575,32 @@ export default function GestionEmpleados() {
                     disabled
                     textCentered
                     uppercase
-                    className="border-blue-500/30"
+                    className="border-blue-500/30 lg:col-span-1"
                   />
                 )}
-              </div>
-              <div className="flex justify-end gap-2 mt-1">
-                <BotonAccion
-                  texto="CANCELAR"
-                  icono="✕"
-                  color="bg-slate-600"
-                  onClick={cancelarEdicion}
-                  fullWidth={false}
-                  className="px-4 py-2"
-                />
-                <BotonAccion
-                  texto={editando ? 'ACTUALIZAR' : 'CREAR EMPLEADO'}
-                  icono={editando ? '✏️' : '➕'}
-                  color={editando ? 'bg-amber-600' : 'bg-emerald-600'}
-                  onClick={() => {}}
-                  disabled={loading}
-                  loading={loading}
-                  fullWidth={false}
-                  className="px-4 py-2"
-                />
+
+                {/* Botones de acción */}
+                <div className="flex items-end gap-2 lg:col-span-2 justify-end">
+                  <BotonIcono
+                    icono="🚫"
+                    onClick={cancelarEdicion}
+                    color="bg-rose-600"
+                    type="button"
+                  />
+                  <BotonIcono
+                    icono="✅"
+                    onClick={() => {}}
+                    color="bg-emerald-600"
+                    type="submit"
+                    disabled={loading}
+                  />
+                </div>
               </div>
             </form>
           </div>
 
-          {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* BARRA DE BÚSQUEDA */}
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
               <span className="text-white/40 ml-3">🔍</span>
               <input
@@ -603,17 +619,10 @@ export default function GestionEmpleados() {
                 </button>
               )}
             </div>
-            <BotonAccion
-              texto="EXPORTAR EXCEL"
-              icono="📊"
-              color="bg-emerald-600"
-              onClick={exportarExcel}
-              fullWidth={false}
-            />
           </div>
         </div>
 
-        {/* TABLA CON SCROLL – ENCABEZADO FIJO MEJORADO */}
+        {/* TABLA CON SCROLL Y ENCABEZADO FIJO */}
         <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -728,8 +737,6 @@ export default function GestionEmpleados() {
             </div>
           )}
         </div>
-
-        <Footer router={router} />
       </div>
 
       <style jsx global>{`

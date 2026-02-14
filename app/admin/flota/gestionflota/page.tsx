@@ -13,30 +13,51 @@ const supabase = createClient(
 // COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
-  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
-    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-      <span className="text-white">GESTOR DE </span>
-      <span className="text-blue-700">FLOTA</span>
-    </h1>
-    <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
-      MENÚ PRINCIPAL
-    </p>
-    {usuario && (
-      <div className="mt-2 pt-2 border-t border-white/10">
-        <span className="text-sm text-white normal-case">{usuario.nombre}</span>
-        <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">
-          {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-            ? 'Administración'
-            : usuario.rol?.toUpperCase() || 'Administrador'}
-        </span>
-        <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
-      </div>
-    )}
-  </div>
-);
+// Función para formatear rol
+const formatearRol = (rol: string): string => {
+  if (!rol) return 'USUARIO';
+  const rolLower = rol.toLowerCase();
+  switch (rolLower) {
+    case 'admin':
+    case 'administrador':
+      return 'ADMINISTRADOR';
+    case 'supervisor':
+      return 'SUPERVISOR';
+    case 'tecnico':
+      return 'TÉCNICO';
+    case 'empleado':
+      return 'EMPLEADO';
+    default:
+      return rol.toUpperCase();
+  }
+};
+
+// ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
+const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
+  const titulo = "GESTOR DE FLOTA";
+  const palabras = titulo.split(' ');
+  const ultimaPalabra = palabras.pop();
+  const primerasPalabras = palabras.join(' ');
+
+  return (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{primerasPalabras} </span>
+        <span className="text-blue-700">{ultimaPalabra}</span>
+      </h1>
+      {usuario && (
+        <div className="mt-2">
+          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {formatearRol(usuario.rol)}
+          </span>
+          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ----- BOTÓN DE ACCIÓN -----
 const BotonAccion = ({
@@ -76,6 +97,32 @@ const BotonAccion = ({
     ) : (
       texto
     )}
+  </button>
+);
+
+// ----- BOTÓN ICONO (para cancelar y confirmar) -----
+const BotonIcono = ({
+  icono,
+  onClick,
+  color = 'bg-blue-600',
+  disabled = false,
+  type = 'button',
+}: {
+  icono: string;
+  onClick: () => void;
+  color?: string;
+  disabled?: boolean;
+  type?: 'button' | 'submit';
+}) => (
+  <button
+    type={type}
+    onClick={onClick}
+    disabled={disabled}
+    className={`w-10 h-10 ${color} rounded-xl border border-white/5 
+      active:scale-95 transition-transform shadow-lg flex items-center justify-center 
+      disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl`}
+  >
+    {icono}
   </button>
 );
 
@@ -141,19 +188,37 @@ const CampoEntrada = ({
   );
 };
 
-// ----- FOOTER (VOLVER AL SELECTOR) -----
-const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright 2026
-    </p>
-    <button
-      type="button"
-      onClick={() => router.push('/admin/flota')}
-      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
+// ----- SELECT (para choferes y rutas) -----
+const SelectOpcion = ({
+  value,
+  onChange,
+  options,
+  label,
+  className = '',
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  options: number[];
+  label: string;
+  className?: string;
+}) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
+      {label}
+    </label>
+    <select
+      value={value}
+      onChange={(e) => onChange(parseInt(e.target.value))}
+      className={`w-full bg-white/5 border border-white/10 p-2.5 rounded-xl 
+        text-[11px] font-bold text-white outline-none focus:border-blue-500/50
+        ${className}`}
     >
-      <span className="text-lg">←</span> VOLVER AL SELECTOR
-    </button>
+      {options.map((opt) => (
+        <option key={opt} value={opt} className="bg-gray-800 text-white">
+          {opt}
+        </option>
+      ))}
+    </select>
   </div>
 );
 
@@ -210,7 +275,6 @@ export default function GestionFlota() {
     nombre_flota: '',
     cant_choferes: 1,
     cant_rutas: 0,
-    // El estado activo ya no está en el formulario
   };
   const [nuevo, setNuevo] = useState(estadoInicial);
 
@@ -258,7 +322,7 @@ export default function GestionFlota() {
   }, [fetchPerfiles, router]);
 
   // ------------------------------------------------------------
-  // VALIDACIONES DE DUPLICADOS (documento_id único)
+  // VALIDACIONES DE DUPLICADOS
   // ------------------------------------------------------------
   const validarDuplicados = async (): Promise<boolean> => {
     const { data: docExistente, error: errDoc } = await supabase
@@ -277,7 +341,6 @@ export default function GestionFlota() {
       return false;
     }
 
-    // También validar email único (opcional)
     if (nuevo.email) {
       const { data: emailExistente, error: errEmail } = await supabase
         .from('flota_perfil')
@@ -300,7 +363,7 @@ export default function GestionFlota() {
   };
 
   // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR) CON ENVÍO DE CORREO (opcional)
+  // GUARDAR (CREAR O ACTUALIZAR)
   // ------------------------------------------------------------
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -323,7 +386,6 @@ export default function GestionFlota() {
             nombre_flota: nuevo.nombre_flota,
             cant_choferes: nuevo.cant_choferes,
             cant_rutas: nuevo.cant_rutas,
-            // No se actualiza activo desde el formulario
           })
           .eq('id', editando.id);
         if (error) throw error;
@@ -345,7 +407,7 @@ export default function GestionFlota() {
               cant_choferes: nuevo.cant_choferes,
               cant_rutas: nuevo.cant_rutas,
               pin_secreto: pinGenerado,
-              activo: true, // Por defecto activo al crear
+              activo: true,
               fecha_creacion: new Date().toISOString(),
             },
           ])
@@ -354,7 +416,6 @@ export default function GestionFlota() {
 
         if (error) throw error;
 
-        // Enviar correo si hay email (opcional, descomentar si se desea)
         if (nuevo.email) {
           const resultado = await enviarCorreoFlota(nuevoPerfil);
           if (resultado.success) {
@@ -427,7 +488,6 @@ export default function GestionFlota() {
         .from('flota_perfil')
         .update({ activo: !perfil.activo })
         .eq('id', perfil.id);
-      // La suscripción en tiempo real actualizará la lista
     } catch (error: any) {
       mostrarNotificacion(`Error al cambiar estado: ${error.message}`, 'error');
     }
@@ -470,7 +530,6 @@ export default function GestionFlota() {
   return (
     <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN FLOTANTE */}
         {notificacion.tipo && (
           <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center border-2 ${
             notificacion.tipo === 'exito' ? 'bg-emerald-500 border-emerald-400' :
@@ -484,29 +543,48 @@ export default function GestionFlota() {
           </div>
         )}
 
-        {/* CONTENEDOR STICKY (membrete + formulario + búsqueda) */}
-        <div className="sticky top-0 z-40 bg-black pt-2 pb-4 space-y-4">
+        {/* HEADER CON MEMBRETE Y BOTONES */}
+        <div className="relative w-full mb-6">
           <MemebreteSuperior usuario={user} />
+          <div className="absolute top-0 right-0 flex gap-3 mt-6 mr-6">
+            <button
+              onClick={exportarExcel}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              EXPORTAR
+            </button>
+            <button
+              onClick={() => router.push('/admin/flota')}
+              className="bg-blue-800 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              REGRESAR
+            </button>
+          </div>
+        </div>
 
-          {/* FORMULARIO (SIN ESTADO) */}
+        {/* CONTENEDOR STICKY (formulario + búsqueda) */}
+        <div className="sticky top-0 z-40 bg-black pt-2 pb-4 space-y-4">
+          {/* FORMULARIO */}
           <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
             <form onSubmit={handleGuardar} className="flex flex-col gap-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-3">
                 <CampoEntrada
-                  label="NOMBRE COMPLETO"
+                  label="NOMBRE"
                   placeholder="Nombre completo"
                   value={nuevo.nombre_completo}
                   onChange={(e) => setNuevo({ ...nuevo, nombre_completo: e.target.value })}
                   required
                   autoFocus
+                  className="lg:col-span-1"
                 />
                 <CampoEntrada
-                  label="DOCUMENTO ID"
+                  label="DOCUMENTO"
                   placeholder="DNI / NIE"
                   value={nuevo.documento_id}
                   onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                   required
                   uppercase
+                  className="lg:col-span-1"
                 />
                 <CampoEntrada
                   label="EMAIL"
@@ -514,28 +592,28 @@ export default function GestionFlota() {
                   type="email"
                   value={nuevo.email}
                   onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
+                  className="lg:col-span-1"
                 />
                 <CampoEntrada
-                  label="NOMBRE FLOTA"
-                  placeholder="Empresa / Unión"
+                  label="FLOTA"
+                  placeholder="Empresa"
                   value={nuevo.nombre_flota}
                   onChange={(e) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
+                  className="lg:col-span-1"
                 />
-                <CampoEntrada
-                  type="number"
+                <SelectOpcion
                   label="CHOFERES"
-                  placeholder="1"
-                  value={String(nuevo.cant_choferes)}
-                  onChange={(e) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 1 })}
-                  textCentered
+                  value={nuevo.cant_choferes}
+                  onChange={(val) => setNuevo({ ...nuevo, cant_choferes: val })}
+                  options={Array.from({ length: 10 }, (_, i) => i + 1)}
+                  className="lg:col-span-1"
                 />
-                <CampoEntrada
-                  type="number"
+                <SelectOpcion
                   label="RUTAS"
-                  placeholder="0"
-                  value={String(nuevo.cant_rutas)}
-                  onChange={(e) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
-                  textCentered
+                  value={nuevo.cant_rutas}
+                  onChange={(val) => setNuevo({ ...nuevo, cant_rutas: val })}
+                  options={Array.from({ length: 21 }, (_, i) => i)}
+                  className="lg:col-span-1"
                 />
                 {editando && (
                   <CampoEntrada
@@ -544,35 +622,30 @@ export default function GestionFlota() {
                     disabled
                     textCentered
                     uppercase
-                    className="border-blue-500/30"
+                    className="border-blue-500/30 lg:col-span-1"
                   />
                 )}
-              </div>
-              <div className="flex justify-end gap-2 mt-1">
-                <BotonAccion
-                  texto="CANCELAR"
-                  icono="✕"
-                  color="bg-slate-600"
-                  onClick={cancelarEdicion}
-                  fullWidth={false}
-                  className="px-4 py-2"
-                />
-                <BotonAccion
-                  texto={editando ? 'ACTUALIZAR' : 'CREAR PERFIL'}
-                  icono={editando ? '✏️' : '➕'}
-                  color={editando ? 'bg-amber-600' : 'bg-emerald-600'}
-                  onClick={() => {}}
-                  disabled={loading}
-                  loading={loading}
-                  fullWidth={false}
-                  className="px-4 py-2"
-                />
+                <div className="flex items-end gap-2 lg:col-span-2 justify-end">
+                  <BotonIcono
+                    icono="🚫"
+                    onClick={cancelarEdicion}
+                    color="bg-rose-600"
+                    type="button"
+                  />
+                  <BotonIcono
+                    icono="✅"
+                    onClick={() => {}}
+                    color="bg-emerald-600"
+                    type="submit"
+                    disabled={loading}
+                  />
+                </div>
               </div>
             </form>
           </div>
 
-          {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* BARRA DE BÚSQUEDA */}
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
               <span className="text-white/40 ml-3">🔍</span>
               <input
@@ -591,13 +664,6 @@ export default function GestionFlota() {
                 </button>
               )}
             </div>
-            <BotonAccion
-              texto="EXPORTAR EXCEL"
-              icono="📊"
-              color="bg-emerald-600"
-              onClick={exportarExcel}
-              fullWidth={false}
-            />
           </div>
         </div>
 
@@ -693,8 +759,6 @@ export default function GestionFlota() {
             </div>
           )}
         </div>
-
-        <Footer router={router} />
       </div>
 
       <style jsx global>{`

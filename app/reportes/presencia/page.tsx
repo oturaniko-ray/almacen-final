@@ -6,6 +6,52 @@ import * as XLSX from 'xlsx';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
+// Función para formatear rol
+const formatearRol = (rol: string): string => {
+  if (!rol) return 'USUARIO';
+  const rolLower = rol.toLowerCase();
+  switch (rolLower) {
+    case 'admin':
+    case 'administrador':
+      return 'ADMINISTRADOR';
+    case 'supervisor':
+      return 'SUPERVISOR';
+    case 'tecnico':
+      return 'TÉCNICO';
+    case 'empleado':
+      return 'EMPLEADO';
+    default:
+      return rol.toUpperCase();
+  }
+};
+
+// ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
+const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
+  const titulo = "MONITOR DE PRESENCIA";
+  const palabras = titulo.split(' ');
+  const ultimaPalabra = palabras.pop();
+  const primerasPalabras = palabras.join(' ');
+
+  return (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">{primerasPalabras} </span>
+        <span className="text-blue-700">{ultimaPalabra}</span>
+      </h1>
+      {usuario && (
+        <div className="mt-2">
+          <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {formatearRol(usuario.rol)}
+          </span>
+          <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function PresenciaPage() {
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [ahora, setAhora] = useState(new Date());
@@ -15,7 +61,6 @@ export default function PresenciaPage() {
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
-    // 1. Sincronización de configuración (Texto a Número)
     const { data: config } = await supabase.from('sistema_config').select('valor').eq('clave', 'maximo_labor').single();
     if (config) {
         setMaxLabor(parseFloat(config.valor) || 0);
@@ -39,7 +84,6 @@ export default function PresenciaPage() {
     fetchData();
     const interval = setInterval(() => setAhora(new Date()), 1000);
 
-    // AJUSTE SENIOR: Suscripción a cambios de configuración para tiempo real total
     const channel = supabase.channel('presencia_v9')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' }, () => fetchData())
@@ -100,11 +144,9 @@ export default function PresenciaPage() {
       });
   };
 
-  // Datos filtrados para la tab actual
   const presentes = useMemo(() => filtrarYOrdenar(true, tabActiva), [empleados, tabActiva]);
   const ausentes = useMemo(() => filtrarYOrdenar(false, tabActiva), [empleados, tabActiva]);
 
-  // Cantidad de excedidos para la métrica de atención
   const cantidadExcedidos = presentes.filter(e => {
     const ms = calcularTiempoRaw(e.ultimaJornada?.hora_entrada);
     return maxLabor > 0 && ms > maxLabor;
@@ -114,23 +156,22 @@ export default function PresenciaPage() {
     <main className="min-h-screen bg-[#050a14] p-4 text-white font-sans">
       <div className="max-w-[100%] mx-auto">
         
-        {/* HEADER */}
-        <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
-          <div>
-            <h2 className="text-xl font-black uppercase italic text-white">MONITOR DE <span className="text-blue-500">PRESENCIA</span></h2>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{user?.nombre} <span className="text-blue-500">[{user?.rol}]</span> ({user?.nivel_acceso})</p>
-          </div>
-          
-          <div className="text-center">
-            <p className="text-3xl font-black font-mono leading-none text-white">{ahora.toLocaleTimeString([], { hour12: false })}</p>
-            <p className="text-[8px] font-black uppercase text-blue-500 tracking-[0.2em] mt-1">
-              {ahora.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <button onClick={exportarExcel} className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-emerald-600/30">📊 EXPORTAR</button>
-            <button onClick={() => router.push('/reportes')} className="bg-slate-800 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase border border-white/10 hover:bg-slate-700">REGRESAR</button>
+        {/* HEADER CON MEMBRETE Y BOTONES */}
+        <div className="relative w-full mb-6">
+          <MemebreteSuperior usuario={user} />
+          <div className="absolute top-0 right-0 flex gap-3 mt-6 mr-6">
+            <button
+              onClick={exportarExcel}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              EXPORTAR
+            </button>
+            <button
+              onClick={() => router.push('/reportes')}
+              className="bg-blue-800 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            >
+              REGRESAR
+            </button>
           </div>
         </div>
 
