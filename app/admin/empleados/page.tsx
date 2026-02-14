@@ -15,7 +15,7 @@ const supabase = createClient(
 
 // ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
-  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
+  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
     <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
       <span className="text-white">GESTOR DE </span>
       <span className="text-blue-700">EMPLEADOS</span>
@@ -148,6 +148,7 @@ const Footer = ({ router }: { router: any }) => (
       @Copyright 2026
     </p>
     <button
+      type="button"
       onClick={() => router.push('/admin')}
       className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
     >
@@ -157,17 +158,18 @@ const Footer = ({ router }: { router: any }) => (
 );
 
 // ------------------------------------------------------------
-// FUNCIÓN PARA ENVIAR CORREO (REAL)
+// FUNCIÓN PARA ENVIAR CORREO (EMPLEADOS)
 // ------------------------------------------------------------
 const enviarCorreoEmpleado = async (
   empleado: any,
-  to?: string // opcional, para reenvío a otra dirección
+  to?: string
 ) => {
   try {
     const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        tipo: 'empleado',
         nombre: empleado.nombre,
         documento_id: empleado.documento_id,
         email: empleado.email,
@@ -212,7 +214,7 @@ export default function GestionEmpleados() {
   const [nuevo, setNuevo] = useState(estadoInicial);
 
   // ------------------------------------------------------------
-  // MOSTRAR NOTIFICACIÓN UNIFICADA
+  // MOSTRAR NOTIFICACIÓN
   // ------------------------------------------------------------
   const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
     setNotificacion({ mensaje, tipo });
@@ -238,7 +240,7 @@ export default function GestionEmpleados() {
     }
     const currentUser = JSON.parse(sessionData);
     if (Number(currentUser.nivel_acceso) < 4) {
-      router.replace('/');
+      router.replace('/admin');
       return;
     }
     setUser(currentUser);
@@ -452,7 +454,7 @@ export default function GestionEmpleados() {
   return (
     <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN FLOTANTE UNIFICADA */}
+        {/* NOTIFICACIÓN FLOTANTE */}
         {notificacion.tipo && (
           <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center border-2 ${
             notificacion.tipo === 'exito' ? 'bg-emerald-500 border-emerald-400' :
@@ -466,10 +468,11 @@ export default function GestionEmpleados() {
           </div>
         )}
 
-        <MemebreteSuperior usuario={user} />
+        {/* CONTENEDOR STICKY (membrete + formulario + búsqueda) */}
+        <div className="sticky top-0 z-40 bg-black pt-2 pb-4 space-y-4">
+          <MemebreteSuperior usuario={user} />
 
-        {/* FORMULARIO STICKY */}
-        <div className="sticky top-0 z-40 bg-black pt-2 pb-4">
+          {/* FORMULARIO */}
           <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
             <form onSubmit={handleGuardar} className="flex flex-col gap-3">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
@@ -579,38 +582,38 @@ export default function GestionEmpleados() {
               </div>
             </form>
           </div>
-        </div>
 
-        {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
-            <span className="text-white/40 ml-3">🔍</span>
-            <input
-              type="text"
-              placeholder="BUSCAR EMPLEADO..."
-              className="w-full bg-transparent px-3 py-2 text-[11px] font-bold uppercase outline-none text-white"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
+          {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
+              <span className="text-white/40 ml-3">🔍</span>
+              <input
+                type="text"
+                placeholder="BUSCAR EMPLEADO..."
+                className="w-full bg-transparent px-3 py-2 text-[11px] font-bold uppercase outline-none text-white"
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+              />
+              {filtro && (
+                <button
+                  onClick={() => setFiltro('')}
+                  className="mr-2 text-white/60 hover:text-white transition-colors"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <BotonAccion
+              texto="EXPORTAR EXCEL"
+              icono="📊"
+              color="bg-emerald-600"
+              onClick={exportarExcel}
+              fullWidth={false}
             />
-            {filtro && (
-              <button
-                onClick={() => setFiltro('')}
-                className="mr-2 text-white/60 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-            )}
           </div>
-          <BotonAccion
-            texto="EXPORTAR EXCEL"
-            icono="📊"
-            color="bg-emerald-600"
-            onClick={exportarExcel}
-            fullWidth={false}
-          />
         </div>
 
-        {/* TABLA CON SCROLL Y BOTÓN REENVIAR */}
+        {/* TABLA CON SCROLL */}
         <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -747,9 +750,4 @@ export default function GestionEmpleados() {
       `}</style>
     </main>
   );
-}
-
-// Función auxiliar fuera del componente
-function obtenerOpcionesNivel() {
-  return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 }

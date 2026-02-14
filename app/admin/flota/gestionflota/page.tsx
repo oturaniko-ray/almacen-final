@@ -161,14 +161,15 @@ const CampoEntrada = ({
   );
 };
 
-// ----- FOOTER (VOLVER AL SELECTOR) -----
+// ----- FOOTER (VOLVER AL SELECTOR) – CORREGIDO -----
 const Footer = ({ router }: { router: any }) => (
   <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
     <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
       @Copyright 2026
     </p>
     <button
-      onClick={() => router.push('/admin/flota')}
+      type="button" // ← explícito para evitar envío de formulario
+      onClick={() => router.replace('/admin/flota')} // ← reemplaza la ruta actual
       className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
     >
       <span className="text-lg">←</span> VOLVER AL SELECTOR
@@ -181,7 +182,7 @@ const Footer = ({ router }: { router: any }) => (
 // ------------------------------------------------------------
 const enviarCorreoFlota = async (
   perfil: any,
-  to?: string // opcional, para reenvío a otra dirección
+  to?: string
 ) => {
   try {
     const response = await fetch('/api/send-email', {
@@ -195,7 +196,7 @@ const enviarCorreoFlota = async (
         cant_choferes: perfil.cant_choferes,
         cant_rutas: perfil.cant_rutas,
         pin_secreto: perfil.pin_secreto,
-        email: perfil.email, // Si la tabla flota_perfil tiene email, lo usamos; si no, podríamos no enviar o pedir un campo email
+        email: perfil.email,
         to: to || perfil.email,
       }),
     });
