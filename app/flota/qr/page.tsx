@@ -23,7 +23,6 @@ function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
-// ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ conductor }: { conductor?: any }) => (
   <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl mx-auto">
     <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
@@ -41,7 +40,6 @@ const MemebreteSuperior = ({ conductor }: { conductor?: any }) => (
   </div>
 );
 
-// ----- FOOTER (CERRAR SESIÓN) -----
 const Footer = ({ router }: { router: any }) => (
   <div className="w-full max-w-sm mt-8 pt-4 text-center">
     <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
@@ -79,7 +77,6 @@ export default function QrConductorPage() {
   const ultimaActividadRef = useRef<number>(Date.now());
   const router = useRouter();
 
-  // Verificar sesión de flota
   useEffect(() => {
     const sessionData = localStorage.getItem('flota_session');
     if (!sessionData) {
@@ -89,39 +86,6 @@ export default function QrConductorPage() {
     setConductor(JSON.parse(sessionData));
   }, [router]);
 
-  // Control de inactividad
-  useEffect(() => {
-    const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
-    const reiniciarTemporizador = () => {
-      ultimaActividadRef.current = Date.now();
-      clearTimeout(window.inactividadConductorTimeout);
-      window.inactividadConductorTimeout = setTimeout(() => {
-        localStorage.removeItem('flota_session');
-        router.push('/flota/login');
-      }, tiempoLimite);
-    };
-    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    eventos.forEach((e) => document.addEventListener(e, reiniciarTemporizador));
-    reiniciarTemporizador();
-    return () => {
-      eventos.forEach((e) => document.removeEventListener(e, reiniciarTemporizador));
-      clearTimeout(window.inactividadConductorTimeout);
-    };
-  }, [config.timer_inactividad, router]);
-
-  // Contador regresivo
-  useEffect(() => {
-    if (!ubicacionOk) return;
-    const interval = setInterval(() => {
-      const tiempoTranscurrido = Date.now() - ultimaActividadRef.current;
-      const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
-      const restante = Math.max(0, tiempoLimite - tiempoTranscurrido);
-      setTiempoRestante(Math.floor(restante / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [ubicacionOk, config.timer_inactividad]);
-
-  // Cargar configuración
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -139,6 +103,37 @@ export default function QrConductorPage() {
     };
     fetchConfig();
   }, []);
+
+  useEffect(() => {
+    if (!conductor) return;
+    const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
+    const reiniciarTemporizador = () => {
+      ultimaActividadRef.current = Date.now();
+      clearTimeout(window.inactividadConductorTimeout);
+      window.inactividadConductorTimeout = setTimeout(() => {
+        localStorage.removeItem('flota_session');
+        router.push('/flota/login');
+      }, tiempoLimite);
+    };
+    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    eventos.forEach((e) => document.addEventListener(e, reiniciarTemporizador));
+    reiniciarTemporizador();
+    return () => {
+      eventos.forEach((e) => document.removeEventListener(e, reiniciarTemporizador));
+      clearTimeout(window.inactividadConductorTimeout);
+    };
+  }, [config.timer_inactividad, conductor, router]);
+
+  useEffect(() => {
+    if (!ubicacionOk || !conductor) return;
+    const interval = setInterval(() => {
+      const tiempoTranscurrido = Date.now() - ultimaActividadRef.current;
+      const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
+      const restante = Math.max(0, tiempoLimite - tiempoTranscurrido);
+      setTiempoRestante(Math.floor(restante / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [ubicacionOk, conductor, config.timer_inactividad]);
 
   const actualizarGPS = useCallback(() => {
     setMensajeFlash('Actualizando GPS');
@@ -162,19 +157,19 @@ export default function QrConductorPage() {
         }
       },
       (err) => {
-        setErrorGps('Error de señal GPS');
+        console.error('Error GPS:', err);
+        setErrorGps('Error de señal GPS. Asegúrese de tener permisos y señal.');
         setUbicacionOk(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [config]);
 
   useEffect(() => {
-    if (config.almacen_lat === 0) return;
+    if (config.almacen_lat === 0 || !conductor) return;
     actualizarGPS();
-  }, [config, actualizarGPS]);
+  }, [config, conductor, actualizarGPS]);
 
-  // Generar QR con prefijo F
   useEffect(() => {
     if (ubicacionOk && conductor) {
       const generateToken = () => {
@@ -193,7 +188,7 @@ export default function QrConductorPage() {
     return `${minutos}:${segs < 10 ? '0' : ''}${segs}`;
   };
 
-  if (!conductor) return null; // Esperando sesión
+  if (!conductor) return null;
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
