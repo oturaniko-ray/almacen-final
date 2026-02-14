@@ -177,6 +177,39 @@ const Footer = ({ router }: { router: any }) => (
 );
 
 // ------------------------------------------------------------
+// FUNCIÓN PARA ENVIAR CORREO (FLOTA)
+// ------------------------------------------------------------
+const enviarCorreoFlota = async (
+  perfil: any,
+  to?: string // opcional, para reenvío a otra dirección
+) => {
+  try {
+    const response = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipo: 'flota',
+        nombre_completo: perfil.nombre_completo,
+        documento_id: perfil.documento_id,
+        nombre_flota: perfil.nombre_flota || '',
+        cant_choferes: perfil.cant_choferes,
+        cant_rutas: perfil.cant_rutas,
+        pin_secreto: perfil.pin_secreto,
+        email: perfil.email, // Si la tabla flota_perfil tiene email, lo usamos; si no, podríamos no enviar o pedir un campo email
+        to: to || perfil.email,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Error al enviar correo');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error enviando correo:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ------------------------------------------------------------
 // COMPONENTE PRINCIPAL – GESTIÓN DE PERFILES DE FLOTA
 // ------------------------------------------------------------
 export default function GestionFlota() {
@@ -185,6 +218,7 @@ export default function GestionFlota() {
   const [editando, setEditando] = useState<any>(null);
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
+  const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const router = useRouter();
 
@@ -224,7 +258,6 @@ export default function GestionFlota() {
       return;
     }
     const currentUser = JSON.parse(sessionData);
-    // Nivel mínimo para gestión de flota: 5 (según reglas)
     if (Number(currentUser.nivel_acceso) < 5) {
       router.replace('/admin');
       return;
@@ -266,7 +299,7 @@ export default function GestionFlota() {
   };
 
   // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR)
+  // GUARDAR (CREAR O ACTUALIZAR) CON ENVÍO DE CORREO
   // ------------------------------------------------------------
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,7 +313,6 @@ export default function GestionFlota() {
       }
 
       if (editando) {
-        // --- ACTUALIZAR (no se regenera el PIN) ---
         const { error } = await supabase
           .from('flota_perfil')
           .update({
@@ -296,12 +328,11 @@ export default function GestionFlota() {
 
         mostrarNotificacion('Perfil actualizado correctamente.', 'exito');
       } else {
-        // --- CREAR NUEVO: generar PIN automáticamente ---
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_flota');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        const { error } = await supabase
+        const { data: nuevoPerfil, error } = await supabase
           .from('flota_perfil')
           .insert([
             {
@@ -314,9 +345,25 @@ export default function GestionFlota() {
               pin_secreto: pinGenerado,
               fecha_creacion: new Date().toISOString(),
             },
-          ]);
+          ])
+          .select()
+          .single();
+
         if (error) throw error;
 
+        // ENVIAR CORREO (si el perfil tiene email, se debe agregar a la tabla; por ahora asumimos que no, pero si lo tuviera, lo usaríamos)
+        // Si la tabla flota_perfil no tiene email, podríamos mostrar un modal para ingresarlo, o simplemente no enviar.
+        // Por simplicidad, asumimos que no enviamos automáticamente a menos que se agregue un campo email.
+        // Si quieres enviar, necesitas un campo email en la tabla. Si no, puedes omitir el envío o pedir el email en el formulario.
+        // Aquí lo dejamos comentado, pero si tienes campo email, descomenta y ajusta.
+        /*
+        const resultado = await enviarCorreoFlota(nuevoPerfil);
+        if (resultado.success) {
+          mostrarNotificacion('Perfil creado y correo enviado correctamente.', 'exito');
+        } else {
+          mostrarNotificacion(`Perfil creado, pero falló el envío del correo: ${resultado.error}`, 'advertencia');
+        }
+        */
         mostrarNotificacion('Perfil de flota creado correctamente.', 'exito');
       }
 
@@ -327,6 +374,29 @@ export default function GestionFlota() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ------------------------------------------------------------
+  // FUNCIÓN PARA REENVIAR CORREO (si se implementa)
+  // ------------------------------------------------------------
+  const handleReenviarCorreo = async (perfil: any) => {
+    // Si la tabla no tiene email, no se puede reenviar.
+    // Aquí podrías abrir un modal para pedir el email, o simplemente mostrar un mensaje.
+    // Por ahora, solo notificamos que no está implementado.
+    mostrarNotificacion('Función de correo no disponible (falta email en el perfil).', 'advertencia');
+    return;
+
+    // Si tuvieras email, descomenta:
+    /*
+    setEnviandoCorreo(perfil.id);
+    const resultado = await enviarCorreoFlota(perfil);
+    setEnviandoCorreo(null);
+    if (resultado.success) {
+      mostrarNotificacion('Correo reenviado correctamente.', 'exito');
+    } else {
+      mostrarNotificacion(`Error al reenviar correo: ${resultado.error}`, 'error');
+    }
+    */
   };
 
   // ------------------------------------------------------------
@@ -409,7 +479,6 @@ export default function GestionFlota() {
           <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
             <form onSubmit={handleGuardar} className="flex flex-col gap-3">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-                {/* NOMBRE COMPLETO */}
                 <CampoEntrada
                   label="NOMBRE COMPLETO"
                   placeholder="Nombre completo"
@@ -418,8 +487,6 @@ export default function GestionFlota() {
                   required
                   autoFocus
                 />
-
-                {/* DOCUMENTO ID */}
                 <CampoEntrada
                   label="DOCUMENTO ID"
                   placeholder="DNI / NIE"
@@ -428,16 +495,12 @@ export default function GestionFlota() {
                   required
                   uppercase
                 />
-
-                {/* NOMBRE FLOTA */}
                 <CampoEntrada
                   label="NOMBRE FLOTA"
                   placeholder="Empresa / Unión"
                   value={nuevo.nombre_flota}
                   onChange={(e) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
                 />
-
-                {/* CANTIDAD DE CHOFERES */}
                 <CampoEntrada
                   type="number"
                   label="CHOFERES"
@@ -446,8 +509,6 @@ export default function GestionFlota() {
                   onChange={(e) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 1 })}
                   textCentered
                 />
-
-                {/* CANTIDAD DE RUTAS */}
                 <CampoEntrada
                   type="number"
                   label="RUTAS"
@@ -456,8 +517,6 @@ export default function GestionFlota() {
                   onChange={(e) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
                   textCentered
                 />
-
-                {/* ESTADO (TOGGLE) */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
                   <BotonToggle
@@ -465,8 +524,6 @@ export default function GestionFlota() {
                     onChange={(activo) => setNuevo({ ...nuevo, activo })}
                   />
                 </div>
-
-                {/* PIN ASIGNADO (solo lectura en edición) */}
                 {editando && (
                   <CampoEntrada
                     label="PIN ASIGNADO"
@@ -478,8 +535,6 @@ export default function GestionFlota() {
                   />
                 )}
               </div>
-
-              {/* BOTONES DE ACCIÓN */}
               <div className="flex justify-end gap-2 mt-1">
                 <BotonAccion
                   texto="CANCELAR"
@@ -533,7 +588,7 @@ export default function GestionFlota() {
           />
         </div>
 
-        {/* TABLA CON SCROLL */}
+        {/* TABLA CON SCROLL Y BOTÓN REENVIAR (opcional) */}
         <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -602,6 +657,15 @@ export default function GestionFlota() {
                         className="text-blue-500 hover:text-white font-black text-[10px] uppercase px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
                       >
                         EDITAR
+                      </button>
+                    </td>
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={() => handleReenviarCorreo(perfil)}
+                        disabled={enviandoCorreo === perfil.id}
+                        className="text-emerald-500 hover:text-white font-black text-[10px] uppercase px-3 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
+                      >
+                        {enviandoCorreo === perfil.id ? '...' : '📧 REENVIAR'}
                       </button>
                     </td>
                   </tr>

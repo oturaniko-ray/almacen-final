@@ -61,7 +61,7 @@ const MemebreteSuperior = ({
   );
 };
 
-// ----- BOTÓN DE OPCIÓN CON DESCRIPCIÓN (CÍRCULO + EMOJI + TEXTO + DESCRIPCIÓN) -----
+// ----- BOTÓN DE OPCIÓN CON DESCRIPCIÓN -----
 const BotonOpcion = ({
   texto,
   descripcion,
@@ -217,7 +217,6 @@ const CampoEntrada = React.forwardRef<HTMLInputElement, {
     if (mayusculas) {
       newVal = newVal.toUpperCase();
     }
-    // Llamar al onChange original con el valor modificado
     onChange({
       ...e,
       target: { ...e.target, value: newVal }
@@ -284,7 +283,7 @@ const ContenedorPrincipal = ({
   );
 };
 
-// ----- FOOTER (SIN LÍNEA SUPERIOR) -----
+// ----- FOOTER (VOLVER AL SELECTOR) -----
 const Footer = ({ router }: { router: any }) => (
   <div className="w-full max-w-sm mt-8 pt-4 text-center">
     <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
@@ -815,7 +814,8 @@ export default function SupervisorPage() {
                           }}
                         />
                       )}
-                      <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
+                      {/* LÁSER MEJORADO: más grueso, con sombra intensa y animación suave */}
+                      <div className="absolute top-0 left-0 w-full h-1.5 bg-red-500 shadow-[0_0_20px_#ff0000,0_0_40px_#ff0000] animate-scan-laser-enhanced" />
                     </>
                   ) : (
                     <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>
@@ -830,7 +830,7 @@ export default function SupervisorPage() {
                     onChange={(e) => setPinAutorizador(e.target.value)}
                     onEnter={registrarAcceso}
                     autoFocus
-                    mayusculas={true}   // ← Forzar mayúsculas
+                    mayusculas={true}
                   />
                 )}
 
@@ -901,7 +901,7 @@ export default function SupervisorPage() {
                     }}
                     autoFocus
                     textoCentrado
-                    mayusculas={true}   // ← Forzar mayúsculas
+                    mayusculas={true}
                   />
                 )}
 
@@ -919,7 +919,7 @@ export default function SupervisorPage() {
                     }}
                     autoFocus
                     textoCentrado
-                    mayusculas={true}   // ← Forzar mayúsculas
+                    mayusculas={true}
                   />
                 )}
 
@@ -944,6 +944,30 @@ export default function SupervisorPage() {
           </div>
         )}
       </ContenedorPrincipal>
+
+      {/* ESTILOS GLOBALES – con láser mejorado */}
+      <style jsx global>{`
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        @keyframes flash-fast {
+          0%, 100% { opacity: 1; }
+          10%, 30%, 50% { opacity: 0; }
+          20%, 40%, 60% { opacity: 1; }
+        }
+        .animate-flash-fast {
+          animation: flash-fast 2s ease-in-out;
+        }
+        @keyframes scan-laser-enhanced {
+          0% { top: 0%; opacity: 1; }
+          50% { top: 100%; opacity: 1; box-shadow: 0 0 30px #ff0000, 0 0 60px #ff0000; }
+          100% { top: 0%; opacity: 1; }
+        }
+        .animate-scan-laser-enhanced {
+          animation: scan-laser-enhanced 2s ease-in-out infinite;
+        }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .animate-bounce { animation: bounce 1s infinite; }
+      `}</style>
     </main>
   );
 }

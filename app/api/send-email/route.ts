@@ -1,48 +1,73 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import BienvenidaEmpleado from '../../../emails/BienvenidaEmpleado';
+import BienvenidaFlota from '../../../emails/BienvenidaFlota';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
-    // Verificar API key
     if (!process.env.RESEND_API_KEY) {
-      console.error('❌ RESEND_API_KEY no definida');
       return NextResponse.json(
-        { error: 'Error de configuración del servidor: falta API key' },
+        { error: 'Error de configuración: falta API key' },
         { status: 500 }
       );
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const body = await request.json();
+    const { tipo } = body; // 'empleado' o 'flota'
 
-    const { nombre, documento_id, email, rol, nivel_acceso, pin_seguridad, to } = await request.json();
+    // ✅ Siempre usamos onboarding@resend.dev (no requiere verificación)
+    const from = 'onboarding@resend.dev';
 
-    if (!nombre || !email || !pin_seguridad) {
-      return NextResponse.json(
-        { error: 'Faltan datos requeridos' },
-        { status: 400 }
-      );
-    }
+    let reactComponent;
+    let subject;
+    let to;
 
-    // Determinar el remitente según el entorno
-    // En desarrollo: usar onboarding@resend.dev (sin verificación)
-    // En producción: usar el dominio verificado gestiontotal.com
-    const from = process.env.NODE_ENV === 'production'
-      ? 'sistema@gestiontotal.com'   // ← dominio verificado
-      : 'onboarding@resend.dev';
-
-    const { data, error } = await resend.emails.send({
-      from,
-      to: to || email,
-      subject: 'Bienvenido al Sistema - Credenciales de Acceso',
-      react: BienvenidaEmpleado({
+    if (tipo === 'flota') {
+      const { nombre_completo, documento_id, nombre_flota, cant_choferes, cant_rutas, pin_secreto, email, to: toOverride } = body;
+      if (!nombre_completo || !pin_secreto || !email) {
+        return NextResponse.json(
+          { error: 'Faltan datos requeridos para flota (email obligatorio)' },
+          { status: 400 }
+        );
+      }
+      reactComponent = BienvenidaFlota({
+        nombre_completo,
+        documento_id,
+        nombre_flota,
+        cant_choferes,
+        cant_rutas,
+        pin_secreto,
+      });
+      subject = 'Bienvenido al Sistema de Flota - Credenciales de Acceso';
+      to = toOverride || email;
+    } else {
+      // Empleado
+      const { nombre, documento_id, email, rol, nivel_acceso, pin_seguridad, to: toOverride } = body;
+      if (!nombre || !email || !pin_seguridad) {
+        return NextResponse.json(
+          { error: 'Faltan datos requeridos para empleado' },
+          { status: 400 }
+        );
+      }
+      reactComponent = BienvenidaEmpleado({
         nombre,
         documento_id,
         email,
         rol,
         nivel_acceso,
         pin_seguridad,
-      }),
+      });
+      subject = 'Bienvenido al Sistema - Credenciales de Acceso';
+      to = toOverride || email;
+    }
+
+    const { data, error } = await resend.emails.send({
+      from,
+      to,
+      subject,
+      react: reactComponent,
     });
 
     if (error) {
