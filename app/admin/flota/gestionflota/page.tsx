@@ -15,7 +15,7 @@ const supabase = createClient(
 
 // ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
-  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
+  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
     <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
       <span className="text-white">GESTOR DE </span>
       <span className="text-blue-700">FLOTA</span>
@@ -76,26 +76,6 @@ const BotonAccion = ({
     ) : (
       texto
     )}
-  </button>
-);
-
-// ----- BOTÓN TOGGLE (ACTIVO/INACTIVO) -----
-const BotonToggle = ({
-  activo,
-  onChange,
-}: {
-  activo: boolean;
-  onChange: (activo: boolean) => void;
-}) => (
-  <button
-    type="button"
-    onClick={() => onChange(!activo)}
-    className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider transition-all
-      ${activo 
-        ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30 hover:bg-emerald-600/30' 
-        : 'bg-rose-600/20 text-rose-500 border-rose-500/30 hover:bg-rose-600/30'}`}
-  >
-    {activo ? 'ACTIVO' : 'INACTIVO'}
   </button>
 );
 
@@ -161,7 +141,7 @@ const CampoEntrada = ({
   );
 };
 
-// ----- FOOTER (VOLVER AL SELECTOR) – CORREGIDO -----
+// ----- FOOTER (VOLVER AL SELECTOR) -----
 const Footer = ({ router }: { router: any }) => (
   <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
     <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
@@ -169,7 +149,7 @@ const Footer = ({ router }: { router: any }) => (
     </p>
     <button
       type="button"
-      onClick={() => router.push('/admin/flota')} // ← Cambiado de replace a push
+      onClick={() => router.push('/admin/flota')}
       className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
     >
       <span className="text-lg">←</span> VOLVER AL SELECTOR
@@ -178,7 +158,7 @@ const Footer = ({ router }: { router: any }) => (
 );
 
 // ------------------------------------------------------------
-// FUNCIÓN PARA ENVIAR CORREO (FLOTA)
+// FUNCIÓN PARA ENVIAR CORREO (FLOTA) – OPCIONAL
 // ------------------------------------------------------------
 const enviarCorreoFlota = async (
   perfil: any,
@@ -226,10 +206,11 @@ export default function GestionFlota() {
   const estadoInicial = {
     nombre_completo: '',
     documento_id: '',
+    email: '',
     nombre_flota: '',
     cant_choferes: 1,
     cant_rutas: 0,
-    activo: true,
+    // El estado activo ya no está en el formulario
   };
   const [nuevo, setNuevo] = useState(estadoInicial);
 
@@ -296,11 +277,30 @@ export default function GestionFlota() {
       return false;
     }
 
+    // También validar email único (opcional)
+    if (nuevo.email) {
+      const { data: emailExistente, error: errEmail } = await supabase
+        .from('flota_perfil')
+        .select('id, nombre_completo')
+        .eq('email', nuevo.email.toLowerCase())
+        .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
+        .maybeSingle();
+
+      if (errEmail) {
+        mostrarNotificacion('Error al validar email', 'error');
+        return false;
+      }
+      if (emailExistente) {
+        mostrarNotificacion(`⚠️ El email ya está registrado para ${emailExistente.nombre_completo}.`, 'advertencia');
+        return false;
+      }
+    }
+
     return true;
   };
 
   // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR) CON ENVÍO DE CORREO
+  // GUARDAR (CREAR O ACTUALIZAR) CON ENVÍO DE CORREO (opcional)
   // ------------------------------------------------------------
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -319,10 +319,11 @@ export default function GestionFlota() {
           .update({
             nombre_completo: nuevo.nombre_completo,
             documento_id: nuevo.documento_id,
+            email: nuevo.email.toLowerCase(),
             nombre_flota: nuevo.nombre_flota,
             cant_choferes: nuevo.cant_choferes,
             cant_rutas: nuevo.cant_rutas,
-            activo: nuevo.activo,
+            // No se actualiza activo desde el formulario
           })
           .eq('id', editando.id);
         if (error) throw error;
@@ -339,11 +340,12 @@ export default function GestionFlota() {
             {
               nombre_completo: nuevo.nombre_completo,
               documento_id: nuevo.documento_id,
+              email: nuevo.email.toLowerCase(),
               nombre_flota: nuevo.nombre_flota,
               cant_choferes: nuevo.cant_choferes,
               cant_rutas: nuevo.cant_rutas,
-              activo: nuevo.activo,
               pin_secreto: pinGenerado,
+              activo: true, // Por defecto activo al crear
               fecha_creacion: new Date().toISOString(),
             },
           ])
@@ -352,20 +354,17 @@ export default function GestionFlota() {
 
         if (error) throw error;
 
-        // ENVIAR CORREO (si el perfil tiene email, se debe agregar a la tabla; por ahora asumimos que no, pero si lo tuviera, lo usaríamos)
-        // Si la tabla flota_perfil no tiene email, podríamos mostrar un modal para ingresarlo, o simplemente no enviar.
-        // Por simplicidad, asumimos que no enviamos automáticamente a menos que se agregue un campo email.
-        // Si quieres enviar, necesitas un campo email en la tabla. Si no, puedes omitir el envío o pedir el email en el formulario.
-        // Aquí lo dejamos comentado, pero si tienes campo email, descomenta y ajusta.
-        /*
-        const resultado = await enviarCorreoFlota(nuevoPerfil);
-        if (resultado.success) {
-          mostrarNotificacion('Perfil creado y correo enviado correctamente.', 'exito');
+        // Enviar correo si hay email (opcional, descomentar si se desea)
+        if (nuevo.email) {
+          const resultado = await enviarCorreoFlota(nuevoPerfil);
+          if (resultado.success) {
+            mostrarNotificacion('Perfil creado y correo enviado correctamente.', 'exito');
+          } else {
+            mostrarNotificacion(`Perfil creado, pero falló el envío del correo: ${resultado.error}`, 'advertencia');
+          }
         } else {
-          mostrarNotificacion(`Perfil creado, pero falló el envío del correo: ${resultado.error}`, 'advertencia');
+          mostrarNotificacion('Perfil de flota creado correctamente.', 'exito');
         }
-        */
-        mostrarNotificacion('Perfil de flota creado correctamente.', 'exito');
       }
 
       cancelarEdicion();
@@ -378,17 +377,13 @@ export default function GestionFlota() {
   };
 
   // ------------------------------------------------------------
-  // FUNCIÓN PARA REENVIAR CORREO (si se implementa)
+  // FUNCIÓN PARA REENVIAR CORREO
   // ------------------------------------------------------------
   const handleReenviarCorreo = async (perfil: any) => {
-    // Si la tabla no tiene email, no se puede reenviar.
-    // Aquí podrías abrir un modal para pedir el email, o simplemente mostrar un mensaje.
-    // Por ahora, solo notificamos que no está implementado.
-    mostrarNotificacion('Función de correo no disponible (falta email en el perfil).', 'advertencia');
-    return;
-
-    // Si tuvieras email, descomenta:
-    /*
+    if (!perfil.email) {
+      mostrarNotificacion('El perfil no tiene email para reenviar.', 'advertencia');
+      return;
+    }
     setEnviandoCorreo(perfil.id);
     const resultado = await enviarCorreoFlota(perfil);
     setEnviandoCorreo(null);
@@ -397,7 +392,6 @@ export default function GestionFlota() {
     } else {
       mostrarNotificacion(`Error al reenviar correo: ${resultado.error}`, 'error');
     }
-    */
   };
 
   // ------------------------------------------------------------
@@ -416,12 +410,27 @@ export default function GestionFlota() {
     setNuevo({
       nombre_completo: perfil.nombre_completo,
       documento_id: perfil.documento_id,
+      email: perfil.email || '',
       nombre_flota: perfil.nombre_flota || '',
       cant_choferes: perfil.cant_choferes || 1,
       cant_rutas: perfil.cant_rutas || 0,
-      activo: perfil.activo !== false,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ------------------------------------------------------------
+  // CAMBIAR ESTADO ACTIVO/INACTIVO (desde la tabla)
+  // ------------------------------------------------------------
+  const toggleActivo = async (perfil: any) => {
+    try {
+      await supabase
+        .from('flota_perfil')
+        .update({ activo: !perfil.activo })
+        .eq('id', perfil.id);
+      // La suscripción en tiempo real actualizará la lista
+    } catch (error: any) {
+      mostrarNotificacion(`Error al cambiar estado: ${error.message}`, 'error');
+    }
   };
 
   // ------------------------------------------------------------
@@ -431,6 +440,7 @@ export default function GestionFlota() {
     const data = perfiles.map((p) => ({
       Nombre: p.nombre_completo,
       Documento: p.documento_id,
+      Email: p.email,
       Flota: p.nombre_flota,
       Choferes: p.cant_choferes,
       Rutas: p.cant_rutas,
@@ -450,6 +460,7 @@ export default function GestionFlota() {
     (p) =>
       p.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) ||
       p.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
+      p.email?.toLowerCase().includes(filtro.toLowerCase()) ||
       p.nombre_flota?.toLowerCase().includes(filtro.toLowerCase())
   );
 
@@ -473,10 +484,11 @@ export default function GestionFlota() {
           </div>
         )}
 
-        <MemebreteSuperior usuario={user} />
+        {/* CONTENEDOR STICKY (membrete + formulario + búsqueda) */}
+        <div className="sticky top-0 z-40 bg-black pt-2 pb-4 space-y-4">
+          <MemebreteSuperior usuario={user} />
 
-        {/* FORMULARIO STICKY */}
-        <div className="sticky top-0 z-40 bg-black pt-2 pb-4">
+          {/* FORMULARIO (SIN ESTADO) */}
           <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
             <form onSubmit={handleGuardar} className="flex flex-col gap-3">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -495,6 +507,13 @@ export default function GestionFlota() {
                   onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                   required
                   uppercase
+                />
+                <CampoEntrada
+                  label="EMAIL"
+                  placeholder="correo@ejemplo.com"
+                  type="email"
+                  value={nuevo.email}
+                  onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
                 />
                 <CampoEntrada
                   label="NOMBRE FLOTA"
@@ -518,13 +537,6 @@ export default function GestionFlota() {
                   onChange={(e) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
                   textCentered
                 />
-                <div className="flex flex-col gap-1">
-                  <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
-                  <BotonToggle
-                    activo={nuevo.activo}
-                    onChange={(activo) => setNuevo({ ...nuevo, activo })}
-                  />
-                </div>
                 {editando && (
                   <CampoEntrada
                     label="PIN ASIGNADO"
@@ -558,45 +570,46 @@ export default function GestionFlota() {
               </div>
             </form>
           </div>
-        </div>
 
-        {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
-            <span className="text-white/40 ml-3">🔍</span>
-            <input
-              type="text"
-              placeholder="BUSCAR PERFIL..."
-              className="w-full bg-transparent px-3 py-2 text-[11px] font-bold uppercase outline-none text-white"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
+          {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
+              <span className="text-white/40 ml-3">🔍</span>
+              <input
+                type="text"
+                placeholder="BUSCAR PERFIL..."
+                className="w-full bg-transparent px-3 py-2 text-[11px] font-bold uppercase outline-none text-white"
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+              />
+              {filtro && (
+                <button
+                  onClick={() => setFiltro('')}
+                  className="mr-2 text-white/60 hover:text-white transition-colors"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <BotonAccion
+              texto="EXPORTAR EXCEL"
+              icono="📊"
+              color="bg-emerald-600"
+              onClick={exportarExcel}
+              fullWidth={false}
             />
-            {filtro && (
-              <button
-                onClick={() => setFiltro('')}
-                className="mr-2 text-white/60 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-            )}
           </div>
-          <BotonAccion
-            texto="EXPORTAR EXCEL"
-            icono="📊"
-            color="bg-emerald-600"
-            onClick={exportarExcel}
-            fullWidth={false}
-          />
         </div>
 
-        {/* TABLA CON SCROLL Y BOTÓN REENVIAR (opcional) */}
+        {/* TABLA CON SCROLL Y ENCABEZADO FIJO */}
         <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-black/40 text-[10px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30">
+              <thead className="bg-[#0f172a] text-[10px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
                   <th className="p-4">Nombre</th>
                   <th className="p-4">Documento</th>
+                  <th className="p-4">Email</th>
                   <th className="p-4">Flota</th>
                   <th className="p-4 text-center">Choferes</th>
                   <th className="p-4 text-center">Rutas</th>
@@ -615,6 +628,9 @@ export default function GestionFlota() {
                     </td>
                     <td className="p-4 font-mono text-[12px]">
                       {perfil.documento_id}
+                    </td>
+                    <td className="p-4 text-[11px]">
+                      {perfil.email}
                     </td>
                     <td className="p-4">
                       {perfil.nombre_flota || '-'}
@@ -637,12 +653,7 @@ export default function GestionFlota() {
                     </td>
                     <td className="p-4 text-center">
                       <button
-                        onClick={async () => {
-                          await supabase
-                            .from('flota_perfil')
-                            .update({ activo: !perfil.activo })
-                            .eq('id', perfil.id);
-                        }}
+                        onClick={() => toggleActivo(perfil)}
                         className={`text-[10px] font-black px-3 py-1 rounded-full border ${
                           perfil.activo
                             ? 'text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10'
