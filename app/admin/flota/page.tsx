@@ -1,257 +1,14 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-// ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO
-// ------------------------------------------------------------
-
-// ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
-  <div className="w-full max-w-4xl bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
-    <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
-      <span className="text-white">GESTOR DE </span>
-      <span className="text-blue-700">FLOTA</span>
-    </h1>
-    <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
-      MENÚ PRINCIPAL
-    </p>
-    {usuario && (
-      <div className="mt-2 pt-2 border-t border-white/10">
-        <span className="text-sm text-white normal-case">{usuario.nombre}</span>
-        <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">
-          {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-            ? 'Administración'
-            : usuario.rol?.toUpperCase() || 'Administrador'}
-        </span>
-        <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
-      </div>
-    )}
-  </div>
-);
-
-// ----- BOTÓN DE ACCIÓN -----
-const BotonAccion = ({
-  texto,
-  icono,
-  onClick,
-  color = 'bg-blue-600',
-  disabled = false,
-  loading = false,
-  fullWidth = true,
-  className = '',
-}: {
-  texto: string;
-  icono?: string;
-  onClick: () => void;
-  color?: string;
-  disabled?: boolean;
-  loading?: boolean;
-  fullWidth?: boolean;
-  className?: string;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled || loading}
-    className={`${fullWidth ? 'w-full' : ''} ${color} p-2 rounded-xl border border-white/5 
-      active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 
-      disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider
-      ${className}`}
-  >
-    {icono && <span className="text-lg">{icono}</span>}
-    {loading ? (
-      <span className="flex items-center gap-2">
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
-      </span>
-    ) : (
-      texto
-    )}
-  </button>
-);
-
-// ----- BOTÓN TOGGLE (ACTIVO/INACTIVO) -----
-const BotonToggle = ({
-  activo,
-  onChange,
-}: {
-  activo: boolean;
-  onChange: (activo: boolean) => void;
-}) => (
-  <button
-    type="button"
-    onClick={() => onChange(!activo)}
-    className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider transition-all
-      ${activo 
-        ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30 hover:bg-emerald-600/30' 
-        : 'bg-rose-600/20 text-rose-500 border-rose-500/30 hover:bg-rose-600/30'}`}
-  >
-    {activo ? 'ACTIVO' : 'INACTIVO'}
-  </button>
-);
-
-// ----- CAMPO DE ENTRADA -----
-const CampoEntrada = ({
-  type = 'text',
-  placeholder = '',
-  value,
-  onChange,
-  onEnter,
-  autoFocus = false,
-  disabled = false,
-  textCentered = false,
-  uppercase = false,
-  className = '',
-  label,
-  required = false,
-}: {
-  type?: 'text' | 'password' | 'email' | 'number' | 'date';
-  placeholder?: string;
-  value: string;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onEnter?: () => void;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  textCentered?: boolean;
-  uppercase?: boolean;
-  className?: string;
-  label?: string;
-  required?: boolean;
-}) => {
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && onEnter) onEnter();
-  };
-
-  return (
-    <div className="flex flex-col gap-1">
-      {label && (
-        <label className="text-[8px] font-black text-slate-500 uppercase ml-2">
-          {label}
-        </label>
-      )}
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onKeyDown={handleKeyDown}
-        autoFocus={autoFocus}
-        disabled={disabled}
-        required={required}
-        className={`w-full bg-white/5 border border-white/10 p-2.5 rounded-xl 
-          text-[11px] font-bold text-white outline-none transition-colors
-          disabled:opacity-70 disabled:cursor-not-allowed
-          ${textCentered ? 'text-center' : ''} 
-          ${uppercase ? 'uppercase' : ''}
-          ${type === 'password' ? 'tracking-[0.4em]' : ''}
-          focus:border-blue-500/50 hover:border-white/20
-          ${disabled ? 'border-blue-500/30 text-amber-400' : ''}
-          ${className}`}
-      />
-    </div>
-  );
-};
-
-// ----- FOOTER (VOLVER AL SELECTOR) -----
-const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright 2026
-    </p>
-    <button
-      onClick={() => router.push('/admin/flota')}
-      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
-    >
-      <span className="text-lg">←</span> VOLVER AL SELECTOR
-    </button>
-  </div>
-);
-
-// ------------------------------------------------------------
-// FUNCIÓN PARA ENVIAR CORREO (FLOTA)
-// ------------------------------------------------------------
-const enviarCorreoFlota = async (
-  perfil: any,
-  to?: string
-) => {
-  try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tipo: 'flota',
-        nombre_completo: perfil.nombre_completo,
-        documento_id: perfil.documento_id,
-        nombre_flota: perfil.nombre_flota || '',
-        cant_choferes: perfil.cant_choferes,
-        cant_rutas: perfil.cant_rutas,
-        pin_secreto: perfil.pin_secreto,
-        email: perfil.email,
-        to: to || perfil.email,
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Error al enviar correo');
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error enviando correo:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-// ------------------------------------------------------------
-// COMPONENTE PRINCIPAL – GESTIÓN DE PERFILES DE FLOTA
-// ------------------------------------------------------------
-export default function GestionFlota() {
+export default function SubmenuFlotaHub() {
   const [user, setUser] = useState<any>(null);
-  const [perfiles, setPerfiles] = useState<any[]>([]);
-  const [editando, setEditando] = useState<any>(null);
-  const [filtro, setFiltro] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
-  const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const router = useRouter();
 
-  const estadoInicial = {
-    nombre_completo: '',
-    documento_id: '',
-    email: '',
-    nombre_flota: '',
-    cant_choferes: 1,
-    cant_rutas: 0,
-    activo: true,
-  };
-  const [nuevo, setNuevo] = useState(estadoInicial);
-
   // ------------------------------------------------------------
-  // MOSTRAR NOTIFICACIÓN
+  // VALIDACIÓN DE SESIÓN Y NIVEL DE ACCESO
   // ------------------------------------------------------------
-  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
-    setNotificacion({ mensaje, tipo });
-    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
-  };
-
-  // ------------------------------------------------------------
-  // CARGAR SESIÓN Y DATOS
-  // ------------------------------------------------------------
-  const fetchPerfiles = useCallback(async () => {
-    const { data } = await supabase
-      .from('flota_perfil')
-      .select('*')
-      .order('nombre_completo', { ascending: true });
-    if (data) setPerfiles(data);
-  }, []);
-
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
@@ -264,460 +21,123 @@ export default function GestionFlota() {
       return;
     }
     setUser(currentUser);
-    fetchPerfiles();
-
-    const channel = supabase
-      .channel('flota_perfil_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'flota_perfil' }, fetchPerfiles)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchPerfiles, router]);
+  }, [router]);
 
   // ------------------------------------------------------------
-  // VALIDACIONES DE DUPLICADOS (documento_id único)
+  // COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
   // ------------------------------------------------------------
-  const validarDuplicados = async (): Promise<boolean> => {
-    const { data: docExistente, error: errDoc } = await supabase
-      .from('flota_perfil')
-      .select('id, nombre_completo')
-      .eq('documento_id', nuevo.documento_id)
-      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
-      .maybeSingle();
 
-    if (errDoc) {
-      mostrarNotificacion('Error al validar documento ID', 'error');
-      return false;
-    }
-    if (docExistente) {
-      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${docExistente.nombre_completo}.`, 'advertencia');
-      return false;
-    }
+  // ----- MEMBRETE SUPERIOR -----
+  const Memebrete = () => (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-6 text-center shadow-2xl mx-auto">
+      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+        <span className="text-white">GESTOR DE </span>
+        <span className="text-blue-700">ACCESO</span>
+      </h1>
+      <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
+        MENÚ PRINCIPAL
+      </p>
+      {user && (
+        <div className="mt-2 pt-2 border-t border-white/10">
+          <span className="text-sm text-white normal-case">{user.nombre}</span>
+          <span className="text-sm text-white mx-2">•</span>
+          <span className="text-sm text-blue-500 normal-case">
+            {user.rol === 'admin' || user.rol === 'Administrador'
+              ? 'Administración'
+              : user.rol?.toUpperCase() || 'Operador'}
+          </span>
+          <span className="text-sm text-white ml-2">({user.nivel_acceso})</span>
+        </div>
+      )}
+    </div>
+  );
 
-    // También validar email único (opcional)
-    const { data: emailExistente, error: errEmail } = await supabase
-      .from('flota_perfil')
-      .select('id, nombre_completo')
-      .eq('email', nuevo.email.toLowerCase())
-      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
-      .maybeSingle();
+  // ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI GRANDE, CENTRADO) -----
+  const BotonOpcion = ({
+    texto,
+    icono,
+    onClick,
+    color,
+    descripcion,
+  }: {
+    texto: string;
+    icono: string;
+    onClick: () => void;
+    color: string;
+    descripcion: string;
+  }) => (
+    <button
+      onClick={onClick}
+      className={`w-full ${color} p-6 rounded-xl border border-white/5 
+        active:scale-95 transition-transform shadow-lg 
+        flex flex-col items-center justify-center gap-3`}
+    >
+      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+        <span className="text-3xl">{icono}</span>
+      </div>
+      <div className="space-y-1">
+        <h3 className="text-white font-bold uppercase text-[13px] tracking-wider">
+          {texto}
+        </h3>
+        <p className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
+          {descripcion}
+        </p>
+      </div>
+    </button>
+  );
 
-    if (errEmail) {
-      mostrarNotificacion('Error al validar email', 'error');
-      return false;
-    }
-    if (emailExistente) {
-      mostrarNotificacion(`⚠️ El email ya está registrado para ${emailExistente.nombre_completo}.`, 'advertencia');
-      return false;
-    }
-
-    return true;
-  };
-
-  // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR) CON ENVÍO DE CORREO
-  // ------------------------------------------------------------
-  const handleGuardar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const esValido = await validarDuplicados();
-      if (!esValido) {
-        setLoading(false);
-        return;
-      }
-
-      if (editando) {
-        const { error } = await supabase
-          .from('flota_perfil')
-          .update({
-            nombre_completo: nuevo.nombre_completo,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            nombre_flota: nuevo.nombre_flota,
-            cant_choferes: nuevo.cant_choferes,
-            cant_rutas: nuevo.cant_rutas,
-            activo: nuevo.activo,
-          })
-          .eq('id', editando.id);
-        if (error) throw error;
-
-        mostrarNotificacion('Perfil actualizado correctamente.', 'exito');
-      } else {
-        const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_flota');
-        if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
-        if (!pinGenerado) throw new Error('No se pudo generar el PIN');
-
-        const { data: nuevoPerfil, error } = await supabase
-          .from('flota_perfil')
-          .insert([
-            {
-              nombre_completo: nuevo.nombre_completo,
-              documento_id: nuevo.documento_id,
-              email: nuevo.email.toLowerCase(),
-              nombre_flota: nuevo.nombre_flota,
-              cant_choferes: nuevo.cant_choferes,
-              cant_rutas: nuevo.cant_rutas,
-              activo: nuevo.activo,
-              pin_secreto: pinGenerado,
-              fecha_creacion: new Date().toISOString(),
-            },
-          ])
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        // ENVIAR CORREO REAL
-        const resultado = await enviarCorreoFlota(nuevoPerfil);
-        if (resultado.success) {
-          mostrarNotificacion('Perfil creado y correo enviado correctamente.', 'exito');
-        } else {
-          mostrarNotificacion(`Perfil creado, pero falló el envío del correo: ${resultado.error}`, 'advertencia');
-        }
-      }
-
-      cancelarEdicion();
-    } catch (error: any) {
-      console.error(error);
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ------------------------------------------------------------
-  // FUNCIÓN PARA REENVIAR CORREO
-  // ------------------------------------------------------------
-  const handleReenviarCorreo = async (perfil: any) => {
-    setEnviandoCorreo(perfil.id);
-    const resultado = await enviarCorreoFlota(perfil);
-    setEnviandoCorreo(null);
-    if (resultado.success) {
-      mostrarNotificacion('Correo reenviado correctamente.', 'exito');
-    } else {
-      mostrarNotificacion(`Error al reenviar correo: ${resultado.error}`, 'error');
-    }
-  };
-
-  // ------------------------------------------------------------
-  // CANCELAR EDICIÓN
-  // ------------------------------------------------------------
-  const cancelarEdicion = () => {
-    setEditando(null);
-    setNuevo(estadoInicial);
-  };
-
-  // ------------------------------------------------------------
-  // EDITAR PERFIL
-  // ------------------------------------------------------------
-  const editarPerfil = (perfil: any) => {
-    setEditando(perfil);
-    setNuevo({
-      nombre_completo: perfil.nombre_completo,
-      documento_id: perfil.documento_id,
-      email: perfil.email || '',
-      nombre_flota: perfil.nombre_flota || '',
-      cant_choferes: perfil.cant_choferes || 1,
-      cant_rutas: perfil.cant_rutas || 0,
-      activo: perfil.activo !== false,
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // ------------------------------------------------------------
-  // EXPORTAR EXCEL
-  // ------------------------------------------------------------
-  const exportarExcel = () => {
-    const data = perfiles.map((p) => ({
-      Nombre: p.nombre_completo,
-      Documento: p.documento_id,
-      Email: p.email,
-      Flota: p.nombre_flota,
-      Choferes: p.cant_choferes,
-      Rutas: p.cant_rutas,
-      PIN: p.pin_secreto,
-      Activo: p.activo ? 'SÍ' : 'NO',
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Flota');
-    XLSX.writeFile(wb, `Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  // ------------------------------------------------------------
-  // FILTRAR PERFILES
-  // ------------------------------------------------------------
-  const perfilesFiltrados = perfiles.filter(
-    (p) =>
-      p.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) ||
-      p.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
-      p.email?.toLowerCase().includes(filtro.toLowerCase()) ||
-      p.nombre_flota?.toLowerCase().includes(filtro.toLowerCase())
+  // ----- FOOTER (VOLVER AL SELECTOR) -----
+  const Footer = () => (
+    <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center mx-auto">
+      <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
+        @Copyright 2026
+      </p>
+      <button
+        onClick={() => router.push('/admin')}
+        className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
+      >
+        <span className="text-lg">←</span> VOLVER AL SELECTOR
+      </button>
+    </div>
   );
 
   // ------------------------------------------------------------
   // RENDERIZADO
   // ------------------------------------------------------------
   return (
-    <main className="min-h-screen bg-black p-4 md:p-6 text-white font-sans">
-      <div className="max-w-7xl mx-auto">
-        {notificacion.tipo && (
-          <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center border-2 ${
-            notificacion.tipo === 'exito' ? 'bg-emerald-500 border-emerald-400' :
-            notificacion.tipo === 'error' ? 'bg-rose-500 border-rose-400' :
-            'bg-amber-500 border-amber-400'
-          } text-white flex items-center gap-3`}>
-            <span className="text-lg">
-              {notificacion.tipo === 'exito' ? '✅' : notificacion.tipo === 'error' ? '❌' : '⚠️'}
-            </span>
-            <span>{notificacion.mensaje}</span>
-          </div>
-        )}
+    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
+      <div className="w-full max-w-sm flex flex-col items-center">
+        <Memebrete />
 
-        <MemebreteSuperior usuario={user} />
+        <div className="w-full space-y-4">
+          {/* GESTIÓN DE PERFILES */}
+          <BotonOpcion
+            texto="Gestión de Perfiles"
+            icono="⚙️"
+            onClick={() => router.push('/admin/flota/gestionflota')}
+            color="bg-blue-600"
+            descripcion="Alta de choferes, capacidad de rutas y generación de Smart Pins F"
+          />
 
-        {/* FORMULARIO STICKY */}
-        <div className="sticky top-0 z-40 bg-black pt-2 pb-4">
-          <div className={`bg-[#0f172a] p-4 rounded-[25px] border transition-all ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
-            <form onSubmit={handleGuardar} className="flex flex-col gap-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
-                <CampoEntrada
-                  label="NOMBRE COMPLETO"
-                  placeholder="Nombre completo"
-                  value={nuevo.nombre_completo}
-                  onChange={(e) => setNuevo({ ...nuevo, nombre_completo: e.target.value })}
-                  required
-                  autoFocus
-                />
-                <CampoEntrada
-                  label="DOCUMENTO ID"
-                  placeholder="DNI / NIE"
-                  value={nuevo.documento_id}
-                  onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
-                  required
-                  uppercase
-                />
-                <CampoEntrada
-                  label="EMAIL"
-                  placeholder="correo@ejemplo.com"
-                  type="email"
-                  value={nuevo.email}
-                  onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
-                  required
-                />
-                <CampoEntrada
-                  label="NOMBRE FLOTA"
-                  placeholder="Empresa / Unión"
-                  value={nuevo.nombre_flota}
-                  onChange={(e) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
-                />
-                <CampoEntrada
-                  type="number"
-                  label="CHOFERES"
-                  placeholder="1"
-                  value={String(nuevo.cant_choferes)}
-                  onChange={(e) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 1 })}
-                  textCentered
-                />
-                <CampoEntrada
-                  type="number"
-                  label="RUTAS"
-                  placeholder="0"
-                  value={String(nuevo.cant_rutas)}
-                  onChange={(e) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
-                  textCentered
-                />
-                <div className="flex flex-col gap-1">
-                  <label className="text-[8px] font-black text-slate-500 uppercase ml-2">ESTADO</label>
-                  <BotonToggle
-                    activo={nuevo.activo}
-                    onChange={(activo) => setNuevo({ ...nuevo, activo })}
-                  />
-                </div>
-                {editando && (
-                  <CampoEntrada
-                    label="PIN ASIGNADO"
-                    value={editando.pin_secreto || ''}
-                    disabled
-                    textCentered
-                    uppercase
-                    className="border-blue-500/30"
-                  />
-                )}
-              </div>
-              <div className="flex justify-end gap-2 mt-1">
-                <BotonAccion
-                  texto="CANCELAR"
-                  icono="✕"
-                  color="bg-slate-600"
-                  onClick={cancelarEdicion}
-                  fullWidth={false}
-                  className="px-4 py-2"
-                />
-                <BotonAccion
-                  texto={editando ? 'ACTUALIZAR' : 'CREAR PERFIL'}
-                  icono={editando ? '✏️' : '➕'}
-                  color={editando ? 'bg-amber-600' : 'bg-emerald-600'}
-                  onClick={() => {}}
-                  disabled={loading}
-                  loading={loading}
-                  fullWidth={false}
-                  className="px-4 py-2"
-                />
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {/* BARRA DE BÚSQUEDA Y EXPORTACIÓN */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex-1 min-w-[200px] bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
-            <span className="text-white/40 ml-3">🔍</span>
-            <input
-              type="text"
-              placeholder="BUSCAR PERFIL..."
-              className="w-full bg-transparent px-3 py-2 text-[11px] font-bold uppercase outline-none text-white"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
-            />
-            {filtro && (
-              <button
-                onClick={() => setFiltro('')}
-                className="mr-2 text-white/60 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-          <BotonAccion
-            texto="EXPORTAR EXCEL"
+          {/* AUDITORÍA Y REPORTES */}
+          <BotonOpcion
+            texto="Auditoría y Reportes"
             icono="📊"
+            onClick={() => router.push('/admin/flota/auditoreporte')}
             color="bg-emerald-600"
-            onClick={exportarExcel}
-            fullWidth={false}
+            descripcion="Análisis de cumplimiento: Capacidad Nominal vs Carga Real"
           />
         </div>
 
-        {/* TABLA CON SCROLL Y BOTÓN REENVIAR */}
-        <div className="bg-[#0f172a] rounded-[25px] border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-black/40 text-[10px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30">
-                <tr>
-                  <th className="p-4">Nombre</th>
-                  <th className="p-4">Documento</th>
-                  <th className="p-4">Email</th>
-                  <th className="p-4">Flota</th>
-                  <th className="p-4 text-center">Choferes</th>
-                  <th className="p-4 text-center">Rutas</th>
-                  <th className="p-4 text-center">PIN</th>
-                  <th className="p-4 text-center">Estado</th>
-                  <th className="p-4 text-center" colSpan={2}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {perfilesFiltrados.map((perfil) => (
-                  <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="p-4">
-                      <span className="font-bold text-[13px] uppercase text-white">
-                        {perfil.nombre_completo}
-                      </span>
-                    </td>
-                    <td className="p-4 font-mono text-[12px]">
-                      {perfil.documento_id}
-                    </td>
-                    <td className="p-4 text-[11px]">
-                      {perfil.email}
-                    </td>
-                    <td className="p-4">
-                      {perfil.nombre_flota || '-'}
-                    </td>
-                    <td className="p-4 text-center font-black">
-                      {perfil.cant_choferes}
-                    </td>
-                    <td className="p-4 text-center font-black">
-                      {perfil.cant_rutas}
-                    </td>
-                    <td className="p-4 text-center">
-                      <div className="group relative inline-block">
-                        <span className="text-[11px] font-mono text-slate-600 group-hover:hidden tracking-widest">
-                          ••••••
-                        </span>
-                        <span className="text-[11px] font-mono text-amber-500 hidden group-hover:block font-bold">
-                          {perfil.pin_secreto}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={async () => {
-                          await supabase
-                            .from('flota_perfil')
-                            .update({ activo: !perfil.activo })
-                            .eq('id', perfil.id);
-                        }}
-                        className={`text-[10px] font-black px-3 py-1 rounded-full border ${
-                          perfil.activo
-                            ? 'text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10'
-                            : 'text-rose-500 border-rose-500/30 hover:bg-rose-500/10'
-                        }`}
-                      >
-                        {perfil.activo ? 'ACTIVO' : 'INACTIVO'}
-                      </button>
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={() => editarPerfil(perfil)}
-                        className="text-blue-500 hover:text-white font-black text-[10px] uppercase px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
-                      >
-                        EDITAR
-                      </button>
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={() => handleReenviarCorreo(perfil)}
-                        disabled={enviandoCorreo === perfil.id}
-                        className="text-emerald-500 hover:text-white font-black text-[10px] uppercase px-3 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
-                      >
-                        {enviandoCorreo === perfil.id ? '...' : '📧 REENVIAR'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {perfilesFiltrados.length === 0 && (
-            <div className="p-10 text-center">
-              <p className="text-slate-500 text-[11px] uppercase tracking-widest">
-                No hay perfiles que coincidan con la búsqueda.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <Footer router={router} />
+        <Footer />
       </div>
 
+      {/* ESTILOS GLOBALES (mismos que en el resto del sistema) */}
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-        @keyframes flash-fast {
-          0%, 100% { opacity: 1; }
-          10%, 30%, 50% { opacity: 0; }
-          20%, 40%, 60% { opacity: 1; }
-        }
-        .animate-flash-fast {
-          animation: flash-fast 2s ease-in-out;
-        }
-        select option {
-          background-color: #1f2937;
-          color: white;
-        }
+        @keyframes flash-fast { 0%, 100% { opacity: 1; } 10%, 30%, 50% { opacity: 0; } 20%, 40%, 60% { opacity: 1; } }
+        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
       `}</style>
     </main>
   );
