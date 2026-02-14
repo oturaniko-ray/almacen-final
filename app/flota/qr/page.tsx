@@ -23,40 +23,19 @@ function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
-// Función para formatear rol
-const formatearRol = (rol: string): string => {
-  if (!rol) return 'EMPLEADO';
-  const rolLower = rol.toLowerCase();
-  switch (rolLower) {
-    case 'admin':
-    case 'administrador':
-      return 'ADMINISTRADOR';
-    case 'supervisor':
-      return 'SUPERVISOR';
-    case 'tecnico':
-      return 'TÉCNICO';
-    case 'empleado':
-      return 'EMPLEADO';
-    default:
-      return rol.toUpperCase();
-  }
-};
-
 // ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
+const MemebreteSuperior = ({ conductor }: { conductor?: any }) => (
   <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl mx-auto">
     <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
       <span className="text-white">GESTOR DE </span>
-      <span className="text-blue-700">ACCESO</span>
+      <span className="text-blue-700">FLOTA</span>
     </h1>
-    {usuario && (
+    {conductor && (
       <div className="mt-2">
-        <span className="text-sm text-white normal-case">{usuario.nombre}</span>
+        <span className="text-sm text-white normal-case">{conductor.nombre_completo}</span>
         <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">
-          {formatearRol(usuario.rol)}
-        </span>
-        <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
+        <span className="text-sm text-blue-500 normal-case">CONDUCTOR</span>
+        <span className="text-sm text-white ml-2">({conductor.documento_id})</span>
       </div>
     )}
   </div>
@@ -70,8 +49,8 @@ const Footer = ({ router }: { router: any }) => (
     </p>
     <button
       onClick={() => {
-        localStorage.clear();
-        router.push('/');
+        localStorage.removeItem('flota_session');
+        router.push('/flota/login');
       }}
       className="text-emerald-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
     >
@@ -80,8 +59,8 @@ const Footer = ({ router }: { router: any }) => (
   </div>
 );
 
-export default function EmpleadoPage() {
-  const [user, setUser] = useState<any>(null);
+export default function QrConductorPage() {
+  const [conductor, setConductor] = useState<any>(null);
   const [token, setToken] = useState('');
   const [ubicacionOk, setUbicacionOk] = useState(false);
   const [errorGps, setErrorGps] = useState('');
@@ -100,15 +79,25 @@ export default function EmpleadoPage() {
   const ultimaActividadRef = useRef<number>(Date.now());
   const router = useRouter();
 
+  // Verificar sesión de flota
+  useEffect(() => {
+    const sessionData = localStorage.getItem('flota_session');
+    if (!sessionData) {
+      router.replace('/flota/login');
+      return;
+    }
+    setConductor(JSON.parse(sessionData));
+  }, [router]);
+
   // Control de inactividad
   useEffect(() => {
     const tiempoLimite = parseInt(config.timer_inactividad) || 120000;
     const reiniciarTemporizador = () => {
       ultimaActividadRef.current = Date.now();
-      clearTimeout(window.inactividadEmpleadoTimeout);
-      window.inactividadEmpleadoTimeout = setTimeout(() => {
-        localStorage.clear();
-        router.push('/');
+      clearTimeout(window.inactividadConductorTimeout);
+      window.inactividadConductorTimeout = setTimeout(() => {
+        localStorage.removeItem('flota_session');
+        router.push('/flota/login');
       }, tiempoLimite);
     };
     const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
@@ -116,7 +105,7 @@ export default function EmpleadoPage() {
     reiniciarTemporizador();
     return () => {
       eventos.forEach((e) => document.removeEventListener(e, reiniciarTemporizador));
-      clearTimeout(window.inactividadEmpleadoTimeout);
+      clearTimeout(window.inactividadConductorTimeout);
     };
   }, [config.timer_inactividad, router]);
 
@@ -132,16 +121,8 @@ export default function EmpleadoPage() {
     return () => clearInterval(interval);
   }, [ubicacionOk, config.timer_inactividad]);
 
-  // Cargar sesión y configuración
+  // Cargar configuración
   useEffect(() => {
-    const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) {
-      router.push('/');
-      return;
-    }
-    const userData = JSON.parse(sessionData);
-    setUser(userData);
-
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
@@ -157,7 +138,7 @@ export default function EmpleadoPage() {
       }
     };
     fetchConfig();
-  }, [router]);
+  }, []);
 
   const actualizarGPS = useCallback(() => {
     setMensajeFlash('Actualizando GPS');
@@ -193,25 +174,26 @@ export default function EmpleadoPage() {
     actualizarGPS();
   }, [config, actualizarGPS]);
 
-  // Generar QR con prefijo P
+  // Generar QR con prefijo F
   useEffect(() => {
-    if (ubicacionOk && user) {
+    if (ubicacionOk && conductor) {
       const generateToken = () => {
-        // ✅ PREFIJO "P" PARA PERSONAL
-        const rawToken = `P|${user.documento_id}|${Date.now()}`;
+        const rawToken = `F|${conductor.documento_id}|${Date.now()}`;
         setToken(btoa(rawToken));
       };
       generateToken();
       const interval = setInterval(generateToken, config.time_token);
       return () => clearInterval(interval);
     }
-  }, [ubicacionOk, user, config.time_token]);
+  }, [ubicacionOk, conductor, config.time_token]);
 
   const formatTiempoRestante = (segundos: number) => {
     const minutos = Math.floor(segundos / 60);
     const segs = segundos % 60;
     return `${minutos}:${segs < 10 ? '0' : ''}${segs}`;
   };
+
+  if (!conductor) return null; // Esperando sesión
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
@@ -222,7 +204,7 @@ export default function EmpleadoPage() {
       )}
 
       <div className="w-full max-w-sm flex flex-col items-center">
-        <MemebreteSuperior usuario={user} />
+        <MemebreteSuperior conductor={conductor} />
 
         <div className="w-full bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl flex flex-col items-center">
           {!ubicacionOk ? (
@@ -246,7 +228,7 @@ export default function EmpleadoPage() {
             <div className="flex flex-col items-center w-full group" onClick={actualizarGPS}>
               <div className="text-center mb-4">
                 <p className="text-[18px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">
-                  Mi QR
+                  Mi QR (Flota)
                 </p>
               </div>
               <div className="bg-white p-6 rounded-[40px] shadow-[0_0_60px_rgba(59,130,246,0.15)] mb-6 transition-transform active:scale-90 cursor-pointer">
@@ -282,6 +264,6 @@ export default function EmpleadoPage() {
 
 declare global {
   interface Window {
-    inactividadEmpleadoTimeout: any;
+    inactividadConductorTimeout: any;
   }
 }

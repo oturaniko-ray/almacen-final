@@ -23,9 +23,9 @@ function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
-// Función para formatear rol
+// Función para formatear rol (aunque en flota no hay, lo dejamos por consistencia)
 const formatearRol = (rol: string): string => {
-  if (!rol) return 'EMPLEADO';
+  if (!rol) return 'CONDUCTOR';
   const rolLower = rol.toLowerCase();
   switch (rolLower) {
     case 'admin':
@@ -47,7 +47,7 @@ const MemebreteSuperior = ({ usuario }: { usuario?: any }) => (
   <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl mx-auto">
     <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
       <span className="text-white">GESTOR DE </span>
-      <span className="text-blue-700">ACCESO</span>
+      <span className="text-blue-700">FLOTA</span>
     </h1>
     {usuario && (
       <div className="mt-2">
@@ -80,8 +80,9 @@ const Footer = ({ router }: { router: any }) => (
   </div>
 );
 
-export default function EmpleadoPage() {
+export default function QrChoferPage() {
   const [user, setUser] = useState<any>(null);
+  const [perfil, setPerfil] = useState<any>(null);
   const [token, setToken] = useState('');
   const [ubicacionOk, setUbicacionOk] = useState(false);
   const [errorGps, setErrorGps] = useState('');
@@ -132,7 +133,7 @@ export default function EmpleadoPage() {
     return () => clearInterval(interval);
   }, [ubicacionOk, config.timer_inactividad]);
 
-  // Cargar sesión y configuración
+  // Cargar sesión y perfil de flota
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
@@ -141,6 +142,22 @@ export default function EmpleadoPage() {
     }
     const userData = JSON.parse(sessionData);
     setUser(userData);
+
+    // Buscar el perfil de flota asociado al usuario (por documento_id)
+    const fetchPerfil = async () => {
+      const { data } = await supabase
+        .from('flota_perfil')
+        .select('*')
+        .eq('documento_id', userData.documento_id)
+        .maybeSingle();
+      if (data) {
+        setPerfil(data);
+      } else {
+        // Si no tiene perfil, redirigir a admin (no debería pasar)
+        router.push('/admin/flota');
+      }
+    };
+    fetchPerfil();
 
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -193,19 +210,19 @@ export default function EmpleadoPage() {
     actualizarGPS();
   }, [config, actualizarGPS]);
 
-  // Generar QR con prefijo P
+  // Generar QR con prefijo F
   useEffect(() => {
-    if (ubicacionOk && user) {
+    if (ubicacionOk && perfil) {
       const generateToken = () => {
-        // ✅ PREFIJO "P" PARA PERSONAL
-        const rawToken = `P|${user.documento_id}|${Date.now()}`;
+        // ✅ PREFIJO "F" PARA FLOTA
+        const rawToken = `F|${perfil.documento_id}|${Date.now()}`;
         setToken(btoa(rawToken));
       };
       generateToken();
       const interval = setInterval(generateToken, config.time_token);
       return () => clearInterval(interval);
     }
-  }, [ubicacionOk, user, config.time_token]);
+  }, [ubicacionOk, perfil, config.time_token]);
 
   const formatTiempoRestante = (segundos: number) => {
     const minutos = Math.floor(segundos / 60);
@@ -246,7 +263,7 @@ export default function EmpleadoPage() {
             <div className="flex flex-col items-center w-full group" onClick={actualizarGPS}>
               <div className="text-center mb-4">
                 <p className="text-[18px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">
-                  Mi QR
+                  Mi QR (Flota)
                 </p>
               </div>
               <div className="bg-white p-6 rounded-[40px] shadow-[0_0_60px_rgba(59,130,246,0.15)] mb-6 transition-transform active:scale-90 cursor-pointer">

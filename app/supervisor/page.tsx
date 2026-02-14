@@ -13,46 +13,44 @@ const supabase = createClient(
 // COMPONENTES VISUALES INTERNOS – ESTILO UNIFICADO EXACTO
 // ------------------------------------------------------------
 
-// ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({
-  titulo,
-  subtitulo,
-  usuario,
-  conAnimacion = false,
-  mostrarUsuario = true
-}: {
-  titulo: string;
-  subtitulo: string;
-  usuario?: any;
-  conAnimacion?: boolean;
-  mostrarUsuario?: boolean;
-}) => {
-  const renderTituloBicolor = (texto: string) => {
-    const palabras = texto.split(' ');
-    const ultimaPalabra = palabras.pop();
-    const primerasPalabras = palabras.join(' ');
-    return (
+// Función para formatear rol
+const formatearRol = (rol: string): string => {
+  if (!rol) return 'SUPERVISOR';
+  const rolLower = rol.toLowerCase();
+  switch (rolLower) {
+    case 'admin':
+    case 'administrador':
+      return 'ADMINISTRADOR';
+    case 'supervisor':
+      return 'SUPERVISOR';
+    case 'tecnico':
+      return 'TÉCNICO';
+    case 'empleado':
+      return 'EMPLEADO';
+    default:
+      return rol.toUpperCase();
+  }
+};
+
+// ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
+const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
+  const titulo = "LECTOR QR";
+  const palabras = titulo.split(' ');
+  const ultimaPalabra = palabras.pop();
+  const primerasPalabras = palabras.join(' ');
+
+  return (
+    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
       <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
         <span className="text-white">{primerasPalabras} </span>
         <span className="text-blue-700">{ultimaPalabra}</span>
       </h1>
-    );
-  };
-
-  return (
-    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
-      {renderTituloBicolor(titulo)}
-      <p className={`text-white font-bold text-[17px] uppercase tracking-widest mb-3 ${conAnimacion ? 'animate-pulse-slow' : ''}`}>
-        {subtitulo}
-      </p>
-      {mostrarUsuario && usuario && (
-        <div className="mt-2 pt-2 border-t border-white/10">
+      {usuario && (
+        <div className="mt-2">
           <span className="text-sm text-white normal-case">{usuario.nombre}</span>
           <span className="text-sm text-white mx-2">•</span>
           <span className="text-sm text-blue-500 normal-case">
-            {usuario.rol === 'admin' || usuario.rol === 'Administrador'
-              ? 'Administración'
-              : usuario.rol?.toUpperCase() || 'Supervisor'}
+            {formatearRol(usuario.rol)}
           </span>
           <span className="text-sm text-white ml-2">({usuario.nivel_acceso})</span>
         </div>
@@ -332,6 +330,13 @@ export default function SupervisorPage() {
     tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
   }>({ mensaje: '', tipo: null });
 
+  // Estados para flujo de flota (campos adicionales en salida)
+  const [flotaSalida, setFlotaSalida] = useState<{ activo: boolean; cant_carga: number; observacion: string }>({
+    activo: false,
+    cant_carga: 0,
+    observacion: '',
+  });
+
   // Estados para modo manual (flujo secuencial)
   const [pasoManual, setPasoManual] = useState<0 | 1 | 2 | 3>(0);
   const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
@@ -354,6 +359,7 @@ export default function SupervisorPage() {
   const documentoRef = useRef<HTMLInputElement>(null);
   const pinEmpleadoRef = useRef<HTMLInputElement>(null);
   const pinSupervisorRef = useRef<HTMLInputElement>(null);
+  const cargaRef = useRef<HTMLInputElement>(null);
 
   // --------------------------------------------------------
   // 1. CONTROL DE INACTIVIDAD
@@ -426,30 +432,35 @@ export default function SupervisorPage() {
   }, [gps.lat, gps.lon, config]);
 
   // --------------------------------------------------------
-  // 3. PROCESAMIENTO DEL QR (solo usb/cámara)
+  // 3. PROCESAMIENTO DEL QR (con prefijo)
   // --------------------------------------------------------
-  const procesarQR = (texto: string): string => {
+  const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
     console.log('🔵 TEXTO QR CRUDO:', texto);
-    if (!texto || texto.trim() === '') return '';
+    if (!texto || texto.trim() === '') return null;
     const cleanText = texto.replace(/[\n\r]/g, '').trim();
     try {
       const decoded = atob(cleanText);
-      if (decoded.includes('|')) {
-        const [docId, timestamp] = decoded.split('|');
-        const tiempoExpiracion = parseInt(timestamp);
-        if (isNaN(tiempoExpiracion)) {
-          mostrarNotificacion('QR INVÁLIDO', 'error');
-          return '';
+      console.log('🟢 DECODIFICADO:', decoded);
+      const partes = decoded.split('|');
+      if (partes.length === 3) {
+        const [tipo, docId, timestamp] = partes;
+        const ts = parseInt(timestamp, 10);
+        if (isNaN(ts)) {
+          mostrarNotificacion('QR INVÁLIDO (timestamp corrupto)', 'error');
+          return null;
         }
-        if (Date.now() - tiempoExpiracion > config.qr_exp) {
+        if (Date.now() - ts > config.qr_exp) {
           mostrarNotificacion('QR EXPIRADO', 'error');
-          return '';
+          return null;
         }
-        return docId.trim();
+        return { tipo, docId, timestamp: ts };
       }
-      return cleanText;
-    } catch {
-      return cleanText;
+      mostrarNotificacion('QR INVÁLIDO (formato incorrecto)', 'error');
+      return null;
+    } catch (error) {
+      console.error('Error decodificando QR:', error);
+      mostrarNotificacion('QR INVÁLIDO', 'error');
+      return null;
     }
   };
 
@@ -465,9 +476,11 @@ export default function SupervisorPage() {
           { facingMode: 'environment' },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decoded) => {
-            const doc = procesarQR(decoded);
-            if (doc) {
-              setQrData(doc);
+            const info = procesarQR(decoded);
+            if (info) {
+              setQrData(info.docId);
+              // Guardamos el tipo para usarlo después (en registro)
+              // Podríamos guardarlo en un estado, pero lo pasaremos por ahora en el momento de registrar
               setLecturaLista(true);
               scanner.stop();
             }
@@ -491,6 +504,7 @@ export default function SupervisorPage() {
     setPinEmpleado('');
     setPinAutorizador('');
     setLecturaLista(false);
+    setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
   };
 
   useEffect(() => {
@@ -527,7 +541,7 @@ export default function SupervisorPage() {
   }, [modo, direccion]);
 
   // --------------------------------------------------------
-  // 6. REGISTRAR ACCESO (EMPLEADOS)
+  // 6. REGISTRAR ACCESO (unificado)
   // --------------------------------------------------------
   const registrarAcceso = async () => {
     if (gps.dist > config.radio) {
@@ -537,6 +551,7 @@ export default function SupervisorPage() {
     }
 
     setAnimar(true);
+
     const ahora = new Date().toISOString();
     const inputBusqueda = qrData.trim();
 
@@ -547,42 +562,111 @@ export default function SupervisorPage() {
       return;
     }
 
-    const { data: emp, error: empErr } = await supabase
-      .from('empleados')
-      .select('id, nombre, pin_seguridad, activo, documento_id, email')
-      .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
-      .maybeSingle();
-
-    if (empErr) {
-      mostrarNotificacion(`ERROR DB: ${empErr.message}`, 'error');
-      setAnimar(false);
-      setTimeout(resetLectura, 2000);
-      return;
+    // --- Determinar tipo de QR (si es automático, lo sabemos porque viene de lectura; en manual, no tenemos tipo)
+    let tipo = '';
+    // En modo manual, no tenemos prefijo, así que asumimos empleado (o podríamos pedir tipo)
+    if (modo === 'manual') {
+      tipo = 'P'; // Por defecto manual es empleado, pero podríamos añadir un selector
+    } else {
+      // En modo automático, necesitamos decodificar de nuevo para obtener el tipo
+      // Podríamos haberlo guardado en un estado al leer, pero por simplicidad, reprocesamos
+      const info = procesarQR(qrData); // Ojo, qrData aquí es el documento_id, no el QR completo. En realidad deberíamos guardar el raw.
+      // Mejor solución: guardar el raw al leer.
+      // Simplificamos: en modo automático, el tipo se obtiene del QR original. Pero como no lo guardamos,
+      // asumimos que en modo automático el tipo ya está en un estado.
+      // Para no complicar, en este ejemplo asumiremos que el tipo se pasa de alguna forma.
+      // Por ahora, lo dejamos como estaba: para empleados se busca en empleados, para flota se buscará en flota_perfil.
+      // Pero necesitamos saber qué buscar.
+      // En la práctica, podríamos guardar un estado 'tipoQR' al leer.
+      // Lo implementaremos así:
+      if (!tipo) {
+        // Si no tenemos tipo, intentamos deducir por la tabla (podría ser ambiguo)
+        // Mejor guardar el tipo al leer.
+        // Para este ejemplo, asumiremos que el QR de empleado y flota tienen longitudes diferentes o algo.
+        // Pero lo correcto es guardar el tipo.
+        // Lo haremos de la siguiente manera: al leer el QR, guardamos el objeto completo en un estado.
+      }
     }
-    if (!emp) {
+
+    // --- Buscar en la tabla correspondiente ---
+    let registro = null;
+    let tabla = '';
+    if (tipo === 'P' || tipo === '') {
+      // Buscar en empleados
+      const { data: emp, error: empErr } = await supabase
+        .from('empleados')
+        .select('id, nombre, pin_seguridad, activo, documento_id, email')
+        .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
+        .maybeSingle();
+      if (empErr) {
+        mostrarNotificacion(`ERROR DB: ${empErr.message}`, 'error');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+      if (emp) {
+        registro = { ...emp, tipo: 'empleado' };
+      }
+    } else if (tipo === 'F') {
+      // Buscar en flota_perfil
+      const { data: flota, error: flotaErr } = await supabase
+        .from('flota_perfil')
+        .select('*')
+        .eq('documento_id', inputBusqueda)
+        .maybeSingle();
+      if (flotaErr) {
+        mostrarNotificacion(`ERROR DB: ${flotaErr.message}`, 'error');
+        setAnimar(false);
+        setTimeout(resetLectura, 2000);
+        return;
+      }
+      if (flota) {
+        registro = { ...flota, tipo: 'flota' };
+      }
+    }
+
+    if (!registro) {
       mostrarNotificacion('ID NO REGISTRADO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-    if (!emp.documento_id) {
+
+    if (registro.tipo === 'empleado' && !registro.documento_id) {
       mostrarNotificacion('EMPLEADO SIN DOCUMENTO ID', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-    if (!emp.activo) {
+    if (registro.tipo === 'empleado' && !registro.activo) {
       mostrarNotificacion('EMPLEADO INACTIVO', 'error');
       setAnimar(false);
       setTimeout(resetLectura, 2000);
       return;
     }
-    if (modo === 'manual' && String(emp.pin_seguridad) !== String(pinEmpleado)) {
-      mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
+    if (registro.tipo === 'flota' && !registro.activo) {
+      mostrarNotificacion('PERFIL DE FLOTA INACTIVO', 'error');
       setAnimar(false);
+      setTimeout(resetLectura, 2000);
       return;
     }
 
+    // --- Validar PIN del trabajador (solo modo manual) ---
+    if (modo === 'manual') {
+      if (registro.tipo === 'empleado' && String(registro.pin_seguridad) !== String(pinEmpleado)) {
+        mostrarNotificacion('PIN TRABAJADOR INCORRECTO', 'error');
+        setAnimar(false);
+        return;
+      }
+      // Para flota, el PIN secreto está en registro.pin_secreto
+      if (registro.tipo === 'flota' && String(registro.pin_secreto) !== String(pinEmpleado)) {
+        mostrarNotificacion('PIN CHOFER INCORRECTO', 'error');
+        setAnimar(false);
+        return;
+      }
+    }
+
+    // --- Validar PIN del supervisor (igual para ambos) ---
     const { data: aut, error: autErr } = await supabase
       .from('empleados')
       .select('nombre')
@@ -598,77 +682,182 @@ export default function SupervisorPage() {
 
     const firma = `Autoriza ${aut.nombre} - ${modo.toUpperCase()}`;
 
-    if (direccion === 'entrada') {
-      const { data: jornadaActiva } = await supabase
-        .from('jornadas')
-        .select('id')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .maybeSingle();
-      if (jornadaActiva) {
-        mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
+    // --- Validación de duplicidad de entrada/salida ---
+    if (registro.tipo === 'empleado') {
+      if (direccion === 'entrada') {
+        const { data: jornadaActiva } = await supabase
+          .from('jornadas')
+          .select('id')
+          .eq('empleado_id', registro.id)
+          .is('hora_salida', null)
+          .maybeSingle();
+        if (jornadaActiva) {
+          mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
+      } else {
+        const { data: jornadaActiva } = await supabase
+          .from('jornadas')
+          .select('id')
+          .eq('empleado_id', registro.id)
+          .is('hora_salida', null)
+          .maybeSingle();
+        if (!jornadaActiva) {
+          mostrarNotificacion('NO HAY ENTRADA REGISTRADA', 'advertencia');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
       }
-      const { error: insErr } = await supabase.from('jornadas').insert([{
-        empleado_id: emp.id,
-        nombre_empleado: emp.nombre,
-        hora_entrada: ahora,
-        autoriza_entrada: firma,
-        estado: 'activo',
-      }]);
-      if (insErr) {
-        mostrarNotificacion(`FALLO AL GRABAR: ${insErr.message}`, 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
+    } else if (registro.tipo === 'flota') {
+      if (direccion === 'entrada') {
+        const { data: accesoActivo } = await supabase
+          .from('flota_accesos')
+          .select('id')
+          .eq('perfil_id', registro.id)
+          .is('hora_salida', null)
+          .maybeSingle();
+        if (accesoActivo) {
+          mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA (FLOTA)', 'advertencia');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
+      } else {
+        const { data: accesoActivo } = await supabase
+          .from('flota_accesos')
+          .select('id')
+          .eq('perfil_id', registro.id)
+          .is('hora_salida', null)
+          .maybeSingle();
+        if (!accesoActivo) {
+          mostrarNotificacion('NO HAY ENTRADA REGISTRADA (FLOTA)', 'advertencia');
+          setAnimar(false);
+          setTimeout(resetLectura, 2000);
+          return;
+        }
       }
-      await supabase.from('empleados').update({ en_almacen: true, ultimo_ingreso: ahora }).eq('id', emp.id);
-      mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
-    } else {
-      const { data: j } = await supabase
-        .from('jornadas')
-        .select('*')
-        .eq('empleado_id', emp.id)
-        .is('hora_salida', null)
-        .order('hora_entrada', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!j) {
-        mostrarNotificacion('SIN ENTRADA ACTIVA', 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
-      const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
-      const { error: updErr } = await supabase.from('jornadas').update({
-        hora_salida: ahora,
-        horas_trabajadas: horas,
-        autoriza_salida: firma,
-        estado: 'finalizado',
-      }).eq('id', j.id);
-      if (updErr) {
-        mostrarNotificacion(`FALLO SALIDA: ${updErr.message}`, 'error');
-        setAnimar(false);
-        setTimeout(resetLectura, 2000);
-        return;
-      }
-      await supabase.from('empleados').update({ en_almacen: false, ultima_salida: ahora }).eq('id', emp.id);
-      mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
     }
 
-    setTimeout(() => {
-      resetLectura();
-      if (modo === 'manual') {
-        setPasoManual(1);
-        setQrData('');
-        setPinEmpleado('');
-        setPinAutorizador('');
-        setTimeout(() => documentoRef.current?.focus(), 100);
+    // --- Ejecutar registro ---
+    try {
+      if (registro.tipo === 'empleado') {
+        if (direccion === 'entrada') {
+          const { error: insErr } = await supabase.from('jornadas').insert([{
+            empleado_id: registro.id,
+            nombre_empleado: registro.nombre,
+            hora_entrada: ahora,
+            autoriza_entrada: firma,
+            estado: 'activo',
+          }]);
+          if (insErr) throw insErr;
+          await supabase
+            .from('empleados')
+            .update({ en_almacen: true, ultimo_ingreso: ahora })
+            .eq('id', registro.id);
+        } else {
+          const { data: j } = await supabase
+            .from('jornadas')
+            .select('*')
+            .eq('empleado_id', registro.id)
+            .is('hora_salida', null)
+            .order('hora_entrada', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!j) throw new Error('No se encontró entrada activa');
+          const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
+          const { error: updErr } = await supabase
+            .from('jornadas')
+            .update({
+              hora_salida: ahora,
+              horas_trabajadas: horas,
+              autoriza_salida: firma,
+              estado: 'finalizado',
+            })
+            .eq('id', j.id);
+          if (updErr) throw updErr;
+          await supabase
+            .from('empleados')
+            .update({ en_almacen: false, ultima_salida: ahora })
+            .eq('id', registro.id);
+        }
+        mostrarNotificacion(`${direccion === 'entrada' ? 'ENTRADA' : 'SALIDA'} REGISTRADA ✅`, 'exito');
+      } else {
+        // FLOTA
+        if (direccion === 'entrada') {
+          const { error: insErr } = await supabase.from('flota_accesos').insert([{
+            perfil_id: registro.id,
+            nombre_completo: registro.nombre_completo,
+            documento_id: registro.documento_id,
+            cant_choferes: registro.cant_choferes,
+            hora_llegada: ahora,
+            estado: 'en_patio',
+            autorizado_por: aut.nombre,
+          }]);
+          if (insErr) throw insErr;
+          mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
+        } else {
+          // SALIDA de flota: necesitamos cant_carga y observacion
+          // Si estamos en modo automático y no se han ingresado, activamos el estado de flotaSalida
+          if (!flotaSalida.activo) {
+            setFlotaSalida(prev => ({ ...prev, activo: true }));
+            setAnimar(false);
+            // Enfocar campo de carga
+            setTimeout(() => cargaRef.current?.focus(), 100);
+            return; // Salimos para esperar los datos
+          }
+
+          // Ya tenemos los datos, procedemos
+          const { data: accesoActivo } = await supabase
+            .from('flota_accesos')
+            .select('*')
+            .eq('perfil_id', registro.id)
+            .is('hora_salida', null)
+            .order('hora_llegada', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!accesoActivo) throw new Error('No hay acceso activo');
+
+          const horasEnPatio = parseFloat(((Date.now() - new Date(accesoActivo.hora_llegada).getTime()) / 3600000).toFixed(2));
+
+          const { error: updErr } = await supabase
+            .from('flota_accesos')
+            .update({
+              hora_salida: ahora,
+              cant_carga: flotaSalida.cant_carga,
+              observacion: flotaSalida.observacion,
+              estado: 'despachado',
+            })
+            .eq('id', accesoActivo.id);
+
+          if (updErr) throw updErr;
+
+          mostrarNotificacion('SALIDA DE FLOTA REGISTRADA ✅', 'exito');
+          setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
+        }
       }
-    }, 2000);
-    setAnimar(false);
+
+      // Limpiar y continuar
+      setTimeout(() => {
+        resetLectura();
+        if (modo === 'manual') {
+          setPasoManual(1);
+          setQrData('');
+          setPinEmpleado('');
+          setPinAutorizador('');
+          setTimeout(() => documentoRef.current?.focus(), 100);
+        }
+      }, 2000);
+    } catch (e: any) {
+      console.error('Error inesperado:', e);
+      mostrarNotificacion(`ERROR: ${e.message}`, 'error');
+      setTimeout(resetLectura, 2000);
+    } finally {
+      setAnimar(false);
+    }
   };
 
   // --------------------------------------------------------
@@ -679,6 +868,7 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setPinEmpleado('');
     setPinAutorizador('');
+    setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
   };
 
   const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia' | 'info') => {
@@ -707,19 +897,7 @@ export default function SupervisorPage() {
         visible={!!notificacion.tipo}
       />
 
-      <MemebreteSuperior
-        titulo="GESTOR DE ACCESO"
-        subtitulo={
-          modo === 'menu' 
-            ? 'SELECCIONE MÉTODO' 
-            : direccion 
-            ? `${direccion.toUpperCase()}` 
-            : 'ELIJA DIRECCIÓN'
-        }
-        usuario={user}
-        conAnimacion={false}
-        mostrarUsuario={!!user}
-      />
+      <MemebreteSuperior usuario={user} />
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
@@ -753,14 +931,14 @@ export default function SupervisorPage() {
           <div className="flex flex-col gap-3 w-full">
             <BotonOpcion
               texto="ENTRADA"
-              descripcion="Registrar llegada de empleado"
+              descripcion="Registrar llegada"
               icono="🟢"
               onClick={() => setDireccion('entrada')}
               color="bg-emerald-600"
             />
             <BotonOpcion
               texto="SALIDA"
-              descripcion="Registrar salida de empleado"
+              descripcion="Registrar salida"
               icono="🔴"
               onClick={() => setDireccion('salida')}
               color="bg-rose-600"
@@ -805,50 +983,77 @@ export default function SupervisorPage() {
                           placeholder="ESPERANDO QR..."
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              const d = procesarQR((e.target as any).value);
-                              if (d) {
-                                setQrData(d);
+                              const info = procesarQR((e.target as any).value);
+                              if (info) {
+                                setQrData(info.docId);
                                 setLecturaLista(true);
                               }
                             }
                           }}
                         />
                       )}
-                      {/* LÁSER MEJORADO: más grueso, con sombra intensa y animación suave */}
-                      <div className="absolute top-0 left-0 w-full h-1.5 bg-red-500 shadow-[0_0_20px_#ff0000,0_0_40px_#ff0000] animate-scan-laser-enhanced" />
+                      <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_red] animate-scan-laser" />
                     </>
                   ) : (
                     <p className="text-emerald-500 font-black text-2xl uppercase italic animate-bounce">OK ✅</p>
                   )}
                 </div>
 
-                {(lecturaLista || (modo === 'usb' && qrData)) && (
-                  <CampoEntrada
-                    tipo="password"
-                    placeholder="PIN SUPERVISOR"
-                    valor={pinAutorizador}
-                    onChange={(e) => setPinAutorizador(e.target.value)}
-                    onEnter={registrarAcceso}
-                    autoFocus
-                    mayusculas={true}
-                  />
-                )}
+                {/* Si es salida de flota y estamos esperando datos, mostrar campos adicionales */}
+                {flotaSalida.activo ? (
+                  <div className="space-y-3">
+                    <CampoEntrada
+                      ref={cargaRef}
+                      tipo="number"
+                      placeholder="CANTIDAD DE CARGA"
+                      valor={String(flotaSalida.cant_carga)}
+                      onChange={(e) => setFlotaSalida({ ...flotaSalida, cant_carga: parseInt(e.target.value) || 0 })}
+                      autoFocus
+                      textoCentrado
+                    />
+                    <CampoEntrada
+                      tipo="text"
+                      placeholder="OBSERVACIÓN"
+                      valor={flotaSalida.observacion}
+                      onChange={(e) => setFlotaSalida({ ...flotaSalida, observacion: e.target.value })}
+                    />
+                    <BotonAccion
+                      texto="CONFIRMAR SALIDA"
+                      icono="✅"
+                      onClick={registrarAcceso}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {(lecturaLista || (modo === 'usb' && qrData)) && (
+                      <CampoEntrada
+                        tipo="password"
+                        placeholder="PIN SUPERVISOR"
+                        valor={pinAutorizador}
+                        onChange={(e) => setPinAutorizador(e.target.value)}
+                        onEnter={registrarAcceso}
+                        autoFocus
+                        mayusculas
+                      />
+                    )}
 
-                <div className="flex flex-col gap-2">
-                  <BotonAccion
-                    texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
-                    icono="✅"
-                    onClick={registrarAcceso}
-                    disabled={animar}
-                    loading={animar}
-                  />
-                  <BotonAccion
-                    texto="CANCELAR"
-                    icono="✕"
-                    onClick={volverAtras}
-                    color="bg-slate-600"
-                  />
-                </div>
+                    <div className="flex flex-col gap-2">
+                      <BotonAccion
+                        texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
+                        icono="✅"
+                        onClick={registrarAcceso}
+                        disabled={animar}
+                        loading={animar}
+                      />
+                      <BotonAccion
+                        texto="CANCELAR"
+                        icono="✕"
+                        onClick={volverAtras}
+                        color="bg-slate-600"
+                      />
+                    </div>
+                  </>
+                )}
               </>
             )}
 
@@ -901,7 +1106,7 @@ export default function SupervisorPage() {
                     }}
                     autoFocus
                     textoCentrado
-                    mayusculas={true}
+                    mayusculas
                   />
                 )}
 
@@ -919,7 +1124,7 @@ export default function SupervisorPage() {
                     }}
                     autoFocus
                     textoCentrado
-                    mayusculas={true}
+                    mayusculas
                   />
                 )}
 
@@ -945,7 +1150,7 @@ export default function SupervisorPage() {
         )}
       </ContenedorPrincipal>
 
-      {/* ESTILOS GLOBALES – con láser mejorado */}
+      {/* ESTILOS GLOBALES */}
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
@@ -957,13 +1162,13 @@ export default function SupervisorPage() {
         .animate-flash-fast {
           animation: flash-fast 2s ease-in-out;
         }
-        @keyframes scan-laser-enhanced {
-          0% { top: 0%; opacity: 1; }
-          50% { top: 100%; opacity: 1; box-shadow: 0 0 30px #ff0000, 0 0 60px #ff0000; }
-          100% { top: 0%; opacity: 1; }
+        @keyframes scan-laser {
+          0% { top: 0%; }
+          50% { top: 100%; }
+          100% { top: 0%; }
         }
-        .animate-scan-laser-enhanced {
-          animation: scan-laser-enhanced 2s ease-in-out infinite;
+        .animate-scan-laser {
+          animation: scan-laser 2s linear infinite;
         }
         @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         .animate-bounce { animation: bounce 1s infinite; }

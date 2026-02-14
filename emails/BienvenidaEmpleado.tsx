@@ -7,6 +7,7 @@ import {
   Section,
   Text,
   Hr,
+  Img,
 } from '@react-email/components';
 
 interface BienvenidaEmpleadoProps {
@@ -34,38 +35,89 @@ export const BienvenidaEmpleado = ({
       <Preview>{previewText}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Section style={section}>
-            <Text style={h1}>GESTOR DE ACCESO</Text>
-            <Text style={h2}>Bienvenido al sistema</Text>
+          {/* Encabezado */}
+          <Section style={header}>
+            <Text style={headerTitle}>GESTOR DE ACCESO</Text>
+            <Text style={headerSubtitle}>Sistema de Control de Personal</Text>
+          </Section>
 
-            <Text style={text}>Hola <strong>{nombre}</strong>,</Text>
-            <Text style={text}>
-              Se ha creado tu cuenta en el sistema. A continuación tus datos de acceso:
+          {/* Datos del empleado */}
+          <Section style={dataSection}>
+            <Text style={dataTitle}>📋 DATOS DEL EMPLEADO</Text>
+            <table style={dataTable}>
+              <tr>
+                <td style={dataLabel}>Nombre:</td>
+                <td style={dataValue}>{nombre}</td>
+              </tr>
+              <tr>
+                <td style={dataLabel}>Documento:</td>
+                <td style={dataValue}>{documento_id}</td>
+              </tr>
+              <tr>
+                <td style={dataLabel}>Email:</td>
+                <td style={dataValue}>{email}</td>
+              </tr>
+              <tr>
+                <td style={dataLabel}>Rol:</td>
+                <td style={dataValue}>{rol}</td>
+              </tr>
+              <tr>
+                <td style={dataLabel}>Nivel de acceso:</td>
+                <td style={dataValue}>{nivel_acceso}</td>
+              </tr>
+            </table>
+          </Section>
+
+          {/* PIN de seguridad */}
+          <Section style={pinSection}>
+            <Text style={pinLabel}>🔐 PIN DE SEGURIDAD</Text>
+            <Text style={pinValue}>{pin_seguridad}</Text>
+            <Text style={pinWarning}>
+              Este PIN es personal e intransferible. No lo compartas con nadie.
             </Text>
+          </Section>
 
-            <Section style={dataBox}>
-              <Text style={dataItem}><strong>Documento:</strong> {documento_id}</Text>
-              <Text style={dataItem}><strong>Email:</strong> {email}</Text>
-              <Text style={dataItem}><strong>Rol:</strong> {rol}</Text>
-              <Text style={dataItem}><strong>Nivel de acceso:</strong> {nivel_acceso}</Text>
-            </Section>
-
-            <Section style={pinBox}>
-              <Text style={pinLabel}>🔐 PIN DE SEGURIDAD</Text>
-              <Text style={pinValue}>{pin_seguridad}</Text>
-              <Text style={pinWarning}>
-                Este PIN es confidencial e intransmisible. No lo compartas con nadie.
-              </Text>
-            </Section>
-
-            <Hr style={hr} />
-
-            <Text style={footer}>
-              Atentamente,
-              <br />
-              Administración del Sistema
+          {/* Reglas y procedimientos */}
+          <Section style={rulesSection}>
+            <Text style={rulesTitle}>📌 NORMAS Y PROCEDIMIENTOS OBLIGATORIOS</Text>
+            <Text style={rulesText}>
+              Como parte de nuestra política de control de acceso, es fundamental que todos los empleados registren su entrada y salida en el sistema. A continuación, las pautas que debes seguir:
             </Text>
-            <Text style={copyright}>@Copyright 2026</Text>
+            <ul style={rulesList}>
+              <li style={listItem}>
+                <strong>Registro de entrada:</strong> Debes escanear tu código QR en el lector ubicado en la entrada principal cada vez que ingreses a las instalaciones. El sistema validará tu ubicación GPS y te permitirá acceder solo si te encuentras dentro del rango permitido.
+              </li>
+              <li style={listItem}>
+                <strong>Registro de salida:</strong> Al finalizar tu jornada, deberás escanear nuevamente tu QR para registrar tu salida. Esto es obligatorio para llevar un control preciso de horas trabajadas y para fines de seguridad.
+              </li>
+              <li style={listItem}>
+                <strong>Obligatoriedad:</strong> El incumplimiento del registro de entrada o salida será considerado como falta grave y podrá ser sancionado según el reglamento interno.
+              </li>
+              <li style={listItem}>
+                <strong>Confidencialidad:</strong> Tu código QR y PIN son personales. No los compartas ni permitas que otra persona los utilice. Cualquier uso indebido será responsabilidad del titular.
+              </li>
+              <li style={listItem}>
+                <strong>Actualización de datos:</strong> Si cambias de teléfono o tienes problemas con el GPS, notifica de inmediato a tu supervisor para que se tomen las medidas necesarias.
+              </li>
+            </ul>
+            <Text style={rulesFooter}>
+              Al hacer uso de este sistema, aceptas cumplir con estas normas y entiendes que tu presencia queda registrada para efectos administrativos y de seguridad.
+            </Text>
+          </Section>
+
+          <Hr style={hr} />
+
+          {/* Pie de página */}
+          <Section style={footer}>
+            <Text style={footerText}>
+              Este es un mensaje automático del Sistema de Gestión de Acceso. Por favor, no respondas a este correo.
+            </Text>
+            <Text style={footerText}>
+              © 2026 Gestor de Acceso. Todos los derechos reservados.
+            </Text>
+            <Text style={footerSmall}>
+              Documento generado el {new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}.
+            </Text>
           </Section>
         </Container>
       </Body>
@@ -75,103 +127,168 @@ export const BienvenidaEmpleado = ({
 
 export default BienvenidaEmpleado;
 
-// Estilos (obligatorio escribirlos así en React Email)
+// Estilos (en línea, formato React Email)
 const main = {
-  backgroundColor: '#f6f9fc',
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
+  backgroundColor: '#f4f4f4',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  padding: '20px 0',
 };
 
 const container = {
   backgroundColor: '#ffffff',
   margin: '0 auto',
-  padding: '20px 0 48px',
-  marginBottom: '64px',
-};
-
-const section = {
-  padding: '0 48px',
-};
-
-const h1 = {
-  color: '#333',
-  fontSize: '24px',
-  fontWeight: 'bold',
-  textAlign: 'center' as const,
-  margin: '30px 0',
-};
-
-const h2 = {
-  color: '#2563eb',
-  fontSize: '20px',
-  fontWeight: '600',
-  textAlign: 'center' as const,
-  margin: '20px 0',
-};
-
-const text = {
-  color: '#333',
-  fontSize: '16px',
-  lineHeight: '26px',
-};
-
-const dataBox = {
-  backgroundColor: '#f3f4f6',
-  padding: '24px',
+  width: '100%',
+  maxWidth: '210mm', // A4 width
+  padding: '10mm',   // 1 cm = 10mm
+  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
   borderRadius: '8px',
-  margin: '24px 0',
 };
 
-const dataItem = {
-  ...text,
-  margin: '8px 0',
-};
-
-const pinBox = {
-  backgroundColor: '#1a1a1a',
-  padding: '24px',
-  borderRadius: '8px',
-  margin: '24px 0',
+const header = {
   textAlign: 'center' as const,
+  marginBottom: '24px',
 };
 
-const pinLabel = {
-  color: '#9ca3af',
-  fontSize: '12px',
+const headerTitle = {
+  fontSize: '28px',
   fontWeight: 'bold',
-  letterSpacing: '1px',
-  margin: '0 0 12px',
+  color: '#1e293b',
+  margin: '0 0 4px',
 };
 
-const pinValue = {
-  color: '#f59e0b',
-  fontSize: '32px',
-  fontWeight: 'bold',
-  fontFamily: 'monospace',
-  margin: '0 0 12px',
-};
-
-const pinWarning = {
-  color: '#9ca3af',
-  fontSize: '12px',
-  fontStyle: 'italic',
+const headerSubtitle = {
+  fontSize: '14px',
+  color: '#64748b',
   margin: '0',
 };
 
+const dataSection = {
+  marginBottom: '24px',
+};
+
+const dataTitle = {
+  fontSize: '18px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 12px',
+  borderBottom: '2px solid #e2e8f0',
+  paddingBottom: '6px',
+};
+
+const dataTable = {
+  width: '100%',
+  borderCollapse: 'collapse' as const,
+};
+
+const dataLabel = {
+  padding: '8px 12px',
+  backgroundColor: '#f8fafc',
+  fontWeight: '600',
+  color: '#334155',
+  width: '30%',
+  border: '1px solid #e2e8f0',
+};
+
+const dataValue = {
+  padding: '8px 12px',
+  backgroundColor: '#ffffff',
+  color: '#0f172a',
+  border: '1px solid #e2e8f0',
+};
+
+const pinSection = {
+  backgroundColor: '#1e293b',
+  borderRadius: '8px',
+  padding: '20px',
+  textAlign: 'center' as const,
+  marginBottom: '24px',
+};
+
+const pinLabel = {
+  fontSize: '14px',
+  fontWeight: 'bold',
+  color: '#94a3b8',
+  letterSpacing: '1px',
+  margin: '0 0 8px',
+};
+
+const pinValue = {
+  fontSize: '32px',
+  fontWeight: 'bold',
+  color: '#fbbf24',
+  fontFamily: 'monospace',
+  margin: '0 0 8px',
+};
+
+const pinWarning = {
+  fontSize: '12px',
+  color: '#cbd5e1',
+  fontStyle: 'italic' as const,
+  margin: '0',
+};
+
+const rulesSection = {
+  marginBottom: '24px',
+};
+
+const rulesTitle = {
+  fontSize: '18px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 12px',
+  borderBottom: '2px solid #e2e8f0',
+  paddingBottom: '6px',
+};
+
+const rulesText = {
+  fontSize: '14px',
+  lineHeight: '1.6',
+  color: '#334155',
+  margin: '0 0 16px',
+};
+
+const rulesList = {
+  listStyleType: 'none',
+  padding: '0',
+  margin: '0 0 16px',
+};
+
+const listItem = {
+  fontSize: '14px',
+  lineHeight: '1.6',
+  color: '#334155',
+  marginBottom: '12px',
+  paddingLeft: '20px',
+  position: 'relative' as const,
+};
+
+const rulesFooter = {
+  fontSize: '14px',
+  fontStyle: 'italic' as const,
+  color: '#475569',
+  margin: '16px 0 0',
+  padding: '12px',
+  backgroundColor: '#f1f5f9',
+  borderRadius: '4px',
+};
+
 const hr = {
-  borderColor: '#e6e6e6',
-  margin: '20px 0',
+  borderColor: '#e2e8f0',
+  margin: '24px 0',
 };
 
 const footer = {
-  color: '#8898aa',
-  fontSize: '12px',
-  lineHeight: '16px',
   textAlign: 'center' as const,
 };
 
-const copyright = {
-  ...footer,
-  marginTop: '8px',
+const footerText = {
+  fontSize: '12px',
+  color: '#64748b',
+  margin: '4px 0',
+};
+
+const footerSmall = {
   fontSize: '10px',
-  color: '#666',
+  color: '#94a3b8',
+  margin: '8px 0 0',
 };

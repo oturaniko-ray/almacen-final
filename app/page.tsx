@@ -8,6 +8,25 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Función para formatear rol
+const formatearRol = (rol: string): string => {
+  if (!rol) return 'USUARIO';
+  const rolLower = rol.toLowerCase();
+  switch (rolLower) {
+    case 'admin':
+    case 'administrador':
+      return 'ADMINISTRADOR';
+    case 'supervisor':
+      return 'SUPERVISOR';
+    case 'tecnico':
+      return 'TÉCNICO';
+    case 'empleado':
+      return 'EMPLEADO';
+    default:
+      return rol.toUpperCase();
+  }
+};
+
 export default function LoginPage() {
   const [identificador, setIdentificador] = useState('');
   const [pin, setPin] = useState('');
@@ -24,9 +43,7 @@ export default function LoginPage() {
   const pinRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // ------------------------------------------------------------
-  // CARGAR CONFIGURACIÓN Y SESIÓN
-  // ------------------------------------------------------------
+  // Cargar configuración y sesión
   useEffect(() => {
     const fetchConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
@@ -45,9 +62,6 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  // ------------------------------------------------------------
-  // LOGOUT
-  // ------------------------------------------------------------
   const logout = () => {
     localStorage.clear();
     setTempUser(null);
@@ -64,9 +78,6 @@ export default function LoginPage() {
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 3000);
   };
 
-  // ------------------------------------------------------------
-  // LOGIN
-  // ------------------------------------------------------------
   const handleLogin = async () => {
     if (!identificador || !pin) {
       mostrarNotificacion('Complete todos los campos', 'advertencia');
@@ -106,9 +117,7 @@ export default function LoginPage() {
     }
   };
 
-  // ------------------------------------------------------------
-  // FILTRO DE BOTONES POR NIVEL
-  // ------------------------------------------------------------
+  // Filtro de botones por nivel (solo para empleados/supervisores/admin)
   const obtenerBotonesDisponibles = () => {
     const nivel = Number(tempUser?.nivel_acceso || 0);
     const tienePermisoReportes = tempUser?.permiso_reportes === true;
@@ -166,11 +175,7 @@ export default function LoginPage() {
     });
   };
 
-  // ------------------------------------------------------------
-  // COMPONENTES VISUALES – VERSIÓN COMPACTA (CABE EN UNA PANTALLA)
-  // ------------------------------------------------------------
-
-  // ----- MEMBRETE (REDUCIDO) -----
+  // Componentes visuales
   const Memebrete = () => (
     <div className="w-full max-w-sm bg-[#1a1a1a] p-4 rounded-[25px] border border-white/5 mb-3 text-center shadow-2xl">
       <h1 className="text-lg font-black italic uppercase tracking-tighter leading-none mb-2">
@@ -185,7 +190,7 @@ export default function LoginPage() {
           <span className="text-xs text-white normal-case">{tempUser.nombre}</span>
           <span className="text-xs text-white mx-2">•</span>
           <span className="text-xs text-blue-500 normal-case">
-            {tempUser.rol?.toLowerCase() || 'usuario'}
+            {formatearRol(tempUser.rol)}
           </span>
           <span className="text-xs text-white ml-2">({tempUser.nivel_acceso})</span>
         </div>
@@ -193,7 +198,6 @@ export default function LoginPage() {
     </div>
   );
 
-  // ----- BOTÓN CON CÍRCULO (MUY COMPACTO) -----
   const BotonOpcion = ({
     texto,
     icono,
@@ -220,7 +224,6 @@ export default function LoginPage() {
     </button>
   );
 
-  // ----- BOTÓN DE ACCIÓN (ENTRAR, COMPACTO) -----
   const BotonAccion = ({
     texto,
     icono,
@@ -255,7 +258,6 @@ export default function LoginPage() {
     </button>
   );
 
-  // ----- FOOTER (SIN CAMBIOS) -----
   const Footer = () => (
     <div className="w-full max-w-sm mt-6 pt-3 text-center">
       <p className="text-[9px] text-white/40 uppercase tracking-widest mb-3">
@@ -272,7 +274,6 @@ export default function LoginPage() {
     </div>
   );
 
-  // ----- NOTIFICACIÓN FLOTANTE -----
   const Notificacion = () => {
     if (!notificacion.tipo) return null;
     const colores = {
@@ -299,9 +300,6 @@ export default function LoginPage() {
     );
   };
 
-  // ------------------------------------------------------------
-  // RENDERIZADO
-  // ------------------------------------------------------------
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
       <Notificacion />
@@ -317,7 +315,7 @@ export default function LoginPage() {
               placeholder="ID / CORREO"
               className="w-full bg-white/5 border border-white/10 p-2.5 rounded-xl text-center text-[11px] font-bold text-white outline-none focus:border-blue-500/50 uppercase"
               value={identificador}
-              onChange={(e) => setIdentificador(e.target.value)}
+              onChange={(e) => setIdentificador(e.target.value.toUpperCase())}
               onKeyDown={(e) => e.key === 'Enter' && pinRef.current?.focus()}
               autoFocus
             />
@@ -349,6 +347,20 @@ export default function LoginPage() {
                 color={btn.color}
               />
             ))}
+            {/* BOTÓN ADICIONAL PARA ACCESO DE CONDUCTORES (FLOTA) */}
+            <button
+              onClick={() => router.push('/flota/login')}
+              className="w-full bg-blue-800 p-2 rounded-xl border border-white/5 
+                active:scale-95 transition-transform shadow-lg 
+                flex flex-col items-center justify-center gap-1 mt-2"
+            >
+              <div className="w-10 h-10 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
+                <span className="text-xl">F</span>
+              </div>
+              <span className="text-white font-bold uppercase text-[10px] tracking-wider">
+                ACCESO CONDUCTORES
+              </span>
+            </button>
           </div>
         )}
 
