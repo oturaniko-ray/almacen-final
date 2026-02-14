@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { tipo } = body; // 'empleado' o 'flota'
 
-    // ✅ Siempre usamos onboarding@resend.dev (no requiere verificación)
+    // Siempre usamos onboarding@resend.dev (no requiere verificación)
     const from = 'onboarding@resend.dev';
 
     let reactComponent;
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
         cant_choferes,
         cant_rutas,
         pin_secreto,
+        email, // ← AGREGADO
       });
       subject = 'Bienvenido al Sistema de Flota - Credenciales de Acceso';
       to = toOverride || email;
