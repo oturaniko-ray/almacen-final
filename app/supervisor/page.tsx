@@ -289,6 +289,109 @@ const Footer = ({ router }: { router: any }) => (
   </div>
 );
 
+// Componente Modal para salida de flota
+const ModalFlotaSalida = ({
+  visible,
+  onConfirmar,
+  onCancelar,
+  cantCarga,
+  setCantCarga,
+  observacion,
+  setObservacion,
+  loading
+}: {
+  visible: boolean;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+  cantCarga: number;
+  setCantCarga: (valor: number) => void;
+  observacion: string;
+  setObservacion: (valor: string) => void;
+  loading: boolean;
+}) => {
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#1a1a1a] border-2 border-blue-500/30 rounded-[30px] p-6 max-w-sm w-full shadow-2xl animate-modal-appear">
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-blue-500/30">
+            <span className="text-3xl">🚛</span>
+          </div>
+          <h2 className="text-white font-black text-lg uppercase tracking-wider">SALIDA DE FLOTA</h2>
+          <p className="text-blue-400 text-[10px] uppercase tracking-widest mt-1">INGRESE DATOS DEL DESPACHO</p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-white/60 text-[9px] uppercase tracking-widest block mb-1 text-center">
+              CANTIDAD DE CARGA
+            </label>
+            <input
+              type="number"
+              value={cantCarga || ''}
+              onChange={(e) => setCantCarga(parseInt(e.target.value) || 0)}
+              className="w-full bg-white/5 border-2 border-blue-500/30 p-4 rounded-2xl text-center text-white font-bold text-lg outline-none focus:border-blue-500 transition-all"
+              placeholder="0"
+              autoFocus
+              min="0"
+            />
+          </div>
+
+          <div>
+            <label className="text-white/60 text-[9px] uppercase tracking-widest block mb-1 text-center">
+              OBSERVACIÓN
+            </label>
+            <textarea
+              value={observacion}
+              onChange={(e) => setObservacion(e.target.value)}
+              className="w-full bg-white/5 border-2 border-blue-500/30 p-4 rounded-2xl text-center text-white font-bold text-sm outline-none focus:border-blue-500 transition-all resize-none h-24"
+              placeholder="INGRESE OBSERVACIÓN..."
+              maxLength={200}
+            />
+            <p className="text-right text-white/30 text-[8px] mt-1">
+              {observacion.length}/200
+            </p>
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <button
+              onClick={onCancelar}
+              className="flex-1 bg-slate-700 p-4 rounded-2xl text-white font-black uppercase text-sm tracking-wider hover:bg-slate-600 transition-all active:scale-95 border border-white/5"
+            >
+              CANCELAR
+            </button>
+            <button
+              onClick={onConfirmar}
+              disabled={loading}
+              className="flex-1 bg-blue-600 p-4 rounded-2xl text-white font-black uppercase text-sm tracking-wider hover:bg-blue-500 transition-all active:scale-95 border border-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
+                </span>
+              ) : (
+                'CONFIRMAR SALIDA'
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="absolute top-2 right-2">
+          <button
+            onClick={onCancelar}
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ------------------------------------------------------------
 // FUNCIÓN AUXILIAR
 // ------------------------------------------------------------
@@ -337,6 +440,14 @@ export default function SupervisorPage() {
     timer_inactividad: 120000
   });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
+
+  // Estados para modal de flota
+  const [modalFlotaVisible, setModalFlotaVisible] = useState(false);
+  const [flotaTempData, setFlotaTempData] = useState<{ cant_carga: number; observacion: string }>({
+    cant_carga: 0,
+    observacion: '',
+  });
+  const [registroPendiente, setRegistroPendiente] = useState<any>(null);
 
   const enterListenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -571,8 +682,92 @@ export default function SupervisorPage() {
     setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
     setPasoManual(0);
     setLecturaLista(false);
+    setModalFlotaVisible(false);
+    setRegistroPendiente(null);
     if (modo === 'camara' || modo === 'usb') {
       setModo('menu');
+    }
+  };
+
+  // Funciones para modal de flota
+  const confirmarSalidaFlota = () => {
+    setFlotaSalida({ 
+      activo: true, 
+      cant_carga: flotaTempData.cant_carga, 
+      observacion: flotaTempData.observacion 
+    });
+    setModalFlotaVisible(false);
+    // Llamar a registrarAcceso con los datos pendientes
+    registrarAccesoConDatosFlota();
+  };
+
+  const cancelarSalidaFlota = () => {
+    setModalFlotaVisible(false);
+    setFlotaTempData({ cant_carga: 0, observacion: '' });
+    setRegistroPendiente(null);
+    setAnimar(false);
+    // Resetear a estado de lectura
+    setLecturaLista(false);
+    setQrData('');
+    setQrInfo(null);
+    setPinAutorizador('');
+  };
+
+  const registrarAccesoConDatosFlota = async () => {
+    if (!registroPendiente) return;
+    
+    setAnimar(true);
+    const ahora = new Date().toISOString();
+    const { registro, autorizador, firma } = registroPendiente;
+
+    try {
+      const { data: accesoActivo } = await supabase
+        .from('flota_accesos')
+        .select('*')
+        .eq('perfil_id', registro.id)
+        .is('hora_salida', null)
+        .order('hora_llegada', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!accesoActivo) throw new Error('No hay acceso activo');
+
+      const { error: updErr } = await supabase
+        .from('flota_accesos')
+        .update({
+          hora_salida: ahora,
+          cant_carga: flotaSalida.cant_carga,
+          observacion: flotaSalida.observacion,
+          estado: 'despachado',
+        })
+        .eq('id', accesoActivo.id);
+
+      if (updErr) throw updErr;
+
+      mostrarNotificacion('SALIDA DE FLOTA REGISTRADA ✅', 'exito');
+      setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
+      setRegistroPendiente(null);
+
+      // Resetear para siguiente lectura
+      setTimeout(() => {
+        setLecturaLista(false);
+        setQrData('');
+        setQrInfo(null);
+        setPinAutorizador('');
+        setTimeout(() => {
+          if (modo === 'usb') {
+            const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+            if (usbInput) usbInput.focus();
+          }
+        }, 100);
+      }, 2000);
+
+    } catch (e: any) {
+      console.error('Error inesperado:', e);
+      mostrarNotificacion(`ERROR: ${e.message}`, 'error');
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
+    } finally {
+      setAnimar(false);
     }
   };
 
@@ -764,6 +959,7 @@ export default function SupervisorPage() {
 
     const firma = `Autoriza ${autorizador.nombre} - ${modo.toUpperCase()}`;
 
+    // Validación de duplicidad
     if (registro.tipo === 'empleado') {
       if (direccion === 'entrada') {
         const { data: jornadaActiva } = await supabase
@@ -865,64 +1061,9 @@ export default function SupervisorPage() {
             .eq('id', registro.id);
           mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
         }
-      } else {
-        if (direccion === 'entrada') {
-          const { error: insErr } = await supabase.from('flota_accesos').insert([{
-            perfil_id: registro.id,
-            nombre_completo: registro.nombre_completo,
-            documento_id: registro.documento_id,
-            cant_choferes: registro.cant_choferes,
-            hora_llegada: ahora,
-            estado: 'en_patio',
-            autorizado_por: autorizador.nombre,
-          }]);
-          if (insErr) throw insErr;
-          mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
-        } else {
-          if (!flotaSalida.activo) {
-            setFlotaSalida(prev => ({ ...prev, activo: true }));
-            setAnimar(false);
-            setTimeout(() => cargaRef.current?.focus(), 100);
-            return;
-          }
 
-          const { data: accesoActivo } = await supabase
-            .from('flota_accesos')
-            .select('*')
-            .eq('perfil_id', registro.id)
-            .is('hora_salida', null)
-            .order('hora_llegada', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!accesoActivo) throw new Error('No hay acceso activo');
-
-          const { error: updErr } = await supabase
-            .from('flota_accesos')
-            .update({
-              hora_salida: ahora,
-              cant_carga: flotaSalida.cant_carga,
-              observacion: flotaSalida.observacion,
-              estado: 'despachado',
-            })
-            .eq('id', accesoActivo.id);
-
-          if (updErr) throw updErr;
-
-          mostrarNotificacion('SALIDA DE FLOTA REGISTRADA ✅', 'exito');
-          setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
-        }
-      }
-
-      // Redireccionar según nivel de acceso
-      setTimeout(() => {
-        if (autorizador.nivel_acceso >= 8) {
-          router.push('/tecnico');
-        } else if (autorizador.nivel_acceso >= 4) {
-          router.push('/admin');
-        } else if (autorizador.nivel_acceso >= 3) {
-          router.push('/supervisor/reportes');
-        } else {
+        // Resetear para siguiente lectura
+        setTimeout(() => {
           if (modo === 'manual') {
             setPasoManual(1);
             setQrData('');
@@ -942,9 +1083,53 @@ export default function SupervisorPage() {
               }
             }, 100);
           }
-        }
-      }, 2000);
+        }, 2000);
 
+      } else {
+        if (direccion === 'entrada') {
+          const { error: insErr } = await supabase.from('flota_accesos').insert([{
+            perfil_id: registro.id,
+            nombre_completo: registro.nombre_completo,
+            documento_id: registro.documento_id,
+            cant_choferes: registro.cant_choferes,
+            hora_llegada: ahora,
+            estado: 'en_patio',
+            autorizado_por: autorizador.nombre,
+          }]);
+          if (insErr) throw insErr;
+          mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
+
+          // Resetear para siguiente lectura
+          setTimeout(() => {
+            if (modo === 'manual') {
+              setPasoManual(1);
+              setQrData('');
+              setQrInfo(null);
+              setPinEmpleado('');
+              setPinAutorizador('');
+              setTimeout(() => documentoRef.current?.focus(), 100);
+            } else {
+              setLecturaLista(false);
+              setQrData('');
+              setQrInfo(null);
+              setPinAutorizador('');
+              setTimeout(() => {
+                if (modo === 'usb') {
+                  const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+                  if (usbInput) usbInput.focus();
+                }
+              }, 100);
+            }
+          }, 2000);
+        } else {
+          // FLOTA - SALIDA: Guardar datos pendientes y mostrar modal
+          setRegistroPendiente({ registro, autorizador, firma });
+          setModalFlotaVisible(true);
+          setFlotaTempData({ cant_carga: 0, observacion: '' });
+          setAnimar(false);
+          return;
+        }
+      }
     } catch (e: any) {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
@@ -1018,6 +1203,8 @@ export default function SupervisorPage() {
                 setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
                 setPasoManual(0);
                 setLecturaLista(false);
+                setModalFlotaVisible(false);
+                setRegistroPendiente(null);
               }}
               className="mt-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
             >
@@ -1069,61 +1256,34 @@ export default function SupervisorPage() {
                   )}
                 </div>
 
-                {flotaSalida.activo ? (
-                  <div className="space-y-3">
-                    <CampoEntrada
-                      ref={cargaRef}
-                      tipo="number"
-                      placeholder="CANTIDAD DE CARGA"
-                      valor={String(flotaSalida.cant_carga)}
-                      onChange={(e) => setFlotaSalida({ ...flotaSalida, cant_carga: parseInt(e.target.value) || 0 })}
-                      autoFocus
-                      textoCentrado
-                    />
-                    <CampoEntrada
-                      tipo="text"
-                      placeholder="OBSERVACIÓN"
-                      valor={flotaSalida.observacion}
-                      onChange={(e) => setFlotaSalida({ ...flotaSalida, observacion: e.target.value })}
-                    />
-                    <BotonAccion
-                      texto="CONFIRMAR SALIDA"
-                      icono="✅"
-                      onClick={registrarAcceso}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    {(lecturaLista || (modo === 'usb' && qrData)) && (
-                      <CampoEntrada
-                        ref={pinSupervisorRef}
-                        tipo="password"
-                        placeholder="PIN SUPERVISOR"
-                        valor={pinAutorizador}
-                        onChange={(e) => setPinAutorizador(e.target.value)}
-                        onEnter={registrarAcceso}
-                        autoFocus
-                        mayusculas
-                      />
-                    )}
-
-                    <div className="flex flex-col gap-2">
-                      <BotonAccion
-                        texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
-                        icono="✅"
-                        onClick={registrarAcceso}
-                        disabled={animar || (!lecturaLista && modo !== 'usb')}
-                        loading={animar}
-                      />
-                      <BotonAccion
-                        texto="CANCELAR"
-                        icono="✕"
-                        onClick={volverAtras}
-                        color="bg-slate-600"
-                      />
-                    </div>
-                  </>
+                {(lecturaLista || (modo === 'usb' && qrData)) && (
+                  <CampoEntrada
+                    ref={pinSupervisorRef}
+                    tipo="password"
+                    placeholder="PIN SUPERVISOR"
+                    valor={pinAutorizador}
+                    onChange={(e) => setPinAutorizador(e.target.value)}
+                    onEnter={registrarAcceso}
+                    autoFocus
+                    mayusculas
+                  />
                 )}
+
+                <div className="flex flex-col gap-2">
+                  <BotonAccion
+                    texto={animar ? 'PROCESANDO...' : 'CONFIRMAR REGISTRO'}
+                    icono="✅"
+                    onClick={registrarAcceso}
+                    disabled={animar || (!lecturaLista && modo !== 'usb')}
+                    loading={animar}
+                  />
+                  <BotonAccion
+                    texto="CANCELAR"
+                    icono="✕"
+                    onClick={volverAtras}
+                    color="bg-slate-600"
+                  />
+                </div>
               </>
             )}
 
@@ -1219,6 +1379,18 @@ export default function SupervisorPage() {
         )}
       </ContenedorPrincipal>
 
+      {/* Modal para salida de flota */}
+      <ModalFlotaSalida
+        visible={modalFlotaVisible}
+        onConfirmar={confirmarSalidaFlota}
+        onCancelar={cancelarSalidaFlota}
+        cantCarga={flotaTempData.cant_carga}
+        setCantCarga={(valor) => setFlotaTempData(prev => ({ ...prev, cant_carga: valor }))}
+        observacion={flotaTempData.observacion}
+        setObservacion={(valor) => setFlotaTempData(prev => ({ ...prev, observacion: valor }))}
+        loading={animar}
+      />
+
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
@@ -1240,6 +1412,13 @@ export default function SupervisorPage() {
         }
         @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         .animate-bounce { animation: bounce 1s infinite; }
+        @keyframes modal-appear {
+          0% { opacity: 0; transform: scale(0.9) translateY(20px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-modal-appear {
+          animation: modal-appear 0.3s ease-out;
+        }
       `}</style>
     </main>
   );
