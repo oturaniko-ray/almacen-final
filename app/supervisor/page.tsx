@@ -1224,13 +1224,13 @@ export default function SupervisorPage() {
                 onClick={volverUnNivel}
                 className="text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
               >
-                ← VOLVER ATRÁS
+                ← VOLVER AL SELECTOR
               </button>
               <button
                 onClick={volverAlSelector}
                 className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] text-center hover:text-blue-400 transition-colors"
               >
-                ← VOLVER AL SELECTOR
+                ← SALIR
               </button>
             </div>
           </div>
