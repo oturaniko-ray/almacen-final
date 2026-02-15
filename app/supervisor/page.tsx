@@ -662,7 +662,8 @@ export default function SupervisorPage() {
   // ===== FUNCIONES DE NAVEGACIÓN CORREGIDAS =====
   
   // Volver un nivel atrás (navegación escalonada)
-  const volverUnNivel = () => {
+ const volverUnNivel = () => {
+  console.log('Nivel actual:', { modo, direccion, lecturaLista, pasoManual }); // Para depurar
     // Si estamos en lectura (con QR leído o manual avanzado)
     if (lecturaLista || pasoManual > 0 || (modo === 'usb' && qrData)) {
       // Volver a selección de entrada/salida
