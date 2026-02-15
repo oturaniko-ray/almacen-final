@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
+import { enviarEmail } from '@/emails/emailService';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -150,25 +151,16 @@ const CampoEntrada = ({
 // ------------------------------------------------------------
 // FUNCIÓN PARA ENVIAR CORREO (EMPLEADOS)
 // ------------------------------------------------------------
-const enviarCorreoEmpleado = async (
-  empleado: any,
-  to?: string
-) => {
-  try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tipo: 'empleado',
-        nombre: empleado.nombre,
-        documento_id: empleado.documento_id,
-        email: empleado.email,
-        rol: empleado.rol,
-        nivel_acceso: empleado.nivel_acceso,
-        pin_seguridad: empleado.pin_seguridad,
-        to: to || empleado.email,
-      }),
-    });
+const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
+  return enviarEmail('empleado', {
+    nombre: empleado.nombre,
+    documento_id: empleado.documento_id,
+    email: empleado.email,
+    rol: empleado.rol,
+    nivel_acceso: empleado.nivel_acceso,
+    pin_seguridad: empleado.pin_seguridad,
+  }, to);
+};
 
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Error al enviar correo');

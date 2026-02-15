@@ -1,89 +1,78 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import BienvenidaEmpleado from '../../../emails/BienvenidaEmpleado';
-import BienvenidaFlota from '../../../emails/BienvenidaFlota';
+import BienvenidaEmpleado from '@/emails/BienvenidaEmpleado';
+import BienvenidaFlota from '@/emails/BienvenidaFlota';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.RESEND_API_KEY) {
+    const { tipo, to, ...data } = await request.json();
+
+    if (!to) {
       return NextResponse.json(
-        { error: 'Error de configuración: falta API key' },
-        { status: 500 }
+        { success: false, error: 'Email de destinatario requerido' },
+        { status: 400 }
       );
     }
 
-    const body = await request.json();
-    const { tipo } = body; // 'empleado' o 'flota'
-
-    // Siempre usamos onboarding@resend.dev (no requiere verificación)
-    const from = 'onboarding@resend.dev';
-
+    let subject = '';
     let reactComponent;
-    let subject;
-    let to;
 
-    if (tipo === 'flota') {
-      const { nombre_completo, documento_id, nombre_flota, cant_choferes, cant_rutas, pin_secreto, email, to: toOverride } = body;
-      if (!nombre_completo || !pin_secreto || !email) {
-        return NextResponse.json(
-          { error: 'Faltan datos requeridos para flota (email obligatorio)' },
-          { status: 400 }
-        );
-      }
-      reactComponent = BienvenidaFlota({
-        nombre_completo,
-        documento_id,
-        nombre_flota,
-        cant_choferes,
-        cant_rutas,
-        pin_secreto,
-        email, // ← AGREGADO
-      });
-      subject = 'Bienvenido al Sistema de Flota - Credenciales de Acceso';
-      to = toOverride || email;
-    } else {
-      // Empleado
-      const { nombre, documento_id, email, rol, nivel_acceso, pin_seguridad, to: toOverride } = body;
-      if (!nombre || !email || !pin_seguridad) {
-        return NextResponse.json(
-          { error: 'Faltan datos requeridos para empleado' },
-          { status: 400 }
-        );
-      }
+    // Seleccionar plantilla según el tipo
+    if (tipo === 'empleado') {
+      subject = `🎫 Bienvenido al Sistema - ${data.nombre}`;
       reactComponent = BienvenidaEmpleado({
-        nombre,
-        documento_id,
-        email,
-        rol,
-        nivel_acceso,
-        pin_seguridad,
+        nombre: data.nombre,
+        documento_id: data.documento_id,
+        email: data.email,
+        rol: data.rol,
+        nivel_acceso: data.nivel_acceso,
+        pin_seguridad: data.pin_seguridad,
       });
-      subject = 'Bienvenido al Sistema - Credenciales de Acceso';
-      to = toOverride || email;
+    } else if (tipo === 'flota') {
+      subject = `🚛 Perfil de Flota Creado - ${data.nombre_completo}`;
+      reactComponent = BienvenidaFlota({
+        nombre_completo: data.nombre_completo,
+        documento_id: data.documento_id,
+        nombre_flota: data.nombre_flota,
+        cant_choferes: data.cant_choferes,
+        cant_rutas: data.cant_rutas,
+        pin_secreto: data.pin_secreto,
+        email: data.email,
+      });
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Tipo de email no válido' },
+        { status: 400 }
+      );
     }
 
-    const { data, error } = await resend.emails.send({
-      from,
-      to,
-      subject,
+    const { data: emailData, error } = await resend.emails.send({
+      from: 'Gestor de Acceso <seguridad@tuempresa.com>',
+      to: [to],
+      subject: subject,
       react: reactComponent,
     });
 
     if (error) {
-      console.error('❌ Error de Resend:', error);
+      console.error('Error Resend:', error);
       return NextResponse.json(
-        { error: `Error de Resend: ${error.message}` },
+        { success: false, error: error.message },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ 
+      success: true, 
+      data: emailData,
+      message: `Email enviado correctamente a ${to}`
+    });
+
   } catch (error: any) {
-    console.error('❌ Error en API send-email:', error);
+    console.error('Error en API send-email:', error);
     return NextResponse.json(
-      { error: `Error interno: ${error.message}` },
+      { success: false, error: error.message || 'Error interno del servidor' },
       { status: 500 }
     );
   }
