@@ -5,33 +5,6 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { enviarEmail } from '@/emails/emailService';
 
-// Al inicio del archivo, con los otros imports
-const enviarCorreoFlota = async (perfil: any, to?: string) => {
-  try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tipo: 'flota',
-        to: to || perfil.email,
-        nombre_completo: perfil.nombre_completo,
-        documento_id: perfil.documento_id,
-        nombre_flota: perfil.nombre_flota || '',
-        cant_choferes: perfil.cant_choferes || 1,
-        cant_rutas: perfil.cant_rutas || 0,
-        pin_secreto: perfil.pin_secreto,
-        email: perfil.email,
-      }),
-    });
-
-    const result = await response.json();
-    return result;
-  } catch (error: any) {
-    console.error('Error:', error);
-    return { success: false, error: error.message };
-  }
-};
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -60,7 +33,7 @@ const formatearRol = (rol: string): string => {
   }
 };
 
-// ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
+// ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
   const titulo = "GESTOR DE FLOTA";
   const palabras = titulo.split(' ');
@@ -251,10 +224,8 @@ const SelectOpcion = ({
 );
 
 // ------------------------------------------------------------
-// FUNCIÓN PARA ENVIAR CORREO (FLOTA) – OPCIONAL
+// FUNCIÓN PARA ENVIAR CORREO (FLOTA)
 // ------------------------------------------------------------
-// Reemplazar la función actual (líneas 74-94 aprox) con:
-
 const enviarCorreoFlota = async (perfil: any, to?: string) => {
   return enviarEmail('flota', {
     nombre_completo: perfil.nombre_completo,
@@ -265,15 +236,6 @@ const enviarCorreoFlota = async (perfil: any, to?: string) => {
     cant_rutas: perfil.cant_rutas || 0,
     pin_secreto: perfil.pin_secreto,
   }, to);
-};
-
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Error al enviar correo');
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error enviando correo:', error);
-    return { success: false, error: error.message };
-  }
 };
 
 // ------------------------------------------------------------

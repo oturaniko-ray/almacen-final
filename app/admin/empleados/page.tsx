@@ -33,7 +33,7 @@ const formatearRol = (rol: string): string => {
   }
 };
 
-// ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
+// ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
   const titulo = "GESTOR DE EMPLEADOS";
   const palabras = titulo.split(' ');
@@ -160,15 +160,6 @@ const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
     nivel_acceso: empleado.nivel_acceso,
     pin_seguridad: empleado.pin_seguridad,
   }, to);
-};
-
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Error al enviar correo');
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error enviando correo:', error);
-    return { success: false, error: error.message };
-  }
 };
 
 // ------------------------------------------------------------

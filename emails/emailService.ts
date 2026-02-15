@@ -89,27 +89,3 @@ export async function enviarEmail(tipo: 'empleado' | 'flota', data: any, to?: st
     return { success: false, error: error.message };
   }
 }
-
-// Funciones específicas para cada tipo (mantener compatibilidad)
-export async function enviarCorreoEmpleado(empleado: any, to?: string) {
-  return enviarEmail('empleado', {
-    nombre: empleado.nombre,
-    documento_id: empleado.documento_id,
-    email: empleado.email,
-    rol: empleado.rol,
-    nivel_acceso: empleado.nivel_acceso,
-    pin_seguridad: empleado.pin_seguridad,
-  }, to);
-}
-
-export async function enviarCorreoFlota(perfil: any, to?: string) {
-  return enviarEmail('flota', {
-    nombre_completo: perfil.nombre_completo,
-    documento_id: perfil.documento_id,
-    email: perfil.email,
-    nombre_flota: perfil.nombre_flota || '',
-    cant_choferes: perfil.cant_choferes || 1,
-    cant_rutas: perfil.cant_rutas || 0,
-    pin_secreto: perfil.pin_secreto,
-  }, to);
-}
