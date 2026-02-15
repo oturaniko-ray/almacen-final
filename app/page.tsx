@@ -44,7 +44,15 @@ export default function HomePage() {
             </span>
           </button>
         </div>
-
+{/* BOTÓN VOLVER ATRÁS (ir al selector inicial) */}
+<div className="w-full max-w-sm mt-2 text-center">
+  <button
+    onClick={() => router.push('/selector')}
+    className="text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform hover:text-white"
+  >
+    <span className="text-lg">←</span> VOLVER AL INICIO
+  </button>
+</div>
         {/* FOOTER */}
         <div className="w-full max-w-sm mt-8 pt-4 text-center">
           <p className="text-[9px] text-white/40 uppercase tracking-widest">

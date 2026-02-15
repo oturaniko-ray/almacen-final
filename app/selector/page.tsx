@@ -39,6 +39,10 @@ export default function SelectorPage() {
     router.push('/');
   };
 
+  const irAlSelectorInicial = () => {
+    router.push('/selector'); // Asumiendo que el selector inicial está en /selector
+  };
+
   const obtenerBotonesDisponibles = () => {
     const nivel = Number(user?.nivel_acceso || 0);
     const tienePermisoReportes = user?.permiso_reportes === true;
@@ -138,8 +142,18 @@ export default function SelectorPage() {
           ))}
         </div>
 
+        {/* BOTÓN VOLVER ATRÁS (ir al selector inicial) */}
+        <div className="w-full max-w-sm mt-4 text-center">
+          <button
+            onClick={irAlSelectorInicial}
+            className="text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform hover:text-white"
+          >
+            <span className="text-lg">←</span> VOLVER AL INICIO
+          </button>
+        </div>
+
         {/* BOTÓN CERRAR SESIÓN */}
-        <div className="w-full max-w-sm mt-6 pt-3 text-center">
+        <div className="w-full max-w-sm mt-4 pt-3 text-center">
           <p className="text-[9px] text-white/40 uppercase tracking-widest mb-3">
             @Copyright 2026
           </p>
