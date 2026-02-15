@@ -28,6 +28,12 @@ export default function PanelAdminHub() {
     setLoading(false);
   }, [router]);
 
+  // ===== FUNCIÓN DE NAVEGACIÓN =====
+  const volverAlSelector = () => {
+    console.log('→ Saliendo del módulo admin al selector inicial');
+    router.push('/selector');
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-black flex items-center justify-center">
@@ -93,12 +99,20 @@ export default function PanelAdminHub() {
       <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
         @Copyright 2026
       </p>
-      <button
-        onClick={() => router.push('/')}
-        className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto"
-      >
-        <span className="text-lg">←</span> VOLVER AL SELECTOR
-      </button>
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={volverAlSelector}
+          className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto hover:text-blue-400 transition-colors"
+        >
+          <span className="text-lg">←</span> VOLVER AL SELECTOR
+        </button>
+        <button
+          onClick={() => router.push('/')}
+          className="text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto hover:text-white transition-colors"
+        >
+          <span className="text-lg">🏠</span> CERRAR SESIÓN
+        </button>
+      </div>
     </div>
   );
 
