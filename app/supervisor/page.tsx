@@ -693,9 +693,9 @@ export default function SupervisorPage() {
         return;
       }
       if (pasoManual === 0) {
-        console.log('→ Manual: salir a menú');
-        setModo('menu');
-        return;
+      console.log('→ Saliendo del módulo supervisor al selector inicial');
+      router.push('/selector'); // ← VA DIRECTO AL SELECTOR INICIAL
+      return;
       }
     }
     
@@ -723,15 +723,10 @@ export default function SupervisorPage() {
       return;
     }
     
-    // CASO 6: Si estamos en el menú principal
-    console.log('→ ¡VOLVIENDO AL SELECTOR!');
-    // Usar window.location como respaldo por si router falla
-    if (router) {
-      router.push('/');
-    } else {
-      window.location.href = '/';
-    }
-  };
+     // CASO 6: Si estamos en el menú principal del módulo
+  console.log('→ Saliendo del módulo supervisor al selector inicial');
+  router.push('/selector'); // ← VA DIRECTO AL SELECTOR INICIAL
+};
 
   // Volver directamente al selector (salir del módulo)
   const volverAlSelector = () => {
