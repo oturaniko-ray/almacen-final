@@ -659,42 +659,83 @@ export default function SupervisorPage() {
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
   };
 
-  // ===== FUNCIONES DE NAVEGACIÓN CORREGIDAS =====
-  
-  // Volver un nivel atrás (navegación escalonada)
- const volverUnNivel = () => {
-  console.log('Nivel actual:', { modo, direccion, lecturaLista, pasoManual, modalFlotaVisible });
-    // Si estamos en lectura (con QR leído o manual avanzado)
-    if (lecturaLista || pasoManual > 0 || (modo === 'usb' && qrData)) {
-      // Volver a selección de entrada/salida
-      if (modo === 'manual') {
+  // ===== FUNCIÓN DE NAVEGACIÓN SIMPLIFICADA =====
+  const volverUnNivel = () => {
+    console.log('Nivel actual:', { modo, direccion, lecturaLista, pasoManual, modalFlotaVisible });
+    
+    // CASO 1: Cerrar modal si está abierto
+    if (modalFlotaVisible) {
+      console.log('→ Cerrando modal');
+      setModalFlotaVisible(false);
+      setFlotaTempData({ cant_carga: 0, observacion: '' });
+      setRegistroPendiente(null);
+      return;
+    }
+    
+    // CASO 2: Si estamos en modo manual
+    if (modo === 'manual') {
+      if (pasoManual === 3) {
+        console.log('→ Manual: paso 3 → 2');
+        setPasoManual(2);
+        setPinAutorizador('');
+        return;
+      }
+      if (pasoManual === 2) {
+        console.log('→ Manual: paso 2 → 1');
+        setPasoManual(1);
+        setPinEmpleado('');
+        return;
+      }
+      if (pasoManual === 1) {
+        console.log('→ Manual: paso 1 → 0');
         setPasoManual(0);
         setQrData('');
-        setPinEmpleado('');
-        setPinAutorizador('');
-      } else {
-        setLecturaLista(false);
-        setQrData('');
-        setQrInfo(null);
-        setPinAutorizador('');
+        return;
       }
-    } 
-    // Si estamos en selección de entrada/salida
-    else if (direccion) {
+      if (pasoManual === 0) {
+        console.log('→ Manual: salir a menú');
+        setModo('menu');
+        return;
+      }
+    }
+    
+    // CASO 3: Si estamos en USB/Cámara con lectura
+    if (lecturaLista || (modo === 'usb' && qrData)) {
+      console.log('→ Cancelando lectura');
+      setLecturaLista(false);
+      setQrData('');
+      setQrInfo(null);
+      setPinAutorizador('');
+      return;
+    }
+    
+    // CASO 4: Si ya seleccionamos entrada/salida
+    if (direccion) {
+      console.log('→ Volviendo a selección de modo');
       setDireccion(null);
+      return;
     }
-    // Si estamos en selección de modo
-    else if (modo !== 'menu') {
+    
+    // CASO 5: Si estamos en selección de modo
+    if (modo !== 'menu') {
+      console.log('→ Volviendo al menú principal');
       setModo('menu');
+      return;
     }
-    // Si estamos en el menú principal del módulo, ir al selector
-    else {
+    
+    // CASO 6: Si estamos en el menú principal
+    console.log('→ ¡VOLVIENDO AL SELECTOR!');
+    // Usar window.location como respaldo por si router falla
+    if (router) {
       router.push('/');
+    } else {
+      window.location.href = '/';
     }
   };
 
   // Volver directamente al selector (salir del módulo)
   const volverAlSelector = () => {
+    console.log('→ VOLVIENDO AL SELECTOR DIRECTAMENTE');
     // Limpiar todo
     if (scannerRef.current?.isScanning) scannerRef.current.stop();
     setModo('menu');
@@ -708,8 +749,12 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setModalFlotaVisible(false);
     setRegistroPendiente(null);
-    // Ir al selector
-    router.push('/');
+    // Ir al selector con respaldo
+    if (router) {
+      router.push('/');
+    } else {
+      window.location.href = '/';
+    }
   };
 
   // Funciones para modal de flota
