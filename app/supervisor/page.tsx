@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES INTERNOS
+// COMPONENTES VISUALES (se mantienen igual)
 // ------------------------------------------------------------
 
 const formatearRol = (rol: string): string => {
@@ -275,20 +275,6 @@ const ContenedorPrincipal = ({
   );
 };
 
-const Footer = ({ router }: { router: any }) => (
-  <div className="w-full max-w-sm mt-8 pt-4 text-center">
-    <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
-      @Copyright 2026
-    </p>
-    <button
-      onClick={() => router.push('/')}
-      className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
-    >
-      <span className="text-lg">←</span> VOLVER AL SELECTOR
-    </button>
-  </div>
-);
-
 // Componente Modal para salida de flota
 const ModalFlotaSalida = ({
   visible,
@@ -413,6 +399,7 @@ function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: numbe
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
 export default function SupervisorPage() {
+  // Estados de UI
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
   const [qrData, setQrData] = useState('');
@@ -672,8 +659,44 @@ export default function SupervisorPage() {
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
   };
 
-  // Volver atrás
-  const volverAtras = () => {
+  // ===== FUNCIONES DE NAVEGACIÓN CORREGIDAS =====
+  
+  // Volver un nivel atrás (navegación escalonada)
+  const volverUnNivel = () => {
+    // Si estamos en lectura (con QR leído o manual avanzado)
+    if (lecturaLista || pasoManual > 0 || (modo === 'usb' && qrData)) {
+      // Volver a selección de entrada/salida
+      if (modo === 'manual') {
+        setPasoManual(0);
+        setQrData('');
+        setPinEmpleado('');
+        setPinAutorizador('');
+      } else {
+        setLecturaLista(false);
+        setQrData('');
+        setQrInfo(null);
+        setPinAutorizador('');
+      }
+    } 
+    // Si estamos en selección de entrada/salida
+    else if (direccion) {
+      setDireccion(null);
+    }
+    // Si estamos en selección de modo
+    else if (modo !== 'menu') {
+      setModo('menu');
+    }
+    // Si estamos en el menú principal del módulo, ir al selector
+    else {
+      router.push('/');
+    }
+  };
+
+  // Volver directamente al selector (salir del módulo)
+  const volverAlSelector = () => {
+    // Limpiar todo
+    if (scannerRef.current?.isScanning) scannerRef.current.stop();
+    setModo('menu');
     setDireccion(null);
     setQrData('');
     setQrInfo(null);
@@ -684,9 +707,8 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setModalFlotaVisible(false);
     setRegistroPendiente(null);
-    if (modo === 'camara' || modo === 'usb') {
-      setModo('menu');
-    }
+    // Ir al selector
+    router.push('/');
   };
 
   // Funciones para modal de flota
@@ -697,7 +719,6 @@ export default function SupervisorPage() {
       observacion: flotaTempData.observacion 
     });
     setModalFlotaVisible(false);
-    // Llamar a registrarAcceso con los datos pendientes
     registrarAccesoConDatosFlota();
   };
 
@@ -706,7 +727,8 @@ export default function SupervisorPage() {
     setFlotaTempData({ cant_carga: 0, observacion: '' });
     setRegistroPendiente(null);
     setAnimar(false);
-    // Resetear a estado de lectura
+    // Volver a selección de entrada/salida
+    setDireccion(null);
     setLecturaLista(false);
     setQrData('');
     setQrInfo(null);
@@ -748,18 +770,13 @@ export default function SupervisorPage() {
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
 
-      // Resetear para siguiente lectura
+      // Resetear para siguiente lectura - volver a selección de entrada/salida
       setTimeout(() => {
+        setDireccion(null);
         setLecturaLista(false);
         setQrData('');
         setQrInfo(null);
         setPinAutorizador('');
-        setTimeout(() => {
-          if (modo === 'usb') {
-            const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-            if (usbInput) usbInput.focus();
-          }
-        }, 100);
       }, 2000);
 
     } catch (e: any) {
@@ -1062,26 +1079,19 @@ export default function SupervisorPage() {
           mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
         }
 
-        // Resetear para siguiente lectura
+        // Resetear para siguiente lectura - volver a selección de entrada/salida
         setTimeout(() => {
+          setDireccion(null);
           if (modo === 'manual') {
-            setPasoManual(1);
+            setPasoManual(0);
             setQrData('');
-            setQrInfo(null);
             setPinEmpleado('');
             setPinAutorizador('');
-            setTimeout(() => documentoRef.current?.focus(), 100);
           } else {
             setLecturaLista(false);
             setQrData('');
             setQrInfo(null);
             setPinAutorizador('');
-            setTimeout(() => {
-              if (modo === 'usb') {
-                const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-                if (usbInput) usbInput.focus();
-              }
-            }, 100);
           }
         }, 2000);
 
@@ -1099,26 +1109,19 @@ export default function SupervisorPage() {
           if (insErr) throw insErr;
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
-          // Resetear para siguiente lectura
+          // Resetear para siguiente lectura - volver a selección de entrada/salida
           setTimeout(() => {
+            setDireccion(null);
             if (modo === 'manual') {
-              setPasoManual(1);
+              setPasoManual(0);
               setQrData('');
-              setQrInfo(null);
               setPinEmpleado('');
               setPinAutorizador('');
-              setTimeout(() => documentoRef.current?.focus(), 100);
             } else {
               setLecturaLista(false);
               setQrData('');
               setQrInfo(null);
               setPinAutorizador('');
-              setTimeout(() => {
-                if (modo === 'usb') {
-                  const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-                  if (usbInput) usbInput.focus();
-                }
-              }, 100);
             }
           }, 2000);
         } else {
@@ -1152,6 +1155,7 @@ export default function SupervisorPage() {
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
+          // === NIVEL 1: MENÚ PRINCIPAL DEL MÓDULO ===
           <div className="grid gap-3 w-full">
             <BotonOpcion
               texto="SCANNER USB"
@@ -1174,9 +1178,23 @@ export default function SupervisorPage() {
               onClick={iniciarModoManual}
               color="bg-slate-700"
             />
-            <Footer router={router} />
+            <div className="flex flex-col gap-2 mt-4">
+              <button
+                onClick={volverUnNivel}
+                className="text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
+              >
+                ← VOLVER ATRÁS
+              </button>
+              <button
+                onClick={volverAlSelector}
+                className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] text-center hover:text-blue-400 transition-colors"
+              >
+                ← VOLVER AL SELECTOR
+              </button>
+            </div>
           </div>
         ) : !direccion ? (
+          // === NIVEL 2: SELECCIÓN ENTRADA/SALIDA ===
           <div className="flex flex-col gap-3 w-full">
             <BotonOpcion
               texto="ENTRADA"
@@ -1192,26 +1210,23 @@ export default function SupervisorPage() {
               onClick={() => setDireccion('salida')}
               color="bg-rose-600"
             />
-            <button
-              onClick={() => {
-                setModo('menu');
-                setDireccion(null);
-                setQrData('');
-                setQrInfo(null);
-                setPinEmpleado('');
-                setPinAutorizador('');
-                setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
-                setPasoManual(0);
-                setLecturaLista(false);
-                setModalFlotaVisible(false);
-                setRegistroPendiente(null);
-              }}
-              className="mt-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
-            >
-              ← VOLVER ATRÁS
-            </button>
+            <div className="flex flex-col gap-2 mt-4">
+              <button
+                onClick={volverUnNivel}
+                className="text-slate-500 font-bold uppercase text-[10px] tracking-widest text-center hover:text-white transition-colors"
+              >
+                ← VOLVER ATRÁS
+              </button>
+              <button
+                onClick={volverAlSelector}
+                className="text-blue-500 font-black uppercase text-[10px] tracking-[0.2em] text-center hover:text-blue-400 transition-colors"
+              >
+                ← VOLVER AL SELECTOR
+              </button>
+            </div>
           </div>
         ) : (
+          // === NIVEL 3: LECTURA/VALIDACIÓN ===
           <div className="space-y-4 w-full">
             
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
@@ -1280,7 +1295,7 @@ export default function SupervisorPage() {
                   <BotonAccion
                     texto="CANCELAR"
                     icono="✕"
-                    onClick={volverAtras}
+                    onClick={volverUnNivel}
                     color="bg-slate-600"
                   />
                 </div>
@@ -1298,6 +1313,12 @@ export default function SupervisorPage() {
                     <p className="text-amber-400/80 text-[10px] uppercase tracking-wider mt-4">
                       Presione ENTER para continuar
                     </p>
+                    <button
+                      onClick={volverUnNivel}
+                      className="mt-4 text-amber-500 font-bold uppercase text-[9px] tracking-widest hover:text-amber-400 transition-colors"
+                    >
+                      ← CANCELAR
+                    </button>
                   </div>
                 )}
 
@@ -1357,22 +1378,14 @@ export default function SupervisorPage() {
                   />
                 )}
 
-                <div className="flex flex-col gap-2">
-                  {pasoManual > 0 && (
-                    <BotonAccion
-                      texto="CANCELAR"
-                      icono="✕"
-                      onClick={volverAtras}
-                      color="bg-slate-600"
-                    />
-                  )}
+                {pasoManual > 0 && pasoManual < 3 && (
                   <button
-                    onClick={volverAtras}
-                    className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors"
+                    onClick={volverUnNivel}
+                    className="w-full text-center text-slate-500 font-bold uppercase text-[9px] tracking-widest hover:text-white transition-colors mt-2"
                   >
-                    ← VOLVER ATRÁS
+                    ← CANCELAR
                   </button>
-                </div>
+                )}
               </>
             )}
           </div>
