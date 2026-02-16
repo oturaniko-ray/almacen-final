@@ -74,6 +74,7 @@ export default function ConfigMaestraPage() {
   const rango100 = Array.from({ length: 100 }, (_, i) => i + 1);
   const rango24 = Array.from({ length: 24 }, (_, i) => i + 1);
   const rango60 = Array.from({ length: 60 }, (_, i) => i + 1);
+  const rango100Porcentaje = Array.from({ length: 101 }, (_, i) => i); // 0 a 100
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -102,6 +103,7 @@ export default function ConfigMaestraPage() {
           timer_inactividad: cfgMap.timer_inactividad || '300000',
           empresa_nombre: cfgMap.empresa_nombre || 'SISTEMA',
           maximo_labor: cfgMap.maximo_labor || '28800000',
+          porcentaje_efectividad: cfgMap.porcentaje_efectividad || '70', // NUEVO
         });
       }
     } catch (err) {
@@ -149,6 +151,7 @@ export default function ConfigMaestraPage() {
       seguridad: ['timer_token', 'timer_inactividad'],
       laboral: ['maximo_labor'],
       interfaz: ['empresa_nombre'],
+      efectividad: ['porcentaje_efectividad'], // NUEVA PESTAÑA
     };
     guardarModulo(m[tabActual]);
   };
@@ -200,12 +203,13 @@ export default function ConfigMaestraPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* Pestañas laterales */}
+          {/* Pestañas laterales - AHORA CON LA NUEVA PESTAÑA */}
           <div className="md:col-span-3 space-y-2">
             {[
               { id: 'geolocalizacion', label: '📍 GEOCERCA GPS' },
               { id: 'seguridad', label: '🛡️ PARÁMETROS DE\nTIEMPO' },
               { id: 'laboral', label: '⏱️ TIEMPO MÁXIMO\nLABORABLE' },
+              { id: 'efectividad', label: '📊 PORCENTAJE DE\nEFECTIVIDAD' }, // NUEVA PESTAÑA
               { id: 'interfaz', label: '🖥️ INTERFAZ' },
             ].map((tab) => (
               <button
@@ -334,6 +338,38 @@ export default function ConfigMaestraPage() {
                     <p className="text-[12px] font-bold text-amber-500 uppercase leading-relaxed italic animate-pulse">
                       "El tiempo seleccionado servirá para dar alertas en los temporizadores del sistema y reportes
                       indicando que están llegando al tope de las horas laborables fijadas acá"
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* NUEVA PESTAÑA: PORCENTAJE DE EFECTIVIDAD */}
+              {tabActual === 'efectividad' && (
+                <div className="space-y-8">
+                  <div className="bg-[#020617] p-12 rounded-[45px] border border-white/5 text-center">
+                    <p className="text-[12px] font-black text-slate-500 uppercase mb-8 tracking-[0.4em]">
+                      PORCENTAJE MÍNIMO DE EFECTIVIDAD:
+                    </p>
+                    <div className="flex items-center justify-center gap-6">
+                      <select
+                        value={config.porcentaje_efectividad}
+                        onChange={(e) => setConfig({ ...config, porcentaje_efectividad: e.target.value })}
+                        className="bg-transparent text-8xl font-black text-blue-500 outline-none text-center italic"
+                      >
+                        {rango100Porcentaje.map((v) => (
+                          <option key={v} value={v} className="bg-[#0f172a]">
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-3xl font-black text-slate-800 uppercase italic">%</span>
+                    </div>
+                  </div>
+                  <div className="bg-blue-500/5 p-8 rounded-[30px] border border-blue-500/20 text-center">
+                    <p className="text-[12px] font-bold text-blue-500 uppercase leading-relaxed italic animate-pulse">
+                      "Este valor determina el umbral de eficiencia en los módulos de auditoría. 
+                      Los registros por debajo de este porcentaje se consideran de BAJA EFECTIVIDAD 
+                      y aparecerán en la sección de Atención IA"
                     </p>
                   </div>
                 </div>

@@ -53,7 +53,6 @@ const MemebreteSuperior = ({ usuario, onRegresar }: { usuario?: any; onRegresar:
           </div>
         )}
       </div>
-      {/* Botón de regreso - reposicionado para evitar solapamiento */}
       <div className="absolute top-0 right-0 mt-4 mr-4">
         <button
           onClick={onRegresar}
@@ -287,6 +286,12 @@ export default function AuditoriaInteligenteQuirurgica() {
                 <button key={v} onClick={() => setRangoDias(v as any)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${rangoDias === v ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}>{v === 'todo' ? 'TODO' : `${v}D`}</button>
               ))}
             </div>
+            
+            {/* INDICADOR DE UMBRAL DE EFECTIVIDAD */}
+            <div className="ml-2 flex items-center gap-1 bg-blue-600/10 px-3 py-1.5 rounded-lg border border-blue-500/30">
+              <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">UMBRAL:</span>
+              <span className="text-sm font-black text-blue-500">{umbralEfectividad}%</span>
+            </div>
           </div>
 
           <div className="flex gap-1">
@@ -319,6 +324,7 @@ export default function AuditoriaInteligenteQuirurgica() {
           )}
         </div>
 
+        {/* RESTO DEL CÓDIGO IGUAL... */}
         <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="h-full flex items-center justify-center">
@@ -328,7 +334,7 @@ export default function AuditoriaInteligenteQuirurgica() {
             <>
               {tabActiva === 'global' && (
                 <div className="flex flex-col h-full space-y-4 overflow-y-auto custom-scrollbar pr-2">
-                  {/* KPIs - fuentes aumentadas */}
+                  {/* KPIs */}
                   <div className="grid grid-cols-5 gap-3 shrink-0">
                     <div className="bg-[#0f172a] p-3 rounded-lg border border-white/5 text-center">
                       <p className="text-[9px] font-black text-slate-400 uppercase">EFIC PROM</p>
@@ -354,7 +360,7 @@ export default function AuditoriaInteligenteQuirurgica() {
                     </div>
                   </div>
 
-                  {/* Tabla - fuentes aumentadas */}
+                  {/* Tabla */}
                   <div className="flex-1 overflow-y-auto bg-[#0f172a] rounded-lg border border-white/5 custom-scrollbar">
                     <table className="w-full text-left">
                       <thead className="sticky top-0 z-10 text-[10px] font-black uppercase text-slate-600 bg-[#1e293b]">

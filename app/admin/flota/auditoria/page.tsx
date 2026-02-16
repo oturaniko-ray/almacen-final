@@ -441,6 +441,12 @@ export default function AuditoriaFlota() {
                 <button key={v} onClick={() => setRangoDias(v as any)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${rangoDias === v ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}>{v === 'todo' ? 'TODO' : `${v}D`}</button>
               ))}
             </div>
+            
+            {/* INDICADOR DE UMBRAL DE EFECTIVIDAD */}
+            <div className="ml-2 flex items-center gap-1 bg-blue-600/10 px-3 py-1.5 rounded-lg border border-blue-500/30">
+              <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">UMBRAL:</span>
+              <span className="text-sm font-black text-blue-500">{umbralEfectividad}%</span>
+            </div>
           </div>
 
           <div className="flex gap-1 overflow-x-auto pb-1">
@@ -477,6 +483,7 @@ export default function AuditoriaFlota() {
           )}
         </div>
 
+        {/* RESTO DEL CÓDIGO IGUAL... */}
         <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="h-full flex items-center justify-center">
@@ -487,7 +494,7 @@ export default function AuditoriaFlota() {
               {/* GLOBAL */}
               {tabActiva === 'global' && (
                 <div className="flex flex-col h-full space-y-4 overflow-y-auto custom-scrollbar pr-2">
-                  {/* KPIS - fuentes aumentadas */}
+                  {/* KPIS */}
                   <div className="grid grid-cols-4 gap-3 shrink-0">
                     <div className="bg-[#0f172a] p-3 rounded-lg border border-white/5 text-center">
                       <p className="text-[9px] font-black text-slate-400 uppercase">TOTAL RUTAS</p>
