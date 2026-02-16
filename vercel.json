@@ -12,7 +12,7 @@
     }
   ],
   "functions": {
-    "api/**/*.ts": {
+    "app/api/**/*.ts": {
       "maxDuration": 10
     }
   }
