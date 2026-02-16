@@ -667,7 +667,7 @@ export default function AuditoriaFlota() {
               {tabActiva === 'efectividad' && (
                 <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* GRÁFICO DE TORTA */}
+                    {/* GRÁFICO DE TORTA - CON LA CORRECCIÓN */}
                     <div className="bg-[#0f172a] p-5 rounded-lg border border-white/5">
                       <h3 className="text-sm font-black text-white uppercase mb-4 text-center">EFECTIVIDAD GLOBAL</h3>
                       <div className="h-[250px]">
