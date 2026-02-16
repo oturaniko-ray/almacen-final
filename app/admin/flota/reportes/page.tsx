@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
-
+import { NotificacionSistema, Buscador } from '../../../components'; // ✅ 4 niveles arriba
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -126,25 +126,6 @@ const ModalObservacion = ({ isOpen, onClose, observacion, nombre }: { isOpen: bo
   );
 };
 
-// ----- BUSCADOR COMPACTO -----
-const Buscador = ({ placeholder, value, onChange, onClear }: any) => (
-  <div className="bg-black/20 rounded-lg flex items-center">
-    <span className="text-white/40 ml-2 text-xs">🔍</span>
-    <input
-      type="text"
-      placeholder={placeholder}
-      className="w-full bg-transparent px-2 py-1.5 text-[11px] font-bold uppercase outline-none text-white"
-      value={value}
-      onChange={onChange}
-    />
-    {value && (
-      <button onClick={onClear} className="mr-1 text-white/60 hover:text-white text-xs">
-        ✕
-      </button>
-    )}
-  </div>
-);
-
 // ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
@@ -154,6 +135,7 @@ export default function ReportesFlotaPage() {
   const [loading, setLoading] = useState(false);
   const [maximoPatio, setMaximoPatio] = useState<number>(0);
   const [ahora, setAhora] = useState(new Date());
+  const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const router = useRouter();
 
   const [perfiles, setPerfiles] = useState<any[]>([]);
@@ -167,6 +149,14 @@ export default function ReportesFlotaPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [observacionSeleccionada, setObservacionSeleccionada] = useState('');
   const [nombreSeleccionado, setNombreSeleccionado] = useState('');
+
+  // ------------------------------------------------------------
+  // MOSTRAR NOTIFICACIÓN
+  // ------------------------------------------------------------
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
+  };
 
   // ------------------------------------------------------------
   // CARGAR DATOS
@@ -325,6 +315,7 @@ export default function ReportesFlotaPage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Presencia');
       XLSX.writeFile(wb, `Presencia_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      mostrarNotificacion('✅ REPORTE EXPORTADO', 'exito');
     } else {
       const data = accesosFiltrados.map(a => ({
         Fecha: a.hora_llegada?.split('T')[0] || '',
@@ -342,6 +333,7 @@ export default function ReportesFlotaPage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Accesos');
       XLSX.writeFile(wb, `Accesos_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      mostrarNotificacion('✅ REPORTE EXPORTADO', 'exito');
     }
   };
 
@@ -355,6 +347,16 @@ export default function ReportesFlotaPage() {
   return (
     <main className="min-h-screen bg-[#050a14] p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
+        
+        {/* NOTIFICACIÓN FLOTANTE */}
+        <NotificacionSistema
+          mensaje={notificacion.mensaje}
+          tipo={notificacion.tipo}
+          visible={!!notificacion.tipo}
+          duracion={2000}
+          onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
+        />
+
         {/* HEADER */}
         <MemebreteSuperior 
           usuario={user} 
@@ -472,7 +474,7 @@ export default function ReportesFlotaPage() {
                       <Buscador
                         placeholder="BUSCAR PERFIL..."
                         value={busqueda}
-                        onChange={(e: any) => setBusqueda(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBusqueda(e.target.value)}
                         onClear={limpiarFiltros}
                       />
                     </div>

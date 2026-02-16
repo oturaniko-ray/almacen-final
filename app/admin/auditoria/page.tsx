@@ -6,6 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area
 } from 'recharts';
+import { NotificacionSistema } from '../../components'; // ✅ Ruta corregida
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -79,8 +80,17 @@ export default function AuditoriaInteligenteQuirurgica() {
   const [usuarioLogueado, setUsuarioLogueado] = useState<{nombre: string, rol: string, nivel_acceso: any} | null>(null);
   const [umbralEfectividad, setUmbralEfectividad] = useState<number>(70);
   const [filtroEficiencia, setFiltroEficiencia] = useState<string>('todos');
+  const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   
   const router = useRouter();
+
+  // ------------------------------------------------------------
+  // MOSTRAR NOTIFICACIÓN
+  // ------------------------------------------------------------
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
+  };
 
   // ------------------------------------------------------------
   // CARGAR CONFIGURACIÓN
@@ -139,6 +149,7 @@ export default function AuditoriaInteligenteQuirurgica() {
       setMetricas(dataProcesada);
     } catch (err) {
       console.error("Falla en Auditoría:", err);
+      mostrarNotificacion('Error al cargar auditoría', 'error');
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -265,10 +276,19 @@ export default function AuditoriaInteligenteQuirurgica() {
     <main className="min-h-screen bg-[#020617] p-4 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-4rem)]">
         
+        {/* NOTIFICACIÓN FLOTANTE */}
+        <NotificacionSistema
+          mensaje={notificacion.mensaje}
+          tipo={notificacion.tipo}
+          visible={!!notificacion.tipo}
+          duracion={2000}
+          onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
+        />
+
         {/* HEADER */}
         <MemebreteSuperior usuario={usuarioLogueado || undefined} onRegresar={handleRegresar} />
 
-        {/* BARRA DE HERRAMIENTAS - debajo del header */}
+        {/* BARRA DE HERRAMIENTAS */}
         <div className="flex items-center justify-between gap-4 mb-4 shrink-0 bg-[#0f172a] p-3 rounded-xl border border-white/5">
           <div className="flex items-center gap-2">
             <button 
@@ -324,7 +344,6 @@ export default function AuditoriaInteligenteQuirurgica() {
           )}
         </div>
 
-        {/* RESTO DEL CÓDIGO IGUAL... */}
         <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="h-full flex items-center justify-center">
@@ -334,7 +353,7 @@ export default function AuditoriaInteligenteQuirurgica() {
             <>
               {tabActiva === 'global' && (
                 <div className="flex flex-col h-full space-y-4 overflow-y-auto custom-scrollbar pr-2">
-                  {/* KPIs */}
+                  {/* KPIS */}
                   <div className="grid grid-cols-5 gap-3 shrink-0">
                     <div className="bg-[#0f172a] p-3 rounded-lg border border-white/5 text-center">
                       <p className="text-[9px] font-black text-slate-400 uppercase">EFIC PROM</p>

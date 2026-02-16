@@ -4,6 +4,14 @@ import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { enviarEmail } from '@/emails/emailService';
+import { 
+  CampoEntrada, 
+  SelectOpcion, 
+  BotonIcono, 
+  Buscador, 
+  BadgeEstado,
+  NotificacionSistema 
+} from '../../../components';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,7 +49,7 @@ const enviarCorreoFlota = async (perfil: any, to?: string) => {
 };
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES
+// COMPONENTES VISUALES PROPIOS
 // ------------------------------------------------------------
 
 // ----- MEMBRETE SUPERIOR -----
@@ -84,169 +92,6 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any;
     </div>
   );
 };
-
-// ----- BOTÓN DE ACCIÓN -----
-const BotonAccion = ({
-  texto,
-  icono,
-  onClick,
-  color = 'bg-blue-600',
-  disabled = false,
-  loading = false,
-  fullWidth = true,
-  className = '',
-}: {
-  texto: string;
-  icono?: string;
-  onClick: () => void;
-  color?: string;
-  disabled?: boolean;
-  loading?: boolean;
-  fullWidth?: boolean;
-  className?: string;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled || loading}
-    className={`${fullWidth ? 'w-full' : ''} ${color} p-2 rounded-xl border border-white/5 
-      active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2 
-      disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase text-[11px] tracking-wider
-      ${className}`}
-  >
-    {icono && <span className="text-lg">{icono}</span>}
-    {loading ? (
-      <span className="flex items-center gap-2">
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-        <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
-      </span>
-    ) : (
-      texto
-    )}
-  </button>
-);
-
-// ----- BOTÓN ICONO -----
-const BotonIcono = ({
-  icono,
-  onClick,
-  color = 'bg-blue-600',
-  disabled = false,
-  type = 'button',
-}: {
-  icono: string;
-  onClick: () => void;
-  color?: string;
-  disabled?: boolean;
-  type?: 'button' | 'submit';
-}) => (
-  <button
-    type={type}
-    onClick={onClick}
-    disabled={disabled}
-    className={`w-8 h-8 ${color} rounded-xl border border-white/5 active:scale-95 transition-transform shadow-lg flex items-center justify-center disabled:opacity-50 text-white text-base`}
-  >
-    {icono}
-  </button>
-);
-
-// ----- CAMPO DE ENTRADA -----
-const CampoEntrada = ({
-  type = 'text',
-  placeholder = '',
-  value,
-  onChange,
-  onEnter,
-  autoFocus = false,
-  disabled = false,
-  textCentered = false,
-  uppercase = false,
-  className = '',
-  label,
-  required = false,
-}: {
-  type?: string;
-  placeholder?: string;
-  value: string;
-  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
-  onEnter?: () => void;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  textCentered?: boolean;
-  uppercase?: boolean;
-  className?: string;
-  label?: string;
-  required?: boolean;
-}) => {
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && onEnter) onEnter();
-  };
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {label && (
-        <label className="text-[9px] font-black text-slate-500 uppercase ml-1">
-          {label}
-        </label>
-      )}
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onKeyDown={handleKeyDown}
-        autoFocus={autoFocus}
-        disabled={disabled}
-        required={required}
-        className={`w-full bg-white/5 border border-white/10 p-2 rounded-xl text-[11px] font-bold text-white outline-none transition-colors
-          disabled:opacity-70 disabled:cursor-not-allowed
-          ${textCentered ? 'text-center' : ''} 
-          ${uppercase ? 'uppercase' : ''}
-          ${type === 'password' ? 'tracking-[0.3em]' : ''}
-          focus:border-blue-500/50 hover:border-white/20
-          ${disabled ? 'border-blue-500/30 text-amber-400' : ''}
-          ${className}`}
-      />
-    </div>
-  );
-};
-
-// ----- SELECT -----
-const SelectOpcion = ({ value, onChange, options, label }: any) => (
-  <div className="flex flex-col gap-0.5">
-    <label className="text-[9px] font-black text-slate-500 uppercase ml-1">{label}</label>
-    <select
-      value={value}
-      onChange={onChange}
-      className="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-[11px] font-bold text-white outline-none focus:border-blue-500/50"
-    >
-      {options.map((opt: any) => (
-        <option key={opt.value} value={opt.value} className="bg-gray-800 text-white">
-          {opt.label}
-        </option>
-      ))}
-    </select>
-  </div>
-);
-
-// ----- BUSCADOR -----
-const Buscador = ({ placeholder, value, onChange, onClear }: any) => (
-  <div className="bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
-    <span className="text-white/40 ml-2 text-xs">🔍</span>
-    <input
-      type="text"
-      placeholder={placeholder}
-      className="w-full bg-transparent px-2 py-1.5 text-[11px] font-bold uppercase outline-none text-white"
-      value={value}
-      onChange={onChange}
-    />
-    {value && (
-      <button onClick={onClear} className="mr-1 text-white/60 hover:text-white text-xs">
-        ✕
-      </button>
-    )}
-  </div>
-);
 
 // ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
@@ -521,18 +366,13 @@ export default function GestionFlota() {
     <main className="min-h-screen bg-black p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         {/* NOTIFICACIÓN FLOTANTE */}
-        {notificacion.tipo && (
-          <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2 rounded-xl font-bold text-xs shadow-2xl animate-flash-fast max-w-[90%] text-center border-2 ${
-            notificacion.tipo === 'exito' ? 'bg-emerald-500 border-emerald-400' :
-            notificacion.tipo === 'error' ? 'bg-rose-500 border-rose-400' :
-            'bg-amber-500 border-amber-400'
-          } text-white flex items-center gap-2`}>
-            <span className="text-base">
-              {notificacion.tipo === 'exito' ? '✅' : notificacion.tipo === 'error' ? '❌' : '⚠️'}
-            </span>
-            <span>{notificacion.mensaje}</span>
-          </div>
-        )}
+        <NotificacionSistema
+          mensaje={notificacion.mensaje}
+          tipo={notificacion.tipo}
+          visible={!!notificacion.tipo}
+          duracion={2000}
+          onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
+        />
 
         {/* HEADER */}
         <MemebreteSuperior 
@@ -549,7 +389,7 @@ export default function GestionFlota() {
                 <CampoEntrada
                   label="NOMBRE"
                   placeholder="Nombre"
-                  value={nuevo.nombre_completo}
+                  valor={nuevo.nombre_completo}  // ✅ CORREGIDO: value → valor
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_completo: e.target.value })}
                   required
                   autoFocus
@@ -559,18 +399,18 @@ export default function GestionFlota() {
                 <CampoEntrada
                   label="DOCUMENTO"
                   placeholder="DNI"
-                  value={nuevo.documento_id}
+                  valor={nuevo.documento_id}  // ✅ CORREGIDO
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                   required
-                  uppercase
+                  mayusculas  // ✅ CORREGIDO: uppercase → mayusculas
                 />
               </div>
               <div className="col-span-1">
                 <CampoEntrada
                   label="EMAIL"
                   placeholder="Email"
-                  type="email"
-                  value={nuevo.email}
+                  tipo="email"
+                  valor={nuevo.email}  // ✅ CORREGIDO
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, email: e.target.value })}
                 />
               </div>
@@ -578,7 +418,7 @@ export default function GestionFlota() {
                 <CampoEntrada
                   label="FLOTA"
                   placeholder="Empresa"
-                  value={nuevo.nombre_flota}
+                  valor={nuevo.nombre_flota}  // ✅ CORREGIDO
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
                 />
               </div>
@@ -602,9 +442,10 @@ export default function GestionFlota() {
                 <div className="col-span-1">
                   <CampoEntrada
                     label="PIN"
-                    value={editando.pin_secreto || ''}
+                    valor={editando.pin_secreto || ''}  // ✅ CORREGIDO
+                    onChange={() => {}}  // ✅ AGREGADO: función vacía para campo deshabilitado
                     disabled
-                    uppercase
+                    mayusculas  // ✅ CORREGIDO
                     className="border-blue-500/30"
                   />
                 </div>
@@ -662,16 +503,7 @@ export default function GestionFlota() {
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      <button
-                        onClick={() => toggleActivo(perfil)}
-                        className={`text-[9px] font-black px-2 py-1 rounded-full border ${
-                          perfil.activo
-                            ? 'text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10'
-                            : 'text-rose-500 border-rose-500/30 hover:bg-rose-500/10'
-                        }`}
-                      >
-                        {perfil.activo ? 'ACT' : 'INA'}
-                      </button>
+                      <BadgeEstado activo={perfil.activo} textoActivo="ACT" textoInactivo="INA" />
                     </td>
                     <td className="p-3 text-center">
                       <button

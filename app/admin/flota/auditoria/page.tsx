@@ -6,6 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area, PieChart, Pie, Cell, Legend
 } from 'recharts';
+import { NotificacionSistema } from '../../../components'; // ✅ 4 niveles arriba
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -53,7 +54,6 @@ const MemebreteSuperior = ({ usuario, onRegresar }: { usuario?: any; onRegresar:
           </div>
         )}
       </div>
-      {/* Botón de regreso - reposicionado para evitar solapamiento */}
       <div className="absolute top-0 right-0 mt-4 mr-4">
         <button
           onClick={onRegresar}
@@ -80,8 +80,17 @@ export default function AuditoriaFlota() {
   const [usuarioLogueado, setUsuarioLogueado] = useState<{nombre: string, rol: string, nivel_acceso: any} | null>(null);
   const [umbralEfectividad, setUmbralEfectividad] = useState<number>(70);
   const [filtroEficiencia, setFiltroEficiencia] = useState<string>('todos');
+  const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   
   const router = useRouter();
+
+  // ------------------------------------------------------------
+  // MOSTRAR NOTIFICACIÓN
+  // ------------------------------------------------------------
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
+  };
 
   // ------------------------------------------------------------
   // CARGAR CONFIGURACIÓN
@@ -171,6 +180,7 @@ export default function AuditoriaFlota() {
       setMetricas(dataProcesada);
     } catch (err) {
       console.error("Falla en Auditoría de Flota:", err);
+      mostrarNotificacion('Error al cargar auditoría', 'error');
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -420,10 +430,19 @@ export default function AuditoriaFlota() {
     <main className="min-h-screen bg-[#020617] p-4 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-4rem)]">
         
+        {/* NOTIFICACIÓN FLOTANTE */}
+        <NotificacionSistema
+          mensaje={notificacion.mensaje}
+          tipo={notificacion.tipo}
+          visible={!!notificacion.tipo}
+          duracion={2000}
+          onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
+        />
+
         {/* HEADER */}
         <MemebreteSuperior usuario={usuarioLogueado || undefined} onRegresar={handleRegresar} />
 
-        {/* BARRA DE HERRAMIENTAS - debajo del header */}
+        {/* BARRA DE HERRAMIENTAS */}
         <div className="flex items-center justify-between gap-4 mb-4 shrink-0 bg-[#0f172a] p-3 rounded-xl border border-white/5">
           <div className="flex items-center gap-2">
             <button 
@@ -661,7 +680,7 @@ export default function AuditoriaFlota() {
                 </div>
               )}
 
-              {/* EFECTIVIDAD DE REPARTO - CON LA CORRECCIÓN APLICADA */}
+              {/* EFECTIVIDAD DE REPARTO */}
               {tabActiva === 'efectividad' && (
                 <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -679,7 +698,6 @@ export default function AuditoriaFlota() {
                               outerRadius={80}
                               paddingAngle={5}
                               dataKey="value"
-                              // ✅ CORREGIDO: Verificar que percent existe
                               label={({ name, percent }) => {
                                 if (percent === undefined) return `${name}: 0%`;
                                 return `${name}: ${(percent * 100).toFixed(0)}%`;

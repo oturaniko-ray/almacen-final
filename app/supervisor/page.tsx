@@ -1,9 +1,15 @@
 'use client';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, ChangeEvent } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getCurrentLocation, getAddressFromCoordinates, LocationData } from '@/lib/locationService';
+import { 
+  CampoEntrada, 
+  ContenedorPrincipal,
+  NotificacionSistema,
+  ModalFlotaSalida
+} from '../components';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,8 +17,21 @@ const supabase = createClient(
 );
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES (se mantienen igual)
+// FUNCIÓN AUXILIAR
 // ------------------------------------------------------------
+function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
+  const R = 6371e3;
+  const p1 = (lat1 * Math.PI) / 180;
+  const p2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLambda = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
+    Math.cos(p1) * Math.cos(p2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 const formatearRol = (rol: string): string => {
   if (!rol) return 'SUPERVISOR';
@@ -32,6 +51,7 @@ const formatearRol = (rol: string): string => {
   }
 };
 
+// ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
   const titulo = "LECTOR QR";
   const palabras = titulo.split(' ');
@@ -58,6 +78,7 @@ const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
   );
 };
 
+// ----- BOTÓN DE OPCIÓN -----
 const BotonOpcion = ({
   texto,
   descripcion,
@@ -91,6 +112,7 @@ const BotonOpcion = ({
   );
 };
 
+// ----- BOTÓN DE ACCIÓN -----
 const BotonAccion = ({
   texto,
   icono,
@@ -128,273 +150,6 @@ const BotonAccion = ({
     </button>
   );
 };
-
-const NotificacionSistema = ({
-  mensaje,
-  tipo,
-  visible,
-  duracion = 3000,
-  onCerrar
-}: {
-  mensaje: string;
-  tipo: 'exito' | 'error' | 'advertencia' | 'info' | null;
-  visible: boolean;
-  duracion?: number;
-  onCerrar?: () => void;
-}) => {
-  const [mostrar, setMostrar] = useState(visible);
-
-  useEffect(() => {
-    setMostrar(visible);
-    if (visible && duracion > 0) {
-      const timer = setTimeout(() => {
-        setMostrar(false);
-        onCerrar?.();
-      }, duracion);
-      return () => clearTimeout(timer);
-    }
-  }, [visible, duracion, onCerrar]);
-
-  if (!mostrar || !tipo) return null;
-
-  const colores = {
-    exito: 'bg-emerald-500 border-emerald-400',
-    error: 'bg-rose-500 border-rose-400',
-    advertencia: 'bg-amber-500 border-amber-400',
-    info: 'bg-blue-500 border-blue-400',
-  };
-  const iconos = {
-    exito: '✅',
-    error: '❌',
-    advertencia: '⚠️',
-    info: 'ℹ️',
-  };
-
-  return (
-    <div
-      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl
-        font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center
-        border-2 ${colores[tipo]} text-white flex items-center gap-3`}
-    >
-      <span className="text-lg">{iconos[tipo]}</span>
-      <span>{mensaje}</span>
-    </div>
-  );
-};
-
-const CampoEntrada = React.forwardRef<HTMLInputElement, {
-  tipo?: 'text' | 'password' | 'email' | 'number';
-  placeholder?: string;
-  valor: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onEnter?: () => void;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  textoCentrado?: boolean;
-  mayusculas?: boolean;
-  className?: string;
-}>(({
-  tipo = 'text',
-  placeholder = '',
-  valor,
-  onChange,
-  onEnter,
-  autoFocus = false,
-  disabled = false,
-  textoCentrado = true,
-  mayusculas = false,
-  className = ''
-}, ref) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let newVal = e.target.value;
-    if (mayusculas) {
-      newVal = newVal.toUpperCase();
-    }
-    onChange({
-      ...e,
-      target: { ...e.target, value: newVal }
-    });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && onEnter) onEnter();
-  };
-
-  return (
-    <input
-      ref={ref}
-      type={tipo}
-      placeholder={placeholder}
-      value={valor}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-      autoFocus={autoFocus}
-      disabled={disabled}
-      className={`w-full bg-white/5 border border-white/10 p-3 rounded-xl 
-        text-[11px] font-bold text-white outline-none transition-colors
-        disabled:opacity-50 disabled:cursor-not-allowed
-        ${textoCentrado ? 'text-center' : ''} 
-        ${mayusculas ? 'uppercase' : ''}
-        ${tipo === 'password' ? 'tracking-[0.4em]' : ''}
-        focus:border-blue-500/50 hover:border-white/20
-        ${className}`}
-    />
-  );
-});
-
-CampoEntrada.displayName = 'CampoEntrada';
-
-const ContenedorPrincipal = ({
-  children,
-  maxWidth = 'sm',
-  padding = 'md',
-  className = ''
-}: {
-  children: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
-  padding?: 'sm' | 'md' | 'lg' | 'xl';
-  className?: string;
-}) => {
-  const ancho = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
-    full: 'max-w-full'
-  };
-  const espaciado = {
-    sm: 'p-4',
-    md: 'p-8',
-    lg: 'p-10',
-    xl: 'p-12'
-  };
-  return (
-    <div className={`w-full ${ancho[maxWidth]} bg-[#111111] ${espaciado[padding]} 
-      rounded-[35px] border border-white/5 shadow-2xl ${className}`}>
-      {children}
-    </div>
-  );
-};
-
-// Componente Modal para salida de flota
-const ModalFlotaSalida = ({
-  visible,
-  onConfirmar,
-  onCancelar,
-  cantCarga,
-  setCantCarga,
-  observacion,
-  setObservacion,
-  loading
-}: {
-  visible: boolean;
-  onConfirmar: () => void;
-  onCancelar: () => void;
-  cantCarga: number;
-  setCantCarga: (valor: number) => void;
-  observacion: string;
-  setObservacion: (valor: string) => void;
-  loading: boolean;
-}) => {
-  if (!visible) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-[#1a1a1a] border-2 border-blue-500/30 rounded-[30px] p-6 max-w-sm w-full shadow-2xl animate-modal-appear">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-blue-500/30">
-            <span className="text-3xl">🚛</span>
-          </div>
-          <h2 className="text-white font-black text-lg uppercase tracking-wider">SALIDA DE FLOTA</h2>
-          <p className="text-blue-400 text-[10px] uppercase tracking-widest mt-1">INGRESE DATOS DEL DESPACHO</p>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-white/60 text-[9px] uppercase tracking-widest block mb-1 text-center">
-              CANTIDAD DE CARGA
-            </label>
-            <input
-              type="number"
-              value={cantCarga || ''}
-              onChange={(e) => setCantCarga(parseInt(e.target.value) || 0)}
-              className="w-full bg-white/5 border-2 border-blue-500/30 p-4 rounded-2xl text-center text-white font-bold text-lg outline-none focus:border-blue-500 transition-all"
-              placeholder="0"
-              autoFocus
-              min="0"
-            />
-          </div>
-
-          <div>
-            <label className="text-white/60 text-[9px] uppercase tracking-widest block mb-1 text-center">
-              OBSERVACIÓN
-            </label>
-            <textarea
-              value={observacion}
-              onChange={(e) => setObservacion(e.target.value)}
-              className="w-full bg-white/5 border-2 border-blue-500/30 p-4 rounded-2xl text-center text-white font-bold text-sm outline-none focus:border-blue-500 transition-all resize-none h-24"
-              placeholder="INGRESE OBSERVACIÓN..."
-              maxLength={200}
-            />
-            <p className="text-right text-white/30 text-[8px] mt-1">
-              {observacion.length}/200
-            </p>
-          </div>
-
-          <div className="flex gap-2 pt-4">
-            <button
-              onClick={onCancelar}
-              className="flex-1 bg-slate-700 p-4 rounded-2xl text-white font-black uppercase text-sm tracking-wider hover:bg-slate-600 transition-all active:scale-95 border border-white/5"
-            >
-              CANCELAR
-            </button>
-            <button
-              onClick={onConfirmar}
-              disabled={loading}
-              className="flex-1 bg-blue-600 p-4 rounded-2xl text-white font-black uppercase text-sm tracking-wider hover:bg-blue-500 transition-all active:scale-95 border border-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                  <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-150" />
-                  <span className="w-2 h-2 bg-white rounded-full animate-pulse delay-300" />
-                </span>
-              ) : (
-                'CONFIRMAR SALIDA'
-              )}
-            </button>
-          </div>
-        </div>
-
-        <div className="absolute top-2 right-2">
-          <button
-            onClick={onCancelar}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ------------------------------------------------------------
-// FUNCIÓN AUXILIAR
-// ------------------------------------------------------------
-function calcularDistancia(lat1: number, lon1: number, lat2: number, lon2: number) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 999999;
-  const R = 6371e3;
-  const p1 = (lat1 * Math.PI) / 180;
-  const p2 = (lat2 * Math.PI) / 180;
-  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const dLambda = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
-    Math.cos(p1) * Math.cos(p2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 // ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
@@ -470,7 +225,7 @@ export default function SupervisorPage() {
     };
   }, [resetTimerInactividad]);
 
-  // ✅ NUEVA FUNCIÓN PARA ACTUALIZAR GPS
+  // Función para actualizar GPS
   const actualizarGPS = useCallback(async () => {
     try {
       const location = await getCurrentLocation();
@@ -524,7 +279,6 @@ export default function SupervisorPage() {
     };
     loadConfig();
 
-    // Actualizar GPS cada 30 segundos
     actualizarGPS();
     const interval = setInterval(actualizarGPS, 30000);
     return () => clearInterval(interval);
@@ -685,49 +439,40 @@ export default function SupervisorPage() {
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 6000);
   };
 
-  // ===== FUNCIÓN DE NAVEGACIÓN SIMPLIFICADA =====
+  // Navegación
   const volverUnNivel = () => {
     console.log('Nivel actual:', { modo, direccion, lecturaLista, pasoManual, modalFlotaVisible });
     
-    // CASO 1: Cerrar modal si está abierto
     if (modalFlotaVisible) {
-      console.log('→ Cerrando modal');
       setModalFlotaVisible(false);
       setFlotaTempData({ cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
       return;
     }
     
-    // CASO 2: Si estamos en modo manual
     if (modo === 'manual') {
       if (pasoManual === 3) {
-        console.log('→ Manual: paso 3 → 2');
         setPasoManual(2);
         setPinAutorizador('');
         return;
       }
       if (pasoManual === 2) {
-        console.log('→ Manual: paso 2 → 1');
         setPasoManual(1);
         setPinEmpleado('');
         return;
       }
       if (pasoManual === 1) {
-        console.log('→ Manual: paso 1 → 0');
         setPasoManual(0);
         setQrData('');
         return;
       }
       if (pasoManual === 0) {
-      console.log('→ Saliendo del módulo supervisor al selector inicial');
-      router.push('/selector');
-      return;
+        router.push('/selector');
+        return;
       }
     }
     
-    // CASO 3: Si estamos en USB/Cámara con lectura
     if (lecturaLista || (modo === 'usb' && qrData)) {
-      console.log('→ Cancelando lectura');
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
@@ -735,29 +480,20 @@ export default function SupervisorPage() {
       return;
     }
     
-    // CASO 4: Si ya seleccionamos entrada/salida
     if (direccion) {
-      console.log('→ Volviendo a selección de modo');
       setDireccion(null);
       return;
     }
     
-    // CASO 5: Si estamos en selección de modo
     if (modo !== 'menu') {
-      console.log('→ Volviendo al menú principal');
       setModo('menu');
       return;
     }
     
-     // CASO 6: Si estamos en el menú principal del módulo
-  console.log('→ Saliendo del módulo supervisor al selector inicial');
-  router.push('/selector');
-};
+    router.push('/selector');
+  };
 
-  // Volver directamente al selector (salir del módulo)
   const volverAlSelector = () => {
-    console.log('→ VOLVIENDO AL SELECTOR DIRECTAMENTE');
-    // Limpiar todo
     if (scannerRef.current?.isScanning) scannerRef.current.stop();
     setModo('menu');
     setDireccion(null);
@@ -770,12 +506,7 @@ export default function SupervisorPage() {
     setLecturaLista(false);
     setModalFlotaVisible(false);
     setRegistroPendiente(null);
-    // Ir al selector con respaldo
-    if (router) {
-      router.push('/');
-    } else {
-      window.location.href = '/';
-    }
+    router.push('/');
   };
 
   // Funciones para modal de flota
@@ -794,7 +525,6 @@ export default function SupervisorPage() {
     setFlotaTempData({ cant_carga: 0, observacion: '' });
     setRegistroPendiente(null);
     setAnimar(false);
-    // Volver a selección de entrada/salida
     setDireccion(null);
     setLecturaLista(false);
     setQrData('');
@@ -807,7 +537,7 @@ export default function SupervisorPage() {
     
     setAnimar(true);
     const ahora = new Date().toISOString();
-    const { registro, autorizador, firma } = registroPendiente;
+    const { registro, autorizador } = registroPendiente;
 
     try {
       const { data: accesoActivo } = await supabase
@@ -837,7 +567,6 @@ export default function SupervisorPage() {
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
 
-      // Resetear para siguiente lectura - volver a selección de entrada/salida
       setTimeout(() => {
         setDireccion(null);
         setLecturaLista(false);
@@ -1144,7 +873,6 @@ export default function SupervisorPage() {
           mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
         }
 
-        // Resetear para siguiente lectura - volver a selección de entrada/salida
         setTimeout(() => {
           setDireccion(null);
           if (modo === 'manual') {
@@ -1174,7 +902,6 @@ export default function SupervisorPage() {
           if (insErr) throw insErr;
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
-          // Resetear para siguiente lectura - volver a selección de entrada/salida
           setTimeout(() => {
             setDireccion(null);
             if (modo === 'manual') {
@@ -1190,7 +917,6 @@ export default function SupervisorPage() {
             }
           }, 2000);
         } else {
-          // FLOTA - SALIDA: Guardar datos pendientes y mostrar modal
           setRegistroPendiente({ registro, autorizador, firma });
           setModalFlotaVisible(true);
           setFlotaTempData({ cant_carga: 0, observacion: '' });
@@ -1214,6 +940,8 @@ export default function SupervisorPage() {
         mensaje={notificacion.mensaje}
         tipo={notificacion.tipo}
         visible={!!notificacion.tipo}
+        duracion={3000}
+        onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
       />
 
       <MemebreteSuperior usuario={user} />
@@ -1350,7 +1078,7 @@ export default function SupervisorPage() {
                     tipo="password"
                     placeholder="PIN SUPERVISOR"
                     valor={pinAutorizador}
-                    onChange={(e) => setPinAutorizador(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPinAutorizador(e.target.value)}
                     onEnter={registrarAcceso}
                     autoFocus
                     mayusculas
@@ -1401,7 +1129,7 @@ export default function SupervisorPage() {
                     tipo="text"
                     placeholder="DOCUMENTO / CORREO"
                     valor={qrData}
-                    onChange={(e) => setQrData(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setQrData(e.target.value)}
                     onEnter={() => {
                       if (qrData.trim()) {
                         setPasoManual(2);
@@ -1420,7 +1148,7 @@ export default function SupervisorPage() {
                     tipo="password"
                     placeholder="PIN TRABAJADOR"
                     valor={pinEmpleado}
-                    onChange={(e) => setPinEmpleado(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPinEmpleado(e.target.value)}
                     onEnter={() => {
                       if (pinEmpleado.trim()) {
                         setPasoManual(3);
@@ -1439,7 +1167,7 @@ export default function SupervisorPage() {
                     tipo="password"
                     placeholder="PIN ADMINISTRADOR"
                     valor={pinAutorizador}
-                    onChange={(e) => setPinAutorizador(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPinAutorizador(e.target.value)}
                     onEnter={() => {
                       if (pinAutorizador.trim()) {
                         registrarAcceso();

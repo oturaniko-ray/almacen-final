@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
+import { NotificacionSistema, Buscador } from '../../components'; // ✅ 2 niveles arriba
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -78,25 +79,6 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any;
   );
 };
 
-// ----- BUSCADOR -----
-const Buscador = ({ placeholder, value, onChange, onClear }: any) => (
-  <div className="bg-[#0f172a] p-1 rounded-xl border border-white/5 flex items-center">
-    <span className="text-white/40 ml-2 text-xs">🔍</span>
-    <input
-      type="text"
-      placeholder={placeholder}
-      className="w-full bg-transparent px-2 py-1.5 text-[11px] font-bold uppercase outline-none text-white"
-      value={value}
-      onChange={onChange}
-    />
-    {value && (
-      <button onClick={onClear} className="mr-1 text-white/60 hover:text-white text-xs">
-        ✕
-      </button>
-    )}
-  </div>
-);
-
 // ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
@@ -107,6 +89,7 @@ export default function ReporteAccesosPage() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [user, setUser] = useState<any>(null);
+  const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const router = useRouter();
 
   // ------------------------------------------------------------
@@ -144,6 +127,14 @@ export default function ReporteAccesosPage() {
   }, [fetchJornadas]);
 
   // ------------------------------------------------------------
+  // MOSTRAR NOTIFICACIÓN
+  // ------------------------------------------------------------
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
+  };
+
+  // ------------------------------------------------------------
   // FILTROS
   // ------------------------------------------------------------
   const limpiarFiltros = () => {
@@ -164,10 +155,23 @@ export default function ReporteAccesosPage() {
   // EXPORTAR EXCEL
   // ------------------------------------------------------------
   const exportarExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(jornadasFiltradas);
+    const data = jornadasFiltradas.map(j => ({
+      Empleado: j.nombre_empleado,
+      Documento: j.empleados?.documento_id,
+      'Fecha Entrada': new Date(j.hora_entrada).toLocaleDateString('es-ES'),
+      'Hora Entrada': new Date(j.hora_entrada).toLocaleTimeString('es-ES'),
+      'Fecha Salida': j.hora_salida ? new Date(j.hora_salida).toLocaleDateString('es-ES') : '',
+      'Hora Salida': j.hora_salida ? new Date(j.hora_salida).toLocaleTimeString('es-ES') : '',
+      'Horas Trabajadas': formatearTiempo(j.horas_trabajadas),
+      Estado: j.estado
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
-    XLSX.writeFile(wb, "Reporte_Asistencia.xlsx");
+    XLSX.writeFile(wb, `Reporte_Asistencia_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    
+    mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
   };
 
   // ------------------------------------------------------------
@@ -186,6 +190,15 @@ export default function ReporteAccesosPage() {
     <main className="min-h-screen bg-[#050a14] p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
         
+        {/* NOTIFICACIÓN FLOTANTE */}
+        <NotificacionSistema
+          mensaje={notificacion.mensaje}
+          tipo={notificacion.tipo}
+          visible={!!notificacion.tipo}
+          duracion={2000}
+          onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
+        />
+
         {/* HEADER */}
         <MemebreteSuperior 
           usuario={user} 
@@ -201,8 +214,8 @@ export default function ReporteAccesosPage() {
               <Buscador
                 placeholder="BUSCAR EMPLEADO..."
                 value={busqueda}
-                onChange={(e: any) => setBusqueda(e.target.value)}
-                onClear={limpiarFiltros}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBusqueda(e.target.value)}
+                onClear={() => setBusqueda('')}
               />
             </div>
             
@@ -210,7 +223,7 @@ export default function ReporteAccesosPage() {
             <div className="col-span-1">
               <input
                 type="date"
-                className="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400"
+                className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400"
                 value={desde}
                 onChange={e => setDesde(e.target.value)}
                 placeholder="DESDE"
@@ -221,7 +234,7 @@ export default function ReporteAccesosPage() {
             <div className="col-span-1">
               <input
                 type="date"
-                className="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400"
+                className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[11px] font-bold uppercase outline-none focus:border-blue-500 text-slate-400"
                 value={hasta}
                 onChange={e => setHasta(e.target.value)}
                 placeholder="HASTA"
@@ -232,13 +245,13 @@ export default function ReporteAccesosPage() {
             <div className="col-span-1">
               <button
                 onClick={limpiarFiltros}
-                className="w-full bg-slate-700 hover:bg-slate-600 p-2 rounded-xl text-[9px] font-black uppercase transition-colors"
+                className="w-full bg-slate-700 hover:bg-slate-600 p-2 rounded-lg text-[9px] font-black uppercase transition-colors"
               >
                 LIMPIAR
               </button>
             </div>
             
-            {/* Columna 8: VACÍA (para alinear) */}
+            {/* Columna 8: VACÍA */}
             <div className="col-span-1"></div>
           </div>
         </div>
@@ -330,6 +343,11 @@ export default function ReporteAccesosPage() {
           {loading && (
             <div className="p-6 text-center text-[9px] font-black uppercase animate-pulse text-slate-500">
               Sincronizando registros...
+            </div>
+          )}
+          {!loading && jornadasFiltradas.length === 0 && (
+            <div className="p-10 text-center text-slate-500 text-[9px] font-black uppercase">
+              No hay registros que coincidan con la búsqueda.
             </div>
           )}
         </div>

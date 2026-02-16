@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import GPSDiagnostic from '../components/GPSDiagnostic'; // ✅ Ruta relativa correcta
+import GPSDiagnostic from '../components/GPSDiagnostic'; // ✅ 1 nivel arriba (ya estaba bien)
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -16,7 +16,6 @@ const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), {
   ),
 });
 
-// ... resto del código igual ...
 // Función para formatear rol
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
