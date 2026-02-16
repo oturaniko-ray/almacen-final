@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import GPSDiagnostic from '../components/GPSDiagnostic'; // ✅ Ruta relativa correcta
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -15,6 +16,7 @@ const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), {
   ),
 });
 
+// ... resto del código igual ...
 // Función para formatear rol
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
@@ -74,7 +76,7 @@ export default function ConfigMaestraPage() {
   const rango100 = Array.from({ length: 100 }, (_, i) => i + 1);
   const rango24 = Array.from({ length: 24 }, (_, i) => i + 1);
   const rango60 = Array.from({ length: 60 }, (_, i) => i + 1);
-  const rango100Porcentaje = Array.from({ length: 101 }, (_, i) => i); // 0 a 100
+  const rango100Porcentaje = Array.from({ length: 101 }, (_, i) => i);
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -103,7 +105,7 @@ export default function ConfigMaestraPage() {
           timer_inactividad: cfgMap.timer_inactividad || '300000',
           empresa_nombre: cfgMap.empresa_nombre || 'SISTEMA',
           maximo_labor: cfgMap.maximo_labor || '28800000',
-          porcentaje_efectividad: cfgMap.porcentaje_efectividad || '70', // NUEVO
+          porcentaje_efectividad: cfgMap.porcentaje_efectividad || '70',
         });
       }
     } catch (err) {
@@ -151,7 +153,7 @@ export default function ConfigMaestraPage() {
       seguridad: ['timer_token', 'timer_inactividad'],
       laboral: ['maximo_labor'],
       interfaz: ['empresa_nombre'],
-      efectividad: ['porcentaje_efectividad'], // NUEVA PESTAÑA
+      efectividad: ['porcentaje_efectividad'],
     };
     guardarModulo(m[tabActual]);
   };
@@ -203,13 +205,13 @@ export default function ConfigMaestraPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* Pestañas laterales - AHORA CON LA NUEVA PESTAÑA */}
+          {/* Pestañas laterales */}
           <div className="md:col-span-3 space-y-2">
             {[
               { id: 'geolocalizacion', label: '📍 GEOCERCA GPS' },
               { id: 'seguridad', label: '🛡️ PARÁMETROS DE\nTIEMPO' },
               { id: 'laboral', label: '⏱️ TIEMPO MÁXIMO\nLABORABLE' },
-              { id: 'efectividad', label: '📊 PORCENTAJE DE\nEFECTIVIDAD' }, // NUEVA PESTAÑA
+              { id: 'efectividad', label: '📊 PORCENTAJE DE\nEFECTIVIDAD' },
               { id: 'interfaz', label: '🖥️ INTERFAZ' },
             ].map((tab) => (
               <button
@@ -264,7 +266,9 @@ export default function ConfigMaestraPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-[35px] overflow-hidden border border-white/10 h-[350px]">
+                  
+                  {/* MAPA INTERACTIVO */}
+                  <div className="rounded-[35px] overflow-hidden border border-white/10 h-[350px] mb-4">
                     <MapaInteractivo
                       lat={config.almacen_lat}
                       lng={config.almacen_lon}
@@ -273,6 +277,9 @@ export default function ConfigMaestraPage() {
                       }
                     />
                   </div>
+
+                  {/* DIAGNÓSTICO GPS */}
+                  <GPSDiagnostic />
                 </div>
               )}
 
@@ -343,7 +350,6 @@ export default function ConfigMaestraPage() {
                 </div>
               )}
 
-              {/* NUEVA PESTAÑA: PORCENTAJE DE EFECTIVIDAD */}
               {tabActual === 'efectividad' && (
                 <div className="space-y-8">
                   <div className="bg-[#020617] p-12 rounded-[45px] border border-white/5 text-center">

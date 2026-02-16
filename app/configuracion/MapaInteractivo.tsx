@@ -83,8 +83,8 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
       onLocationChange(lat, lng);
     });
 
-    // Botón para ubicar al usuario - usando el método correcto de Leaflet
-    const locateButton = L.Control.extend({
+    // Botón para ubicar al usuario
+    const LocateButton = L.Control.extend({
       options: {
         position: 'bottomright'
       },
@@ -107,8 +107,9 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
           try {
             const location = await getCurrentLocation();
             
-            if (location) {
-              map.setView([location.lat, location.lng], 18);
+            // ✅ VERIFICACIÓN: Asegurar que el mapa existe antes de usarlo
+            if (mapRef.current && location) {
+              mapRef.current.setView([location.lat, location.lng], 18);
               
               if (markerRef.current) {
                 markerRef.current.setLatLng([location.lat, location.lng]);
@@ -117,13 +118,12 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
               if (location.address) {
                 setAddress(location.address);
               } else {
-                // Si no tenemos dirección, intentamos obtenerla
                 const addr = await getAddressFromCoordinates(location.lat, location.lng);
                 if (addr) setAddress(addr);
               }
               
               onLocationChange(location.lat, location.lng);
-            } else {
+            } else if (!location) {
               alert('No se pudo obtener tu ubicación. Verifica los permisos.');
             }
           } catch (error) {
@@ -138,26 +138,23 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
       }
     });
 
-    map.addControl(new locateButton());
+    map.addControl(new LocateButton());
 
     // Manejar evento de localización
     map.on('locationfound', (e) => {
       const { lat, lng } = e.latlng;
       
-      // Actualizar marcador
       if (markerRef.current) {
         markerRef.current.setLatLng([lat, lng]);
-      } else {
-        const newMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+      } else if (mapRef.current) {
+        const newMarker = L.marker([lat, lng], { icon: customIcon }).addTo(mapRef.current);
         markerRef.current = newMarker;
       }
 
-      // Obtener dirección
       getAddressFromCoordinates(lat, lng).then(addr => {
         if (addr) setAddress(addr);
       });
 
-      // Notificar cambio
       onLocationChange(lat, lng);
       setLoadingLocation(false);
     });
@@ -167,7 +164,6 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
       alert('No se pudo obtener tu ubicación. Verifica los permisos.');
     });
 
-    // Limpiar al desmontar
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
@@ -178,10 +174,10 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
 
   // Actualizar marcador cuando cambian las coordenadas externamente
   useEffect(() => {
-    if (!mapRef.current || !markerRef.current) return;
-    
-    markerRef.current.setLatLng([nLat, nLng]);
-    mapRef.current.setView([nLat, nLng], 18);
+    if (mapRef.current && markerRef.current) {
+      markerRef.current.setLatLng([nLat, nLng]);
+      mapRef.current.setView([nLat, nLng], 18);
+    }
   }, [nLat, nLng]);
 
   if (!isClient) {
