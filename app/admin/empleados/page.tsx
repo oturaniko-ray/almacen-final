@@ -40,7 +40,7 @@ const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
 };
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES (AHORA PUEDEN USAR LAS FUNCIONES)
+// COMPONENTES VISUALES
 // ------------------------------------------------------------
 
 // ----- MEMBRETE SUPERIOR -----
@@ -409,7 +409,7 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // EXPORTAR EXCEL (DEFINIDA ANTES DE USARSE)
+  // EXPORTAR EXCEL
   // ------------------------------------------------------------
   const exportarExcel = () => {
     const data = empleados.map((e) => ({
@@ -465,7 +465,7 @@ export default function GestionEmpleados() {
           </div>
         )}
 
-        {/* HEADER - AHORA CON PROPS */}
+        {/* HEADER */}
         <MemebreteSuperior 
           usuario={user} 
           onExportar={exportarExcel}
