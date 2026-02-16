@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const { data: emailData, error } = await resend.emails.send({
-      from: 'Gestor de Acceso <seguridad@tuempresa.com>',
+      from: 'Gestor de Acceso <onboarding@resend.dev>',
       to: [to],
       subject: subject,
       react: reactComponent,
