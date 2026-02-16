@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
+import { getCurrentLocation, getAddressFromCoordinates, LocationData } from '@/lib/locationService';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -427,6 +428,8 @@ export default function SupervisorPage() {
     timer_inactividad: 120000
   });
   const [gps, setGps] = useState({ lat: 0, lon: 0, dist: 999999 });
+  const [ubicacionActual, setUbicacionActual] = useState<LocationData | null>(null);
+  const [errorGps, setErrorGps] = useState<string>('');
 
   // Estados para modal de flota
   const [modalFlotaVisible, setModalFlotaVisible] = useState(false);
@@ -467,6 +470,33 @@ export default function SupervisorPage() {
     };
   }, [resetTimerInactividad]);
 
+  // ✅ NUEVA FUNCIÓN PARA ACTUALIZAR GPS
+  const actualizarGPS = useCallback(async () => {
+    try {
+      const location = await getCurrentLocation();
+      
+      if (location) {
+        setUbicacionActual(location);
+        setGps(prev => ({ ...prev, lat: location.lat, lon: location.lng }));
+        
+        const d = calcularDistancia(
+          location.lat,
+          location.lng,
+          config.lat,
+          config.lon
+        );
+        
+        setGps(prev => ({ ...prev, dist: Math.round(d) }));
+        setErrorGps('');
+      } else {
+        setErrorGps('No se pudo obtener ubicación');
+      }
+    } catch (error) {
+      console.error('Error en actualizarGPS:', error);
+      setErrorGps('Error de señal GPS');
+    }
+  }, [config.lat, config.lon]);
+
   // Carga inicial
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -494,15 +524,11 @@ export default function SupervisorPage() {
     };
     loadConfig();
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setGps((prev) => ({ ...prev, lat: pos.coords.latitude, lon: pos.coords.longitude }));
-      },
-      null,
-      { enableHighAccuracy: true }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [router]);
+    // Actualizar GPS cada 30 segundos
+    actualizarGPS();
+    const interval = setInterval(actualizarGPS, 30000);
+    return () => clearInterval(interval);
+  }, [router, actualizarGPS]);
 
   useEffect(() => {
     if (config.lat !== 0 && gps.lat !== 0) {
@@ -694,7 +720,7 @@ export default function SupervisorPage() {
       }
       if (pasoManual === 0) {
       console.log('→ Saliendo del módulo supervisor al selector inicial');
-      router.push('/selector'); // ← VA DIRECTO AL SELECTOR INICIAL
+      router.push('/selector');
       return;
       }
     }
@@ -725,7 +751,7 @@ export default function SupervisorPage() {
     
      // CASO 6: Si estamos en el menú principal del módulo
   console.log('→ Saliendo del módulo supervisor al selector inicial');
-  router.push('/selector'); // ← VA DIRECTO AL SELECTOR INICIAL
+  router.push('/selector');
 };
 
   // Volver directamente al selector (salir del módulo)
@@ -961,7 +987,6 @@ export default function SupervisorPage() {
     let errorAutorizador = null;
 
     if (modo === 'manual') {
-      // MODO MANUAL: Validar PIN de administrador (nivel ≥ 4)
       const result = await supabase
         .from('empleados')
         .select('nombre, rol, nivel_acceso')
@@ -979,7 +1004,6 @@ export default function SupervisorPage() {
         return;
       }
     } else {
-      // MODO SCANNER/CÁMARA: Validar que el usuario logueado tenga nivel ≥ 3
       const sessionData = localStorage.getItem('user_session');
       if (!sessionData) {
         mostrarNotificacion('SESIÓN NO VÁLIDA', 'error');
@@ -1277,6 +1301,14 @@ export default function SupervisorPage() {
                   {gps.dist} MTS
                 </span>
               </p>
+              {ubicacionActual?.source && (
+                <p className="text-[7px] text-blue-500/50 mt-1">
+                  Fuente: {ubicacionActual.source === 'gps' ? 'GPS' : ubicacionActual.source === 'ip' ? 'IP' : 'Caché'}
+                </p>
+              )}
+              {errorGps && (
+                <p className="text-[7px] text-rose-500/50 mt-1">{errorGps}</p>
+              )}
             </div>
 
             {(modo === 'usb' || modo === 'camara') && (

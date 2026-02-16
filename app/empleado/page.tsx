@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
+import { getCurrentLocation, getAddressFromCoordinates, LocationData } from '@/lib/locationService';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -96,6 +97,7 @@ export default function EmpleadoPage() {
     time_token: 5000,
   });
   const [tiempoRestante, setTiempoRestante] = useState<number>(0);
+  const [ubicacionActual, setUbicacionActual] = useState<LocationData | null>(null);
 
   const ultimaActividadRef = useRef<number>(Date.now());
   const router = useRouter();
@@ -159,45 +161,69 @@ export default function EmpleadoPage() {
     fetchConfig();
   }, [router]);
 
-  const actualizarGPS = useCallback(() => {
-    setMensajeFlash('Actualizando GPS');
-    setTimeout(() => setMensajeFlash(''), 2000);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+  // ✅ NUEVA FUNCIÓN DE GPS MEJORADA
+  const actualizarGPS = useCallback(async () => {
+    setMensajeFlash('Actualizando GPS...');
+    
+    try {
+      const location = await getCurrentLocation();
+      
+      if (location) {
+        setUbicacionActual(location);
+        
         const d = calcularDistancia(
-          pos.coords.latitude,
-          pos.coords.longitude,
+          location.lat,
+          location.lng,
           config.almacen_lat,
           config.almacen_lon
         );
+        
         setDistancia(Math.round(d));
+        
         if (d <= config.radio_maximo) {
           setUbicacionOk(true);
           setErrorGps('');
           ultimaActividadRef.current = Date.now();
+          
+          // Obtener dirección para mostrar
+          const address = await getAddressFromCoordinates(location.lat, location.lng);
+          if (address) {
+            setMensajeFlash(`✅ Ubicación válida: ${address.split(',')[0]}`);
+          } else {
+            setMensajeFlash('✅ Ubicación válida');
+          }
         } else {
           setUbicacionOk(false);
           setErrorGps(`Fuera de rango (${Math.round(d)}m)`);
+          setMensajeFlash(`❌ Fuera de rango: ${Math.round(d)}m`);
         }
-      },
-      (err) => {
-        setErrorGps('Error de señal GPS');
+      } else {
+        setErrorGps('No se pudo obtener ubicación');
         setUbicacionOk(false);
-      },
-      { enableHighAccuracy: true }
-    );
+      }
+    } catch (error) {
+      console.error('Error en actualizarGPS:', error);
+      setErrorGps('Error de señal GPS');
+      setUbicacionOk(false);
+    }
+    
+    setTimeout(() => setMensajeFlash(''), 3000);
   }, [config]);
 
+  // Cargar GPS al inicio
   useEffect(() => {
     if (config.almacen_lat === 0) return;
     actualizarGPS();
+    
+    // Actualizar cada 30 segundos mientras la app está abierta
+    const interval = setInterval(actualizarGPS, 30000);
+    return () => clearInterval(interval);
   }, [config, actualizarGPS]);
 
   // Generar QR con prefijo P
   useEffect(() => {
     if (ubicacionOk && user) {
       const generateToken = () => {
-        // ✅ PREFIJO "P" PARA PERSONAL
         const rawToken = `P|${user.documento_id}|${Date.now()}`;
         setToken(btoa(rawToken));
       };
@@ -235,6 +261,11 @@ export default function EmpleadoPage() {
               {distancia !== null && (
                 <p className="text-white/20 text-[8px] mt-4 uppercase">Distancia actual: {distancia}m</p>
               )}
+              {ubicacionActual?.source && (
+                <p className="text-blue-500/50 text-[7px] mt-2 uppercase">
+                  Fuente: {ubicacionActual.source === 'gps' ? 'GPS' : ubicacionActual.source === 'ip' ? 'IP' : 'Caché'}
+                </p>
+              )}
               <button
                 onClick={actualizarGPS}
                 className="mt-4 text-[10px] text-blue-500 underline uppercase font-bold tracking-widest"
@@ -248,6 +279,11 @@ export default function EmpleadoPage() {
                 <p className="text-[18px] font-bold uppercase tracking-[0.4em] text-white animate-pulse-very-slow">
                   Mi QR
                 </p>
+                {ubicacionActual?.address && (
+                  <p className="text-[8px] text-blue-500/70 mt-1 truncate max-w-[250px]">
+                    📍 {ubicacionActual.address.split(',')[0]}
+                  </p>
+                )}
               </div>
               <div className="bg-white p-6 rounded-[40px] shadow-[0_0_60px_rgba(59,130,246,0.15)] mb-6 transition-transform active:scale-90 cursor-pointer">
                 {token && <QRCodeSVG value={token} size={200} level="H" />}
