@@ -255,7 +255,12 @@ export default function GestionEmpleados() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchEmpleados)
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // ✅ CORREGIDO: Función de limpieza que no devuelve Promise
+    return () => {
+      supabase.removeChannel(channel).catch(error => {
+        console.error('Error removing channel:', error);
+      });
+    };
   }, [fetchEmpleados, router]);
 
   // ------------------------------------------------------------
