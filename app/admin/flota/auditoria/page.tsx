@@ -483,7 +483,6 @@ export default function AuditoriaFlota() {
           )}
         </div>
 
-        {/* RESTO DEL CÓDIGO IGUAL... */}
         <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="h-full flex items-center justify-center">
@@ -662,7 +661,7 @@ export default function AuditoriaFlota() {
                 </div>
               )}
 
-              {/* EFECTIVIDAD DE REPARTO */}
+              {/* EFECTIVIDAD DE REPARTO - CON LA CORRECCIÓN APLICADA */}
               {tabActiva === 'efectividad' && (
                 <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -680,7 +679,11 @@ export default function AuditoriaFlota() {
                               outerRadius={80}
                               paddingAngle={5}
                               dataKey="value"
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              // ✅ CORREGIDO: Verificar que percent existe
+                              label={({ name, percent }) => {
+                                if (percent === undefined) return `${name}: 0%`;
+                                return `${name}: ${(percent * 100).toFixed(0)}%`;
+                              }}
                               labelLine={false}
                             >
                               {datosEfectividadReparto.map((entry, index) => (

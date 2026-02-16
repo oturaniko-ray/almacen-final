@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -164,7 +164,20 @@ const CampoEntrada = ({
   className = '',
   label,
   required = false,
-}: any) => {
+}: {
+  type?: string;
+  placeholder?: string;
+  value: string;
+  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  onEnter?: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  textCentered?: boolean;
+  uppercase?: boolean;
+  className?: string;
+  label?: string;
+  required?: boolean;
+}) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && onEnter) onEnter();
   };
@@ -296,7 +309,11 @@ export default function GestionFlota() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'flota_perfil' }, fetchPerfiles)
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel).catch(error => {
+        console.error('Error removing channel:', error);
+      });
+    };
   }, [fetchPerfiles, router]);
 
   // ------------------------------------------------------------
@@ -531,9 +548,9 @@ export default function GestionFlota() {
               <div className="col-span-1">
                 <CampoEntrada
                   label="NOMBRE"
-                  placeholder="Nombre completo"
+                  placeholder="Nombre"
                   value={nuevo.nombre_completo}
-                  onChange={(e) => setNuevo({ ...nuevo, nombre_completo: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_completo: e.target.value })}
                   required
                   autoFocus
                 />
@@ -541,9 +558,9 @@ export default function GestionFlota() {
               <div className="col-span-1">
                 <CampoEntrada
                   label="DOCUMENTO"
-                  placeholder="DNI / NIE"
+                  placeholder="DNI"
                   value={nuevo.documento_id}
-                  onChange={(e) => setNuevo({ ...nuevo, documento_id: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                   required
                   uppercase
                 />
@@ -551,10 +568,10 @@ export default function GestionFlota() {
               <div className="col-span-1">
                 <CampoEntrada
                   label="EMAIL"
-                  placeholder="correo@ejemplo.com"
+                  placeholder="Email"
                   type="email"
                   value={nuevo.email}
-                  onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, email: e.target.value })}
                 />
               </div>
               <div className="col-span-1">
@@ -562,14 +579,14 @@ export default function GestionFlota() {
                   label="FLOTA"
                   placeholder="Empresa"
                   value={nuevo.nombre_flota}
-                  onChange={(e) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
                 />
               </div>
               <div className="col-span-1">
                 <SelectOpcion
                   label="CHOFERES"
                   value={nuevo.cant_choferes}
-                  onChange={(val) => setNuevo({ ...nuevo, cant_choferes: val })}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: i + 1, label: (i + 1).toString() }))}
                 />
               </div>
@@ -577,7 +594,7 @@ export default function GestionFlota() {
                 <SelectOpcion
                   label="RUTAS"
                   value={nuevo.cant_rutas}
-                  onChange={(val) => setNuevo({ ...nuevo, cant_rutas: val })}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) })}
                   options={Array.from({ length: 21 }, (_, i) => ({ value: i, label: i.toString() }))}
                 />
               </div>
@@ -605,7 +622,7 @@ export default function GestionFlota() {
           <Buscador
             placeholder="BUSCAR PERFIL..."
             value={filtro}
-            onChange={(e: any) => setFiltro(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setFiltro(e.target.value)}
             onClear={() => setFiltro('')}
           />
         </div>

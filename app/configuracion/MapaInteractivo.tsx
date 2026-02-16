@@ -66,28 +66,33 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
       onLocationChange(lat, lng);
     });
 
-    // Botón para ubicar al usuario
-    const locateButton = L.control({ position: 'bottomright' });
-    locateButton.onAdd = () => {
-      const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
-      btn.innerHTML = '📍';
-      btn.title = 'Ubicarme';
-      btn.style.backgroundColor = 'white';
-      btn.style.width = '40px';
-      btn.style.height = '40px';
-      btn.style.fontSize = '20px';
-      btn.style.cursor = 'pointer';
-      btn.style.border = '2px solid #3b82f6';
-      btn.style.borderRadius = '8px';
-      btn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-      
-      btn.onclick = () => {
-        map.locate({ setView: true, maxZoom: 18 });
-      };
-      
-      return btn;
-    };
-    locateButton.addTo(map);
+    // Botón para ubicar al usuario - usando el método correcto de Leaflet
+    const locateButton = L.Control.extend({
+      options: {
+        position: 'bottomright'
+      },
+      onAdd: function() {
+        const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
+        btn.innerHTML = '📍';
+        btn.title = 'Ubicarme';
+        btn.style.backgroundColor = 'white';
+        btn.style.width = '40px';
+        btn.style.height = '40px';
+        btn.style.fontSize = '20px';
+        btn.style.cursor = 'pointer';
+        btn.style.border = '2px solid #3b82f6';
+        btn.style.borderRadius = '8px';
+        btn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+        
+        btn.onclick = () => {
+          map.locate({ setView: true, maxZoom: 18 });
+        };
+        
+        return btn;
+      }
+    });
+
+    map.addControl(new locateButton());
 
     // Manejar evento de localización
     map.on('locationfound', (e) => {
