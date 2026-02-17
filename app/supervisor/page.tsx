@@ -259,7 +259,7 @@ export default function SupervisorPage() {
     const loadConfig = async () => {
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
-        const m = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        const m = (data as any[]).reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
         const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
         const parsedLon = parseFloat(String(m.almacen_lon).replace(/[^\d.-]/g, ''));
         const parsedTimer = parseInt(m.timer_inactividad, 10);
@@ -286,64 +286,64 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-// Procesamiento del QR - VERSIÓN CORREGIDA
-const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
-  if (!texto || texto.trim() === '') return null;
-  
-  // Limpiar el texto de caracteres extraños
-  const cleanText = texto.replace(/[\n\r\t]/g, '').trim();
-  
-  try {
-    // Intentar decodificar Base64
-    let decoded: string;
+  // Procesamiento del QR - VERSIÓN CORREGIDA
+  const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
+    if (!texto || texto.trim() === '') return null;
+    
+    // Limpiar el texto de caracteres extraños
+    const cleanText = texto.replace(/[\n\r\t]/g, '').trim();
+    
     try {
-      decoded = atob(cleanText);
-    } catch {
-      // Si falla, intentar decodificar con manejo de caracteres especiales
-      decoded = atob(decodeURIComponent(escape(cleanText)));
+      // Intentar decodificar Base64
+      let decoded: string;
+      try {
+        decoded = atob(cleanText);
+      } catch {
+        // Si falla, intentar decodificar con manejo de caracteres especiales
+        decoded = atob(decodeURIComponent(escape(cleanText)));
+      }
+      
+      // Dividir por el separador |
+      const partes = decoded.split('|');
+      
+      if (partes.length === 3) {
+        const [tipo, docId, timestamp] = partes;
+        const ts = parseInt(timestamp, 10);
+        
+        if (isNaN(ts)) {
+          console.error('Timestamp inválido:', timestamp);
+          mostrarNotificacion('QR INVÁLIDO (timestamp)', 'error');
+          return null;
+        }
+        
+        // Verificar expiración
+        const tiempoExpiracion = Number(config.qr_exp) || 30000;
+        if (Date.now() - ts > tiempoExpiracion) {
+          mostrarNotificacion('QR EXPIRADO', 'error');
+          return null;
+        }
+        
+        // Verificar que el tipo sea válido (P o F)
+        if (tipo !== 'P' && tipo !== 'F') {
+          mostrarNotificacion('TIPO DE QR INVÁLIDO', 'error');
+          return null;
+        }
+        
+        return { tipo, docId, timestamp: ts };
+      }
+      
+      console.error('Formato QR inválido. Partes:', partes.length);
+      mostrarNotificacion('QR INVÁLIDO (formato)', 'error');
+      return null;
+      
+    } catch (error) {
+      console.error('Error procesando QR:', error);
+      mostrarNotificacion('QR INVÁLIDO', 'error');
+      return null;
     }
-    
-    // Dividir por el separador |
-    const partes = decoded.split('|');
-    
-    if (partes.length === 3) {
-      const [tipo, docId, timestamp] = partes;
-      const ts = parseInt(timestamp, 10);
-      
-      if (isNaN(ts)) {
-        console.error('Timestamp inválido:', timestamp);
-        mostrarNotificacion('QR INVÁLIDO (timestamp)', 'error');
-        return null;
-      }
-      
-      // Verificar expiración
-      const tiempoExpiracion = Number(config.qr_exp) || 30000;
-      if (Date.now() - ts > tiempoExpiracion) {
-        mostrarNotificacion('QR EXPIRADO', 'error');
-        return null;
-      }
-      
-      // Verificar que el tipo sea válido (P o F)
-      if (tipo !== 'P' && tipo !== 'F') {
-        mostrarNotificacion('TIPO DE QR INVÁLIDO', 'error');
-        return null;
-      }
-      
-      return { tipo, docId, timestamp: ts };
-    }
-    
-    console.error('Formato QR inválido. Partes:', partes.length);
-    mostrarNotificacion('QR INVÁLIDO (formato)', 'error');
-    return null;
-    
-  } catch (error) {
-    console.error('Error procesando QR:', error);
-    mostrarNotificacion('QR INVÁLIDO', 'error');
-    return null;
-  }
-};
+  };
 
-  // Escáner de cámara
+  // Escáner de cámara - CORREGIDO
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
       const scanner = new Html5Qrcode('reader');
@@ -353,26 +353,35 @@ const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: nu
           { facingMode: 'environment' },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decoded) => {
-  console.log('📷 QR detectado (raw):', decoded);
-  console.log('📷 QR length:', decoded.length);
-  console.log('📷 QR char codes:', Array.from(decoded).map(c => c.charCodeAt(0)));
-  
-  const info = procesarQR(decoded);
-  console.log('📷 QR procesado:', info);
-  
-  if (info) {
-    setQrInfo(info);
-    setQrData(info.docId);
-    setLecturaLista(true);
-    scanner.stop();
-  }
-}
+            console.log('📷 QR detectado (raw):', decoded);
+            console.log('📷 QR length:', decoded.length);
+            console.log('📷 QR char codes:', Array.from(decoded).map(c => c.charCodeAt(0)));
+            
+            const info = procesarQR(decoded);
+            console.log('📷 QR procesado:', info);
+            
+            if (info) {
+              setQrInfo(info);
+              setQrData(info.docId);
+              setLecturaLista(true);
+              scanner.stop();
+            }
           },
-          () => {}
+          (errorMessage) => {
+            // Solo loguear errores importantes
+            if (!errorMessage.includes('No MultiFormat Readers')) {
+              console.log('Error de escaneo:', errorMessage);
+            }
+          }
         )
-        .catch(() => {});
+        .catch((error) => {
+          console.error('Error al iniciar escáner:', error);
+        });
+        
       return () => {
-        if (scannerRef.current?.isScanning) scannerRef.current.stop();
+        if (scannerRef.current?.isScanning) {
+          scannerRef.current.stop().catch(() => {});
+        }
       };
     }
   }, [modo, direccion, lecturaLista, config.qr_exp]);
@@ -422,23 +431,11 @@ const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: nu
     if (modo !== 'manual' || !direccion) setPasoManual(0);
   }, [modo, direccion]);
 
-  // Función de reseteo por modo
+  // Función de reseteo por modo - CORREGIDA
   const resetearPorModo = (modoActual: 'usb' | 'camara' | 'manual', errorTipo?: string) => {
     setAnimar(false);
     
-if (modo === 'manual') {
-  tipo = 'desconocido';
-} else {
-  if (qrInfo) {
-    tipo = qrInfo.tipo;
-  } else {
-    mostrarNotificacion('ERROR: Información de QR no disponible', 'error');
-    setAnimar(false);
-    resetearPorModo(modo as 'usb' | 'camara' | 'manual');
-    return;
-  }
-}    
-if (modoActual === 'usb' || modoActual === 'camara') {
+    if (modoActual === 'usb' || modoActual === 'camara') {
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
@@ -594,7 +591,8 @@ if (modoActual === 'usb' || modoActual === 'camara') {
 
       if (!accesoActivo) throw new Error('No hay acceso activo');
 
-      const { error: updErr } = await supabase
+      // ✅ SOLUCIÓN: Usar (supabase as any) para toda la cadena
+      const { error: updErr } = await (supabase as any)
         .from('flota_accesos')
         .update({
           hora_salida: ahora,
@@ -602,7 +600,7 @@ if (modoActual === 'usb' || modoActual === 'camara') {
           observacion: flotaSalida.observacion,
           estado: 'despachado',
         })
-        .eq('id', accesoActivo.id);
+        .eq('id', (accesoActivo as any).id);
 
       if (updErr) throw updErr;
 
@@ -668,16 +666,20 @@ if (modoActual === 'usb' || modoActual === 'camara') {
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
         .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
         .maybeSingle();
-      if (emp) {
-        registro = { ...emp, tipo: 'empleado' };
+      
+      // ✅ SOLUCIÓN: Verificar que emp es un objeto antes de hacer spread
+      if (emp && typeof emp === 'object') {
+        registro = { ...(emp as any), tipo: 'empleado' };
       } else {
         const { data: flota } = await supabase
           .from('flota_perfil')
           .select('*')
           .eq('documento_id', inputBusqueda)
           .maybeSingle();
-        if (flota) {
-          registro = { ...flota, tipo: 'flota' };
+        
+        // ✅ SOLUCIÓN: Verificar que flota es un objeto antes de hacer spread
+        if (flota && typeof flota === 'object') {
+          registro = { ...(flota as any), tipo: 'flota' };
         }
       }
     } else {
@@ -693,8 +695,9 @@ if (modoActual === 'usb' || modoActual === 'camara') {
           resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
-        if (emp) {
-          registro = { ...emp, tipo: 'empleado' };
+        // ✅ SOLUCIÓN: Verificar que emp es un objeto antes de hacer spread
+        if (emp && typeof emp === 'object') {
+          registro = { ...(emp as any), tipo: 'empleado' };
         }
       } else if (tipo === 'F') {
         const { data: flota, error: flotaErr } = await supabase
@@ -708,8 +711,9 @@ if (modoActual === 'usb' || modoActual === 'camara') {
           resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
-        if (flota) {
-          registro = { ...flota, tipo: 'flota' };
+        // ✅ SOLUCIÓN: Verificar que flota es un objeto antes de hacer spread
+        if (flota && typeof flota === 'object') {
+          registro = { ...(flota as any), tipo: 'flota' };
         }
       }
     }
@@ -811,7 +815,15 @@ if (modoActual === 'usb' || modoActual === 'camara') {
       }
     }
 
-    const firma = `Autoriza ${autorizador.nombre} - ${modo.toUpperCase()}`;
+    // ✅ SOLUCIÓN: Verificar que autorizador es un objeto antes de usar su propiedad nombre
+    if (!autorizador || typeof autorizador !== 'object' || !('nombre' in (autorizador as any))) {
+      mostrarNotificacion('ERROR: Datos de autorización inválidos', 'error');
+      setAnimar(false);
+      resetearPorModo(modo as 'usb' | 'camara' | 'manual');
+      return;
+    }
+
+    const firma = `Autoriza ${(autorizador as any).nombre} - ${modo.toUpperCase()}`;
 
     // Validación de duplicidad
     if (registro.tipo === 'empleado') {
@@ -875,18 +887,24 @@ if (modoActual === 'usb' || modoActual === 'camara') {
     try {
       if (registro.tipo === 'empleado') {
         if (direccion === 'entrada') {
-          const { error: insErr } = await supabase.from('jornadas').insert([{
-            empleado_id: registro.id,
-            nombre_empleado: registro.nombre,
-            hora_entrada: ahora,
-            autoriza_entrada: firma,
-            estado: 'activo',
-          }]);
+          // ✅ SOLUCIÓN: Usar (supabase as any) para insert
+          const { error: insErr } = await (supabase as any)
+            .from('jornadas')
+            .insert([{
+              empleado_id: registro.id,
+              nombre_empleado: registro.nombre,
+              hora_entrada: ahora,
+              autoriza_entrada: firma,
+              estado: 'activo',
+            }]);
           if (insErr) throw insErr;
-          await supabase
+          
+          // ✅ SOLUCIÓN: Usar (supabase as any) para update
+          await (supabase as any)
             .from('empleados')
             .update({ en_almacen: true, ultimo_ingreso: ahora })
             .eq('id', registro.id);
+            
           mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
         } else {
           const { data: j } = await supabase
@@ -897,23 +915,36 @@ if (modoActual === 'usb' || modoActual === 'camara') {
             .order('hora_entrada', { ascending: false })
             .limit(1)
             .maybeSingle();
+            
           if (!j) throw new Error('No se encontró entrada activa');
-          const horas = parseFloat(((Date.now() - new Date(j.hora_entrada).getTime()) / 3600000).toFixed(2));
-          const { error: updErr } = await supabase
-            .from('jornadas')
-            .update({
-              hora_salida: ahora,
-              horas_trabajadas: horas,
-              autoriza_salida: firma,
-              estado: 'finalizado',
-            })
-            .eq('id', j.id);
-          if (updErr) throw updErr;
-          await supabase
-            .from('empleados')
-            .update({ en_almacen: false, ultima_salida: ahora })
-            .eq('id', registro.id);
-          mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
+          
+          // ✅ SOLUCIÓN: Verificar que j es un objeto antes de usar sus propiedades
+          if (j && typeof j === 'object' && 'hora_entrada' in (j as any)) {
+            const horas = parseFloat(((Date.now() - new Date((j as any).hora_entrada).getTime()) / 3600000).toFixed(2));
+            
+            // ✅ SOLUCIÓN: Usar (supabase as any) para update
+            const { error: updErr } = await (supabase as any)
+              .from('jornadas')
+              .update({
+                hora_salida: ahora,
+                horas_trabajadas: horas,
+                autoriza_salida: firma,
+                estado: 'finalizado',
+              })
+              .eq('id', (j as any).id);
+              
+            if (updErr) throw updErr;
+            
+            // ✅ SOLUCIÓN: Usar (supabase as any) para update
+            await (supabase as any)
+              .from('empleados')
+              .update({ en_almacen: false, ultima_salida: ahora })
+              .eq('id', registro.id);
+              
+            mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
+          } else {
+            throw new Error('Datos de jornada inválidos');
+          }
         }
 
         setTimeout(() => {
@@ -933,15 +964,19 @@ if (modoActual === 'usb' || modoActual === 'camara') {
 
       } else {
         if (direccion === 'entrada') {
-          const { error: insErr } = await supabase.from('flota_accesos').insert([{
-            perfil_id: registro.id,
-            nombre_completo: registro.nombre_completo,
-            documento_id: registro.documento_id,
-            cant_choferes: registro.cant_choferes,
-            hora_llegada: ahora,
-            estado: 'en_patio',
-            autorizado_por: autorizador.nombre,
-          }]);
+          // ✅ SOLUCIÓN: Usar (supabase as any) para insert
+          const { error: insErr } = await (supabase as any)
+            .from('flota_accesos')
+            .insert([{
+              perfil_id: registro.id,
+              nombre_completo: registro.nombre_completo,
+              documento_id: registro.documento_id,
+              cant_choferes: registro.cant_choferes,
+              hora_llegada: ahora,
+              estado: 'en_patio',
+              autorizado_por: (autorizador as any).nombre,
+            }]);
+            
           if (insErr) throw insErr;
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 

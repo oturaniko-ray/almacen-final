@@ -59,17 +59,31 @@ export default function PresenciaPage() {
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
-    const { data: config } = await supabase.from('sistema_config').select('valor').eq('clave', 'maximo_labor').single();
-    if (config) {
-        setMaxLabor(parseFloat(config.valor) || 0);
+    // ✅ CORREGIDO: Verificar que config existe y tiene la propiedad valor
+    const { data: config } = await supabase
+      .from('sistema_config')
+      .select('valor')
+      .eq('clave', 'maximo_labor')
+      .single();
+      
+    if (config && typeof config === 'object' && 'valor' in config) {
+        setMaxLabor(parseFloat((config as { valor: string }).valor) || 0);
     }
 
-    const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('nombre');
-    const { data: jors } = await supabase.from('jornadas').select('*').order('hora_entrada', { ascending: false });
+    const { data: emps } = await supabase
+      .from('empleados')
+      .select('*')
+      .eq('activo', true)
+      .order('nombre');
+      
+    const { data: jors } = await supabase
+      .from('jornadas')
+      .select('*')
+      .order('hora_entrada', { ascending: false });
 
     if (emps) {
-      const vinculados = emps.map(e => {
-        const ultimaJornada = jors?.find(j => j.empleado_id === e.id);
+      const vinculados = (emps as any[]).map(e => {
+        const ultimaJornada = jors?.find((j: any) => j.empleado_id === e.id);
         return { ...e, ultimaJornada, nivel: Number(e.nivel_acceso || 0) };
       });
       setEmpleados(vinculados);

@@ -94,15 +94,21 @@ export default function PersonalLoginPage() {
 
       if (error || !data) throw new Error('Credenciales inválidas');
 
-      const userData = {
-        ...data,
-        nivel_acceso: Number(data.nivel_acceso),
-        permiso_reportes: !!data.permiso_reportes,
-      };
-      localStorage.setItem('user_session', JSON.stringify(userData));
+      // ✅ SOLUCIÓN: Verificar que data es un objeto antes de hacer spread
+      if (data && typeof data === 'object') {
+        const userData = {
+          ...(data as any),
+          nivel_acceso: Number((data as any).nivel_acceso),
+          permiso_reportes: !!((data as any).permiso_reportes),
+        };
+        
+        localStorage.setItem('user_session', JSON.stringify(userData));
 
-      if (userData.nivel_acceso <= 2) router.push('/empleado');
-      else router.push('/selector');
+        if (userData.nivel_acceso <= 2) router.push('/empleado');
+        else router.push('/selector');
+      } else {
+        throw new Error('Datos de usuario inválidos');
+      }
     } catch {
       mostrarNotificacion('Acceso denegado', 'error');
       setIdentificador('');

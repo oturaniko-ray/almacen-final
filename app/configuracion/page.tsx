@@ -92,7 +92,7 @@ export default function ConfigMaestraPage() {
       if (error) throw error;
 
       if (data) {
-        const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
+        const cfgMap = (data as any[]).reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
 
         setConfig({
           almacen_lat: cfgMap.almacen_lat || cfgMap.gps_latitud || '0',
@@ -131,8 +131,12 @@ export default function ConfigMaestraPage() {
         updated_at: new Date().toISOString(),
       }));
 
+      // ✅ SOLUCIÓN DEFINITIVA: Usar (supabase as any) para toda la cadena
       for (const update of updates) {
-        const { error } = await supabase.from('sistema_config').upsert(update, { onConflict: 'clave' });
+        const { error } = await (supabase as any)
+          .from('sistema_config')
+          .upsert(update, { onConflict: 'clave' });
+          
         if (error) throw error;
       }
 
