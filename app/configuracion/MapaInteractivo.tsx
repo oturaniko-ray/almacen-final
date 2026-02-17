@@ -13,10 +13,17 @@ const customIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
+interface MapaInteractivoProps {
+  lat: string;
+  lng: string;
+  onLocationChange: (lat: number, lng: number) => void;
+}
+
+export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInteractivoProps) {
   const [isClient, setIsClient] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [address, setAddress] = useState<string>('');
+  const [geocodingStatus, setGeocodingStatus] = useState<'loading' | 'success' | 'error'>('success');
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -29,12 +36,30 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
     setIsClient(true);
   }, []);
 
+  // Función para obtener dirección con manejo de errores
+  const fetchAddress = async (lat: number, lng: number) => {
+    setGeocodingStatus('loading');
+    try {
+      const addressResult = await getAddressFromCoordinates(lat, lng);
+      if (addressResult) {
+        setAddress(addressResult);
+        setGeocodingStatus('success');
+      } else {
+        // Fallback a coordenadas
+        setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        setGeocodingStatus('error');
+      }
+    } catch (error) {
+      console.error('Error obteniendo dirección:', error);
+      setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      setGeocodingStatus('error');
+    }
+  };
+
   // Obtener dirección cuando cambian las coordenadas
   useEffect(() => {
     if (nLat !== 0 && nLng !== 0) {
-      getAddressFromCoordinates(nLat, nLng).then(addr => {
-        if (addr) setAddress(addr);
-      });
+      fetchAddress(nLat, nLng);
     }
   }, [nLat, nLng]);
 
@@ -75,15 +100,13 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
       }
 
       // Obtener dirección del punto clickeado
-      getAddressFromCoordinates(lat, lng).then(addr => {
-        if (addr) setAddress(addr);
-      });
+      fetchAddress(lat, lng);
 
       // Notificar cambio
       onLocationChange(lat, lng);
     });
 
-    // Botón para ubicar al usuario
+    // Botón para ubicar al usuario - usando el método correcto de Leaflet
     const LocateButton = L.Control.extend({
       options: {
         position: 'bottomright'
@@ -115,13 +138,7 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
                 markerRef.current.setLatLng([location.lat, location.lng]);
               }
               
-              if (location.address) {
-                setAddress(location.address);
-              } else {
-                const addr = await getAddressFromCoordinates(location.lat, location.lng);
-                if (addr) setAddress(addr);
-              }
-              
+              fetchAddress(location.lat, location.lng);
               onLocationChange(location.lat, location.lng);
             } else if (!location) {
               alert('No se pudo obtener tu ubicación. Verifica los permisos.');
@@ -151,10 +168,7 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
         markerRef.current = newMarker;
       }
 
-      getAddressFromCoordinates(lat, lng).then(addr => {
-        if (addr) setAddress(addr);
-      });
-
+      fetchAddress(lat, lng);
       onLocationChange(lat, lng);
       setLoadingLocation(false);
     });
@@ -164,6 +178,7 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
       alert('No se pudo obtener tu ubicación. Verifica los permisos.');
     });
 
+    // Limpiar al desmontar
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
@@ -205,6 +220,9 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: any) {
             <span>LAT: {nLat.toFixed(6)}</span>
             <span>LON: {nLng.toFixed(6)}</span>
           </div>
+          {geocodingStatus === 'loading' && (
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+          )}
         </div>
       )}
       

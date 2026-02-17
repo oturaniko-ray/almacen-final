@@ -1,5 +1,6 @@
 // lib/locationService.ts
 import { createClient } from '@supabase/supabase-js';
+import { reverseGeocode } from './geocodingService'; // ✅ Importar la función
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,17 +54,15 @@ export async function getLocationFromGPS(retryCount = 0): Promise<LocationData |
   }
 
   try {
-    // Primero intentamos con alta precisión
     const options = {
       enableHighAccuracy: true,
-      timeout: 8000, // Reducido de 10s a 8s
-      maximumAge: 60000 // Aceptar caché de hasta 1 minuto
+      timeout: 8000,
+      maximumAge: 60000
     };
 
     const position = await new Promise<GeolocationPosition>((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(resolve, reject, options);
       
-      // Timeout adicional por si acaso
       setTimeout(() => reject(new Error('GPS timeout')), 9000);
     });
 
@@ -75,7 +74,6 @@ export async function getLocationFromGPS(retryCount = 0): Promise<LocationData |
       timestamp: Date.now()
     };
   } catch (error) {
-    // Si falla el primer intento y no hemos reintentado, probamos con baja precisión
     if (retryCount === 0) {
       console.log('📍 GPS alta precisión falló, intentando con baja precisión...');
       try {
@@ -138,33 +136,9 @@ export function getCachedLocation(): LocationData | null {
   }
 }
 
-// Obtener dirección a partir de coordenadas
+// Obtener dirección a partir de coordenadas - AHORA USA EL SERVICIO DE GEOCODING
 export async function getAddressFromCoordinates(lat: number, lng: number): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-          'User-Agent': 'GestionAcceso/1.0'
-        },
-        signal: controller.signal
-      }
-    );
-    
-    clearTimeout(timeoutId);
-    const data = await response.json();
-    
-    if (data.display_name) {
-      return data.display_name;
-    }
-    
-    return null;
-  } catch (error) {
-    return null;
-  }
+  return reverseGeocode(lat, lng); // ✅ Usar la función importada
 }
 
 // Función principal con mejor manejo de errores
