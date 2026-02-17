@@ -14,7 +14,7 @@ import {
 } from '../../components';
 
 // ------------------------------------------------------------
-// FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
+// FUNCIONES AUXILIARES
 // ------------------------------------------------------------
 
 // Función para formatear rol
@@ -179,9 +179,14 @@ export default function GestionEmpleados() {
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .maybeSingle();
 
-    if (errDoc) { mostrarNotificacion('Error al validar documento ID', 'error'); return false; }
+    if (errDoc) { 
+      mostrarNotificacion('Error al validar documento ID', 'error'); 
+      return false; 
+    }
+    
     if (docExistente) {
-      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${docExistente.nombre}.`, 'advertencia');
+      const existente = docExistente as { id: string; nombre: string };
+      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${existente.nombre}.`, 'advertencia');
       return false;
     }
 
@@ -192,9 +197,14 @@ export default function GestionEmpleados() {
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .maybeSingle();
 
-    if (errEmail) { mostrarNotificacion('Error al validar email', 'error'); return false; }
+    if (errEmail) { 
+      mostrarNotificacion('Error al validar email', 'error'); 
+      return false; 
+    }
+    
     if (emailExistente) {
-      mostrarNotificacion(`⚠️ El email ya está registrado para ${emailExistente.nombre}.`, 'advertencia');
+      const existente = emailExistente as { id: string; nombre: string };
+      mostrarNotificacion(`⚠️ El email ya está registrado para ${existente.nombre}.`, 'advertencia');
       return false;
     }
 
@@ -202,7 +212,7 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR)
+  // GUARDAR (CREAR O ACTUALIZAR) - CORREGIDO CON AS NEVER
   // ------------------------------------------------------------
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,18 +223,23 @@ export default function GestionEmpleados() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
+        // Creamos el objeto sin tipo
+        const updateData = {
+          nombre: nuevo.nombre,
+          documento_id: nuevo.documento_id,
+          email: nuevo.email.toLowerCase(),
+          rol: nuevo.rol,
+          activo: nuevo.activo,
+          permiso_reportes: nuevo.permiso_reportes,
+          nivel_acceso: nuevo.nivel_acceso,
+        };
+
+        // ✅ SOLUCIÓN DEFINITIVA: Usar as never en el parámetro
         const { error } = await supabase
           .from('empleados')
-          .update({
-            nombre: nuevo.nombre,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            rol: nuevo.rol,
-            activo: nuevo.activo,
-            permiso_reportes: nuevo.permiso_reportes,
-            nivel_acceso: nuevo.nivel_acceso,
-          })
+          .update(updateData as never)
           .eq('id', editando.id);
+          
         if (error) throw error;
         mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
       } else {
@@ -232,19 +247,22 @@ export default function GestionEmpleados() {
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
+        const insertData = [{
+          nombre: nuevo.nombre,
+          documento_id: nuevo.documento_id,
+          email: nuevo.email.toLowerCase(),
+          pin_seguridad: pinGenerado,
+          rol: nuevo.rol,
+          activo: nuevo.activo,
+          permiso_reportes: nuevo.permiso_reportes,
+          nivel_acceso: nuevo.nivel_acceso,
+          pin_generado_en: new Date().toISOString(),
+        }];
+
+        // ✅ SOLUCIÓN DEFINITIVA: Usar as never en el parámetro
         const { data: nuevoEmpleado, error } = await supabase
           .from('empleados')
-          .insert([{
-            nombre: nuevo.nombre,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            pin_seguridad: pinGenerado,
-            rol: nuevo.rol,
-            activo: nuevo.activo,
-            permiso_reportes: nuevo.permiso_reportes,
-            nivel_acceso: nuevo.nivel_acceso,
-            pin_generado_en: new Date().toISOString(),
-          }])
+          .insert(insertData as never)
           .select()
           .single();
 
@@ -445,7 +463,7 @@ export default function GestionEmpleados() {
                   <CampoEntrada
                     label="PIN"
                     valor={editando.pin_seguridad || ''}
-                    onChange={() => {}}  // ✅ AGREGADO: función vacía para campo deshabilitado
+                    onChange={() => {}} 
                     disabled
                     mayusculas
                     className="border-blue-500/30"

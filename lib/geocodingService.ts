@@ -9,7 +9,7 @@ export interface GeocodingResult {
 // Cache para evitar solicitudes repetidas
 const geocodeCache = new Map<string, GeocodingResult>();
 
-// Función con reintentos y delay
+// Función con reintentos y delay - AHORA USA EL PROXY
 export async function reverseGeocode(
   lat: number, 
   lng: number, 
@@ -28,34 +28,18 @@ export async function reverseGeocode(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
+    // ✅ Usar nuestro propio endpoint API (evita CORS)
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      `/api/geocode?lat=${lat}&lng=${lng}`,
       {
-        headers: {
-          'User-Agent': 'GestionAcceso/1.0 (contacto@tuempresa.com)',
-          'Accept-Language': 'es'
-        },
         signal: controller.signal
       }
     );
     
     clearTimeout(timeoutId);
 
-    // Manejar errores específicos
-    if (response.status === 425) {
-      console.log(`⚠️ Rate limit alcanzado, reintentando en ${(retryCount + 1) * 1000}ms...`);
-      
-      // Esperar y reintentar (delay exponencial)
-      if (retryCount < 3) {
-        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
-        return reverseGeocode(lat, lng, retryCount + 1);
-      } else {
-        return null;
-      }
-    }
-
     if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
+      throw new Error(`Error ${response.status}`);
     }
 
     const data = await response.json();
@@ -69,7 +53,7 @@ export async function reverseGeocode(
   } catch (error) {
     console.error('Error en reverseGeocode:', error);
     
-    // Reintentar en caso de error de red
+    // Reintentar en caso de error
     if (retryCount < 3) {
       await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
       return reverseGeocode(lat, lng, retryCount + 1);

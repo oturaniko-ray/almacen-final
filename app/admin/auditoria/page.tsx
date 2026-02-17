@@ -6,7 +6,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area
 } from 'recharts';
-import { NotificacionSistema } from '../../components'; // ✅ Ruta corregida
+import { NotificacionSistema } from '../../components';
+
+// ✅ Crear el cliente de Supabase (o importar el singleton si ya lo tienes)
 
 // ------------------------------------------------------------
 // FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
@@ -99,8 +101,10 @@ export default function AuditoriaInteligenteQuirurgica() {
       .select('valor')
       .eq('clave', 'porcentaje_efectividad')
       .maybeSingle();
+
     if (data) {
-      const val = parseInt(data.valor, 10);
+      const configData = data as { valor: string };
+      const val = parseInt(configData.valor, 10);
       if (!isNaN(val)) setUmbralEfectividad(val);
     }
   }, []);
@@ -129,20 +133,25 @@ export default function AuditoriaInteligenteQuirurgica() {
 
       if (error) throw error;
       
-      const dataProcesada = (data || []).map(m => {
-        const emp = m.empleados;
-        const nombreBase = emp?.nombre || 'SISTEMA';
-        return {
-          ...m,
-          nombre_completo_id: `${nombreBase} (${emp?.documento_id || 'S/ID'})`,
-          nombre_empleado: nombreBase,
-          rol_empleado: emp?.rol || 'N/A',
-          doc_empleado: emp?.documento_id || '',
-          nivel_acceso: emp?.nivel_acceso || 1,
-          fecha_corta: m.fecha_proceso ? m.fecha_proceso.split('-').reverse().slice(0, 2).join('/') : '--/--',
-          raw_date: new Date(m.fecha_proceso + 'T00:00:00')
-        };
-      });
+      // ✅ CORREGIDO: Verificar que data existe y es un array
+      let dataProcesada = [];
+      
+      if (data && Array.isArray(data)) {
+        dataProcesada = data.map((m: any) => {
+          const emp = m.empleados;
+          const nombreBase = emp?.nombre || 'SISTEMA';
+          return {
+            ...m,
+            nombre_completo_id: `${nombreBase} (${emp?.documento_id || 'S/ID'})`,
+            nombre_empleado: nombreBase,
+            rol_empleado: emp?.rol || 'N/A',
+            doc_empleado: emp?.documento_id || '',
+            nivel_acceso: emp?.nivel_acceso || 1,
+            fecha_corta: m.fecha_proceso ? m.fecha_proceso.split('-').reverse().slice(0, 2).join('/') : '--/--',
+            raw_date: new Date(m.fecha_proceso + 'T00:00:00')
+          };
+        });
+      }
 
       setMetricas(dataProcesada);
     } catch (err) {

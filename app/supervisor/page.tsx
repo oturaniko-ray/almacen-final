@@ -286,33 +286,62 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // Procesamiento del QR
-  const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
-    if (!texto || texto.trim() === '') return null;
-    const cleanText = texto.replace(/[\n\r]/g, '').trim();
+// Procesamiento del QR - VERSIÓN CORREGIDA
+const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
+  if (!texto || texto.trim() === '') return null;
+  
+  // Limpiar el texto de caracteres extraños
+  const cleanText = texto.replace(/[\n\r\t]/g, '').trim();
+  
+  try {
+    // Intentar decodificar Base64
+    let decoded: string;
     try {
-      const decoded = atob(cleanText);
-      const partes = decoded.split('|');
-      if (partes.length === 3) {
-        const [tipo, docId, timestamp] = partes;
-        const ts = parseInt(timestamp, 10);
-        if (isNaN(ts)) {
-          mostrarNotificacion('QR INVÁLIDO', 'error');
-          return null;
-        }
-        if (Date.now() - ts > config.qr_exp) {
-          mostrarNotificacion('QR EXPIRADO', 'error');
-          return null;
-        }
-        return { tipo, docId, timestamp: ts };
-      }
-      mostrarNotificacion('QR INVÁLIDO', 'error');
-      return null;
+      decoded = atob(cleanText);
     } catch {
-      mostrarNotificacion('QR INVÁLIDO', 'error');
-      return null;
+      // Si falla, intentar decodificar con manejo de caracteres especiales
+      decoded = atob(decodeURIComponent(escape(cleanText)));
     }
-  };
+    
+    // Dividir por el separador |
+    const partes = decoded.split('|');
+    
+    if (partes.length === 3) {
+      const [tipo, docId, timestamp] = partes;
+      const ts = parseInt(timestamp, 10);
+      
+      if (isNaN(ts)) {
+        console.error('Timestamp inválido:', timestamp);
+        mostrarNotificacion('QR INVÁLIDO (timestamp)', 'error');
+        return null;
+      }
+      
+      // Verificar expiración
+      const tiempoExpiracion = Number(config.qr_exp) || 30000;
+      if (Date.now() - ts > tiempoExpiracion) {
+        mostrarNotificacion('QR EXPIRADO', 'error');
+        return null;
+      }
+      
+      // Verificar que el tipo sea válido (P o F)
+      if (tipo !== 'P' && tipo !== 'F') {
+        mostrarNotificacion('TIPO DE QR INVÁLIDO', 'error');
+        return null;
+      }
+      
+      return { tipo, docId, timestamp: ts };
+    }
+    
+    console.error('Formato QR inválido. Partes:', partes.length);
+    mostrarNotificacion('QR INVÁLIDO (formato)', 'error');
+    return null;
+    
+  } catch (error) {
+    console.error('Error procesando QR:', error);
+    mostrarNotificacion('QR INVÁLIDO', 'error');
+    return null;
+  }
+};
 
   // Escáner de cámara
   useEffect(() => {
@@ -324,13 +353,20 @@ export default function SupervisorPage() {
           { facingMode: 'environment' },
           { fps: 20, qrbox: { width: 250, height: 250 } },
           (decoded) => {
-            const info = procesarQR(decoded);
-            if (info) {
-              setQrInfo(info);
-              setQrData(info.docId);
-              setLecturaLista(true);
-              scanner.stop();
-            }
+  console.log('📷 QR detectado (raw):', decoded);
+  console.log('📷 QR length:', decoded.length);
+  console.log('📷 QR char codes:', Array.from(decoded).map(c => c.charCodeAt(0)));
+  
+  const info = procesarQR(decoded);
+  console.log('📷 QR procesado:', info);
+  
+  if (info) {
+    setQrInfo(info);
+    setQrData(info.docId);
+    setLecturaLista(true);
+    scanner.stop();
+  }
+}
           },
           () => {}
         )
@@ -390,7 +426,19 @@ export default function SupervisorPage() {
   const resetearPorModo = (modoActual: 'usb' | 'camara' | 'manual', errorTipo?: string) => {
     setAnimar(false);
     
-    if (modoActual === 'usb' || modoActual === 'camara') {
+if (modo === 'manual') {
+  tipo = 'desconocido';
+} else {
+  if (qrInfo) {
+    tipo = qrInfo.tipo;
+  } else {
+    mostrarNotificacion('ERROR: Información de QR no disponible', 'error');
+    setAnimar(false);
+    resetearPorModo(modo as 'usb' | 'camara' | 'manual');
+    return;
+  }
+}    
+if (modoActual === 'usb' || modoActual === 'camara') {
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);

@@ -9,6 +9,28 @@ import {
 import { NotificacionSistema } from '../../../components'; // ✅ 4 niveles arriba
 
 // ------------------------------------------------------------
+// INTERFACES PARA TIPADO
+// ------------------------------------------------------------
+interface FlotaPerfil {
+  nombre_completo: string;
+  documento_id: string;
+  nombre_flota: string;
+  cant_rutas: number;
+}
+
+interface FlotaAcceso {
+  id: string;
+  hora_llegada: string;
+  hora_salida: string | null;
+  cant_carga: number;
+  observacion: string | null;
+  perfil_id: string;
+  flota_perfil: FlotaPerfil;
+  raw_date?: Date;
+  [key: string]: any;
+}
+
+// ------------------------------------------------------------
 // FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
 // ------------------------------------------------------------
 
@@ -99,8 +121,11 @@ export default function AuditoriaFlota() {
       .select('valor')
       .eq('clave', 'porcentaje_efectividad')
       .maybeSingle();
-    if (data) {
-      const val = parseInt(data.valor, 10);
+    
+    // ✅ Solución: verificar que data existe y tiene la propiedad valor
+    if (data && typeof data === 'object' && 'valor' in data) {
+      const valor = (data as { valor: string }).valor;
+      const val = parseInt(valor, 10);
       if (!isNaN(val)) setUmbralEfectividad(val);
     }
   }, []);
@@ -137,12 +162,17 @@ export default function AuditoriaFlota() {
 
       if (error) throw error;
       
-      const dataProcesada = (accesos || []).map(acceso => {
-        const perfil = acceso.flota_perfil;
+      // ✅ Solución: Verificar que accesos existe y es un array
+      const dataProcesada = (accesos || []).map((acceso: any) => {
+        // ✅ Verificar que acceso.flota_perfil existe
+        const perfil = acceso && typeof acceso === 'object' && 'flota_perfil' in acceso 
+          ? (acceso as any).flota_perfil 
+          : null;
+          
         const nombreBase = perfil?.nombre_completo || 'SISTEMA';
         
-        const horaSalida = acceso.hora_salida ? new Date(acceso.hora_salida) : null;
-        const horaLlegada = new Date(acceso.hora_llegada);
+        const horaSalida = acceso?.hora_salida ? new Date(acceso.hora_salida) : null;
+        const horaLlegada = acceso?.hora_llegada ? new Date(acceso.hora_llegada) : new Date();
         const tiempoPatioMs = horaSalida ? horaSalida.getTime() - horaLlegada.getTime() : 0;
         const tiempoPatioHoras = tiempoPatioMs > 0 ? tiempoPatioMs / (1000 * 60 * 60) : 0;
         
@@ -150,7 +180,7 @@ export default function AuditoriaFlota() {
         const horasExceso = Math.max(0, tiempoPatioHoras - tiempoLimiteHoras);
         
         const rutasAsignadas = perfil?.cant_rutas || 0;
-        const cargaReal = acceso.cant_carga || 0;
+        const cargaReal = acceso?.cant_carga || 0;
         const diferenciaCarga = rutasAsignadas - cargaReal;
         const efectividadCarga = rutasAsignadas > 0 ? Math.round((cargaReal / rutasAsignadas) * 100) : 0;
         
@@ -166,12 +196,12 @@ export default function AuditoriaFlota() {
           efectividad_carga: efectividadCarga,
           tiempo_patio_horas: Math.round(tiempoPatioHoras * 10) / 10,
           horas_exceso: Math.round(horasExceso * 10) / 10,
-          fecha_llegada: acceso.hora_llegada ? acceso.hora_llegada.split('T')[0] : '',
-          fecha_salida: acceso.hora_salida ? acceso.hora_salida.split('T')[0] : '',
-          hora_llegada_str: acceso.hora_llegada ? new Date(acceso.hora_llegada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
-          hora_salida_str: acceso.hora_salida ? new Date(acceso.hora_salida).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
-          fecha_corta: acceso.hora_llegada ? acceso.hora_llegada.split('-').reverse().slice(0, 2).join('/') : '--/--',
-          raw_date: new Date(acceso.hora_llegada)
+          fecha_llegada: acceso?.hora_llegada ? acceso.hora_llegada.split('T')[0] : '',
+          fecha_salida: acceso?.hora_salida ? acceso.hora_salida.split('T')[0] : '',
+          hora_llegada_str: acceso?.hora_llegada ? new Date(acceso.hora_llegada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
+          hora_salida_str: acceso?.hora_salida ? new Date(acceso.hora_salida).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
+          fecha_corta: acceso?.hora_llegada ? acceso.hora_llegada.split('-').reverse().slice(0, 2).join('/') : '--/--',
+          raw_date: acceso?.hora_llegada ? new Date(acceso.hora_llegada) : new Date()
         };
       });
 
@@ -228,8 +258,8 @@ export default function AuditoriaFlota() {
   const dataIndividual = useMemo(() => {
     if (!busquedaPerfil) return [];
     return [...dataFiltrada].filter(m => 
-      m.nombre_perfil.toLowerCase().includes(busquedaPerfil.toLowerCase()) ||
-      m.doc_perfil.includes(busquedaPerfil)
+      m.nombre_perfil?.toLowerCase().includes(busquedaPerfil.toLowerCase()) ||
+      m.doc_perfil?.includes(busquedaPerfil)
     ).reverse();
   }, [dataFiltrada, busquedaPerfil]);
 

@@ -37,24 +37,24 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInte
   }, []);
 
   // Función para obtener dirección con manejo de errores
-  const fetchAddress = async (lat: number, lng: number) => {
-    setGeocodingStatus('loading');
-    try {
-      const addressResult = await getAddressFromCoordinates(lat, lng);
-      if (addressResult) {
-        setAddress(addressResult);
-        setGeocodingStatus('success');
-      } else {
-        // Fallback a coordenadas
-        setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-        setGeocodingStatus('error');
-      }
-    } catch (error) {
-      console.error('Error obteniendo dirección:', error);
+ // En MapaInteractivo.tsx, la función fetchAddress:
+const fetchAddress = async (lat: number, lng: number) => {
+  setGeocodingStatus('loading');
+  try {
+    const addressResult = await getAddressFromCoordinates(lat, lng);
+    if (addressResult) {
+      setAddress(addressResult);
+      setGeocodingStatus('success');
+    } else {
       setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       setGeocodingStatus('error');
     }
-  };
+  } catch (error) {
+    console.error('Error obteniendo dirección:', error);
+    setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+    setGeocodingStatus('error');
+  }
+};
 
   // Obtener dirección cuando cambian las coordenadas
   useEffect(() => {
