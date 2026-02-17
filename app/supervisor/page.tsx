@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useRef, useCallback, ChangeEvent } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getCurrentLocation, getAddressFromCoordinates, LocationData } from '@/lib/locationService';
@@ -10,11 +10,6 @@ import {
   NotificacionSistema,
   ModalFlotaSalida
 } from '../components';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // ------------------------------------------------------------
 // FUNCIÓN AUXILIAR

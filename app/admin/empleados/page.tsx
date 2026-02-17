@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { enviarEmail } from '@/emails/emailService';
@@ -12,11 +12,6 @@ import {
   BadgeEstado,
   NotificacionSistema 
 } from '../../components';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // ------------------------------------------------------------
 // FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
