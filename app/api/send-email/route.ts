@@ -1,47 +1,24 @@
-export const runtime = 'nodejs'; // Fuerza el uso de Node.js runtime
-export const dynamic = 'force-dynamic'; // Evita el caché estático
-
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 
-// Función para sanitizar texto (eliminar caracteres problemáticos)
-const sanitizarTexto = (texto: string | null | undefined): string => {
-  if (!texto) return '';
-  return texto
-    .replace(/[<>]/g, '') // Eliminar < y > que podrían interpretarse como HTML
-    .replace(/&/g, '&amp;') // Escapar & (aunque el servidor SMTP puede no necesitarlo, es buena práctica)
-    .replace(/"/g, '&quot;') // Escapar comillas dobles
-    .replace(/'/g, '&#039;') // Escapar comillas simples
-    .trim();
-};
-
-// Función para escapar HTML para el cuerpo del correo
-const escaparHTML = (texto: string | null | undefined): string => {
-  if (!texto) return '';
-  return texto
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-};
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.ionos.es',
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
 
 export async function POST(request: Request) {
-  // Verificar método
-  if (request.method !== 'POST') {
-    return NextResponse.json(
-      { success: false, error: 'Método no permitido' },
-      { status: 405 }
-    );
-  }
-
   try {
     const body = await request.json();
-    console.log('📨 Recibida solicitud de email:', { tipo: body.tipo, to: body.to });
-
     const { tipo, datos, to } = body;
 
-    // Validar datos mínimos
     if (!tipo || !datos) {
       return NextResponse.json(
         { success: false, error: 'Faltan datos requeridos' },
@@ -57,54 +34,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validar que el destinatario tenga un formato de email válido
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(destinatario)) {
-      return NextResponse.json(
-        { success: false, error: `El email del destinatario no es válido: ${destinatario}` },
-        { status: 400 }
-      );
-    }
-
-    // Sanitizar datos antes de usarlos
-    const datosSanitizados = {
-      ...datos,
-      nombre: sanitizarTexto(datos.nombre),
-      nombre_completo: sanitizarTexto(datos.nombre_completo),
-      documento_id: sanitizarTexto(datos.documento_id),
-      email: destinatario, // El email ya está validado
-      rol: sanitizarTexto(datos.rol),
-      nombre_flota: sanitizarTexto(datos.nombre_flota),
-      observacion: sanitizarTexto(datos.observacion),
-    };
-
-    // Crear transporter (la misma configuración)
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.ionos.es',
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      // Añadir timeout para evitar bloqueos
-      connectionTimeout: 10000, // 10 segundos
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-
-    // Verificar conexión antes de enviar
-    await transporter.verify();
-
     let subject = '';
     let html = '';
 
-    // Generar HTML según el tipo, escapando correctamente
     if (tipo === 'empleado') {
-      subject = `🔐 Bienvenido ${datosSanitizados.nombre} - Sistema Red Mundial`;
+      subject = `🔐 Bienvenido ${datos.nombre} - Sistema Red Mundial`;
       html = `
         <!DOCTYPE html>
         <html>
@@ -129,30 +63,30 @@ export async function POST(request: Request) {
               <p>RED MUNDIAL DE ENVÍOS</p>
             </div>
             <div class="content">
-              <h2>Bienvenido, ${escaparHTML(datosSanitizados.nombre)}</h2>
+              <h2>Bienvenido, ${datos.nombre}</h2>
               <p>Se ha creado tu cuenta de acceso al sistema. A continuación encontrarás tus credenciales:</p>
               
               <table>
                 <tr>
                   <td class="label">📋 Documento ID:</td>
-                  <td><strong>${escaparHTML(datosSanitizados.documento_id)}</strong></td>
+                  <td><strong>${datos.documento_id}</strong></td>
                 </tr>
                 <tr>
                   <td class="label">📧 Correo:</td>
-                  <td><strong>${escaparHTML(datosSanitizados.email)}</strong></td>
+                  <td><strong>${datos.email}</strong></td>
                 </tr>
                 <tr>
                   <td class="label">👤 Rol:</td>
-                  <td><strong>${escaparHTML(datosSanitizados.rol?.toUpperCase() || '')}</strong></td>
+                  <td><strong>${datos.rol?.toUpperCase() || ''}</strong></td>
                 </tr>
                 <tr>
                   <td class="label">📊 Nivel de acceso:</td>
-                  <td><strong>${datosSanitizados.nivel_acceso}</strong></td>
+                  <td><strong>${datos.nivel_acceso}</strong></td>
                 </tr>
               </table>
               
               <div class="pin-box">
-                PIN: ${escaparHTML(datosSanitizados.pin_seguridad)}
+                PIN: ${datos.pin_seguridad}
               </div>
               
               <p><strong>📱 Instrucciones:</strong></p>
@@ -174,7 +108,7 @@ export async function POST(request: Request) {
         </html>
       `;
     } else if (tipo === 'flota') {
-      subject = `🚛 Perfil de Flota - ${datosSanitizados.nombre_completo}`;
+      subject = `🚛 Perfil de Flota - ${datos.nombre_completo}`;
       html = `
         <!DOCTYPE html>
         <html>
@@ -199,34 +133,34 @@ export async function POST(request: Request) {
               <p>RED MUNDIAL DE ENVÍOS</p>
             </div>
             <div class="content">
-              <h2>Bienvenido, ${escaparHTML(datosSanitizados.nombre_completo)}</h2>
+              <h2>Bienvenido, ${datos.nombre_completo}</h2>
               <p>Se ha registrado tu perfil de flota en el sistema. Estos son tus datos:</p>
               
               <table>
                 <tr>
                   <td class="label">📋 Documento ID:</td>
-                  <td><strong>${escaparHTML(datosSanitizados.documento_id)}</strong></td>
+                  <td><strong>${datos.documento_id}</strong></td>
                 </tr>
                 <tr>
                   <td class="label">📧 Correo:</td>
-                  <td><strong>${escaparHTML(datosSanitizados.email)}</strong></td>
+                  <td><strong>${datos.email}</strong></td>
                 </tr>
                 <tr>
                   <td class="label">🏢 Flota:</td>
-                  <td><strong>${escaparHTML(datosSanitizados.nombre_flota || 'No especificada')}</strong></td>
+                  <td><strong>${datos.nombre_flota || 'No especificada'}</strong></td>
                 </tr>
                 <tr>
                   <td class="label">👥 Choferes:</td>
-                  <td><strong>${datosSanitizados.cant_choferes}</strong></td>
+                  <td><strong>${datos.cant_choferes}</strong></td>
                 </tr>
                 <tr>
                   <td class="label">🛣️ Rutas:</td>
-                  <td><strong>${datosSanitizados.cant_rutas}</strong></td>
+                  <td><strong>${datos.cant_rutas}</strong></td>
                 </tr>
               </table>
               
               <div class="pin-box">
-                PIN: ${escaparHTML(datosSanitizados.pin_secreto)}
+                PIN: ${datos.pin_secreto}
               </div>
               
               <p><strong>📱 Instrucciones:</strong></p>
@@ -244,54 +178,25 @@ export async function POST(request: Request) {
         </body>
         </html>
       `;
-    } else {
-      return NextResponse.json(
-        { success: false, error: 'Tipo de email no válido' },
-        { status: 400 }
-      );
     }
 
-    const mailOptions = {
+    const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM || 'Sistema <admin@redmundialenvios.online>',
       to: destinatario,
       subject,
       html,
-      // Añadir cabeceras para mejorar la entrega
-      headers: {
-        'X-Priority': '3',
-        'X-MSMail-Priority': 'Normal',
-        'X-Mailer': 'RedMundial Sistema',
-      },
-    };
+    });
 
-    console.log('📧 Enviando correo a:', destinatario);
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Correo enviado:', info.messageId);
-
-    return NextResponse.json({
-      success: true,
+    return NextResponse.json({ 
+      success: true, 
       messageId: info.messageId,
       message: `Email enviado correctamente a ${destinatario}`
     });
 
   } catch (error: any) {
-    console.error('❌ Error detallado en API send-email:', {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      responseCode: error.responseCode,
-    });
-
-    // Devolver un error más descriptivo
+    console.error('Error enviando email:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Error interno del servidor',
-        code: error.code,
-        command: error.command,
-        response: error.response,
-      },
+      { success: false, error: error.message },
       { status: 500 }
     );
   }

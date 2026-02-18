@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Configuración para webpack (producción)
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // En el cliente, reemplazar módulos de Node.js con polyfills vacíos
       config.resolve.fallback = {
         ...config.resolve.fallback,
         child_process: false,
@@ -10,14 +10,6 @@ const nextConfig = {
         net: false,
         tls: false,
         dns: false,
-        crypto: false,
-        stream: false,
-        path: false,
-        os: false,
-        http: false,
-        https: false,
-        url: false,
-        zlib: false,
       };
     }
     return config;
@@ -31,14 +23,6 @@ const nextConfig = {
         net: false,
         tls: false,
         dns: false,
-        crypto: false,
-        stream: false,
-        path: false,
-        os: false,
-        http: false,
-        https: false,
-        url: false,
-        zlib: false,
       },
     },
   },
