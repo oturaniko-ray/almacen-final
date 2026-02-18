@@ -32,6 +32,18 @@ const formatearTiempo = (horasDecimales: number | string | null) => {
   return `${h}:${m}:${s}`;
 };
 
+// Función para obtener timestamp formateado para nombre de archivo
+const getTimestamp = () => {
+  const ahora = new Date();
+  const año = ahora.getFullYear();
+  const mes = (ahora.getMonth() + 1).toString().padStart(2, '0');
+  const dia = ahora.getDate().toString().padStart(2, '0');
+  const hora = ahora.getHours().toString().padStart(2, '0');
+  const minuto = ahora.getMinutes().toString().padStart(2, '0');
+  const segundo = ahora.getSeconds().toString().padStart(2, '0');
+  return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
+};
+
 // ------------------------------------------------------------
 // COMPONENTES VISUALES
 // ------------------------------------------------------------
@@ -150,9 +162,13 @@ export default function ReporteAccesosPage() {
   });
 
   // ------------------------------------------------------------
-  // EXPORTAR EXCEL
+  // EXPORTAR EXCEL - UNIFICADO
   // ------------------------------------------------------------
   const exportarExcel = () => {
+    // Crear libro de Excel
+    const wb = XLSX.utils.book_new();
+    
+    // Preparar datos
     const data = jornadasFiltradas.map(j => ({
       Empleado: j.nombre_empleado,
       Documento: j.empleados?.documento_id,
@@ -164,10 +180,58 @@ export default function ReporteAccesosPage() {
       Estado: j.estado
     }));
     
+    // Crear hoja de cálculo
     const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
+    
+    // Definir ancho de columnas basado en el encabezado
+    const columnWidths = [
+      { wch: 30 }, // Empleado
+      { wch: 15 }, // Documento
+      { wch: 15 }, // Fecha Entrada
+      { wch: 12 }, // Hora Entrada
+      { wch: 15 }, // Fecha Salida
+      { wch: 12 }, // Hora Salida
+      { wch: 15 }, // Horas Trabajadas
+      { wch: 12 }, // Estado
+    ];
+    ws['!cols'] = columnWidths;
+    
+    // Crear contenido del membrete
+    const fechaEmision = new Date().toLocaleString('es-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    
+    const titulo = `REPORTE DE ACCESOS`;
+    const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
+    const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
+    
+    // Insertar membrete al inicio de la hoja
+    XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
+    XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
+    XLSX.utils.sheet_add_aoa(ws, [[fechaInfo]], { origin: 'A3' });
+    XLSX.utils.sheet_add_aoa(ws, [['─────────────────────────────────────────────────────────────────']], { origin: 'A4' });
+    
+    // Mover los datos a partir de la fila 6 (dejando una fila de espacio)
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+    const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 5 });
+    if (newData.length > 0) {
+      XLSX.utils.sheet_add_aoa(ws, newData as any[][], { origin: 'A6' });
+    }
+    
+    // Agregar hoja al libro
     XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
-    XLSX.writeFile(wb, `Reporte_Asistencia_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    
+    // Generar nombre de archivo: acceso_timestamp.xlsx
+    const timestamp = getTimestamp();
+    const filename = `acceso_${timestamp}.xlsx`;
+    
+    // Guardar archivo
+    XLSX.writeFile(wb, filename);
     
     mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
   };

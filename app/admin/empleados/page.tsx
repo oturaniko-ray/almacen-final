@@ -30,6 +30,18 @@ const formatearRol = (rol: string): string => {
   }
 };
 
+// Función para obtener timestamp formateado para nombre de archivo
+const getTimestamp = () => {
+  const ahora = new Date();
+  const año = ahora.getFullYear();
+  const mes = (ahora.getMonth() + 1).toString().padStart(2, '0');
+  const dia = ahora.getDate().toString().padStart(2, '0');
+  const hora = ahora.getHours().toString().padStart(2, '0');
+  const minuto = ahora.getMinutes().toString().padStart(2, '0');
+  const segundo = ahora.getSeconds().toString().padStart(2, '0');
+  return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
+};
+
 // Función para enviar correo
 const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
   return enviarEmail('empleado', {
@@ -325,9 +337,13 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // EXPORTAR EXCEL
+  // EXPORTAR EXCEL - UNIFICADO
   // ------------------------------------------------------------
   const exportarExcel = () => {
+    // Crear libro de Excel
+    const wb = XLSX.utils.book_new();
+    
+    // Preparar datos
     const data = empleados.map((e) => ({
       Nombre: e.nombre,
       Documento: e.documento_id,
@@ -338,10 +354,61 @@ export default function GestionEmpleados() {
       Activo: e.activo ? 'SÍ' : 'NO',
       Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
     }));
+    
+    // Crear hoja de cálculo
     const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Empleados');
-    XLSX.writeFile(wb, `Empleados_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    
+    // Definir ancho de columnas basado en el encabezado
+    const columnWidths = [
+      { wch: 25 }, // Nombre
+      { wch: 15 }, // Documento
+      { wch: 25 }, // Email
+      { wch: 12 }, // Rol
+      { wch: 8 },  // Nivel
+      { wch: 10 }, // PIN
+      { wch: 8 },  // Activo
+      { wch: 8 },  // Reportes
+    ];
+    ws['!cols'] = columnWidths;
+    
+    // Crear contenido del membrete
+    const fechaEmision = new Date().toLocaleString('es-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    
+    const titulo = `GESTOR DE EMPLEADOS`;
+    const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
+    const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
+    
+    // Insertar membrete al inicio de la hoja
+    XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
+    XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
+    XLSX.utils.sheet_add_aoa(ws, [[fechaInfo]], { origin: 'A3' });
+    XLSX.utils.sheet_add_aoa(ws, [['─────────────────────────────────────────────────────────────────']], { origin: 'A4' });
+    
+    // Mover los datos a partir de la fila 6 (dejando una fila de espacio)
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+    const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 5 });
+    if (newData.length > 0) {
+      XLSX.utils.sheet_add_aoa(ws, newData as any[][], { origin: 'A6' });
+    }
+    
+    // Agregar hoja al libro
+    XLSX.utils.book_append_sheet(wb, ws, "Empleados");
+    
+    // Generar nombre de archivo: empleados_timestamp.xlsx
+    const timestamp = getTimestamp();
+    const filename = `empleados_${timestamp}.xlsx`;
+    
+    // Guardar archivo
+    XLSX.writeFile(wb, filename);
+    
+    mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
   };
 
   // ------------------------------------------------------------
