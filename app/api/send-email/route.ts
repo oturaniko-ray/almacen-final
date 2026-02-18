@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'; // Fuerza el uso de Node.js runtime
+export const dynamic = 'force-dynamic'; // Evita el caché estático
+
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 
