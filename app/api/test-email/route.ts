@@ -5,8 +5,19 @@ import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 
 export async function GET() {
+  const resultados: any = {
+    paso1_conexion: null,
+    paso2_envio: null,
+    configuracion: {
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      user: process.env.SMTP_USER,
+      from: process.env.EMAIL_FROM,
+    }
+  };
+
   try {
-    // Probar conexión SMTP
+    // Paso 1: Probar conexión SMTP
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
@@ -19,25 +30,42 @@ export async function GET() {
     });
 
     await transporter.verify();
-    
-    // Enviar correo de prueba
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: process.env.SMTP_USER, // Enviar a ti mismo
+    resultados.paso1_conexion = { success: true, message: 'Conexión SMTP exitosa' };
+
+    // Paso 2: Enviar correo de prueba con formato SIMPLE
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_FROM, // Ahora debería ser solo el email
+      to: process.env.SMTP_USER,
       subject: 'Prueba desde Vercel',
-      text: 'Si recibes esto, el email funciona en Vercel',
+      text: 'Correo de prueba desde Vercel',
+      html: '<p>Correo de prueba desde <b>Vercel</b></p>',
     });
 
-    return NextResponse.json({ 
+    resultados.paso2_envio = { 
       success: true, 
-      message: 'Conexión SMTP exitosa y correo enviado' 
-    });
+      messageId: info.messageId,
+      message: 'Correo enviado correctamente'
+    };
+
   } catch (error: any) {
-    console.error('Error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message,
-      code: error.code 
-    }, { status: 500 });
+    console.error('Error completo:', error);
+    
+    if (!resultados.paso1_conexion) {
+      resultados.paso1_conexion = { 
+        success: false, 
+        error: error.message,
+        code: error.code 
+      };
+    } else {
+      resultados.paso2_envio = { 
+        success: false, 
+        error: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response
+      };
+    }
   }
+
+  return NextResponse.json(resultados);
 }
