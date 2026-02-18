@@ -3,14 +3,13 @@ import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
-import { enviarEmail } from '@/emails/emailService';
-import { 
-  CampoEntrada, 
-  SelectOpcion, 
-  BotonIcono, 
-  Buscador, 
+import {
+  CampoEntrada,
+  SelectOpcion,
+  BotonIcono,
+  Buscador,
   BadgeEstado,
-  NotificacionSistema 
+  NotificacionSistema
 } from '../../../components';
 
 // ------------------------------------------------------------
@@ -65,19 +64,6 @@ const getTimestamp = () => {
   const minuto = ahora.getMinutes().toString().padStart(2, '0');
   const segundo = ahora.getSeconds().toString().padStart(2, '0');
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
-};
-
-// Función para enviar correo de flota
-const enviarCorreoFlota = async (perfil: FlotaPerfil, to?: string) => {
-  return enviarEmail('flota', {
-    nombre_completo: perfil.nombre_completo,
-    documento_id: perfil.documento_id,
-    email: perfil.email || '',
-    nombre_flota: perfil.nombre_flota || '',
-    cant_choferes: perfil.cant_choferes || 1,
-    cant_rutas: perfil.cant_rutas || 0,
-    pin_secreto: perfil.pin_secreto,
-  }, to);
 };
 
 // ------------------------------------------------------------
@@ -205,7 +191,7 @@ export default function GestionFlota() {
       .maybeSingle();
 
     if (errDoc) { mostrarNotificacion('Error al validar documento ID', 'error'); return false; }
-    
+
     if (docExistente && typeof docExistente === 'object' && 'nombre_completo' in docExistente) {
       mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${(docExistente as { nombre_completo: string }).nombre_completo}.`, 'advertencia');
       return false;
@@ -220,7 +206,7 @@ export default function GestionFlota() {
         .maybeSingle();
 
       if (errEmail) { mostrarNotificacion('Error al validar email', 'error'); return false; }
-      
+
       if (emailExistente && typeof emailExistente === 'object' && 'nombre_completo' in emailExistente) {
         mostrarNotificacion(`⚠️ El email ya está registrado para ${(emailExistente as { nombre_completo: string }).nombre_completo}.`, 'advertencia');
         return false;
@@ -229,6 +215,34 @@ export default function GestionFlota() {
 
     return true;
   };
+
+  // --- NUEVA FUNCIÓN: enviar correo de flota usando fetch a la API ---
+  const enviarCorreoFlota = async (perfil: FlotaPerfil, to?: string) => {
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'flota',
+          datos: {
+            nombre_completo: perfil.nombre_completo,
+            documento_id: perfil.documento_id,
+            email: perfil.email,
+            nombre_flota: perfil.nombre_flota,
+            cant_choferes: perfil.cant_choferes,
+            cant_rutas: perfil.cant_rutas,
+            pin_secreto: perfil.pin_secreto,
+          },
+          to: to || perfil.email,
+        }),
+      });
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error en fetch de correo:', error);
+      return { success: false, error: error.message };
+    }
+  };
+  // ------------------------------------------------------------
 
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR) - SOLUCIÓN ULTRA DEFINITIVA
@@ -242,7 +256,6 @@ export default function GestionFlota() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        // ✅ SOLUCIÓN ULTRA DEFINITIVA: Usar @ts-ignore + any
         // @ts-ignore - Ignorar completamente TypeScript para esta línea
         const { error } = await (supabase as any)
           .from('flota_perfil')
@@ -255,7 +268,7 @@ export default function GestionFlota() {
             cant_rutas: nuevo.cant_rutas,
           })
           .eq('id', editando.id);
-          
+
         if (error) throw error;
         mostrarNotificacion('Perfil actualizado correctamente.', 'exito');
       } else {
@@ -263,7 +276,6 @@ export default function GestionFlota() {
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        // ✅ SOLUCIÓN ULTRA DEFINITIVA: Usar @ts-ignore + any
         // @ts-ignore - Ignorar completamente TypeScript para esta línea
         const { data: nuevoPerfil, error } = await (supabase as any)
           .from('flota_perfil')
@@ -284,6 +296,7 @@ export default function GestionFlota() {
         if (error) throw error;
 
         if (nuevo.email) {
+          // ✅ Usar la nueva función de fetch
           const resultado = await enviarCorreoFlota(nuevoPerfil as FlotaPerfil);
           if (resultado.success) {
             mostrarNotificacion('Perfil creado y correo enviado correctamente.', 'exito');
@@ -365,10 +378,7 @@ export default function GestionFlota() {
   // EXPORTAR EXCEL - UNIFICADO
   // ------------------------------------------------------------
   const exportarExcel = () => {
-    // Crear libro de Excel
     const wb = XLSX.utils.book_new();
-    
-    // Preparar datos
     const data = perfiles.map((p) => ({
       Nombre: p.nombre_completo,
       Documento: p.documento_id,
@@ -379,60 +389,38 @@ export default function GestionFlota() {
       PIN: p.pin_secreto,
       Activo: p.activo ? 'SÍ' : 'NO',
     }));
-    
-    // Crear hoja de cálculo
+
     const ws = XLSX.utils.json_to_sheet(data);
-    
-    // Definir ancho de columnas basado en el encabezado
     const columnWidths = [
-      { wch: 25 }, // Nombre
-      { wch: 15 }, // Documento
-      { wch: 25 }, // Email
-      { wch: 20 }, // Flota
-      { wch: 10 }, // Choferes
-      { wch: 10 }, // Rutas
-      { wch: 10 }, // PIN
-      { wch: 8 },  // Activo
+      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 20 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
-    
-    // Crear contenido del membrete
+
     const fechaEmision = new Date().toLocaleString('es-ES', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
-    
+
     const titulo = `GESTOR DE FLOTA`;
     const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
     const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
-    
-    // Insertar membrete al inicio de la hoja
+
     XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
     XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
     XLSX.utils.sheet_add_aoa(ws, [[fechaInfo]], { origin: 'A3' });
     XLSX.utils.sheet_add_aoa(ws, [['─────────────────────────────────────────────────────────────────']], { origin: 'A4' });
-    
-    // Mover los datos a partir de la fila 6 (dejando una fila de espacio)
+
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
     const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 5 });
     if (newData.length > 0) {
       XLSX.utils.sheet_add_aoa(ws, newData as any[][], { origin: 'A6' });
     }
-    
-    // Agregar hoja al libro
+
     XLSX.utils.book_append_sheet(wb, ws, "Flota");
-    
-    // Generar nombre de archivo: flota_timestamp.xlsx
     const timestamp = getTimestamp();
     const filename = `flota_${timestamp}.xlsx`;
-    
-    // Guardar archivo
     XLSX.writeFile(wb, filename);
-    
     mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
   };
 
@@ -470,8 +458,8 @@ export default function GestionFlota() {
         />
 
         {/* HEADER */}
-        <MemebreteSuperior 
-          usuario={user} 
+        <MemebreteSuperior
+          usuario={user}
           onExportar={exportarExcel}
           onRegresar={handleRegresar}
         />

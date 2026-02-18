@@ -3,14 +3,13 @@ import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
-import { enviarEmail } from '@/emails/emailService';
-import { 
-  CampoEntrada, 
-  SelectOpcion, 
-  BotonIcono, 
-  Buscador, 
+import {
+  CampoEntrada,
+  SelectOpcion,
+  BotonIcono,
+  Buscador,
   BadgeEstado,
-  NotificacionSistema 
+  NotificacionSistema
 } from '../../components';
 
 // ------------------------------------------------------------
@@ -40,18 +39,6 @@ const getTimestamp = () => {
   const minuto = ahora.getMinutes().toString().padStart(2, '0');
   const segundo = ahora.getSeconds().toString().padStart(2, '0');
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
-};
-
-// Función para enviar correo
-const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
-  return enviarEmail('empleado', {
-    nombre: empleado.nombre,
-    documento_id: empleado.documento_id,
-    email: empleado.email,
-    rol: empleado.rol,
-    nivel_acceso: empleado.nivel_acceso,
-    pin_seguridad: empleado.pin_seguridad,
-  }, to);
 };
 
 // ------------------------------------------------------------
@@ -191,11 +178,11 @@ export default function GestionEmpleados() {
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .maybeSingle();
 
-    if (errDoc) { 
-      mostrarNotificacion('Error al validar documento ID', 'error'); 
-      return false; 
+    if (errDoc) {
+      mostrarNotificacion('Error al validar documento ID', 'error');
+      return false;
     }
-    
+
     if (docExistente) {
       const existente = docExistente as { id: string; nombre: string };
       mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${existente.nombre}.`, 'advertencia');
@@ -209,11 +196,11 @@ export default function GestionEmpleados() {
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .maybeSingle();
 
-    if (errEmail) { 
-      mostrarNotificacion('Error al validar email', 'error'); 
-      return false; 
+    if (errEmail) {
+      mostrarNotificacion('Error al validar email', 'error');
+      return false;
     }
-    
+
     if (emailExistente) {
       const existente = emailExistente as { id: string; nombre: string };
       mostrarNotificacion(`⚠️ El email ya está registrado para ${existente.nombre}.`, 'advertencia');
@@ -222,6 +209,33 @@ export default function GestionEmpleados() {
 
     return true;
   };
+
+  // --- NUEVA FUNCIÓN: enviar correo usando fetch a la API ---
+  const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'empleado',
+          datos: {
+            nombre: empleado.nombre,
+            documento_id: empleado.documento_id,
+            email: empleado.email,
+            rol: empleado.rol,
+            nivel_acceso: empleado.nivel_acceso,
+            pin_seguridad: empleado.pin_seguridad,
+          },
+          to: to || empleado.email,
+        }),
+      });
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error en fetch de correo:', error);
+      return { success: false, error: error.message };
+    }
+  };
+  // ------------------------------------------------------------
 
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR) - CORREGIDO CON AS NEVER
@@ -235,7 +249,6 @@ export default function GestionEmpleados() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        // Creamos el objeto sin tipo
         const updateData = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
@@ -246,12 +259,11 @@ export default function GestionEmpleados() {
           nivel_acceso: nuevo.nivel_acceso,
         };
 
-        // ✅ SOLUCIÓN DEFINITIVA: Usar as never en el parámetro
         const { error } = await supabase
           .from('empleados')
           .update(updateData as never)
           .eq('id', editando.id);
-          
+
         if (error) throw error;
         mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
       } else {
@@ -271,7 +283,6 @@ export default function GestionEmpleados() {
           pin_generado_en: new Date().toISOString(),
         }];
 
-        // ✅ SOLUCIÓN DEFINITIVA: Usar as never en el parámetro
         const { data: nuevoEmpleado, error } = await supabase
           .from('empleados')
           .insert(insertData as never)
@@ -280,6 +291,7 @@ export default function GestionEmpleados() {
 
         if (error) throw error;
 
+        // ✅ Usar la nueva función de fetch
         const resultado = await enviarCorreoEmpleado(nuevoEmpleado);
         if (resultado.success) {
           mostrarNotificacion('Empleado creado y correo enviado correctamente.', 'exito');
@@ -340,10 +352,7 @@ export default function GestionEmpleados() {
   // EXPORTAR EXCEL - UNIFICADO
   // ------------------------------------------------------------
   const exportarExcel = () => {
-    // Crear libro de Excel
     const wb = XLSX.utils.book_new();
-    
-    // Preparar datos
     const data = empleados.map((e) => ({
       Nombre: e.nombre,
       Documento: e.documento_id,
@@ -354,60 +363,38 @@ export default function GestionEmpleados() {
       Activo: e.activo ? 'SÍ' : 'NO',
       Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
     }));
-    
-    // Crear hoja de cálculo
+
     const ws = XLSX.utils.json_to_sheet(data);
-    
-    // Definir ancho de columnas basado en el encabezado
     const columnWidths = [
-      { wch: 25 }, // Nombre
-      { wch: 15 }, // Documento
-      { wch: 25 }, // Email
-      { wch: 12 }, // Rol
-      { wch: 8 },  // Nivel
-      { wch: 10 }, // PIN
-      { wch: 8 },  // Activo
-      { wch: 8 },  // Reportes
+      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 12 },
+      { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
-    
-    // Crear contenido del membrete
+
     const fechaEmision = new Date().toLocaleString('es-ES', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
-    
+
     const titulo = `GESTOR DE EMPLEADOS`;
     const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
     const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
-    
-    // Insertar membrete al inicio de la hoja
+
     XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
     XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
     XLSX.utils.sheet_add_aoa(ws, [[fechaInfo]], { origin: 'A3' });
     XLSX.utils.sheet_add_aoa(ws, [['─────────────────────────────────────────────────────────────────']], { origin: 'A4' });
-    
-    // Mover los datos a partir de la fila 6 (dejando una fila de espacio)
+
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
     const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 5 });
     if (newData.length > 0) {
       XLSX.utils.sheet_add_aoa(ws, newData as any[][], { origin: 'A6' });
     }
-    
-    // Agregar hoja al libro
+
     XLSX.utils.book_append_sheet(wb, ws, "Empleados");
-    
-    // Generar nombre de archivo: empleados_timestamp.xlsx
     const timestamp = getTimestamp();
     const filename = `empleados_${timestamp}.xlsx`;
-    
-    // Guardar archivo
     XLSX.writeFile(wb, filename);
-    
     mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
   };
 
@@ -444,8 +431,8 @@ export default function GestionEmpleados() {
         />
 
         {/* HEADER */}
-        <MemebreteSuperior 
-          usuario={user} 
+        <MemebreteSuperior
+          usuario={user}
           onExportar={exportarExcel}
           onRegresar={handleRegresar}
         />
@@ -530,7 +517,7 @@ export default function GestionEmpleados() {
                   <CampoEntrada
                     label="PIN"
                     valor={editando.pin_seguridad || ''}
-                    onChange={() => {}} 
+                    onChange={() => {}}
                     disabled
                     mayusculas
                     className="border-blue-500/30"
