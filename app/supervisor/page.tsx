@@ -441,18 +441,27 @@ export default function SupervisorPage() {
       setQrInfo(null);
       setPinAutorizador('');
       
+      // ✅ MODIFICADO: En lugar de enfocar un input específico, simplemente reiniciamos el estado de lectura
+      // para que el modo actual siga activo y pueda leer otro QR
+      
       if (errorTipo === 'pin_supervisor') {
+        // Si es error de PIN, mantenemos el estado pero sin lectura para que pueda intentar de nuevo
         setTimeout(() => {
           const pinInput = document.querySelector('input[placeholder="PIN SUPERVISOR"]') as HTMLInputElement;
           if (pinInput) pinInput.focus();
         }, 100);
       } else {
-        setTimeout(() => {
-          if (modoActual === 'usb') {
+        // Para otros errores o después de éxito, simplemente reiniciamos lecturaLista
+        // y dejamos que el input USB o la cámara sigan funcionando
+        if (modoActual === 'usb') {
+          setTimeout(() => {
             const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-            if (usbInput) usbInput.focus();
-          }
-        }, 100);
+            if (usbInput) {
+              usbInput.value = '';
+              usbInput.focus();
+            }
+          }, 500); // Pequeño delay para que se reinicie
+        }
       }
     } else if (modoActual === 'manual') {
       if (errorTipo === 'pin_trabajador') {
@@ -513,20 +522,32 @@ export default function SupervisorPage() {
     }
     
     if (lecturaLista || (modo === 'usb' && qrData)) {
+      // ✅ MODIFICADO: Al cancelar en modo USB/Cámara, NO volvemos a direccion null
+      // Simplemente reiniciamos la lectura y mantenemos el modo actual
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
       setPinAutorizador('');
+      
+      // Enfocar el input USB si corresponde
+      if (modo === 'usb') {
+        setTimeout(() => {
+          const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+          if (usbInput) {
+            usbInput.value = '';
+            usbInput.focus();
+          }
+        }, 100);
+      }
       return;
     }
     
-    if (direccion) {
-      setDireccion(null);
-      return;
-    }
+    // ✅ MODIFICADO: Ya no volvemos a direccion null automáticamente
+    // Mantenemos la dirección actual para seguir en el mismo flujo
     
     if (modo !== 'menu') {
       setModo('menu');
+      setDireccion(null); // Solo al volver al menú principal
       return;
     }
     
@@ -565,11 +586,22 @@ export default function SupervisorPage() {
     setFlotaTempData({ cant_carga: 0, observacion: '' });
     setRegistroPendiente(null);
     setAnimar(false);
-    setDireccion(null);
+    
+    // ✅ MODIFICADO: Al cancelar el modal, volvemos al modo de lectura
     setLecturaLista(false);
     setQrData('');
     setQrInfo(null);
     setPinAutorizador('');
+    
+    if (modo === 'usb') {
+      setTimeout(() => {
+        const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+        if (usbInput) {
+          usbInput.value = '';
+          usbInput.focus();
+        }
+      }, 100);
+    }
   };
 
   const registrarAccesoConDatosFlota = async () => {
@@ -608,17 +640,32 @@ export default function SupervisorPage() {
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
 
+      // ✅ MODIFICADO: Después del registro exitoso, volvemos al modo de lectura
       setTimeout(() => {
-        setDireccion(null);
         setLecturaLista(false);
         setQrData('');
         setQrInfo(null);
         setPinAutorizador('');
+        
+        if (modo === 'usb') {
+          const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+          if (usbInput) {
+            usbInput.value = '';
+            usbInput.focus();
+          }
+        }
       }, 2000);
 
     } catch (e: any) {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
+      
+      // ✅ MODIFICADO: En caso de error, también volvemos al modo de lectura
+      setLecturaLista(false);
+      setQrData('');
+      setQrInfo(null);
+      setPinAutorizador('');
+      
       resetearPorModo(modo as 'usb' | 'camara' | 'manual');
     } finally {
       setAnimar(false);
@@ -947,18 +994,19 @@ export default function SupervisorPage() {
           }
         }
 
+        // ✅ MODIFICADO: Después del registro exitoso, volvemos al modo de lectura
         setTimeout(() => {
-          setDireccion(null);
-          if (modo === 'manual') {
-            setPasoManual(0);
-            setQrData('');
-            setPinEmpleado('');
-            setPinAutorizador('');
-          } else {
-            setLecturaLista(false);
-            setQrData('');
-            setQrInfo(null);
-            setPinAutorizador('');
+          setLecturaLista(false);
+          setQrData('');
+          setQrInfo(null);
+          setPinAutorizador('');
+          
+          if (modo === 'usb') {
+            const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+            if (usbInput) {
+              usbInput.value = '';
+              usbInput.focus();
+            }
           }
         }, 2000);
 
@@ -980,18 +1028,19 @@ export default function SupervisorPage() {
           if (insErr) throw insErr;
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
+          // ✅ MODIFICADO: Después del registro exitoso, volvemos al modo de lectura
           setTimeout(() => {
-            setDireccion(null);
-            if (modo === 'manual') {
-              setPasoManual(0);
-              setQrData('');
-              setPinEmpleado('');
-              setPinAutorizador('');
-            } else {
-              setLecturaLista(false);
-              setQrData('');
-              setQrInfo(null);
-              setPinAutorizador('');
+            setLecturaLista(false);
+            setQrData('');
+            setQrInfo(null);
+            setPinAutorizador('');
+            
+            if (modo === 'usb') {
+              const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
+              if (usbInput) {
+                usbInput.value = '';
+                usbInput.focus();
+              }
             }
           }, 2000);
         } else {
@@ -1005,6 +1054,13 @@ export default function SupervisorPage() {
     } catch (e: any) {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
+      
+      // ✅ MODIFICADO: En caso de error, también volvemos al modo de lectura
+      setLecturaLista(false);
+      setQrData('');
+      setQrInfo(null);
+      setPinAutorizador('');
+      
       resetearPorModo(modo as 'usb' | 'camara' | 'manual');
     } finally {
       setAnimar(false);
