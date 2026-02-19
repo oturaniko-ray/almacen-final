@@ -196,7 +196,7 @@ export default function SupervisorPage() {
   const documentoRef = useRef<HTMLInputElement>(null);
   const pinEmpleadoRef = useRef<HTMLInputElement>(null);
   const pinSupervisorRef = useRef<HTMLInputElement>(null);
-  const usbInputRef = useRef<HTMLInputElement>(null); // Referencia para el input USB
+  const usbInputRef = useRef<HTMLInputElement>(null);
   const cargaRef = useRef<HTMLInputElement>(null);
 
   // Control de inactividad
@@ -287,14 +287,21 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // VERSIÓN MEJORADA DE PROCESAR QR
+  // ✅ VERSIÓN CORREGIDA DE PROCESAR QR
   const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
     if (!texto || texto.trim() === '') return null;
     
-    // Limpiar el texto de caracteres extraños
-    const cleanText = texto.replace(/[\n\r\t\s]/g, '').trim();
+    // Mostrar el texto original con sus códigos de caracteres para depuración
+    console.log('🔍 QR original (raw):', texto);
+    console.log('🔍 QR length:', texto.length);
+    console.log('🔍 QR char codes:', Array.from(texto).map(c => c.charCodeAt(0)));
     
-    console.log('🔍 Procesando QR:', { original: texto, limpio: cleanText });
+    // Limpiar SOLO los bordes (trim) y eliminar caracteres de control
+    // IMPORTANTE: No eliminar espacios internos ni caracteres '=' que son parte del Base64
+    const cleanText = texto.replace(/^[\n\r\t\s]+|[\n\r\t\s]+$/g, '');
+    
+    console.log('🔍 QR limpio (bordes):', cleanText);
+    console.log('🔍 QR limpio length:', cleanText.length);
     
     try {
       // Intentar decodificar Base64
@@ -303,7 +310,14 @@ export default function SupervisorPage() {
         decoded = atob(cleanText);
       } catch {
         // Si falla, intentar decodificar con manejo de caracteres especiales
-        decoded = atob(decodeURIComponent(escape(cleanText)));
+        // Esto es para QRs que puedan tener caracteres URL-encoded
+        try {
+          decoded = atob(decodeURIComponent(escape(cleanText)));
+        } catch {
+          console.error('❌ No se pudo decodificar Base64');
+          mostrarNotificacion('QR INVÁLIDO (decodificación)', 'error');
+          return null;
+        }
       }
       
       console.log('📝 QR decodificado:', decoded);
@@ -339,7 +353,7 @@ export default function SupervisorPage() {
         return { tipo, docId, timestamp: ts };
       }
       
-      console.error('❌ Formato QR inválido. Partes:', partes.length);
+      console.error('❌ Formato QR inválido. Se esperaban 3 partes, se obtuvieron:', partes.length);
       mostrarNotificacion('QR INVÁLIDO (formato)', 'error');
       return null;
       
@@ -1152,7 +1166,10 @@ export default function SupervisorPage() {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               const inputValue = (e.target as HTMLInputElement).value;
-                              console.log('📟 USB input value:', inputValue);
+                              console.log('📟 USB input value (raw):', JSON.stringify(inputValue));
+                              console.log('📟 USB length:', inputValue.length);
+                              console.log('📟 USB char codes:', Array.from(inputValue).map(c => c.charCodeAt(0)));
+                              
                               const info = procesarQR(inputValue);
                               if (info) {
                                 setQrInfo(info);
