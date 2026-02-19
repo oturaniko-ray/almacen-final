@@ -196,8 +196,8 @@ export default function SupervisorPage() {
   const documentoRef = useRef<HTMLInputElement>(null);
   const pinEmpleadoRef = useRef<HTMLInputElement>(null);
   const pinSupervisorRef = useRef<HTMLInputElement>(null);
-  const cargaRef = useRef<HTMLInputElement>(null);
   const usbInputRef = useRef<HTMLInputElement>(null); // Referencia para el input USB
+  const cargaRef = useRef<HTMLInputElement>(null);
 
   // Control de inactividad
   const resetTimerInactividad = useCallback(() => {
@@ -287,11 +287,11 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // ✅ VERSIÓN MEJORADA DE PROCESAR QR
+  // VERSIÓN MEJORADA DE PROCESAR QR
   const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
     if (!texto || texto.trim() === '') return null;
     
-    // Limpiar el texto de caracteres extraños (incluyendo saltos de línea, tabs, etc.)
+    // Limpiar el texto de caracteres extraños
     const cleanText = texto.replace(/[\n\r\t\s]/g, '').trim();
     
     console.log('🔍 Procesando QR:', { original: texto, limpio: cleanText });
@@ -350,7 +350,7 @@ export default function SupervisorPage() {
     }
   };
 
-  // Escáner de cámara - CORREGIDO
+  // Escáner de cámara
   useEffect(() => {
     if (modo === 'camara' && direccion && !lecturaLista) {
       const scanner = new Html5Qrcode('reader');
@@ -376,7 +376,6 @@ export default function SupervisorPage() {
             }
           },
           (errorMessage) => {
-            // Solo loguear errores importantes
             if (!errorMessage.includes('No MultiFormat Readers')) {
               console.log('Error de escaneo:', errorMessage);
             }
@@ -439,7 +438,7 @@ export default function SupervisorPage() {
     if (modo !== 'manual' || !direccion) setPasoManual(0);
   }, [modo, direccion]);
 
-  // Función de reseteo por modo - CORREGIDA
+  // Función de reseteo por modo
   const resetearPorModo = (modoActual: 'usb' | 'camara' | 'manual', errorTipo?: string) => {
     setAnimar(false);
     
@@ -526,10 +525,13 @@ export default function SupervisorPage() {
       setQrInfo(null);
       setPinAutorizador('');
       
-      if (modo === 'usb' && usbInputRef.current) {
+      if (modo === 'usb') {
+        const inputElement = usbInputRef.current;
         setTimeout(() => {
-          usbInputRef.current.value = '';
-          usbInputRef.current.focus();
+          if (inputElement) {
+            inputElement.value = '';
+            inputElement.focus();
+          }
         }, 100);
       }
       return;
@@ -581,10 +583,13 @@ export default function SupervisorPage() {
     setQrInfo(null);
     setPinAutorizador('');
     
-    if (modo === 'usb' && usbInputRef.current) {
+    if (modo === 'usb') {
+      const inputElement = usbInputRef.current;
       setTimeout(() => {
-        usbInputRef.current.value = '';
-        usbInputRef.current.focus();
+        if (inputElement) {
+          inputElement.value = '';
+          inputElement.focus();
+        }
       }, 100);
     }
   };
@@ -624,15 +629,16 @@ export default function SupervisorPage() {
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
 
+      const inputElement = modo === 'usb' ? usbInputRef.current : null;
       setTimeout(() => {
         setLecturaLista(false);
         setQrData('');
         setQrInfo(null);
         setPinAutorizador('');
         
-        if (modo === 'usb' && usbInputRef.current) {
-          usbInputRef.current.value = '';
-          usbInputRef.current.focus();
+        if (inputElement) {
+          inputElement.value = '';
+          inputElement.focus();
         }
       }, 2000);
 
@@ -963,15 +969,16 @@ export default function SupervisorPage() {
           }
         }
 
+        const inputElement = modo === 'usb' ? usbInputRef.current : null;
         setTimeout(() => {
           setLecturaLista(false);
           setQrData('');
           setQrInfo(null);
           setPinAutorizador('');
           
-          if (modo === 'usb' && usbInputRef.current) {
-            usbInputRef.current.value = '';
-            usbInputRef.current.focus();
+          if (inputElement) {
+            inputElement.value = '';
+            inputElement.focus();
           }
         }, 2000);
 
@@ -992,15 +999,16 @@ export default function SupervisorPage() {
           if (insErr) throw insErr;
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
+          const inputElement = modo === 'usb' ? usbInputRef.current : null;
           setTimeout(() => {
             setLecturaLista(false);
             setQrData('');
             setQrInfo(null);
             setPinAutorizador('');
             
-            if (modo === 'usb' && usbInputRef.current) {
-              usbInputRef.current.value = '';
-              usbInputRef.current.focus();
+            if (inputElement) {
+              inputElement.value = '';
+              inputElement.focus();
             }
           }, 2000);
         } else {
