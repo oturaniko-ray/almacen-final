@@ -326,7 +326,7 @@ export default function GestionEmpleados() {
     }
   };
 
-  // --- NUEVA FUNCIÓN: enviar WhatsApp ---
+  // --- FUNCIÓN: enviar WhatsApp ---
   const handleEnviarWhatsApp = async (empleado: any) => {
     if (!empleado.telefono) {
       mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');

@@ -33,13 +33,10 @@ export async function POST(request: Request) {
       );
     }
 
-console.log('🔑 API Key configurada:', !!process.env.RESPONDIO_API_KEY);
-console.log('🔑 API Key (primeros 10 chars):', process.env.RESPONDIO_API_KEY?.substring(0, 10));
-
     console.log('📱 Enviando WhatsApp a:', numeroLimpio);
     console.log('📱 Mensaje:', message);
 
-    // Enviar a respond.io
+    // ✅ CORRECCIÓN: Usar el endpoint correcto de la API v2
     const response = await fetch('https://api.respond.io/v2/messages', {
       method: 'POST',
       headers: {
@@ -47,6 +44,7 @@ console.log('🔑 API Key (primeros 10 chars):', process.env.RESPONDIO_API_KEY?.
         'Authorization': `Bearer ${process.env.RESPONDIO_API_KEY}`,
       },
       body: JSON.stringify({
+        // Según la documentación de la API v2 [citation:7]
         to: numeroLimpio,
         message: {
           text: message,
@@ -54,12 +52,24 @@ console.log('🔑 API Key (primeros 10 chars):', process.env.RESPONDIO_API_KEY?.
       }),
     });
 
-    const data = await response.json();
+    // ✅ IMPORTANTE: Verificar si la respuesta es JSON antes de parsear
+    const contentType = response.headers.get('content-type');
+    let data;
+    
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      // Si no es JSON, es un error HTML
+      const text = await response.text();
+      console.error('❌ Respuesta no JSON:', text.substring(0, 200));
+      throw new Error(`API respond.io respondió con ${response.status}: ${response.statusText}`);
+    }
+
     const success = response.ok;
 
     console.log('📱 Respuesta de respond.io:', { success, data });
 
-    // ✅ SOLUCIÓN: Usar (supabase as any) para el insert
+    // Guardar log en Supabase
     await (supabase as any)
       .from('notificaciones_whatsapp')
       .insert([{
@@ -86,7 +96,7 @@ console.log('🔑 API Key (primeros 10 chars):', process.env.RESPONDIO_API_KEY?.
     });
 
   } catch (error: any) {
-    console.error('Error en API send-whatsapp:', error);
+    console.error('❌ Error en API send-whatsapp:', error);
     
     // Intentar guardar el error en el log
     try {

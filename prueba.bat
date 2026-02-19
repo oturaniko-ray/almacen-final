@@ -1,0 +1,2 @@
+curl -X POST https://api.respond.io/v2/messages -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjIzMjcsInNwYWNSWQi0jM4MDQyNyWib3JnSWQi0jM3NDUxNywdIHlZWZS16mFwaSlsImhdcCI6MTc3MTUxOTYzNH0.CxnFWAhb_7wayXFSVx3PIEbVQHir1hIL4gk2nExOrE" -H "Content-Type: application/json" -d "{\"to\":\"15558614622\",\"message\":{\"text\":\"Prueba desde API\"}}"
+pause
