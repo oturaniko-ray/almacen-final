@@ -564,7 +564,7 @@ export default function GestionEmpleados() {
               <div className="col-span-1">
                 <CampoEntrada
                   label="TELÉFONO"
-                  placeholder="+54 9 11 2345-6789"
+                  placeholder="+34 XXX XXX XXX"
                   valor={nuevo.telefono}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, telefono: e.target.value })}
                 />
