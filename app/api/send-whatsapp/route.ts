@@ -33,6 +33,9 @@ export async function POST(request: Request) {
       );
     }
 
+console.log('🔑 API Key configurada:', !!process.env.RESPONDIO_API_KEY);
+console.log('🔑 API Key (primeros 10 chars):', process.env.RESPONDIO_API_KEY?.substring(0, 10));
+
     console.log('📱 Enviando WhatsApp a:', numeroLimpio);
     console.log('📱 Mensaje:', message);
 
