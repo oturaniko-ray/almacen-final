@@ -103,6 +103,21 @@ const getTimestamp = () => {
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
 };
 
+// Función para enviar WhatsApp
+const enviarWhatsApp = async (telefono: string, mensaje: string) => {
+  try {
+    const response = await fetch('/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: telefono, message: mensaje }),
+    });
+    return await response.json();
+  } catch (error: any) {
+    console.error('Error enviando WhatsApp:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // ------------------------------------------------------------
 // COMPONENTES VISUALES PROPIOS
 // ------------------------------------------------------------
@@ -158,16 +173,16 @@ export default function GestionEmpleados() {
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
+  const [enviandoWhatsApp, setEnviandoWhatsApp] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
   const router = useRouter();
 
-  // ✅ AGREGADO: campo telefono al estado inicial
   const estadoInicial = {
     nombre: '',
     documento_id: '',
     email: '',
-    telefono: '',  // ← NUEVO
+    telefono: '',
     rol: 'empleado',
     activo: true,
     permiso_reportes: false,
@@ -310,6 +325,31 @@ export default function GestionEmpleados() {
       setEnviandoCorreo(null);
     }
   };
+
+  // --- NUEVA FUNCIÓN: enviar WhatsApp ---
+  const handleEnviarWhatsApp = async (empleado: any) => {
+    if (!empleado.telefono) {
+      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
+      return;
+    }
+
+    setEnviandoWhatsApp(empleado.id);
+    
+    // Mensaje predeterminado para empleados
+    const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión. 
+Tu PIN de acceso es: ${empleado.pin_seguridad}. 
+Puedes ingresar en: https://almacen-final.vercel.app/`;
+
+    const resultado = await enviarWhatsApp(empleado.telefono, mensaje);
+    
+    setEnviandoWhatsApp(null);
+    
+    if (resultado.success) {
+      mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
+    } else {
+      mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
+    }
+  };
   // ------------------------------------------------------------
 
   // ------------------------------------------------------------
@@ -324,12 +364,11 @@ export default function GestionEmpleados() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        // ✅ AGREGADO: telefono en update
         const updateData = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
-          telefono: nuevo.telefono,  // ← NUEVO
+          telefono: nuevo.telefono,
           rol: nuevo.rol,
           activo: nuevo.activo,
           permiso_reportes: nuevo.permiso_reportes,
@@ -348,12 +387,11 @@ export default function GestionEmpleados() {
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        // ✅ AGREGADO: telefono en insert
         const insertData = [{
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
-          telefono: nuevo.telefono,  // ← NUEVO
+          telefono: nuevo.telefono,
           pin_seguridad: pinGenerado,
           rol: nuevo.rol,
           activo: nuevo.activo,
@@ -420,7 +458,7 @@ export default function GestionEmpleados() {
       nombre: emp.nombre,
       documento_id: emp.documento_id,
       email: emp.email,
-      telefono: emp.telefono || '',  // ← NUEVO
+      telefono: emp.telefono || '',
       rol: emp.rol,
       activo: emp.activo,
       permiso_reportes: emp.permiso_reportes,
@@ -438,7 +476,7 @@ export default function GestionEmpleados() {
       Nombre: e.nombre,
       Documento: e.documento_id,
       Email: e.email,
-      Teléfono: e.telefono || '',  // ← NUEVO
+      Teléfono: e.telefono || '',
       Rol: e.rol,
       Nivel: e.nivel_acceso,
       PIN: e.pin_seguridad,
@@ -448,7 +486,7 @@ export default function GestionEmpleados() {
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
-      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },  // ← NUEVA COLUMNA
+      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
       { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
@@ -495,7 +533,7 @@ export default function GestionEmpleados() {
       e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
       e.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
       e.email?.toLowerCase().includes(filtro.toLowerCase()) ||
-      (e.telefono && e.telefono.includes(filtro))  // ← NUEVO: buscar por teléfono
+      (e.telefono && e.telefono.includes(filtro))
   );
 
   // ------------------------------------------------------------
@@ -520,10 +558,10 @@ export default function GestionEmpleados() {
           onRegresar={handleRegresar}
         />
 
-        {/* ✅ FORMULARIO - Grid 9 columnas (AGREGADO TELÉFONO) */}
+        {/* FORMULARIO - Grid 9 columnas */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
-            <div className="grid grid-cols-9 gap-2">  {/* CAMBIADO A 9 COLUMNAS */}
+            <div className="grid grid-cols-9 gap-2">
               {/* Col 1: NOMBRE */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -560,7 +598,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
-              {/* ✅ Col 4: TELÉFONO (NUEVO) */}
+              {/* Col 4: TELÉFONO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="TELÉFONO"
@@ -650,20 +688,20 @@ export default function GestionEmpleados() {
           />
         </div>
 
-        {/* ✅ TABLA - Agregada columna TELÉFONO */}
+        {/* TABLA - Con botón de WhatsApp */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-[#0f172a] text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
                   <th className="p-3">EMPLEADO</th>
-                  <th className="p-3">DOCUMENTO / EMAIL / TEL</th>  {/* CAMBIADO */}
+                  <th className="p-3">DOCUMENTO / EMAIL / TEL</th>
                   <th className="p-3 text-center">ROL</th>
                   <th className="p-3 text-center">NIV</th>
                   <th className="p-3 text-center">PIN</th>
                   <th className="p-3 text-center">REP</th>
                   <th className="p-3 text-center">ESTADO</th>
-                  <th className="p-3 text-center" colSpan={2}>ACCIONES</th>
+                  <th className="p-3 text-center" colSpan={3}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -679,7 +717,6 @@ export default function GestionEmpleados() {
                       <div className="text-[11px] font-mono">
                         <span className="block text-white">{emp.documento_id}</span>
                         <span className="text-slate-500 text-[9px]">{emp.email}</span>
-                        {/* ✅ NUEVO: mostrar teléfono si existe */}
                         {emp.telefono && (
                           <span className="text-emerald-500 text-[9px] block mt-1">
                             📱 {emp.telefono}
@@ -728,7 +765,31 @@ export default function GestionEmpleados() {
                         ) : (
                           <>
                             <span>📧</span>
-                            <span className="text-[8px]">ENVIAR</span>
+                            <span className="text-[8px]">EMAIL</span>
+                          </>
+                        )}
+                      </button>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => handleEnviarWhatsApp(emp)}
+                        disabled={enviandoWhatsApp === emp.id || !emp.telefono}
+                        className={`text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                          emp.telefono 
+                            ? 'border-emerald-500/20 hover:bg-emerald-600' 
+                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {enviandoWhatsApp === emp.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
+                          </span>
+                        ) : (
+                          <>
+                            <span>📱</span>
+                            <span className="text-[8px]">WHATSAPP</span>
                           </>
                         )}
                       </button>

@@ -20,7 +20,7 @@ interface FlotaPerfil {
   nombre_completo: string;
   documento_id: string;
   email: string | null;
-  telefono?: string | null;  // ← NUEVO
+  telefono?: string | null;
   nombre_flota: string | null;
   cant_choferes: number;
   cant_rutas: number;
@@ -33,7 +33,7 @@ interface NuevoPerfil {
   nombre_completo: string;
   documento_id: string;
   email: string;
-  telefono: string;  // ← NUEVO
+  telefono: string;
   nombre_flota: string;
   cant_choferes: number;
   cant_rutas: number;
@@ -130,6 +130,21 @@ const getTimestamp = () => {
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
 };
 
+// Función para enviar WhatsApp
+const enviarWhatsApp = async (telefono: string, mensaje: string) => {
+  try {
+    const response = await fetch('/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: telefono, message: mensaje }),
+    });
+    return await response.json();
+  } catch (error: any) {
+    console.error('Error enviando WhatsApp:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // ------------------------------------------------------------
 // COMPONENTES VISUALES PROPIOS
 // ------------------------------------------------------------
@@ -185,16 +200,16 @@ export default function GestionFlota() {
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
+  const [enviandoWhatsApp, setEnviandoWhatsApp] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; perfil: FlotaPerfil | null }>({ isOpen: false, perfil: null });
   const router = useRouter();
 
-  // ✅ AGREGADO: campo telefono al estado inicial
   const estadoInicial: NuevoPerfil = {
     nombre_completo: '',
     documento_id: '',
     email: '',
-    telefono: '',  // ← NUEVO
+    telefono: '',
     nombre_flota: '',
     cant_choferes: 1,
     cant_rutas: 0,
@@ -283,7 +298,7 @@ export default function GestionFlota() {
     return true;
   };
 
-  // --- NUEVA FUNCIÓN: enviar correo de flota usando fetch a la API ---
+  // --- FUNCIÓN: enviar correo de flota usando fetch a la API ---
   const enviarCorreoFlota = async (perfil: FlotaPerfil, to?: string) => {
     setEnviandoCorreo(perfil.id);
     try {
@@ -319,6 +334,32 @@ export default function GestionFlota() {
       setEnviandoCorreo(null);
     }
   };
+
+  // --- NUEVA FUNCIÓN: enviar WhatsApp ---
+  const handleEnviarWhatsApp = async (perfil: FlotaPerfil) => {
+    if (!perfil.telefono) {
+      mostrarNotificacion('El perfil no tiene teléfono registrado', 'advertencia');
+      return;
+    }
+
+    setEnviandoWhatsApp(perfil.id);
+    
+    // Mensaje predeterminado para flota
+    const mensaje = `Hola ${perfil.nombre_completo}, tu perfil de flota ha sido registrado.
+Tu PIN de acceso es: ${perfil.pin_secreto}.
+Cuando llegues al almacén, un supervisor registrará tu ingreso.
+Más información en: https://almacen-final.vercel.app/`;
+
+    const resultado = await enviarWhatsApp(perfil.telefono, mensaje);
+    
+    setEnviandoWhatsApp(null);
+    
+    if (resultado.success) {
+      mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
+    } else {
+      mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
+    }
+  };
   // ------------------------------------------------------------
 
   // ------------------------------------------------------------
@@ -333,18 +374,17 @@ export default function GestionFlota() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        // ✅ AGREGADO: telefono en update
         const updateData = {
           nombre_completo: nuevo.nombre_completo,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
-          telefono: nuevo.telefono,  // ← NUEVO
+          telefono: nuevo.telefono,
           nombre_flota: nuevo.nombre_flota,
           cant_choferes: nuevo.cant_choferes,
           cant_rutas: nuevo.cant_rutas,
         };
 
-        // @ts-ignore - Ignorar completamente TypeScript para esta línea
+        // @ts-ignore
         const { error } = await (supabase as any)
           .from('flota_perfil')
           .update(updateData)
@@ -357,12 +397,11 @@ export default function GestionFlota() {
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        // ✅ AGREGADO: telefono en insert
         const insertData = [{
           nombre_completo: nuevo.nombre_completo,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
-          telefono: nuevo.telefono,  // ← NUEVO
+          telefono: nuevo.telefono,
           nombre_flota: nuevo.nombre_flota,
           cant_choferes: nuevo.cant_choferes,
           cant_rutas: nuevo.cant_rutas,
@@ -371,7 +410,7 @@ export default function GestionFlota() {
           fecha_creacion: new Date().toISOString(),
         }];
 
-        // @ts-ignore - Ignorar completamente TypeScript para esta línea
+        // @ts-ignore
         const { data: nuevoPerfil, error } = await (supabase as any)
           .from('flota_perfil')
           .insert(insertData)
@@ -430,7 +469,7 @@ export default function GestionFlota() {
       nombre_completo: perfil.nombre_completo,
       documento_id: perfil.documento_id,
       email: perfil.email || '',
-      telefono: perfil.telefono || '',  // ← NUEVO
+      telefono: perfil.telefono || '',
       nombre_flota: perfil.nombre_flota || '',
       cant_choferes: perfil.cant_choferes || 1,
       cant_rutas: perfil.cant_rutas || 0,
@@ -443,7 +482,7 @@ export default function GestionFlota() {
   // ------------------------------------------------------------
   const toggleActivo = async (perfil: FlotaPerfil) => {
     try {
-      // @ts-ignore - Ignorar completamente TypeScript para esta línea
+      // @ts-ignore
       await (supabase as any)
         .from('flota_perfil')
         .update({ activo: !perfil.activo })
@@ -462,7 +501,7 @@ export default function GestionFlota() {
       Nombre: p.nombre_completo,
       Documento: p.documento_id,
       Email: p.email,
-      Teléfono: p.telefono || '',  // ← NUEVO
+      Teléfono: p.telefono || '',
       Flota: p.nombre_flota,
       Choferes: p.cant_choferes,
       Rutas: p.cant_rutas,
@@ -472,7 +511,7 @@ export default function GestionFlota() {
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
-      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },  // ← NUEVA COLUMNA
+      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
       { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
@@ -519,7 +558,7 @@ export default function GestionFlota() {
       p.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) ||
       p.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
       p.email?.toLowerCase().includes(filtro.toLowerCase()) ||
-      (p.telefono && p.telefono.includes(filtro)) ||  // ← NUEVO
+      (p.telefono && p.telefono.includes(filtro)) ||
       p.nombre_flota?.toLowerCase().includes(filtro.toLowerCase())
   );
 
@@ -545,10 +584,10 @@ export default function GestionFlota() {
           onRegresar={handleRegresar}
         />
 
-        {/* ✅ FORMULARIO - Grid 9 columnas (AGREGADO TELÉFONO) */}
+        {/* FORMULARIO - Grid 9 columnas */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
-            <div className="grid grid-cols-9 gap-2">  {/* CAMBIADO A 9 COLUMNAS */}
+            <div className="grid grid-cols-9 gap-2">
               
               {/* Col 1: NOMBRE */}
               <div className="col-span-1">
@@ -585,7 +624,7 @@ export default function GestionFlota() {
                 />
               </div>
               
-              {/* ✅ Col 4: TELÉFONO (NUEVO) */}
+              {/* Col 4: TELÉFONO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="TELÉFONO"
@@ -672,7 +711,7 @@ export default function GestionFlota() {
           />
         </div>
 
-        {/* ✅ TABLA - Agregada columna TELÉFONO */}
+        {/* TABLA - Con botón de WhatsApp */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -680,13 +719,13 @@ export default function GestionFlota() {
                 <tr>
                   <th className="p-3">NOMBRE</th>
                   <th className="p-3">DOCUMENTO</th>
-                  <th className="p-3">EMAIL / TEL</th>  {/* CAMBIADO */}
+                  <th className="p-3">EMAIL / TEL</th>
                   <th className="p-3">FLOTA</th>
                   <th className="p-3 text-center">CHOF</th>
                   <th className="p-3 text-center">RUT</th>
                   <th className="p-3 text-center">PIN</th>
                   <th className="p-3 text-center">EST</th>
-                  <th className="p-3 text-center" colSpan={2}>ACCIONES</th>
+                  <th className="p-3 text-center" colSpan={3}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -699,7 +738,6 @@ export default function GestionFlota() {
                     <td className="p-3">
                       <div className="text-[11px] font-mono">
                         <span className="block text-slate-500 text-[9px]">{perfil.email}</span>
-                        {/* ✅ NUEVO: mostrar teléfono si existe */}
                         {perfil.telefono && (
                           <span className="text-emerald-500 text-[9px] block">
                             📱 {perfil.telefono}
@@ -742,7 +780,31 @@ export default function GestionFlota() {
                         ) : (
                           <>
                             <span>📧</span>
-                            <span className="text-[8px]">ENVIAR</span>
+                            <span className="text-[8px]">EMAIL</span>
+                          </>
+                        )}
+                      </button>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => handleEnviarWhatsApp(perfil)}
+                        disabled={enviandoWhatsApp === perfil.id || !perfil.telefono}
+                        className={`text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                          perfil.telefono 
+                            ? 'border-emerald-500/20 hover:bg-emerald-600' 
+                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {enviandoWhatsApp === perfil.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
+                          </span>
+                        ) : (
+                          <>
+                            <span>📱</span>
+                            <span className="text-[8px]">WHATSAPP</span>
                           </>
                         )}
                       </button>

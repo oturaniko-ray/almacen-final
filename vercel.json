@@ -17,3 +17,12 @@
     }
   }
 }
+
+{
+  "crons": [
+    {
+      "path": "/api/cron/send-scheduled",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
