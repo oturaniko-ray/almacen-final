@@ -197,6 +197,7 @@ export default function SupervisorPage() {
   const pinEmpleadoRef = useRef<HTMLInputElement>(null);
   const pinSupervisorRef = useRef<HTMLInputElement>(null);
   const cargaRef = useRef<HTMLInputElement>(null);
+  const usbInputRef = useRef<HTMLInputElement>(null); // Referencia para el input USB
 
   // Control de inactividad
   const resetTimerInactividad = useCallback(() => {
@@ -286,12 +287,14 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // Procesamiento del QR - VERSIÓN CORREGIDA
+  // ✅ VERSIÓN MEJORADA DE PROCESAR QR
   const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
     if (!texto || texto.trim() === '') return null;
     
-    // Limpiar el texto de caracteres extraños
-    const cleanText = texto.replace(/[\n\r\t]/g, '').trim();
+    // Limpiar el texto de caracteres extraños (incluyendo saltos de línea, tabs, etc.)
+    const cleanText = texto.replace(/[\n\r\t\s]/g, '').trim();
+    
+    console.log('🔍 Procesando QR:', { original: texto, limpio: cleanText });
     
     try {
       // Intentar decodificar Base64
@@ -303,15 +306,18 @@ export default function SupervisorPage() {
         decoded = atob(decodeURIComponent(escape(cleanText)));
       }
       
+      console.log('📝 QR decodificado:', decoded);
+      
       // Dividir por el separador |
       const partes = decoded.split('|');
+      console.log('🔪 Partes:', partes);
       
       if (partes.length === 3) {
         const [tipo, docId, timestamp] = partes;
         const ts = parseInt(timestamp, 10);
         
         if (isNaN(ts)) {
-          console.error('Timestamp inválido:', timestamp);
+          console.error('❌ Timestamp inválido:', timestamp);
           mostrarNotificacion('QR INVÁLIDO (timestamp)', 'error');
           return null;
         }
@@ -329,15 +335,16 @@ export default function SupervisorPage() {
           return null;
         }
         
+        console.log('✅ QR válido:', { tipo, docId, ts });
         return { tipo, docId, timestamp: ts };
       }
       
-      console.error('Formato QR inválido. Partes:', partes.length);
+      console.error('❌ Formato QR inválido. Partes:', partes.length);
       mostrarNotificacion('QR INVÁLIDO (formato)', 'error');
       return null;
       
     } catch (error) {
-      console.error('Error procesando QR:', error);
+      console.error('❌ Error procesando QR:', error);
       mostrarNotificacion('QR INVÁLIDO', 'error');
       return null;
     }
@@ -364,6 +371,7 @@ export default function SupervisorPage() {
               setQrInfo(info);
               setQrData(info.docId);
               setLecturaLista(true);
+              setPinAutorizador('');
               scanner.stop();
             }
           },
@@ -441,27 +449,18 @@ export default function SupervisorPage() {
       setQrInfo(null);
       setPinAutorizador('');
       
-      // ✅ MODIFICADO: En lugar de enfocar un input específico, simplemente reiniciamos el estado de lectura
-      // para que el modo actual siga activo y pueda leer otro QR
-      
       if (errorTipo === 'pin_supervisor') {
-        // Si es error de PIN, mantenemos el estado pero sin lectura para que pueda intentar de nuevo
         setTimeout(() => {
           const pinInput = document.querySelector('input[placeholder="PIN SUPERVISOR"]') as HTMLInputElement;
           if (pinInput) pinInput.focus();
         }, 100);
       } else {
-        // Para otros errores o después de éxito, simplemente reiniciamos lecturaLista
-        // y dejamos que el input USB o la cámara sigan funcionando
-        if (modoActual === 'usb') {
-          setTimeout(() => {
-            const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-            if (usbInput) {
-              usbInput.value = '';
-              usbInput.focus();
-            }
-          }, 500); // Pequeño delay para que se reinicie
-        }
+        setTimeout(() => {
+          if (modoActual === 'usb' && usbInputRef.current) {
+            usbInputRef.current.value = '';
+            usbInputRef.current.focus();
+          }
+        }, 500);
       }
     } else if (modoActual === 'manual') {
       if (errorTipo === 'pin_trabajador') {
@@ -522,32 +521,23 @@ export default function SupervisorPage() {
     }
     
     if (lecturaLista || (modo === 'usb' && qrData)) {
-      // ✅ MODIFICADO: Al cancelar en modo USB/Cámara, NO volvemos a direccion null
-      // Simplemente reiniciamos la lectura y mantenemos el modo actual
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
       setPinAutorizador('');
       
-      // Enfocar el input USB si corresponde
-      if (modo === 'usb') {
+      if (modo === 'usb' && usbInputRef.current) {
         setTimeout(() => {
-          const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-          if (usbInput) {
-            usbInput.value = '';
-            usbInput.focus();
-          }
+          usbInputRef.current.value = '';
+          usbInputRef.current.focus();
         }, 100);
       }
       return;
     }
     
-    // ✅ MODIFICADO: Ya no volvemos a direccion null automáticamente
-    // Mantenemos la dirección actual para seguir en el mismo flujo
-    
     if (modo !== 'menu') {
       setModo('menu');
-      setDireccion(null); // Solo al volver al menú principal
+      setDireccion(null);
       return;
     }
     
@@ -586,20 +576,15 @@ export default function SupervisorPage() {
     setFlotaTempData({ cant_carga: 0, observacion: '' });
     setRegistroPendiente(null);
     setAnimar(false);
-    
-    // ✅ MODIFICADO: Al cancelar el modal, volvemos al modo de lectura
     setLecturaLista(false);
     setQrData('');
     setQrInfo(null);
     setPinAutorizador('');
     
-    if (modo === 'usb') {
+    if (modo === 'usb' && usbInputRef.current) {
       setTimeout(() => {
-        const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-        if (usbInput) {
-          usbInput.value = '';
-          usbInput.focus();
-        }
+        usbInputRef.current.value = '';
+        usbInputRef.current.focus();
       }, 100);
     }
   };
@@ -623,7 +608,6 @@ export default function SupervisorPage() {
 
       if (!accesoActivo) throw new Error('No hay acceso activo');
 
-      // ✅ SOLUCIÓN: Usar (supabase as any) para toda la cadena
       const { error: updErr } = await (supabase as any)
         .from('flota_accesos')
         .update({
@@ -640,19 +624,15 @@ export default function SupervisorPage() {
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
 
-      // ✅ MODIFICADO: Después del registro exitoso, volvemos al modo de lectura
       setTimeout(() => {
         setLecturaLista(false);
         setQrData('');
         setQrInfo(null);
         setPinAutorizador('');
         
-        if (modo === 'usb') {
-          const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-          if (usbInput) {
-            usbInput.value = '';
-            usbInput.focus();
-          }
+        if (modo === 'usb' && usbInputRef.current) {
+          usbInputRef.current.value = '';
+          usbInputRef.current.focus();
         }
       }, 2000);
 
@@ -660,7 +640,6 @@ export default function SupervisorPage() {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
       
-      // ✅ MODIFICADO: En caso de error, también volvemos al modo de lectura
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
@@ -714,7 +693,6 @@ export default function SupervisorPage() {
         .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
         .maybeSingle();
       
-      // ✅ SOLUCIÓN: Verificar que emp es un objeto antes de hacer spread
       if (emp && typeof emp === 'object') {
         registro = { ...(emp as any), tipo: 'empleado' };
       } else {
@@ -724,7 +702,6 @@ export default function SupervisorPage() {
           .eq('documento_id', inputBusqueda)
           .maybeSingle();
         
-        // ✅ SOLUCIÓN: Verificar que flota es un objeto antes de hacer spread
         if (flota && typeof flota === 'object') {
           registro = { ...(flota as any), tipo: 'flota' };
         }
@@ -742,7 +719,6 @@ export default function SupervisorPage() {
           resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
-        // ✅ SOLUCIÓN: Verificar que emp es un objeto antes de hacer spread
         if (emp && typeof emp === 'object') {
           registro = { ...(emp as any), tipo: 'empleado' };
         }
@@ -758,7 +734,6 @@ export default function SupervisorPage() {
           resetearPorModo(modo as 'usb' | 'camara' | 'manual');
           return;
         }
-        // ✅ SOLUCIÓN: Verificar que flota es un objeto antes de hacer spread
         if (flota && typeof flota === 'object') {
           registro = { ...(flota as any), tipo: 'flota' };
         }
@@ -862,7 +837,6 @@ export default function SupervisorPage() {
       }
     }
 
-    // ✅ SOLUCIÓN: Verificar que autorizador es un objeto antes de usar su propiedad nombre
     if (!autorizador || typeof autorizador !== 'object' || !('nombre' in (autorizador as any))) {
       mostrarNotificacion('ERROR: Datos de autorización inválidos', 'error');
       setAnimar(false);
@@ -934,7 +908,6 @@ export default function SupervisorPage() {
     try {
       if (registro.tipo === 'empleado') {
         if (direccion === 'entrada') {
-          // ✅ SOLUCIÓN: Usar (supabase as any) para insert
           const { error: insErr } = await (supabase as any)
             .from('jornadas')
             .insert([{
@@ -946,7 +919,6 @@ export default function SupervisorPage() {
             }]);
           if (insErr) throw insErr;
           
-          // ✅ SOLUCIÓN: Usar (supabase as any) para update
           await (supabase as any)
             .from('empleados')
             .update({ en_almacen: true, ultimo_ingreso: ahora })
@@ -965,11 +937,9 @@ export default function SupervisorPage() {
             
           if (!j) throw new Error('No se encontró entrada activa');
           
-          // ✅ SOLUCIÓN: Verificar que j es un objeto antes de usar sus propiedades
           if (j && typeof j === 'object' && 'hora_entrada' in (j as any)) {
             const horas = parseFloat(((Date.now() - new Date((j as any).hora_entrada).getTime()) / 3600000).toFixed(2));
             
-            // ✅ SOLUCIÓN: Usar (supabase as any) para update
             const { error: updErr } = await (supabase as any)
               .from('jornadas')
               .update({
@@ -982,7 +952,6 @@ export default function SupervisorPage() {
               
             if (updErr) throw updErr;
             
-            // ✅ SOLUCIÓN: Usar (supabase as any) para update
             await (supabase as any)
               .from('empleados')
               .update({ en_almacen: false, ultima_salida: ahora })
@@ -994,25 +963,20 @@ export default function SupervisorPage() {
           }
         }
 
-        // ✅ MODIFICADO: Después del registro exitoso, volvemos al modo de lectura
         setTimeout(() => {
           setLecturaLista(false);
           setQrData('');
           setQrInfo(null);
           setPinAutorizador('');
           
-          if (modo === 'usb') {
-            const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-            if (usbInput) {
-              usbInput.value = '';
-              usbInput.focus();
-            }
+          if (modo === 'usb' && usbInputRef.current) {
+            usbInputRef.current.value = '';
+            usbInputRef.current.focus();
           }
         }, 2000);
 
       } else {
         if (direccion === 'entrada') {
-          // ✅ SOLUCIÓN: Usar (supabase as any) para insert
           const { error: insErr } = await (supabase as any)
             .from('flota_accesos')
             .insert([{
@@ -1028,19 +992,15 @@ export default function SupervisorPage() {
           if (insErr) throw insErr;
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
-          // ✅ MODIFICADO: Después del registro exitoso, volvemos al modo de lectura
           setTimeout(() => {
             setLecturaLista(false);
             setQrData('');
             setQrInfo(null);
             setPinAutorizador('');
             
-            if (modo === 'usb') {
-              const usbInput = document.querySelector('input[placeholder="ESPERANDO QR..."]') as HTMLInputElement;
-              if (usbInput) {
-                usbInput.value = '';
-                usbInput.focus();
-              }
+            if (modo === 'usb' && usbInputRef.current) {
+              usbInputRef.current.value = '';
+              usbInputRef.current.focus();
             }
           }, 2000);
         } else {
@@ -1055,7 +1015,6 @@ export default function SupervisorPage() {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
       
-      // ✅ MODIFICADO: En caso de error, también volvemos al modo de lectura
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
@@ -1082,7 +1041,6 @@ export default function SupervisorPage() {
 
       <ContenedorPrincipal>
         {modo === 'menu' ? (
-          // === NIVEL 1: MENÚ PRINCIPAL DEL MÓDULO ===
           <div className="grid gap-3 w-full">
             <BotonOpcion
               texto="SCANNER USB"
@@ -1121,7 +1079,6 @@ export default function SupervisorPage() {
             </div>
           </div>
         ) : !direccion ? (
-          // === NIVEL 2: SELECCIÓN ENTRADA/SALIDA ===
           <div className="flex flex-col gap-3 w-full">
             <BotonOpcion
               texto="ENTRADA"
@@ -1153,7 +1110,6 @@ export default function SupervisorPage() {
             </div>
           </div>
         ) : (
-          // === NIVEL 3: LECTURA/VALIDACIÓN ===
           <div className="space-y-4 w-full">
             
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
@@ -1181,19 +1137,22 @@ export default function SupervisorPage() {
                       {modo === 'camara' && <div id="reader" className="w-full h-full" />}
                       {modo === 'usb' && (
                         <input
+                          ref={usbInputRef}
                           autoFocus
                           className="bg-transparent text-center text-lg font-black text-blue-500 outline-none w-full uppercase placeholder:text-white/30"
                           placeholder="ESPERANDO QR..."
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              const info = procesarQR((e.target as any).value);
+                              const inputValue = (e.target as HTMLInputElement).value;
+                              console.log('📟 USB input value:', inputValue);
+                              const info = procesarQR(inputValue);
                               if (info) {
                                 setQrInfo(info);
                                 setQrData(info.docId);
                                 setLecturaLista(true);
                                 setPinAutorizador('');
                               } else {
-                                (e.target as any).value = '';
+                                (e.target as HTMLInputElement).value = '';
                               }
                             }
                           }}
@@ -1327,7 +1286,6 @@ export default function SupervisorPage() {
         )}
       </ContenedorPrincipal>
 
-      {/* Modal para salida de flota */}
       <ModalFlotaSalida
         visible={modalFlotaVisible}
         onConfirmar={confirmarSalidaFlota}
