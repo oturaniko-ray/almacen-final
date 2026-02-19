@@ -287,81 +287,90 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // ✅ VERSIÓN CORREGIDA DE PROCESAR QR
+  // ✅ VERSIÓN ULTRA ROBUSTA DE PROCESAR QR
   const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
     if (!texto || texto.trim() === '') return null;
     
-    // Mostrar el texto original con sus códigos de caracteres para depuración
-    console.log('🔍 QR original (raw):', texto);
+    // Mostrar el texto original con todos los detalles para depuración
+    console.log('🔍 QR original (raw):', JSON.stringify(texto));
     console.log('🔍 QR length:', texto.length);
     console.log('🔍 QR char codes:', Array.from(texto).map(c => c.charCodeAt(0)));
     
-    // Limpiar SOLO los bordes (trim) y eliminar caracteres de control
-    // IMPORTANTE: No eliminar espacios internos ni caracteres '=' que son parte del Base64
-    const cleanText = texto.replace(/^[\n\r\t\s]+|[\n\r\t\s]+$/g, '');
+    // Estrategia 1: Limpiar solo caracteres de control al inicio/final
+    let cleanText = texto.replace(/^[\n\r\t\s]+|[\n\r\t\s]+$/g, '');
+    console.log('🔍 QR limpio (bordes):', JSON.stringify(cleanText));
     
-    console.log('🔍 QR limpio (bordes):', cleanText);
-    console.log('🔍 QR limpio length:', cleanText.length);
-    
+    // Estrategia 2: Si aún tiene espacios internos sospechosos, intentar decodificar
     try {
-      // Intentar decodificar Base64
-      let decoded: string;
-      try {
-        decoded = atob(cleanText);
-      } catch {
-        // Si falla, intentar decodificar con manejo de caracteres especiales
-        // Esto es para QRs que puedan tener caracteres URL-encoded
-        try {
-          decoded = atob(decodeURIComponent(escape(cleanText)));
-        } catch {
-          console.error('❌ No se pudo decodificar Base64');
-          mostrarNotificacion('QR INVÁLIDO (decodificación)', 'error');
-          return null;
-        }
-      }
+      // Intentar decodificar directamente
+      let decoded = atob(cleanText);
+      console.log('📝 QR decodificado (directo):', decoded);
       
-      console.log('📝 QR decodificado:', decoded);
-      
-      // Dividir por el separador |
       const partes = decoded.split('|');
-      console.log('🔪 Partes:', partes);
-      
       if (partes.length === 3) {
         const [tipo, docId, timestamp] = partes;
         const ts = parseInt(timestamp, 10);
         
-        if (isNaN(ts)) {
-          console.error('❌ Timestamp inválido:', timestamp);
-          mostrarNotificacion('QR INVÁLIDO (timestamp)', 'error');
-          return null;
+        if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
+          if (tipo === 'P' || tipo === 'F') {
+            console.log('✅ QR válido:', { tipo, docId, ts });
+            return { tipo, docId, timestamp: ts };
+          }
         }
-        
-        // Verificar expiración
-        const tiempoExpiracion = Number(config.qr_exp) || 30000;
-        if (Date.now() - ts > tiempoExpiracion) {
-          mostrarNotificacion('QR EXPIRADO', 'error');
-          return null;
-        }
-        
-        // Verificar que el tipo sea válido (P o F)
-        if (tipo !== 'P' && tipo !== 'F') {
-          mostrarNotificacion('TIPO DE QR INVÁLIDO', 'error');
-          return null;
-        }
-        
-        console.log('✅ QR válido:', { tipo, docId, ts });
-        return { tipo, docId, timestamp: ts };
       }
-      
-      console.error('❌ Formato QR inválido. Se esperaban 3 partes, se obtuvieron:', partes.length);
-      mostrarNotificacion('QR INVÁLIDO (formato)', 'error');
-      return null;
-      
-    } catch (error) {
-      console.error('❌ Error procesando QR:', error);
-      mostrarNotificacion('QR INVÁLIDO', 'error');
-      return null;
+    } catch (e) {
+      console.log('❌ Falló decodificación directa:', e);
     }
+    
+    // Estrategia 3: Intentar con decodeURIComponent + escape (para caracteres especiales)
+    try {
+      const decoded = atob(decodeURIComponent(escape(cleanText)));
+      console.log('📝 QR decodificado (con escape):', decoded);
+      
+      const partes = decoded.split('|');
+      if (partes.length === 3) {
+        const [tipo, docId, timestamp] = partes;
+        const ts = parseInt(timestamp, 10);
+        
+        if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
+          if (tipo === 'P' || tipo === 'F') {
+            console.log('✅ QR válido (con escape):', { tipo, docId, ts });
+            return { tipo, docId, timestamp: ts };
+          }
+        }
+      }
+    } catch (e) {
+      console.log('❌ Falló decodificación con escape:', e);
+    }
+    
+    // Estrategia 4: Intentar limpiar más agresivamente si es necesario
+    try {
+      // Eliminar cualquier cosa que no sea parte de Base64 válido
+      const base64Clean = cleanText.replace(/[^A-Za-z0-9+/=]/g, '');
+      console.log('🔍 Base64 limpio agresivo:', base64Clean);
+      
+      const decoded = atob(base64Clean);
+      console.log('📝 QR decodificado (agresivo):', decoded);
+      
+      const partes = decoded.split('|');
+      if (partes.length === 3) {
+        const [tipo, docId, timestamp] = partes;
+        const ts = parseInt(timestamp, 10);
+        
+        if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
+          if (tipo === 'P' || tipo === 'F') {
+            console.log('✅ QR válido (agresivo):', { tipo, docId, ts });
+            return { tipo, docId, timestamp: ts };
+          }
+        }
+      }
+    } catch (e) {
+      console.log('❌ Falló decodificación agresiva:', e);
+    }
+    
+    console.error('❌ Todas las estrategias fallaron');
+    mostrarNotificacion('QR INVÁLIDO (decodificación)', 'error');
+    return null;
   };
 
   // Escáner de cámara
