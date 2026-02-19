@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     if (tipo === 'empleado') {
       subject = `🎫 Bienvenido al Sistema - ${datos.nombre}`;
       
-      // Usar la plantilla de React Email
+      // Usar la plantilla de React Email con AWAIT
       const emailTemplate = BienvenidaEmpleado({
         nombre: datos.nombre,
         documento_id: datos.documento_id,
@@ -56,12 +56,12 @@ export async function POST(request: Request) {
         pin_seguridad: datos.pin_seguridad,
       });
       
-      html = render(emailTemplate);
+      html = await render(emailTemplate); // ← AGREGAR AWAIT AQUÍ
 
     } else if (tipo === 'flota') {
       subject = `🚛 Perfil de Flota Creado - ${datos.nombre_completo}`;
       
-      // Usar la plantilla de React Email
+      // Usar la plantilla de React Email con AWAIT
       const emailTemplate = BienvenidaFlota({
         nombre_completo: datos.nombre_completo,
         documento_id: datos.documento_id,
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
         email: datos.email,
       });
       
-      html = render(emailTemplate);
+      html = await render(emailTemplate); // ← AGREGAR AWAIT AQUÍ
     }
 
     const info = await transporter.sendMail({
