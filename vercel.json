@@ -1,4 +1,11 @@
 {
+ "crons": [
+    {
+      "path": "/api/cron/send-scheduled",
+      "schedule": "0 2 * * *"
+    }
+  ]
+
   "regions": ["fra1"],
   "headers": [
     {
@@ -18,11 +25,4 @@
   }
 }
 
-{
-  "crons": [
-    {
-      "path": "/api/cron/send-scheduled",
-      "schedule": "0 2 * * *"
-    }
-  ]
 }
