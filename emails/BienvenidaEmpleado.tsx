@@ -7,7 +7,6 @@ import {
   Section,
   Text,
   Hr,
-  Img,
 } from '@react-email/components';
 
 interface BienvenidaEmpleadoProps {
@@ -28,6 +27,7 @@ export const BienvenidaEmpleado = ({
   pin_seguridad,
 }: BienvenidaEmpleadoProps) => {
   const previewText = `Bienvenido al sistema, ${nombre}`;
+  const appUrl = 'https://almacen-final.vercel.app/';
 
   return (
     <Html>
@@ -39,6 +39,27 @@ export const BienvenidaEmpleado = ({
           <Section style={header}>
             <Text style={headerTitle}>GESTOR DE ACCESO</Text>
             <Text style={headerSubtitle}>Sistema de Control de Personal</Text>
+          </Section>
+
+          {/* Mensaje de bienvenida con link */}
+          <Section style={welcomeSection}>
+            <Text style={welcomeText}>
+              🎉 ¡Bienvenido a bordo, <strong>{nombre}</strong>!
+            </Text>
+            <Text style={welcomeDescription}>
+              Tu cuenta ha sido creada exitosamente en nuestro sistema. A continuación encontrarás tus credenciales de acceso.
+            </Text>
+          </Section>
+
+          {/* Link de acceso destacado */}
+          <Section style={linkSection}>
+            <Text style={linkLabel}>📍 ACCEDE DESDE AQUÍ</Text>
+            <a href={appUrl} style={linkButton}>
+              {appUrl}
+            </a>
+            <Text style={linkHint}>
+              Haz clic en el enlace o cópialo en tu navegador
+            </Text>
           </Section>
 
           {/* Datos del empleado */}
@@ -75,6 +96,29 @@ export const BienvenidaEmpleado = ({
             <Text style={pinWarning}>
               Este PIN es personal e intransferible. No lo compartas con nadie.
             </Text>
+          </Section>
+
+          {/* Instrucciones de acceso */}
+          <Section style={instructionsSection}>
+            <Text style={instructionsTitle}>📱 CÓMO ACCEDER</Text>
+            <div style={instructionsBox}>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>1</span>
+                <span style={instructionText}>Visita: <strong style={instructionHighlight}>{appUrl}</strong></span>
+              </div>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>2</span>
+                <span style={instructionText}>Selecciona <strong>"ACCESO PERSONAL"</strong></span>
+              </div>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>3</span>
+                <span style={instructionText}>Ingresa tu <strong>Documento</strong> o <strong>Correo</strong></span>
+              </div>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>4</span>
+                <span style={instructionText}>Usa el <strong>PIN</strong> proporcionado arriba</span>
+              </div>
+            </div>
           </Section>
 
           {/* Reglas y procedimientos */}
@@ -127,7 +171,7 @@ export const BienvenidaEmpleado = ({
 
 export default BienvenidaEmpleado;
 
-// Estilos (en línea, formato React Email)
+// Estilos actualizados
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -138,8 +182,8 @@ const container = {
   backgroundColor: '#ffffff',
   margin: '0 auto',
   width: '100%',
-  maxWidth: '210mm', // A4 width
-  padding: '10mm',   // 1 cm = 10mm
+  maxWidth: '210mm',
+  padding: '10mm',
   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
   borderRadius: '8px',
 };
@@ -160,6 +204,120 @@ const headerSubtitle = {
   fontSize: '14px',
   color: '#64748b',
   margin: '0',
+};
+
+// Nuevos estilos para la sección de bienvenida
+const welcomeSection = {
+  backgroundColor: '#e6f0ff',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  border: '1px solid #b8d4ff',
+};
+
+const welcomeText = {
+  fontSize: '18px',
+  fontWeight: 'bold',
+  color: '#1e3a8a',
+  margin: '0 0 8px',
+};
+
+const welcomeDescription = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0',
+};
+
+// Nuevos estilos para el link de acceso
+const linkSection = {
+  backgroundColor: '#f0f9ff',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  textAlign: 'center' as const,
+  border: '1px solid #7ab3ff',
+  boxShadow: '0 4px 8px rgba(0, 102, 255, 0.1)',
+};
+
+const linkLabel = {
+  fontSize: '12px',
+  fontWeight: 'bold',
+  color: '#1e40af',
+  letterSpacing: '1px',
+  margin: '0 0 12px',
+  textTransform: 'uppercase' as const,
+};
+
+const linkButton = {
+  display: 'inline-block',
+  backgroundColor: '#2563eb',
+  color: '#ffffff',
+  padding: '14px 24px',
+  borderRadius: '30px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '8px',
+  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
+};
+
+const linkHint = {
+  fontSize: '12px',
+  color: '#4b5563',
+  fontStyle: 'italic' as const,
+  margin: '8px 0 0',
+};
+
+// Nuevos estilos para instrucciones paso a paso
+const instructionsSection = {
+  marginBottom: '24px',
+  backgroundColor: '#f8fafc',
+  padding: '16px',
+  borderRadius: '8px',
+  border: '1px solid #e2e8f0',
+};
+
+const instructionsTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+};
+
+const instructionsBox = {
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: '12px',
+};
+
+const instructionItem = {
+  display: 'flex',
+  alignItems: 'center' as const,
+  gap: '12px',
+};
+
+const instructionNumber = {
+  width: '28px',
+  height: '28px',
+  backgroundColor: '#2563eb',
+  color: 'white',
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  fontWeight: 'bold',
+  fontSize: '14px',
+};
+
+const instructionText = {
+  fontSize: '14px',
+  color: '#334155',
+};
+
+const instructionHighlight = {
+  color: '#2563eb',
+  fontWeight: 'bold',
 };
 
 const dataSection = {

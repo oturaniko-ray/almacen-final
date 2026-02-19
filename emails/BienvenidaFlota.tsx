@@ -34,6 +34,7 @@ export const BienvenidaFlota = ({
     month: '2-digit', 
     year: 'numeric' 
   });
+  const appUrl = 'https://almacen-final.vercel.app/';
 
   return (
     <Html>
@@ -45,6 +46,27 @@ export const BienvenidaFlota = ({
           <Section style={header}>
             <Text style={headerTitle}>🚛 GESTOR DE FLOTA</Text>
             <Text style={headerSubtitle}>Sistema de Control de Acceso para Transporte</Text>
+          </Section>
+
+          {/* Mensaje de bienvenida */}
+          <Section style={welcomeSection}>
+            <Text style={welcomeText}>
+              🎉 ¡Bienvenido, <strong>{nombre_completo}</strong>!
+            </Text>
+            <Text style={welcomeDescription}>
+              Tu perfil de flota ha sido registrado exitosamente. Cuando un supervisor registre tu ingreso, necesitarás tus credenciales.
+            </Text>
+          </Section>
+
+          {/* Link de acceso destacado */}
+          <Section style={linkSection}>
+            <Text style={linkLabel}>📍 SISTEMA DE ACCESO</Text>
+            <a href={appUrl} style={linkButton}>
+              {appUrl}
+            </a>
+            <Text style={linkHint}>
+              Haz clic para acceder a la plataforma
+            </Text>
           </Section>
 
           {/* DATOS DEL CONDUCTOR */}
@@ -71,6 +93,29 @@ export const BienvenidaFlota = ({
             <Text style={warning}>
               ⚠️ <strong>IMPORTANTE:</strong> Este PIN es personal e intransferible. No lo compartas con nadie.
             </Text>
+          </Section>
+
+          {/* Instrucciones para flota */}
+          <Section style={instructionsSection}>
+            <Text style={instructionsTitle}>📱 ¿CÓMO FUNCIONA?</Text>
+            <div style={instructionsBox}>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>1</span>
+                <span style={instructionText}>Cuando llegues al almacén, un supervisor registrará tu ingreso</span>
+              </div>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>2</span>
+                <span style={instructionText}>Deberás presentar tu <strong>Documento de Identidad</strong></span>
+              </div>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>3</span>
+                <span style={instructionText}>El supervisor verificará tus datos en el sistema</span>
+              </div>
+              <div style={instructionItem}>
+                <span style={instructionNumber}>4</span>
+                <span style={instructionText}>Tu <strong>PIN</strong> es solo por seguridad, no lo necesitas para ingresar</span>
+              </div>
+            </div>
           </Section>
 
           {/* SEGURIDAD EN LAS INSTALACIONES */}
@@ -305,7 +350,7 @@ export const BienvenidaFlota = ({
 
 export default BienvenidaFlota;
 
-// Estilos
+// Estilos actualizados
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -338,6 +383,115 @@ const headerSubtitle = {
   fontSize: '14px',
   color: '#64748b',
   margin: '0',
+};
+
+// Nuevos estilos para bienvenida
+const welcomeSection = {
+  backgroundColor: '#e6f7e6',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  border: '1px solid #b8e0b8',
+};
+
+const welcomeText = {
+  fontSize: '18px',
+  fontWeight: 'bold',
+  color: '#065f46',
+  margin: '0 0 8px',
+};
+
+const welcomeDescription = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0',
+};
+
+// Nuevos estilos para el link de acceso
+const linkSection = {
+  backgroundColor: '#f0f9ff',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  textAlign: 'center' as const,
+  border: '1px solid #7ab3ff',
+  boxShadow: '0 4px 8px rgba(0, 102, 255, 0.1)',
+};
+
+const linkLabel = {
+  fontSize: '12px',
+  fontWeight: 'bold',
+  color: '#1e40af',
+  letterSpacing: '1px',
+  margin: '0 0 12px',
+  textTransform: 'uppercase' as const,
+};
+
+const linkButton = {
+  display: 'inline-block',
+  backgroundColor: '#2563eb',
+  color: '#ffffff',
+  padding: '14px 24px',
+  borderRadius: '30px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '8px',
+  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
+};
+
+const linkHint = {
+  fontSize: '12px',
+  color: '#4b5563',
+  fontStyle: 'italic' as const,
+  margin: '8px 0 0',
+};
+
+// Nuevos estilos para instrucciones
+const instructionsSection = {
+  marginBottom: '24px',
+  backgroundColor: '#f8fafc',
+  padding: '16px',
+  borderRadius: '8px',
+  border: '1px solid #e2e8f0',
+};
+
+const instructionsTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+};
+
+const instructionsBox = {
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: '12px',
+};
+
+const instructionItem = {
+  display: 'flex',
+  alignItems: 'center' as const,
+  gap: '12px',
+};
+
+const instructionNumber = {
+  width: '28px',
+  height: '28px',
+  backgroundColor: '#059669',
+  color: 'white',
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  fontWeight: 'bold',
+  fontSize: '14px',
+};
+
+const instructionText = {
+  fontSize: '14px',
+  color: '#334155',
 };
 
 const dataSection = {
