@@ -162,10 +162,12 @@ export default function GestionEmpleados() {
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
   const router = useRouter();
 
+  // ✅ AGREGADO: campo telefono al estado inicial
   const estadoInicial = {
     nombre: '',
     documento_id: '',
     email: '',
+    telefono: '',  // ← NUEVO
     rol: 'empleado',
     activo: true,
     permiso_reportes: false,
@@ -311,7 +313,7 @@ export default function GestionEmpleados() {
   // ------------------------------------------------------------
 
   // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR) - CORREGIDO CON AS NEVER
+  // GUARDAR (CREAR O ACTUALIZAR)
   // ------------------------------------------------------------
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -322,10 +324,12 @@ export default function GestionEmpleados() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
+        // ✅ AGREGADO: telefono en update
         const updateData = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
+          telefono: nuevo.telefono,  // ← NUEVO
           rol: nuevo.rol,
           activo: nuevo.activo,
           permiso_reportes: nuevo.permiso_reportes,
@@ -344,10 +348,12 @@ export default function GestionEmpleados() {
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
+        // ✅ AGREGADO: telefono en insert
         const insertData = [{
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
+          telefono: nuevo.telefono,  // ← NUEVO
           pin_seguridad: pinGenerado,
           rol: nuevo.rol,
           activo: nuevo.activo,
@@ -414,6 +420,7 @@ export default function GestionEmpleados() {
       nombre: emp.nombre,
       documento_id: emp.documento_id,
       email: emp.email,
+      telefono: emp.telefono || '',  // ← NUEVO
       rol: emp.rol,
       activo: emp.activo,
       permiso_reportes: emp.permiso_reportes,
@@ -431,6 +438,7 @@ export default function GestionEmpleados() {
       Nombre: e.nombre,
       Documento: e.documento_id,
       Email: e.email,
+      Teléfono: e.telefono || '',  // ← NUEVO
       Rol: e.rol,
       Nivel: e.nivel_acceso,
       PIN: e.pin_seguridad,
@@ -440,8 +448,8 @@ export default function GestionEmpleados() {
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
-      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 12 },
-      { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 },
+      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },  // ← NUEVA COLUMNA
+      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
 
@@ -486,7 +494,8 @@ export default function GestionEmpleados() {
     (e) =>
       e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
       e.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
-      e.email?.toLowerCase().includes(filtro.toLowerCase())
+      e.email?.toLowerCase().includes(filtro.toLowerCase()) ||
+      (e.telefono && e.telefono.includes(filtro))  // ← NUEVO: buscar por teléfono
   );
 
   // ------------------------------------------------------------
@@ -511,10 +520,11 @@ export default function GestionEmpleados() {
           onRegresar={handleRegresar}
         />
 
-        {/* FORMULARIO - Grid 8 columnas */}
+        {/* ✅ FORMULARIO - Grid 9 columnas (AGREGADO TELÉFONO) */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
-            <div className="grid grid-cols-8 gap-2">
+            <div className="grid grid-cols-9 gap-2">  {/* CAMBIADO A 9 COLUMNAS */}
+              {/* Col 1: NOMBRE */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="NOMBRE"
@@ -525,6 +535,8 @@ export default function GestionEmpleados() {
                   autoFocus
                 />
               </div>
+              
+              {/* Col 2: DOCUMENTO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="DOCUMENTO"
@@ -535,6 +547,8 @@ export default function GestionEmpleados() {
                   mayusculas
                 />
               </div>
+              
+              {/* Col 3: EMAIL */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="EMAIL"
@@ -545,6 +559,18 @@ export default function GestionEmpleados() {
                   required
                 />
               </div>
+              
+              {/* ✅ Col 4: TELÉFONO (NUEVO) */}
+              <div className="col-span-1">
+                <CampoEntrada
+                  label="TELÉFONO"
+                  placeholder="+54 9 11 2345-6789"
+                  valor={nuevo.telefono}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, telefono: e.target.value })}
+                />
+              </div>
+              
+              {/* Col 5: ROL */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="ROL"
@@ -567,6 +593,8 @@ export default function GestionEmpleados() {
                   ]}
                 />
               </div>
+              
+              {/* Col 6: NIVEL */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="NIVEL"
@@ -575,6 +603,8 @@ export default function GestionEmpleados() {
                   options={obtenerOpcionesNivel().map(n => ({ value: n, label: n.toString() }))}
                 />
               </div>
+              
+              {/* Col 7: REPORTES */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="REPORTES"
@@ -586,6 +616,8 @@ export default function GestionEmpleados() {
                   ]}
                 />
               </div>
+              
+              {/* Col 8: PIN (solo edición) */}
               {editando && (
                 <div className="col-span-1">
                   <CampoEntrada
@@ -598,6 +630,8 @@ export default function GestionEmpleados() {
                   />
                 </div>
               )}
+              
+              {/* Col 9: BOTONES */}
               <div className="col-span-1 flex items-end gap-1 justify-end">
                 <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
                 <BotonIcono icono="✅" onClick={() => {}} color="bg-emerald-600" type="submit" disabled={loading} />
@@ -616,14 +650,14 @@ export default function GestionEmpleados() {
           />
         </div>
 
-        {/* TABLA */}
+        {/* ✅ TABLA - Agregada columna TELÉFONO */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-[#0f172a] text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
                   <th className="p-3">EMPLEADO</th>
-                  <th className="p-3">DOCUMENTO / EMAIL</th>
+                  <th className="p-3">DOCUMENTO / EMAIL / TEL</th>  {/* CAMBIADO */}
                   <th className="p-3 text-center">ROL</th>
                   <th className="p-3 text-center">NIV</th>
                   <th className="p-3 text-center">PIN</th>
@@ -645,6 +679,12 @@ export default function GestionEmpleados() {
                       <div className="text-[11px] font-mono">
                         <span className="block text-white">{emp.documento_id}</span>
                         <span className="text-slate-500 text-[9px]">{emp.email}</span>
+                        {/* ✅ NUEVO: mostrar teléfono si existe */}
+                        {emp.telefono && (
+                          <span className="text-emerald-500 text-[9px] block mt-1">
+                            📱 {emp.telefono}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="p-3 text-center text-[10px] font-black uppercase text-blue-400">

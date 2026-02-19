@@ -20,6 +20,7 @@ interface FlotaPerfil {
   nombre_completo: string;
   documento_id: string;
   email: string | null;
+  telefono?: string | null;  // ← NUEVO
   nombre_flota: string | null;
   cant_choferes: number;
   cant_rutas: number;
@@ -32,6 +33,7 @@ interface NuevoPerfil {
   nombre_completo: string;
   documento_id: string;
   email: string;
+  telefono: string;  // ← NUEVO
   nombre_flota: string;
   cant_choferes: number;
   cant_rutas: number;
@@ -187,10 +189,12 @@ export default function GestionFlota() {
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; perfil: FlotaPerfil | null }>({ isOpen: false, perfil: null });
   const router = useRouter();
 
+  // ✅ AGREGADO: campo telefono al estado inicial
   const estadoInicial: NuevoPerfil = {
     nombre_completo: '',
     documento_id: '',
     email: '',
+    telefono: '',  // ← NUEVO
     nombre_flota: '',
     cant_choferes: 1,
     cant_rutas: 0,
@@ -318,7 +322,7 @@ export default function GestionFlota() {
   // ------------------------------------------------------------
 
   // ------------------------------------------------------------
-  // GUARDAR (CREAR O ACTUALIZAR) - SOLUCIÓN ULTRA DEFINITIVA
+  // GUARDAR (CREAR O ACTUALIZAR)
   // ------------------------------------------------------------
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -329,17 +333,21 @@ export default function GestionFlota() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
+        // ✅ AGREGADO: telefono en update
+        const updateData = {
+          nombre_completo: nuevo.nombre_completo,
+          documento_id: nuevo.documento_id,
+          email: nuevo.email.toLowerCase(),
+          telefono: nuevo.telefono,  // ← NUEVO
+          nombre_flota: nuevo.nombre_flota,
+          cant_choferes: nuevo.cant_choferes,
+          cant_rutas: nuevo.cant_rutas,
+        };
+
         // @ts-ignore - Ignorar completamente TypeScript para esta línea
         const { error } = await (supabase as any)
           .from('flota_perfil')
-          .update({
-            nombre_completo: nuevo.nombre_completo,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            nombre_flota: nuevo.nombre_flota,
-            cant_choferes: nuevo.cant_choferes,
-            cant_rutas: nuevo.cant_rutas,
-          })
+          .update(updateData)
           .eq('id', editando.id);
 
         if (error) throw error;
@@ -349,20 +357,24 @@ export default function GestionFlota() {
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
+        // ✅ AGREGADO: telefono en insert
+        const insertData = [{
+          nombre_completo: nuevo.nombre_completo,
+          documento_id: nuevo.documento_id,
+          email: nuevo.email.toLowerCase(),
+          telefono: nuevo.telefono,  // ← NUEVO
+          nombre_flota: nuevo.nombre_flota,
+          cant_choferes: nuevo.cant_choferes,
+          cant_rutas: nuevo.cant_rutas,
+          pin_secreto: pinGenerado,
+          activo: true,
+          fecha_creacion: new Date().toISOString(),
+        }];
+
         // @ts-ignore - Ignorar completamente TypeScript para esta línea
         const { data: nuevoPerfil, error } = await (supabase as any)
           .from('flota_perfil')
-          .insert([{
-            nombre_completo: nuevo.nombre_completo,
-            documento_id: nuevo.documento_id,
-            email: nuevo.email.toLowerCase(),
-            nombre_flota: nuevo.nombre_flota,
-            cant_choferes: nuevo.cant_choferes,
-            cant_rutas: nuevo.cant_rutas,
-            pin_secreto: pinGenerado,
-            activo: true,
-            fecha_creacion: new Date().toISOString(),
-          }])
+          .insert(insertData)
           .select()
           .single();
 
@@ -418,6 +430,7 @@ export default function GestionFlota() {
       nombre_completo: perfil.nombre_completo,
       documento_id: perfil.documento_id,
       email: perfil.email || '',
+      telefono: perfil.telefono || '',  // ← NUEVO
       nombre_flota: perfil.nombre_flota || '',
       cant_choferes: perfil.cant_choferes || 1,
       cant_rutas: perfil.cant_rutas || 0,
@@ -426,7 +439,7 @@ export default function GestionFlota() {
   };
 
   // ------------------------------------------------------------
-  // CAMBIAR ESTADO ACTIVO/INACTIVO - SOLUCIÓN ULTRA DEFINITIVA
+  // CAMBIAR ESTADO ACTIVO/INACTIVO
   // ------------------------------------------------------------
   const toggleActivo = async (perfil: FlotaPerfil) => {
     try {
@@ -449,6 +462,7 @@ export default function GestionFlota() {
       Nombre: p.nombre_completo,
       Documento: p.documento_id,
       Email: p.email,
+      Teléfono: p.telefono || '',  // ← NUEVO
       Flota: p.nombre_flota,
       Choferes: p.cant_choferes,
       Rutas: p.cant_rutas,
@@ -458,8 +472,8 @@ export default function GestionFlota() {
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
-      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 20 },
-      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
+      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },  // ← NUEVA COLUMNA
+      { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
 
@@ -505,6 +519,7 @@ export default function GestionFlota() {
       p.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) ||
       p.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
       p.email?.toLowerCase().includes(filtro.toLowerCase()) ||
+      (p.telefono && p.telefono.includes(filtro)) ||  // ← NUEVO
       p.nombre_flota?.toLowerCase().includes(filtro.toLowerCase())
   );
 
@@ -530,10 +545,12 @@ export default function GestionFlota() {
           onRegresar={handleRegresar}
         />
 
-        {/* FORMULARIO - Grid 8 columnas */}
+        {/* ✅ FORMULARIO - Grid 9 columnas (AGREGADO TELÉFONO) */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
-            <div className="grid grid-cols-8 gap-2">
+            <div className="grid grid-cols-9 gap-2">  {/* CAMBIADO A 9 COLUMNAS */}
+              
+              {/* Col 1: NOMBRE */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="NOMBRE"
@@ -544,6 +561,8 @@ export default function GestionFlota() {
                   autoFocus
                 />
               </div>
+              
+              {/* Col 2: DOCUMENTO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="DOCUMENTO"
@@ -554,6 +573,8 @@ export default function GestionFlota() {
                   mayusculas
                 />
               </div>
+              
+              {/* Col 3: EMAIL */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="EMAIL"
@@ -563,6 +584,18 @@ export default function GestionFlota() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, email: e.target.value })}
                 />
               </div>
+              
+              {/* ✅ Col 4: TELÉFONO (NUEVO) */}
+              <div className="col-span-1">
+                <CampoEntrada
+                  label="TELÉFONO"
+                  placeholder="+54 9 11 2345-6789"
+                  valor={nuevo.telefono}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, telefono: e.target.value })}
+                />
+              </div>
+              
+              {/* Col 5: FLOTA */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="FLOTA"
@@ -571,6 +604,8 @@ export default function GestionFlota() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
                 />
               </div>
+              
+              {/* Col 6: CHOFERES */}
               <div className="col-span-1">
                 <div className="flex flex-col">
                   <label className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-wider">
@@ -586,6 +621,8 @@ export default function GestionFlota() {
                   />
                 </div>
               </div>
+              
+              {/* Col 7: RUTAS */}
               <div className="col-span-1">
                 <div className="flex flex-col">
                   <label className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-wider">
@@ -601,6 +638,8 @@ export default function GestionFlota() {
                   />
                 </div>
               </div>
+              
+              {/* Col 8: PIN (solo edición) */}
               {editando && (
                 <div className="col-span-1">
                   <CampoEntrada
@@ -613,6 +652,8 @@ export default function GestionFlota() {
                   />
                 </div>
               )}
+              
+              {/* Col 9: BOTONES */}
               <div className="col-span-1 flex items-end gap-1 justify-end">
                 <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
                 <BotonIcono icono="✅" onClick={() => {}} color="bg-emerald-600" type="submit" disabled={loading} />
@@ -631,7 +672,7 @@ export default function GestionFlota() {
           />
         </div>
 
-        {/* TABLA */}
+        {/* ✅ TABLA - Agregada columna TELÉFONO */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -639,7 +680,7 @@ export default function GestionFlota() {
                 <tr>
                   <th className="p-3">NOMBRE</th>
                   <th className="p-3">DOCUMENTO</th>
-                  <th className="p-3">EMAIL</th>
+                  <th className="p-3">EMAIL / TEL</th>  {/* CAMBIADO */}
                   <th className="p-3">FLOTA</th>
                   <th className="p-3 text-center">CHOF</th>
                   <th className="p-3 text-center">RUT</th>
@@ -655,7 +696,17 @@ export default function GestionFlota() {
                       <span className="font-bold text-sm uppercase text-white">{perfil.nombre_completo}</span>
                     </td>
                     <td className="p-3 font-mono text-[11px]">{perfil.documento_id}</td>
-                    <td className="p-3 text-[11px]">{perfil.email}</td>
+                    <td className="p-3">
+                      <div className="text-[11px] font-mono">
+                        <span className="block text-slate-500 text-[9px]">{perfil.email}</span>
+                        {/* ✅ NUEVO: mostrar teléfono si existe */}
+                        {perfil.telefono && (
+                          <span className="text-emerald-500 text-[9px] block">
+                            📱 {perfil.telefono}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3 text-[11px]">{perfil.nombre_flota || '-'}</td>
                     <td className="p-3 text-center font-black text-[11px]">{perfil.cant_choferes}</td>
                     <td className="p-3 text-center font-black text-[11px]">{perfil.cant_rutas}</td>
