@@ -13,6 +13,68 @@ import {
 } from '../../components';
 
 // ------------------------------------------------------------
+// COMPONENTE MODAL DE CONFIRMACIÓN
+// ------------------------------------------------------------
+const ModalConfirmacion = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  mensaje,
+  email
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  mensaje: string;
+  email: string | null;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#1a1a1a] border-2 border-blue-500/30 rounded-[30px] p-6 max-w-md w-full shadow-2xl animate-modal-appear">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-white font-black text-lg uppercase flex items-center gap-2">
+            <span className="text-2xl">📧</span> CONFIRMAR ENVÍO
+          </h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all">
+            ✕
+          </button>
+        </div>
+        
+        <div className="bg-[#0f172a] p-5 rounded-2xl border border-white/10 mb-4">
+          <p className="text-white text-base leading-relaxed">{mensaje}</p>
+          {email && (
+            <div className="mt-3 flex items-center gap-2 text-sm bg-blue-600/20 p-3 rounded-xl border border-blue-500/30">
+              <span className="text-blue-400">📨</span>
+              <span className="text-blue-300 font-mono">{email}</span>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-black py-3 rounded-xl text-sm uppercase tracking-wider transition-all active:scale-95"
+          >
+            CANCELAR
+          </button>
+          <button
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-xl text-sm uppercase tracking-wider transition-all active:scale-95"
+          >
+            ENVIAR
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
 // FUNCIONES AUXILIARES
 // ------------------------------------------------------------
 
@@ -97,6 +159,7 @@ export default function GestionEmpleados() {
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
+  const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
   const router = useRouter();
 
   const estadoInicial = {
@@ -210,8 +273,9 @@ export default function GestionEmpleados() {
     return true;
   };
 
-  // --- NUEVA FUNCIÓN: enviar correo usando fetch a la API ---
+  // --- FUNCIÓN: enviar correo usando fetch a la API ---
   const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
+    setEnviandoCorreo(empleado.id);
     try {
       const response = await fetch('/api/send-email', {
         method: 'POST',
@@ -229,10 +293,19 @@ export default function GestionEmpleados() {
           to: to || empleado.email,
         }),
       });
-      return await response.json();
+      const result = await response.json();
+      if (result.success) {
+        mostrarNotificacion('Correo enviado correctamente.', 'exito');
+      } else {
+        mostrarNotificacion(`Error al enviar correo: ${result.error}`, 'error');
+      }
+      return result;
     } catch (error: any) {
       console.error('Error en fetch de correo:', error);
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
       return { success: false, error: error.message };
+    } finally {
+      setEnviandoCorreo(null);
     }
   };
   // ------------------------------------------------------------
@@ -291,12 +364,13 @@ export default function GestionEmpleados() {
 
         if (error) throw error;
 
-        // ✅ Usar la nueva función de fetch
-        const resultado = await enviarCorreoEmpleado(nuevoEmpleado);
-        if (resultado.success) {
-          mostrarNotificacion('Empleado creado y correo enviado correctamente.', 'exito');
+        if (nuevo.email) {
+          setModalConfirmacion({
+            isOpen: true,
+            empleado: nuevoEmpleado
+          });
         } else {
-          mostrarNotificacion(`Empleado creado, pero falló el envío del correo: ${resultado.error}`, 'advertencia');
+          mostrarNotificacion('Empleado creado correctamente.', 'exito');
         }
       }
 
@@ -310,17 +384,17 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // FUNCIÓN PARA REENVIAR CORREO
+  // FUNCIÓN PARA REENVIAR CORREO (CON MODAL)
   // ------------------------------------------------------------
-  const handleReenviarCorreo = async (empleado: any) => {
-    setEnviandoCorreo(empleado.id);
-    const resultado = await enviarCorreoEmpleado(empleado);
-    setEnviandoCorreo(null);
-    if (resultado.success) {
-      mostrarNotificacion('Correo reenviado correctamente.', 'exito');
-    } else {
-      mostrarNotificacion(`Error al reenviar correo: ${resultado.error}`, 'error');
+  const handleReenviarCorreo = (empleado: any) => {
+    if (!empleado.email) {
+      mostrarNotificacion('El empleado no tiene email para reenviar.', 'advertencia');
+      return;
     }
+    setModalConfirmacion({
+      isOpen: true,
+      empleado: empleado
+    });
   };
 
   // ------------------------------------------------------------
@@ -603,9 +677,20 @@ export default function GestionEmpleados() {
                       <button
                         onClick={() => handleReenviarCorreo(emp)}
                         disabled={enviandoCorreo === emp.id}
-                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
+                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto"
                       >
-                        {enviandoCorreo === emp.id ? '...' : '📧'}
+                        {enviandoCorreo === emp.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
+                          </span>
+                        ) : (
+                          <>
+                            <span>📧</span>
+                            <span className="text-[8px]">ENVIAR</span>
+                          </>
+                        )}
                       </button>
                     </td>
                   </tr>
@@ -621,6 +706,19 @@ export default function GestionEmpleados() {
         </div>
       </div>
 
+      {/* Modal de Confirmación para envío de correo */}
+      <ModalConfirmacion
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion({ isOpen: false, empleado: null })}
+        onConfirm={() => {
+          if (modalConfirmacion.empleado) {
+            enviarCorreoEmpleado(modalConfirmacion.empleado);
+          }
+        }}
+        mensaje="¿Deseas enviar un correo con las credenciales de acceso?"
+        email={modalConfirmacion.empleado?.email || null}
+      />
+
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
@@ -630,6 +728,11 @@ export default function GestionEmpleados() {
           20%, 40%, 60% { opacity: 1; }
         }
         .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+        @keyframes modal-appear {
+          0% { opacity: 0; transform: scale(0.9) translateY(20px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-modal-appear { animation: modal-appear 0.3s ease-out; }
         select option { background-color: #1f2937; color: white; }
       `}</style>
     </main>

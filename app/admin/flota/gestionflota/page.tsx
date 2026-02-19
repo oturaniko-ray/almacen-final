@@ -38,6 +38,68 @@ interface NuevoPerfil {
 }
 
 // ------------------------------------------------------------
+// COMPONENTE MODAL DE CONFIRMACIÓN
+// ------------------------------------------------------------
+const ModalConfirmacion = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  mensaje,
+  email
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  mensaje: string;
+  email: string | null;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#1a1a1a] border-2 border-blue-500/30 rounded-[30px] p-6 max-w-md w-full shadow-2xl animate-modal-appear">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-white font-black text-lg uppercase flex items-center gap-2">
+            <span className="text-2xl">📧</span> CONFIRMAR ENVÍO
+          </h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all">
+            ✕
+          </button>
+        </div>
+        
+        <div className="bg-[#0f172a] p-5 rounded-2xl border border-white/10 mb-4">
+          <p className="text-white text-base leading-relaxed">{mensaje}</p>
+          {email && (
+            <div className="mt-3 flex items-center gap-2 text-sm bg-blue-600/20 p-3 rounded-xl border border-blue-500/30">
+              <span className="text-blue-400">📨</span>
+              <span className="text-blue-300 font-mono">{email}</span>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-black py-3 rounded-xl text-sm uppercase tracking-wider transition-all active:scale-95"
+          >
+            CANCELAR
+          </button>
+          <button
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-xl text-sm uppercase tracking-wider transition-all active:scale-95"
+          >
+            ENVIAR
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
 // FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
 // ------------------------------------------------------------
 
@@ -122,6 +184,7 @@ export default function GestionFlota() {
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
+  const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; perfil: FlotaPerfil | null }>({ isOpen: false, perfil: null });
   const router = useRouter();
 
   const estadoInicial: NuevoPerfil = {
@@ -218,6 +281,7 @@ export default function GestionFlota() {
 
   // --- NUEVA FUNCIÓN: enviar correo de flota usando fetch a la API ---
   const enviarCorreoFlota = async (perfil: FlotaPerfil, to?: string) => {
+    setEnviandoCorreo(perfil.id);
     try {
       const response = await fetch('/api/send-email', {
         method: 'POST',
@@ -236,10 +300,19 @@ export default function GestionFlota() {
           to: to || perfil.email,
         }),
       });
-      return await response.json();
+      const result = await response.json();
+      if (result.success) {
+        mostrarNotificacion('Correo enviado correctamente.', 'exito');
+      } else {
+        mostrarNotificacion(`Error al enviar correo: ${result.error}`, 'error');
+      }
+      return result;
     } catch (error: any) {
       console.error('Error en fetch de correo:', error);
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
       return { success: false, error: error.message };
+    } finally {
+      setEnviandoCorreo(null);
     }
   };
   // ------------------------------------------------------------
@@ -296,13 +369,10 @@ export default function GestionFlota() {
         if (error) throw error;
 
         if (nuevo.email) {
-          // ✅ Usar la nueva función de fetch
-          const resultado = await enviarCorreoFlota(nuevoPerfil as FlotaPerfil);
-          if (resultado.success) {
-            mostrarNotificacion('Perfil creado y correo enviado correctamente.', 'exito');
-          } else {
-            mostrarNotificacion(`Perfil creado, pero falló el envío del correo: ${resultado.error}`, 'advertencia');
-          }
+          setModalConfirmacion({
+            isOpen: true,
+            perfil: nuevoPerfil as FlotaPerfil
+          });
         } else {
           mostrarNotificacion('Perfil de flota creado correctamente.', 'exito');
         }
@@ -318,21 +388,17 @@ export default function GestionFlota() {
   };
 
   // ------------------------------------------------------------
-  // FUNCIÓN PARA REENVIAR CORREO
+  // FUNCIÓN PARA REENVIAR CORREO (CON MODAL)
   // ------------------------------------------------------------
-  const handleReenviarCorreo = async (perfil: FlotaPerfil) => {
+  const handleReenviarCorreo = (perfil: FlotaPerfil) => {
     if (!perfil.email) {
       mostrarNotificacion('El perfil no tiene email para reenviar.', 'advertencia');
       return;
     }
-    setEnviandoCorreo(perfil.id);
-    const resultado = await enviarCorreoFlota(perfil);
-    setEnviandoCorreo(null);
-    if (resultado.success) {
-      mostrarNotificacion('Correo reenviado correctamente.', 'exito');
-    } else {
-      mostrarNotificacion(`Error al reenviar correo: ${resultado.error}`, 'error');
-    }
+    setModalConfirmacion({
+      isOpen: true,
+      perfil: perfil
+    });
   };
 
   // ------------------------------------------------------------
@@ -506,20 +572,34 @@ export default function GestionFlota() {
                 />
               </div>
               <div className="col-span-1">
-                <SelectOpcion
-                  label="CHOFERES"
-                  value={nuevo.cant_choferes}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) })}
-                  options={Array.from({ length: 10 }, (_, i) => ({ value: i + 1, label: (i + 1).toString() }))}
-                />
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-wider">
+                    CHOFERES
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="999"
+                    value={nuevo.cant_choferes}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-[#020617] border border-white/10 rounded-lg px-3 py-2 text-white font-black text-lg outline-none focus:border-blue-500/50 transition-all text-center"
+                  />
+                </div>
               </div>
               <div className="col-span-1">
-                <SelectOpcion
-                  label="RUTAS"
-                  value={nuevo.cant_rutas}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) })}
-                  options={Array.from({ length: 21 }, (_, i) => ({ value: i, label: i.toString() }))}
-                />
+                <div className="flex flex-col">
+                  <label className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-wider">
+                    RUTAS
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="999"
+                    value={nuevo.cant_rutas}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
+                    className="w-full bg-[#020617] border border-white/10 rounded-lg px-3 py-2 text-white font-black text-lg outline-none focus:border-blue-500/50 transition-all text-center"
+                  />
+                </div>
               </div>
               {editando && (
                 <div className="col-span-1">
@@ -600,9 +680,20 @@ export default function GestionFlota() {
                       <button
                         onClick={() => handleReenviarCorreo(perfil)}
                         disabled={enviandoCorreo === perfil.id}
-                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
+                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto"
                       >
-                        {enviandoCorreo === perfil.id ? '...' : '📧'}
+                        {enviandoCorreo === perfil.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
+                          </span>
+                        ) : (
+                          <>
+                            <span>📧</span>
+                            <span className="text-[8px]">ENVIAR</span>
+                          </>
+                        )}
                       </button>
                     </td>
                   </tr>
@@ -618,6 +709,19 @@ export default function GestionFlota() {
         </div>
       </div>
 
+      {/* Modal de Confirmación para envío de correo */}
+      <ModalConfirmacion
+        isOpen={modalConfirmacion.isOpen}
+        onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })}
+        onConfirm={() => {
+          if (modalConfirmacion.perfil) {
+            enviarCorreoFlota(modalConfirmacion.perfil);
+          }
+        }}
+        mensaje="¿Deseas enviar un correo con las credenciales de acceso?"
+        email={modalConfirmacion.perfil?.email || null}
+      />
+
       <style jsx global>{`
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
@@ -627,7 +731,17 @@ export default function GestionFlota() {
           20%, 40%, 60% { opacity: 1; }
         }
         .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
+        @keyframes modal-appear {
+          0% { opacity: 0; transform: scale(0.9) translateY(20px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-modal-appear { animation: modal-appear 0.3s ease-out; }
         select option { background-color: #1f2937; color: white; }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          opacity: 0.5;
+          height: 24px;
+        }
       `}</style>
     </main>
   );
