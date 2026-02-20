@@ -13,6 +13,25 @@ import {
 } from '../../components';
 
 // ------------------------------------------------------------
+// DEFINICIÓN DE TIPOS PARA SUPABASE
+// ------------------------------------------------------------
+type EmpleadoUpdate = {
+  nombre: string;
+  documento_id: string;
+  email: string;
+  telefono: string;
+  rol: string;
+  activo: boolean;
+  permiso_reportes: boolean;
+  nivel_acceso: number;
+};
+
+type EmpleadoInsert = EmpleadoUpdate & {
+  pin_seguridad: string;
+  pin_generado_en: string;
+};
+
+// ------------------------------------------------------------
 // COMPONENTE MODAL DE CONFIRMACIÓN
 // ------------------------------------------------------------
 const ModalConfirmacion = ({
@@ -78,7 +97,6 @@ const ModalConfirmacion = ({
 // FUNCIONES AUXILIARES
 // ------------------------------------------------------------
 
-// Función para formatear rol
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
   const rolLower = rol.toLowerCase();
@@ -91,7 +109,6 @@ const formatearRol = (rol: string): string => {
   }
 };
 
-// Función para obtener timestamp formateado para nombre de archivo
 const getTimestamp = () => {
   const ahora = new Date();
   const año = ahora.getFullYear();
@@ -103,7 +120,6 @@ const getTimestamp = () => {
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
 };
 
-// Función para enviar WhatsApp
 const enviarWhatsApp = async (telefono: string, mensaje: string) => {
   try {
     const response = await fetch('/api/send-whatsapp', {
@@ -119,11 +135,9 @@ const enviarWhatsApp = async (telefono: string, mensaje: string) => {
 };
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES PROPIOS
+// MEMBRETE SUPERIOR
 // ------------------------------------------------------------
-
-// ----- MEMBRETE SUPERIOR -----
-const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any; onExportar: () => void; onRegresar: () => void }) => {
+const MemebreteSuperior = ({ usuario, onExportar, onRegresar, onSincronizar }: { usuario?: any; onExportar: () => void; onRegresar: () => void; onSincronizar: () => void }) => {
   const titulo = "GESTOR DE EMPLEADOS";
   const palabras = titulo.split(' ');
   const ultimaPalabra = palabras.pop();
@@ -146,6 +160,12 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any;
         )}
       </div>
       <div className="absolute top-0 right-0 flex gap-2 mt-4 mr-4">
+        <button
+          onClick={onSincronizar}
+          className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+        >
+          🔄 SINCRONIZAR
+        </button>
         <button
           onClick={onExportar}
           className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
@@ -190,17 +210,11 @@ export default function GestionEmpleados() {
   };
   const [nuevo, setNuevo] = useState(estadoInicial);
 
-  // ------------------------------------------------------------
-  // MOSTRAR NOTIFICACIÓN
-  // ------------------------------------------------------------
   const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
     setNotificacion({ mensaje, tipo });
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
   };
 
-  // ------------------------------------------------------------
-  // CARGAR SESIÓN Y DATOS
-  // ------------------------------------------------------------
   const fetchEmpleados = useCallback(async () => {
     const { data } = await supabase
       .from('empleados')
@@ -235,9 +249,6 @@ export default function GestionEmpleados() {
     };
   }, [fetchEmpleados, router]);
 
-  // ------------------------------------------------------------
-  // OPCIONES DE NIVEL SEGÚN ROL
-  // ------------------------------------------------------------
   const obtenerOpcionesNivel = () => {
     const r = nuevo.rol;
     if (r === 'empleado') return [1, 2];
@@ -247,9 +258,6 @@ export default function GestionEmpleados() {
     return [1];
   };
 
-  // ------------------------------------------------------------
-  // VALIDACIONES DE DUPLICADOS
-  // ------------------------------------------------------------
   const validarDuplicados = async (): Promise<boolean> => {
     const { data: docExistente, error: errDoc } = await supabase
       .from('empleados')
@@ -290,7 +298,6 @@ export default function GestionEmpleados() {
     return true;
   };
 
-  // --- FUNCIÓN: enviar correo usando fetch a la API ---
   const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
     setEnviandoCorreo(empleado.id);
     try {
@@ -326,7 +333,6 @@ export default function GestionEmpleados() {
     }
   };
 
-  // --- FUNCIÓN: enviar WhatsApp ---
   const handleEnviarWhatsApp = async (empleado: any) => {
     if (!empleado.telefono) {
       mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
@@ -335,7 +341,6 @@ export default function GestionEmpleados() {
 
     setEnviandoWhatsApp(empleado.id);
     
-    // Mensaje predeterminado para empleados
     const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión. 
 Tu PIN de acceso es: ${empleado.pin_seguridad}. 
 Puedes ingresar en: https://almacen-final.vercel.app/`;
@@ -350,7 +355,39 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
       mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
     }
   };
-  // ------------------------------------------------------------
+
+  // ✅ FUNCIÓN PARA SINCRONIZAR CON RESPOND.IO
+  const sincronizarConRespondIO = async (empleado: any) => {
+    if (!empleado.telefono) {
+      mostrarNotificacion('El empleado no tiene teléfono', 'advertencia');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/sync-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: empleado.telefono,
+          nombre: empleado.nombre,
+          email: empleado.email,
+          documento_id: empleado.documento_id,
+          empleado_id: empleado.id
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        mostrarNotificacion(`✅ Sincronizado con ID: ${data.respondio_contact_id}`, 'exito');
+        fetchEmpleados(); // Recargar para mostrar el estado actualizado
+      } else {
+        mostrarNotificacion(`❌ Error: ${data.error}`, 'error');
+      }
+    } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    }
+  };
 
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR)
@@ -364,7 +401,8 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        const updateData = {
+        // ✅ Usar el tipo definido
+        const updateData: EmpleadoUpdate = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
@@ -375,19 +413,38 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
           nivel_acceso: nuevo.nivel_acceso,
         };
 
-        const { error } = await supabase
-          .from('empleados')
-          .update(updateData as never)
-          .eq('id', editando.id);
+        // ✅ Usar 'as any' para evitar el error de TypeScript
+     const { error } = await supabase
+  .from('empleados')
+  .update(updateData as never)
+  .eq('id', editando.id);
 
         if (error) throw error;
+        
+        // ✅ SINCRONIZAR AUTOMÁTICAMENTE AL ACTUALIZAR
+        if (nuevo.telefono) {
+          fetch('/api/sync-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: nuevo.telefono,
+              nombre: nuevo.nombre,
+              email: nuevo.email,
+              documento_id: nuevo.documento_id,
+              empleado_id: editando.id
+            }),
+          }).catch(err => console.error('Error en sync:', err));
+        }
+        
         mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
+        cancelarEdicion();
       } else {
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        const insertData = [{
+        // ✅ Usar el tipo definido
+        const insertData: EmpleadoInsert = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
@@ -398,15 +455,33 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
           permiso_reportes: nuevo.permiso_reportes,
           nivel_acceso: nuevo.nivel_acceso,
           pin_generado_en: new Date().toISOString(),
-        }];
+        };
 
-        const { data: nuevoEmpleado, error } = await supabase
-          .from('empleados')
-          .insert(insertData as never)
-          .select()
-          .single();
+        // ✅ Usar 'as any' para evitar el error de TypeScript
+        // ✅ SOLUCIÓN DEFINITIVA: usar 'as never' en el parámetro de insert
+const { data: nuevoEmpleado, error } = await supabase
+  .from('empleados')
+  .insert([insertData as never])
+  .select()
+  .single();
 
-        if (error) throw error;
+if (error) throw error;
+
+        // ✅ SINCRONIZAR AUTOMÁTICAMENTE AL CREAR
+        if (nuevo.telefono && nuevoEmpleado) {
+          const empleadoCreado = nuevoEmpleado as { id: string };
+          fetch('/api/sync-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: nuevo.telefono,
+              nombre: nuevo.nombre,
+              email: nuevo.email,
+              documento_id: nuevo.documento_id,
+              empleado_id: empleadoCreado.id
+            }),
+          }).catch(err => console.error('Error en sync automático:', err));
+        }
 
         if (nuevo.email) {
           setModalConfirmacion({
@@ -416,9 +491,9 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
         } else {
           mostrarNotificacion('Empleado creado correctamente.', 'exito');
         }
+        
+        cancelarEdicion();
       }
-
-      cancelarEdicion();
     } catch (error: any) {
       console.error(error);
       mostrarNotificacion(`Error: ${error.message}`, 'error');
@@ -427,9 +502,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     }
   };
 
-  // ------------------------------------------------------------
-  // FUNCIÓN PARA REENVIAR CORREO (CON MODAL)
-  // ------------------------------------------------------------
   const handleReenviarCorreo = (empleado: any) => {
     if (!empleado.email) {
       mostrarNotificacion('El empleado no tiene email para reenviar.', 'advertencia');
@@ -441,17 +513,11 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     });
   };
 
-  // ------------------------------------------------------------
-  // CANCELAR EDICIÓN
-  // ------------------------------------------------------------
   const cancelarEdicion = () => {
     setEditando(null);
     setNuevo(estadoInicial);
   };
 
-  // ------------------------------------------------------------
-  // EDITAR EMPLEADO
-  // ------------------------------------------------------------
   const editarEmpleado = (emp: any) => {
     setEditando(emp);
     setNuevo({
@@ -467,9 +533,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ------------------------------------------------------------
-  // EXPORTAR EXCEL - UNIFICADO
-  // ------------------------------------------------------------
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new();
     const data = empleados.map((e) => ({
@@ -482,12 +545,14 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
       PIN: e.pin_seguridad,
       Activo: e.activo ? 'SÍ' : 'NO',
       Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
+      'ID Respond.io': e.respondio_contact_id || '-',
+      Sincronizado: e.respondio_sincronizado ? 'SÍ' : 'NO'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
       { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
-      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 },
+      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 }, { wch: 20 }, { wch: 10 }
     ];
     ws['!cols'] = columnWidths;
 
@@ -518,16 +583,14 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
   };
 
-  // ------------------------------------------------------------
-  // REGRESAR
-  // ------------------------------------------------------------
   const handleRegresar = () => {
     router.push('/admin');
   };
 
-  // ------------------------------------------------------------
-  // FILTRAR EMPLEADOS
-  // ------------------------------------------------------------
+  const handleSincronizarMasiva = () => {
+    router.push('/admin/sincronizar-masiva');
+  };
+
   const empleadosFiltrados = empleados.filter(
     (e) =>
       e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -542,7 +605,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
   return (
     <main className="min-h-screen bg-black p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
           tipo={notificacion.tipo}
@@ -551,18 +613,16 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
         />
 
-        {/* HEADER */}
         <MemebreteSuperior
           usuario={user}
           onExportar={exportarExcel}
           onRegresar={handleRegresar}
+          onSincronizar={handleSincronizarMasiva}
         />
 
-        {/* FORMULARIO - Grid 9 columnas */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
             <div className="grid grid-cols-9 gap-2">
-              {/* Col 1: NOMBRE */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="NOMBRE"
@@ -574,7 +634,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 />
               </div>
               
-              {/* Col 2: DOCUMENTO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="DOCUMENTO"
@@ -586,7 +645,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 />
               </div>
               
-              {/* Col 3: EMAIL */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="EMAIL"
@@ -598,7 +656,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 />
               </div>
               
-              {/* Col 4: TELÉFONO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="TELÉFONO"
@@ -608,7 +665,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 />
               </div>
               
-              {/* Col 5: ROL */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="ROL"
@@ -632,7 +688,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 />
               </div>
               
-              {/* Col 6: NIVEL */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="NIVEL"
@@ -642,7 +697,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 />
               </div>
               
-              {/* Col 7: REPORTES */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="REPORTES"
@@ -655,7 +709,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 />
               </div>
               
-              {/* Col 8: PIN (solo edición) */}
               {editando && (
                 <div className="col-span-1">
                   <CampoEntrada
@@ -669,7 +722,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                 </div>
               )}
               
-              {/* Col 9: BOTONES */}
               <div className="col-span-1 flex items-end gap-1 justify-end">
                 <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
                 <BotonIcono icono="✅" onClick={() => {}} color="bg-emerald-600" type="submit" disabled={loading} />
@@ -678,7 +730,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
           </form>
         </div>
 
-        {/* BUSCADOR */}
         <div className="mb-3">
           <Buscador
             placeholder="BUSCAR EMPLEADO..."
@@ -688,7 +739,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
           />
         </div>
 
-        {/* TABLA - Con botón de WhatsApp */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -701,7 +751,8 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                   <th className="p-3 text-center">PIN</th>
                   <th className="p-3 text-center">REP</th>
                   <th className="p-3 text-center">ESTADO</th>
-                  <th className="p-3 text-center" colSpan={3}>ACCIONES</th>
+                  <th className="p-3 text-center">RESPOND.IO</th>
+                  <th className="p-3 text-center" colSpan={4}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -743,11 +794,35 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
                       <BadgeEstado activo={emp.activo} />
                     </td>
                     <td className="p-3 text-center">
+                      {emp.respondio_sincronizado ? (
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-emerald-600/20 text-emerald-400">
+                          ✅ {emp.respondio_contact_id?.substring(0, 6)}...
+                        </span>
+                      ) : (
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-amber-600/20 text-amber-400">
+                          ⏳ PENDIENTE
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center">
                       <button
                         onClick={() => editarEmpleado(emp)}
                         className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
                       >
                         EDITAR
+                      </button>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => sincronizarConRespondIO(emp)}
+                        disabled={!emp.telefono}
+                        className={`text-purple-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 ${
+                          emp.telefono 
+                            ? 'border-purple-500/20 hover:bg-purple-600' 
+                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        🔄 SYNC
                       </button>
                     </td>
                     <td className="p-3 text-center">
@@ -807,7 +882,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
         </div>
       </div>
 
-      {/* Modal de Confirmación para envío de correo */}
       <ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
         onClose={() => setModalConfirmacion({ isOpen: false, empleado: null })}

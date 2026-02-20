@@ -12,6 +12,7 @@
     "@googlemaps/js-api-loader": "^2.0.2",
     "@react-email/components": "^1.0.8",
     "@react-email/render": "^2.0.4",
+    "@respond-io/typescript-sdk": "^1.2.0",
     "@supabase/supabase-js": "^2.90.1",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.1.0",

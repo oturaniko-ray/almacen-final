@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import GPSDiagnostic from '../components/GPSDiagnostic'; // ✅ 1 nivel arriba (ya estaba bien)
+import GPSDiagnostic from '../components/GPSDiagnostic';
 
 const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), {
   ssr: false,
@@ -14,7 +14,6 @@ const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), {
   ),
 });
 
-// Función para formatear rol
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
   const rolLower = rol.toLowerCase();
@@ -33,7 +32,6 @@ const formatearRol = (rol: string): string => {
   }
 };
 
-// ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
   const titulo = 'CONFIGURACIÓN MAESTRA';
   const palabras = titulo.split(' ');
@@ -68,6 +66,7 @@ export default function ConfigMaestraPage() {
     texto: '',
     tipo: null,
   });
+  const [estadisticasRespondIO, setEstadisticasRespondIO] = useState({ total: 0, conTelefono: 0, sincronizados: 0 });
   const router = useRouter();
 
   const rango100 = Array.from({ length: 100 }, (_, i) => i + 1);
@@ -83,6 +82,7 @@ export default function ConfigMaestraPage() {
     }
     setUser(JSON.parse(sessionData));
     fetchConfig();
+    fetchEstadisticasRespondIO();
   }, [router]);
 
   const fetchConfig = async () => {
@@ -112,6 +112,29 @@ export default function ConfigMaestraPage() {
     }
   };
 
+const fetchEstadisticasRespondIO = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('empleados')
+      .select('telefono, respondio_sincronizado');
+    
+    if (error) throw error;
+    
+    if (data) {
+      // ✅ TIPAR EXPLÍCITAMENTE EL ARRAY
+      const empleadosData = data as { telefono: string | null; respondio_sincronizado: boolean }[];
+      
+      setEstadisticasRespondIO({
+        total: empleadosData.length,
+        conTelefono: empleadosData.filter(e => e.telefono).length,
+        sincronizados: empleadosData.filter(e => e.respondio_sincronizado).length
+      });
+    }
+  } catch (error) {
+    console.error('Error cargando estadísticas:', error);
+  }
+};
+
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
     setTimeout(() => setMensaje({ texto: '', tipo: null }), 4000);
@@ -131,7 +154,6 @@ export default function ConfigMaestraPage() {
         updated_at: new Date().toISOString(),
       }));
 
-      // ✅ SOLUCIÓN DEFINITIVA: Usar (supabase as any) para toda la cadena
       for (const update of updates) {
         const { error } = await (supabase as any)
           .from('sistema_config')
@@ -169,7 +191,6 @@ export default function ConfigMaestraPage() {
   return (
     <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN EMERGENTE */}
         {mensaje.tipo && (
           <div
             className={`fixed top-10 right-1/2 translate-x-1/2 z-[5000] px-10 py-5 rounded-[25px] border-2 shadow-2xl animate-in slide-in-from-top-10 duration-500 ${
@@ -185,7 +206,6 @@ export default function ConfigMaestraPage() {
           </div>
         )}
 
-        {/* HEADER CON MEMBRETE Y BOTONES */}
         <div className="relative w-full mb-10">
           <MemebreteSuperior usuario={user} />
           <div className="absolute top-0 right-0 flex gap-3 mt-6 mr-6">
@@ -206,7 +226,6 @@ export default function ConfigMaestraPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          {/* Pestañas laterales */}
           <div className="md:col-span-3 space-y-2">
             {[
               { id: 'geolocalizacion', label: '📍 GEOCERCA GPS' },
@@ -214,6 +233,7 @@ export default function ConfigMaestraPage() {
               { id: 'laboral', label: '⏱️ TIEMPO MÁXIMO\nLABORABLE' },
               { id: 'efectividad', label: '📊 PORCENTAJE DE\nEFECTIVIDAD' },
               { id: 'interfaz', label: '🖥️ INTERFAZ' },
+              { id: 'respondio', label: '🔄 SINCRONIZACIÓN\nRESPOND.IO' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -231,7 +251,6 @@ export default function ConfigMaestraPage() {
             ))}
           </div>
 
-          {/* Área de configuración */}
           <div className="md:col-span-9 bg-[#0f172a] rounded-[45px] border border-white/5 p-8 md:p-12 shadow-2xl">
             <div className="space-y-8">
               {tabActual === 'geolocalizacion' && (
@@ -268,7 +287,6 @@ export default function ConfigMaestraPage() {
                     </div>
                   </div>
                   
-                  {/* MAPA INTERACTIVO */}
                   <div className="rounded-[35px] overflow-hidden border border-white/10 h-[350px] mb-4">
                     <MapaInteractivo
                       lat={config.almacen_lat}
@@ -279,7 +297,6 @@ export default function ConfigMaestraPage() {
                     />
                   </div>
 
-                  {/* DIAGNÓSTICO GPS */}
                   <GPSDiagnostic />
                 </div>
               )}
@@ -393,6 +410,50 @@ export default function ConfigMaestraPage() {
                     onChange={(e) => setConfig({ ...config, empresa_nombre: e.target.value })}
                     className="bg-transparent text-4xl font-black text-white w-full outline-none uppercase italic border-b border-white/10 pb-4 focus:border-blue-500 transition-colors"
                   />
+                </div>
+              )}
+
+              {tabActual === 'respondio' && (
+                <div className="space-y-6">
+                  <div className="bg-[#020617] p-8 rounded-[40px] border border-white/5">
+                    <h2 className="text-xl font-black text-blue-500 mb-6">🔄 SINCRONIZACIÓN CON RESPOND.IO</h2>
+                    
+                    <div className="grid grid-cols-3 gap-6 mb-8">
+                      <div className="bg-black/30 p-6 rounded-xl">
+                        <p className="text-slate-400 text-sm mb-2">Total Empleados</p>
+                        <p className="text-3xl font-bold">{estadisticasRespondIO.total}</p>
+                      </div>
+                      <div className="bg-black/30 p-6 rounded-xl">
+                        <p className="text-slate-400 text-sm mb-2">Con Teléfono</p>
+                        <p className="text-3xl font-bold text-emerald-400">{estadisticasRespondIO.conTelefono}</p>
+                      </div>
+                      <div className="bg-black/30 p-6 rounded-xl">
+                        <p className="text-slate-400 text-sm mb-2">Sincronizados</p>
+                        <p className="text-3xl font-bold text-blue-400">{estadisticasRespondIO.sincronizados}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-400">
+                        La sincronización masiva se realiza en una página dedicada para no saturar la configuración.
+                        Los empleados se sincronizarán automáticamente al crear o editar sus datos.
+                      </p>
+                      
+                      <button
+                        onClick={() => router.push('/admin/sincronizar-masiva')}
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl transition-all"
+                      >
+                        🔄 IR A SINCRONIZACIÓN MASIVA
+                      </button>
+
+                      <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/30">
+                        <p className="text-xs text-amber-400">
+                          ⚠️ Esta herramienta es solo para migración inicial o resincronización manual.
+                          Los empleados nuevos se sincronizan automáticamente al crearlos.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
