@@ -120,42 +120,6 @@ const getTimestamp = () => {
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
 };
 
-const handleEnviarWhatsApp = async (empleado: any) => {
-  if (!empleado.telefono) {
-    mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
-    return;
-  }
-
-  setEnviandoWhatsApp(empleado.id);
-  
-  try {
-    const response = await fetch('/api/send-whatsapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: empleado.telefono,
-        nombre: empleado.nombre,
-        pin: empleado.pin_seguridad,
-        documento_id: empleado.documento_id
-      }),
-    });
-    
-    const resultado = await response.json();
-    
-    setEnviandoWhatsApp(null);
-    
-    if (resultado.success) {
-      mostrarNotificacion('✅ WhatsApp enviado correctamente', 'exito');
-    } else {
-      mostrarNotificacion(`❌ Error WhatsApp: ${resultado.error}`, 'error');
-    }
-  } catch (error: any) {
-    setEnviandoWhatsApp(null);
-    mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
-  }
-};
-
-
 // ------------------------------------------------------------
 // MEMBRETE SUPERIOR
 // ------------------------------------------------------------
@@ -355,29 +319,6 @@ export default function GestionEmpleados() {
     }
   };
 
-  const handleEnviarWhatsApp = async (empleado: any) => {
-    if (!empleado.telefono) {
-      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
-      return;
-    }
-
-    setEnviandoWhatsApp(empleado.id);
-    
-    const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión. 
-Tu PIN de acceso es: ${empleado.pin_seguridad}. 
-Puedes ingresar en: https://almacen-final.vercel.app/`;
-
-    const resultado = await enviarWhatsApp(empleado.telefono, mensaje);
-    
-    setEnviandoWhatsApp(null);
-    
-    if (resultado.success) {
-      mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
-    } else {
-      mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
-    }
-  };
-
   // ✅ FUNCIÓN PARA SINCRONIZAR CON RESPOND.IO
   const sincronizarConRespondIO = async (empleado: any) => {
     if (!empleado.telefono) {
@@ -411,6 +352,42 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     }
   };
 
+  // ✅ FUNCIÓN PARA ENVIAR WHATSAPP (AHORA DENTRO DEL COMPONENTE)
+  const handleEnviarWhatsApp = async (empleado: any) => {
+    if (!empleado.telefono) {
+      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
+      return;
+    }
+
+    setEnviandoWhatsApp(empleado.id);
+    
+    try {
+      const response = await fetch('/api/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: empleado.telefono,
+          nombre: empleado.nombre,
+          pin: empleado.pin_seguridad,
+          documento_id: empleado.documento_id
+        }),
+      });
+      
+      const resultado = await response.json();
+      
+      setEnviandoWhatsApp(null);
+      
+      if (resultado.success) {
+        mostrarNotificacion('✅ WhatsApp enviado correctamente', 'exito');
+      } else {
+        mostrarNotificacion(`❌ Error WhatsApp: ${resultado.error}`, 'error');
+      }
+    } catch (error: any) {
+      setEnviandoWhatsApp(null);
+      mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
+    }
+  };
+
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR)
   // ------------------------------------------------------------
@@ -423,7 +400,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        // ✅ Usar el tipo definido
         const updateData: EmpleadoUpdate = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
@@ -435,11 +411,10 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
           nivel_acceso: nuevo.nivel_acceso,
         };
 
-        // ✅ Usar 'as any' para evitar el error de TypeScript
-     const { error } = await supabase
-  .from('empleados')
-  .update(updateData as never)
-  .eq('id', editando.id);
+        const { error } = await supabase
+          .from('empleados')
+          .update(updateData as never)
+          .eq('id', editando.id);
 
         if (error) throw error;
         
@@ -465,7 +440,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        // ✅ Usar el tipo definido
         const insertData: EmpleadoInsert = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
@@ -479,15 +453,13 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
           pin_generado_en: new Date().toISOString(),
         };
 
-        // ✅ Usar 'as any' para evitar el error de TypeScript
-        // ✅ SOLUCIÓN DEFINITIVA: usar 'as never' en el parámetro de insert
-const { data: nuevoEmpleado, error } = await supabase
-  .from('empleados')
-  .insert([insertData as never])
-  .select()
-  .single();
+        const { data: nuevoEmpleado, error } = await supabase
+          .from('empleados')
+          .insert([insertData as never])
+          .select()
+          .single();
 
-if (error) throw error;
+        if (error) throw error;
 
         // ✅ SINCRONIZAR AUTOMÁTICAMENTE AL CREAR
         if (nuevo.telefono && nuevoEmpleado) {
