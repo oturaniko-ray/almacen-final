@@ -120,19 +120,41 @@ const getTimestamp = () => {
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
 };
 
-const enviarWhatsApp = async (telefono: string, mensaje: string) => {
+const handleEnviarWhatsApp = async (empleado: any) => {
+  if (!empleado.telefono) {
+    mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
+    return;
+  }
+
+  setEnviandoWhatsApp(empleado.id);
+  
   try {
     const response = await fetch('/api/send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: telefono, message: mensaje }),
+      body: JSON.stringify({
+        to: empleado.telefono,
+        nombre: empleado.nombre,
+        pin: empleado.pin_seguridad,
+        documento_id: empleado.documento_id
+      }),
     });
-    return await response.json();
+    
+    const resultado = await response.json();
+    
+    setEnviandoWhatsApp(null);
+    
+    if (resultado.success) {
+      mostrarNotificacion('✅ WhatsApp enviado correctamente', 'exito');
+    } else {
+      mostrarNotificacion(`❌ Error WhatsApp: ${resultado.error}`, 'error');
+    }
   } catch (error: any) {
-    console.error('Error enviando WhatsApp:', error);
-    return { success: false, error: error.message };
+    setEnviandoWhatsApp(null);
+    mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
   }
 };
+
 
 // ------------------------------------------------------------
 // MEMBRETE SUPERIOR
