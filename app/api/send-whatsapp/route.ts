@@ -62,10 +62,8 @@ async function sendTemplateMessage(contactId: string, nombre: string, documento_
 
 export async function POST(request: Request) {
   try {
-    // ✅ AHORA SOLO ESPERA LOS CAMPOS QUE ENVÍA EL FRONTEND
     const { to, nombre, pin, documento_id } = await request.json();
     
-    // ✅ VALIDACIÓN ACTUALIZADA
     if (!to || !nombre || !pin || !documento_id) {
       return NextResponse.json(
         { success: false, error: 'Teléfono, nombre, PIN y documento son requeridos' },
@@ -111,7 +109,7 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     // Intentar enviar mensaje de texto primero
     console.log('📤 Intentando enviar mensaje de texto...');
     const textResponse = await sendTextMessage(contactId, mensajeTexto, RESPONDIO_API_TOKEN);
-    const textResult = await response.text();
+    const textResult = await textResponse.text(); // ✅ CORREGIDO: textResponse, no response
 
     if (textResponse.ok) {
       console.log('✅ Mensaje de texto enviado');
