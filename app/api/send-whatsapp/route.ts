@@ -29,14 +29,17 @@ Tu DNI/NIE/Doc: ${documento_id}
 Tu PIN de acceso es: ${pin}
 Puedes ingresar en: https://almacen-final.vercel.app/`;
 
-    // ✅ ENDPOINT CORRECTO PARA MENSAJES
+    // ✅ ESTRUCTURA CORRECTA PARA MENSAJES (NO para comentarios)
     const url = `${BASE_URL}/contact/${identifier}/message`;
     
     const payload = {
-      text: mensajeTexto
+      message: {
+        type: 'text',
+        text: mensajeTexto
+      }
     };
 
-    console.log('📤 Enviando mensaje a:', url);
+    console.log('📤 URL:', url);
     console.log('📤 Payload:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(url, {
@@ -51,37 +54,33 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
 
     const responseText = await response.text();
     console.log('📥 Status:', response.status);
-    console.log('📥 Respuesta completa:', responseText);
+    console.log('📥 Respuesta:', responseText);
 
-    // Si la respuesta es exitosa pero vacía o no es JSON
-    if (response.ok) {
-      // Intentar parsear si es JSON
-      try {
-        const data = JSON.parse(responseText);
-        return NextResponse.json({
-          success: true,
-          message: 'WhatsApp enviado correctamente',
-          data: data
-        });
-      } catch {
-        // Si no es JSON, asumimos éxito
-        return NextResponse.json({
-          success: true,
-          message: 'WhatsApp enviado correctamente',
-          rawResponse: responseText
-        });
-      }
+    if (!response.ok) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Error ${response.status}`,
+          details: responseText 
+        },
+        { status: response.status }
+      );
     }
 
-    // Manejo de errores
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: `Error ${response.status}`,
-        details: responseText 
-      },
-      { status: response.status }
-    );
+    // Intentar parsear respuesta exitosa
+    try {
+      const data = JSON.parse(responseText);
+      return NextResponse.json({
+        success: true,
+        message: 'WhatsApp enviado correctamente',
+        data: data
+      });
+    } catch {
+      return NextResponse.json({
+        success: true,
+        message: 'WhatsApp enviado correctamente'
+      });
+    }
 
   } catch (error: any) {
     console.error('❌ Error:', error);
@@ -95,7 +94,6 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
 export async function GET() {
   return NextResponse.json({
     status: 'API de WhatsApp activa',
-    token_configured: !!RESPONDIO_API_TOKEN,
-    base_url: BASE_URL
+    token_configured: !!RESPONDIO_API_TOKEN
   });
 }
