@@ -1,7 +1,22 @@
 import { NextResponse } from 'next/server';
+import { RespondIO, RespondIOError } from '@respond-io/typescript-sdk';
 
-const RESPONDIO_API_TOKEN = process.env.RESPONDIO_API_TOKEN;
-const BASE_URL = 'https://api.respond.io/v2';
+let respondClient: RespondIO | null = null;
+
+const getRespondClient = () => {
+  if (!respondClient) {
+    const apiToken = process.env.RESPONDIO_API_TOKEN;
+    if (!apiToken) throw new Error('RESPONDIO_API_TOKEN no está configurado');
+    
+    respondClient = new RespondIO({
+      apiToken: apiToken,
+      baseUrl: 'https://api.respond.io/v2',
+      maxRetries: 3,
+      timeout: 30000,
+    });
+  }
+  return respondClient;
+};
 
 export async function POST(request: Request) {
   try {
@@ -14,86 +29,60 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!RESPONDIO_API_TOKEN) {
-      return NextResponse.json(
-        { success: false, error: 'Token no configurado' },
-        { status: 500 }
-      );
-    }
-
+    const client = getRespondClient();
     const telefonoLimpio = to.replace(/\s+/g, '');
-    const identifier = `phone:${telefonoLimpio}`;
     
+    // IMPORTANTE: El identificador DEBE tener el formato phone:+123456789
+    const contactIdentifier = `phone:${telefonoLimpio}`;
+
     const mensajeTexto = `Hola ${nombre}, 
 Tu DNI/NIE/Doc: ${documento_id}
 Tu PIN de acceso es: ${pin}
 Puedes ingresar en: https://almacen-final.vercel.app/`;
 
-    // ✅ ESTRUCTURA CORRECTA PARA MENSAJES (NO para comentarios)
-    const url = `${BASE_URL}/contact/${identifier}/message`;
-    
-    const payload = {
+    console.log('📤 Enviando mensaje a:', contactIdentifier);
+
+    // ✅ Usar la estructura CORRECTA según la documentación
+    const result = await client.messaging.send(contactIdentifier, {
       message: {
         type: 'text',
-        text: mensajeTexto
-      }
-    };
-
-    console.log('📤 URL:', url);
-    console.log('📤 Payload:', JSON.stringify(payload, null, 2));
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESPONDIO_API_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        text: mensajeTexto,
       },
-      body: JSON.stringify(payload),
     });
 
-    const responseText = await response.text();
-    console.log('📥 Status:', response.status);
-    console.log('📥 Respuesta:', responseText);
+    console.log('✅ Mensaje enviado:', result);
 
-    if (!response.ok) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `Error ${response.status}`,
-          details: responseText 
-        },
-        { status: response.status }
-      );
-    }
-
-    // Intentar parsear respuesta exitosa
-    try {
-      const data = JSON.parse(responseText);
-      return NextResponse.json({
-        success: true,
-        message: 'WhatsApp enviado correctamente',
-        data: data
-      });
-    } catch {
-      return NextResponse.json({
-        success: true,
-        message: 'WhatsApp enviado correctamente'
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      message: 'WhatsApp enviado correctamente',
+      data: result
+    });
 
   } catch (error: any) {
     console.error('❌ Error:', error);
+
+    if (error instanceof RespondIOError) {
+      // Si es contacto nuevo, necesitamos usar plantilla
+      if (error.statusCode === 404 && error.message.includes('no interaction')) {
+        return NextResponse.json({
+          success: false,
+          error: 'CONTACTO_NUEVO',
+          message: 'Este contacto requiere plantilla de WhatsApp',
+          code: error.code
+        }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: false,
+        error: error.message,
+        code: error.code,
+        statusCode: error.statusCode
+      }, { status: error.statusCode || 500 });
+    }
+
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: error.message || 'Error interno' },
       { status: 500 }
     );
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    status: 'API de WhatsApp activa',
-    token_configured: !!RESPONDIO_API_TOKEN
-  });
 }

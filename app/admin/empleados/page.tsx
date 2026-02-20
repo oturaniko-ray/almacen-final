@@ -352,7 +352,7 @@ export default function GestionEmpleados() {
     }
   };
 
-  // ✅ FUNCIÓN PARA ENVIAR WHATSAPP (AHORA DENTRO DEL COMPONENTE)
+  // ✅ FUNCIÓN PARA ENVIAR WHATSAPP (ACTUALIZADA)
   const handleEnviarWhatsApp = async (empleado: any) => {
     if (!empleado.telefono) {
       mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
@@ -379,7 +379,32 @@ export default function GestionEmpleados() {
       
       if (resultado.success) {
         mostrarNotificacion('✅ WhatsApp enviado correctamente', 'exito');
-      } else {
+      } 
+      // Manejar específicamente el error de contacto nuevo
+      else if (resultado.error === 'CONTACTO_NUEVO' || (response.status === 404 && resultado.error?.includes('no interaction'))) {
+        if (empleado.email) {
+          const enviarPorCorreo = window.confirm(
+            '⚠️ Este contacto es nuevo en WhatsApp y requiere una plantilla aprobada por Meta.\n\n' +
+            'La plantilla está en proceso de aprobación.\n\n' +
+            '¿Deseas enviar las credenciales por correo electrónico?'
+          );
+          
+          if (enviarPorCorreo) {
+            await enviarCorreoEmpleado(empleado);
+          } else {
+            mostrarNotificacion(
+              '📱 Cuando Meta apruebe la plantilla, podrás enviar WhatsApp automáticamente',
+              'advertencia'
+            );
+          }
+        } else {
+          mostrarNotificacion(
+            '⚠️ Contacto nuevo sin email. Espera la aprobación de la plantilla de Meta',
+            'advertencia'
+          );
+        }
+      }
+      else {
         mostrarNotificacion(`❌ Error WhatsApp: ${resultado.error}`, 'error');
       }
     } catch (error: any) {
@@ -810,11 +835,11 @@ export default function GestionEmpleados() {
                       <button
                         onClick={() => sincronizarConRespondIO(emp)}
                         disabled={!emp.telefono}
-                        className={`text-purple-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 ${
+                        className={`text-purple-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 ${(
                           emp.telefono 
                             ? 'border-purple-500/20 hover:bg-purple-600' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                        }`}
+                        )}`}
                       >
                         🔄 SYNC
                       </button>
