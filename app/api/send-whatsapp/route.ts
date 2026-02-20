@@ -9,7 +9,10 @@ async function sendTextMessage(contactId: string, text: string, token: string) {
   const url = `${BASE_URL}/contact/id:${contactId}/message`;
   const payload = {
     channelId: WHATSAPP_CHANNEL_ID,
-    message: { type: 'text', text }
+    message: { 
+      type: 'text', 
+      text: text 
+    }
   };
   
   const response = await fetch(url, {
@@ -24,13 +27,15 @@ async function sendTextMessage(contactId: string, text: string, token: string) {
   return response;
 }
 
-// Función para enviar plantilla de WhatsApp
+// Función para enviar plantilla de WhatsApp - VERSIÓN CORREGIDA
 async function sendTemplateMessage(contactId: string, nombre: string, documento_id: string, pin: string, token: string) {
   const url = `${BASE_URL}/contact/id:${contactId}/message`;
+  
+  // Según la documentación, la estructura correcta para plantillas
   const payload = {
     channelId: WHATSAPP_CHANNEL_ID,
     message: {
-      type: 'whatsappTemplate',
+      type: 'template', // Cambiado de 'whatsappTemplate' a 'template'
       template: {
         name: 'credenciales_acceso',
         language: 'es',
@@ -47,6 +52,8 @@ async function sendTemplateMessage(contactId: string, nombre: string, documento_
       }
     }
   };
+  
+  console.log('📤 Enviando plantilla con payload:', JSON.stringify(payload, null, 2));
   
   const response = await fetch(url, {
     method: 'POST',
@@ -109,7 +116,7 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     // Intentar enviar mensaje de texto primero
     console.log('📤 Intentando enviar mensaje de texto...');
     const textResponse = await sendTextMessage(contactId, mensajeTexto, RESPONDIO_API_TOKEN);
-    const textResult = await textResponse.text(); // ✅ CORREGIDO: textResponse, no response
+    const textResult = await textResponse.text();
 
     if (textResponse.ok) {
       console.log('✅ Mensaje de texto enviado');
