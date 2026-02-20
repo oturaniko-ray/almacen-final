@@ -4,69 +4,6 @@ const RESPONDIO_API_TOKEN = process.env.RESPONDIO_API_TOKEN;
 const BASE_URL = 'https://api.respond.io/v2';
 const WHATSAPP_CHANNEL_ID = 1;
 
-// Función para enviar mensaje de texto
-async function sendTextMessage(contactId: string, text: string, token: string) {
-  const url = `${BASE_URL}/contact/id:${contactId}/message`;
-  const payload = {
-    channelId: WHATSAPP_CHANNEL_ID,
-    message: { 
-      type: 'text', 
-      text: text 
-    }
-  };
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  
-  return response;
-}
-
-// Función para enviar plantilla de WhatsApp - VERSIÓN CORREGIDA
-async function sendTemplateMessage(contactId: string, nombre: string, documento_id: string, pin: string, token: string) {
-  const url = `${BASE_URL}/contact/id:${contactId}/message`;
-  
-  // Según la documentación, la estructura correcta para plantillas
-  const payload = {
-    channelId: WHATSAPP_CHANNEL_ID,
-    message: {
-      type: 'template', // Cambiado de 'whatsappTemplate' a 'template'
-      template: {
-        name: 'credenciales_acceso',
-        language: 'es',
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              { type: 'text', text: nombre },
-              { type: 'text', text: documento_id },
-              { type: 'text', text: pin }
-            ]
-          }
-        ]
-      }
-    }
-  };
-  
-  console.log('📤 Enviando plantilla con payload:', JSON.stringify(payload, null, 2));
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  
-  return response;
-}
-
 export async function POST(request: Request) {
   try {
     const { to, nombre, pin, documento_id } = await request.json();
@@ -107,58 +44,58 @@ export async function POST(request: Request) {
     const contactId = contactData.id;
     console.log('✅ Contacto encontrado, ID:', contactId);
 
-    // Construir mensaje de texto
-    const mensajeTexto = `Hola ${nombre}, 
-Tu DNI/NIE/Doc: ${documento_id}
-Tu PIN de acceso es: ${pin}
+    // ✅ Mensaje de texto simple con nombre, documento y PIN
+    const mensajeTexto = `Hola *${nombre}*, 
+Tu *DNI/NIE/Documento*: ${documento_id}
+Tu *PIN de acceso* es: ${pin}
 Puedes ingresar en: https://almacen-final.vercel.app/`;
 
-    // Intentar enviar mensaje de texto primero
-    console.log('📤 Intentando enviar mensaje de texto...');
-    const textResponse = await sendTextMessage(contactId, mensajeTexto, RESPONDIO_API_TOKEN);
-    const textResult = await textResponse.text();
+    // Enviar mensaje de texto directamente
+    console.log('📤 Enviando mensaje de texto...');
+    
+    const url = `${BASE_URL}/contact/id:${contactId}/message`;
+    const payload = {
+      channelId: WHATSAPP_CHANNEL_ID,
+      message: { 
+        type: 'text', 
+        text: mensajeTexto 
+      }
+    };
 
-    if (textResponse.ok) {
-      console.log('✅ Mensaje de texto enviado');
-      return NextResponse.json({
-        success: true,
-        message: 'WhatsApp enviado correctamente'
-      });
-    }
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESPONDIO_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
-    // Si falla por "no interaction", intentar con plantilla
-    if (textResponse.status === 404 && textResult.includes('no interaction')) {
-      console.log('🔄 Contacto nuevo, intentando con plantilla...');
-      
-      const templateResponse = await sendTemplateMessage(
-        contactId, 
-        nombre,
-        documento_id,
-        pin,
-        RESPONDIO_API_TOKEN
-      );
-      
-      const templateResult = await templateResponse.text();
-      console.log('📥 Respuesta plantilla:', templateResponse.status, templateResult);
-      
-      if (templateResponse.ok) {
-        return NextResponse.json({
-          success: true,
-          message: 'WhatsApp enviado con plantilla'
-        });
-      } else {
+    const result = await response.text();
+    console.log('📥 Respuesta:', response.status, result);
+
+    if (!response.ok) {
+      // Si el error es por "no interaction", el contacto es nuevo
+      if (result.includes('no interaction')) {
         return NextResponse.json(
-          { success: false, error: `Error con plantilla: ${templateResult}` },
-          { status: templateResponse.status }
+          { 
+            success: false, 
+            error: 'Este contacto es nuevo. WhatsApp requiere una plantilla aprobada para el primer mensaje. La plantilla está en proceso de aprobación por Meta.' 
+          },
+          { status: 400 }
         );
       }
+      
+      return NextResponse.json(
+        { success: false, error: `Error: ${result}` },
+        { status: response.status }
+      );
     }
 
-    // Otro tipo de error
-    return NextResponse.json(
-      { success: false, error: `Error: ${textResult}` },
-      { status: textResponse.status }
-    );
+    return NextResponse.json({
+      success: true,
+      message: 'WhatsApp enviado correctamente'
+    });
 
   } catch (error: any) {
     console.error('❌ Error:', error);
