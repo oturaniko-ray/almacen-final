@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 
 const RESPONDIO_API_TOKEN = process.env.RESPONDIO_API_TOKEN;
 const BASE_URL = 'https://api.respond.io/v2';
-const WHATSAPP_CHANNEL_ID = 1;
 
 export async function POST(request: Request) {
   try {
@@ -25,42 +24,20 @@ export async function POST(request: Request) {
     const telefonoLimpio = to.replace(/\s+/g, '');
     const identifier = `phone:${telefonoLimpio}`;
     
-    // Buscar el contacto para obtener su ID
-    console.log('🔍 Buscando contacto:', identifier);
-    const searchUrl = `${BASE_URL}/contact/${identifier}`;
-    const searchResponse = await fetch(searchUrl, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${RESPONDIO_API_TOKEN}` },
-    });
-
-    if (!searchResponse.ok) {
-      return NextResponse.json(
-        { success: false, error: 'Contacto no encontrado en Respond.io' },
-        { status: 404 }
-      );
-    }
-
-    const contactData = await searchResponse.json();
-    const contactId = contactData.id;
-    console.log('✅ Contacto encontrado, ID:', contactId);
-
-    // ✅ Mensaje de texto simple con nombre, documento y PIN
-    const mensajeTexto = `Hola *${nombre}*, 
-Tu *DNI/NIE/Documento*: ${documento_id}
-Tu *PIN de acceso* es: ${pin}
+    // ✅ Construir mensaje de texto
+    const mensajeTexto = `Hola ${nombre}, 
+Tu DNI/NIE/Doc: ${documento_id}
+Tu PIN de acceso es: ${pin}
 Puedes ingresar en: https://almacen-final.vercel.app/`;
 
-    // Enviar mensaje de texto directamente
-    console.log('📤 Enviando mensaje de texto...');
+    // ✅ Usar EXACTAMENTE la misma estructura que funcionó en la prueba
+    const url = `${BASE_URL}/contact/${identifier}/message`;
     
-    const url = `${BASE_URL}/contact/id:${contactId}/message`;
     const payload = {
-      channelId: WHATSAPP_CHANNEL_ID,
-      message: { 
-        type: 'text', 
-        text: mensajeTexto 
-      }
+      text: mensajeTexto  // <-- SOLO text, sin channelId ni message.type
     };
+
+    console.log('📤 Enviando mensaje:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(url, {
       method: 'POST',
@@ -75,26 +52,20 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     console.log('📥 Respuesta:', response.status, result);
 
     if (!response.ok) {
-      // Si el error es por "no interaction", el contacto es nuevo
-      if (result.includes('no interaction')) {
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: 'Este contacto es nuevo. WhatsApp requiere una plantilla aprobada para el primer mensaje. La plantilla está en proceso de aprobación por Meta.' 
-          },
-          { status: 400 }
-        );
-      }
-      
       return NextResponse.json(
         { success: false, error: `Error: ${result}` },
         { status: response.status }
       );
     }
 
+    // ✅ Parsear la respuesta exitosa
+    const data = JSON.parse(result);
+    
     return NextResponse.json({
       success: true,
-      message: 'WhatsApp enviado correctamente'
+      message: 'WhatsApp enviado correctamente',
+      contactId: data.contactId,
+      data: data
     });
 
   } catch (error: any) {
@@ -110,6 +81,6 @@ export async function GET() {
   return NextResponse.json({
     status: 'API de WhatsApp activa',
     token_configured: !!RESPONDIO_API_TOKEN,
-    channel_id: WHATSAPP_CHANNEL_ID
+    base_url: BASE_URL
   });
 }
