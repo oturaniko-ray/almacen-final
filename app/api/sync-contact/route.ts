@@ -4,6 +4,10 @@ import { supabase } from '@/lib/supabaseClient';
 const RESPONDIO_API_TOKEN = process.env.RESPONDIO_API_TOKEN;
 const BASE_URL = 'https://api.respond.io/v2';
 
+// Al inicio de la función POST, agrega:
+console.log('🔍 Token presente:', !!RESPONDIO_API_TOKEN);
+console.log('🔍 Token (primeros 10 chars):', RESPONDIO_API_TOKEN?.substring(0, 10));
+
 export async function POST(request: Request) {
   try {
     const { to, nombre, email, documento_id, empleado_id } = await request.json();
