@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
 
 const RESPONDIO_API_TOKEN = process.env.RESPONDIO_API_TOKEN;
 const BASE_URL = 'https://api.respond.io/v2';
-const WHATSAPP_CHANNEL_ID = 1; // El ID que ya tienes
+const WHATSAPP_CHANNEL_ID = 1;
 
 // Función para enviar mensaje de texto
 async function sendTextMessage(contactId: string, text: string, token: string) {
@@ -26,20 +25,21 @@ async function sendTextMessage(contactId: string, text: string, token: string) {
 }
 
 // Función para enviar plantilla de WhatsApp
-async function sendTemplateMessage(contactId: string, nombre: string, pin: string, token: string) {
+async function sendTemplateMessage(contactId: string, nombre: string, documento_id: string, pin: string, token: string) {
   const url = `${BASE_URL}/contact/id:${contactId}/message`;
   const payload = {
     channelId: WHATSAPP_CHANNEL_ID,
     message: {
       type: 'whatsappTemplate',
       template: {
-        name: 'credenciales_acceso', // Crea esta plantilla en Respond.io
+        name: 'credenciales_acceso',
         language: 'es',
         components: [
           {
             type: 'body',
             parameters: [
               { type: 'text', text: nombre },
+              { type: 'text', text: documento_id },
               { type: 'text', text: pin }
             ]
           }
@@ -62,11 +62,13 @@ async function sendTemplateMessage(contactId: string, nombre: string, pin: strin
 
 export async function POST(request: Request) {
   try {
-    const { to, message, nombre, pin } = await request.json();
+    // ✅ AHORA SOLO ESPERA LOS CAMPOS QUE ENVÍA EL FRONTEND
+    const { to, nombre, pin, documento_id } = await request.json();
     
-    if (!to || !message) {
+    // ✅ VALIDACIÓN ACTUALIZADA
+    if (!to || !nombre || !pin || !documento_id) {
       return NextResponse.json(
-        { success: false, error: 'Teléfono y mensaje requeridos' },
+        { success: false, error: 'Teléfono, nombre, PIN y documento son requeridos' },
         { status: 400 }
       );
     }
@@ -82,6 +84,7 @@ export async function POST(request: Request) {
     const identifier = `phone:${telefonoLimpio}`;
     
     // Buscar el contacto para obtener su ID
+    console.log('🔍 Buscando contacto:', identifier);
     const searchUrl = `${BASE_URL}/contact/${identifier}`;
     const searchResponse = await fetch(searchUrl, {
       method: 'GET',
@@ -97,18 +100,24 @@ export async function POST(request: Request) {
 
     const contactData = await searchResponse.json();
     const contactId = contactData.id;
+    console.log('✅ Contacto encontrado, ID:', contactId);
 
-    // Intentar enviar mensaje de texto
+    // Construir mensaje de texto
+    const mensajeTexto = `Hola ${nombre}, 
+Tu DNI/NIE/Doc: ${documento_id}
+Tu PIN de acceso es: ${pin}
+Puedes ingresar en: https://almacen-final.vercel.app/`;
+
+    // Intentar enviar mensaje de texto primero
     console.log('📤 Intentando enviar mensaje de texto...');
-    const textResponse = await sendTextMessage(contactId, message, RESPONDIO_API_TOKEN);
-    const textResult = await textResponse.text();
+    const textResponse = await sendTextMessage(contactId, mensajeTexto, RESPONDIO_API_TOKEN);
+    const textResult = await response.text();
 
     if (textResponse.ok) {
       console.log('✅ Mensaje de texto enviado');
       return NextResponse.json({
         success: true,
-        message: 'WhatsApp enviado correctamente',
-        data: JSON.parse(textResult)
+        message: 'WhatsApp enviado correctamente'
       });
     }
 
@@ -116,27 +125,21 @@ export async function POST(request: Request) {
     if (textResponse.status === 404 && textResult.includes('no interaction')) {
       console.log('🔄 Contacto nuevo, intentando con plantilla...');
       
-      if (!pin) {
-        return NextResponse.json(
-          { success: false, error: 'Se requiere PIN para plantilla' },
-          { status: 400 }
-        );
-      }
-
       const templateResponse = await sendTemplateMessage(
         contactId, 
-        nombre || 'Empleado', 
-        pin, 
+        nombre,
+        documento_id,
+        pin,
         RESPONDIO_API_TOKEN
       );
       
       const templateResult = await templateResponse.text();
+      console.log('📥 Respuesta plantilla:', templateResponse.status, templateResult);
       
       if (templateResponse.ok) {
         return NextResponse.json({
           success: true,
-          message: 'WhatsApp enviado con plantilla',
-          data: JSON.parse(templateResult)
+          message: 'WhatsApp enviado con plantilla'
         });
       } else {
         return NextResponse.json(
@@ -159,4 +162,12 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    status: 'API de WhatsApp activa',
+    token_configured: !!RESPONDIO_API_TOKEN,
+    channel_id: WHATSAPP_CHANNEL_ID
+  });
 }
