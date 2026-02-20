@@ -24,49 +24,64 @@ export async function POST(request: Request) {
     const telefonoLimpio = to.replace(/\s+/g, '');
     const identifier = `phone:${telefonoLimpio}`;
     
-    // ✅ Construir mensaje de texto
     const mensajeTexto = `Hola ${nombre}, 
 Tu DNI/NIE/Doc: ${documento_id}
 Tu PIN de acceso es: ${pin}
 Puedes ingresar en: https://almacen-final.vercel.app/`;
 
-    // ✅ Usar EXACTAMENTE la misma estructura que funcionó en la prueba
+    // ✅ ENDPOINT CORRECTO PARA MENSAJES
     const url = `${BASE_URL}/contact/${identifier}/message`;
     
     const payload = {
-      text: mensajeTexto  // <-- SOLO text, sin channelId ni message.type
+      text: mensajeTexto
     };
 
-    console.log('📤 Enviando mensaje:', JSON.stringify(payload, null, 2));
+    console.log('📤 Enviando mensaje a:', url);
+    console.log('📤 Payload:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESPONDIO_API_TOKEN}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(payload),
     });
 
-    const result = await response.text();
-    console.log('📥 Respuesta:', response.status, result);
+    const responseText = await response.text();
+    console.log('📥 Status:', response.status);
+    console.log('📥 Respuesta completa:', responseText);
 
-    if (!response.ok) {
-      return NextResponse.json(
-        { success: false, error: `Error: ${result}` },
-        { status: response.status }
-      );
+    // Si la respuesta es exitosa pero vacía o no es JSON
+    if (response.ok) {
+      // Intentar parsear si es JSON
+      try {
+        const data = JSON.parse(responseText);
+        return NextResponse.json({
+          success: true,
+          message: 'WhatsApp enviado correctamente',
+          data: data
+        });
+      } catch {
+        // Si no es JSON, asumimos éxito
+        return NextResponse.json({
+          success: true,
+          message: 'WhatsApp enviado correctamente',
+          rawResponse: responseText
+        });
+      }
     }
 
-    // ✅ Parsear la respuesta exitosa
-    const data = JSON.parse(result);
-    
-    return NextResponse.json({
-      success: true,
-      message: 'WhatsApp enviado correctamente',
-      contactId: data.contactId,
-      data: data
-    });
+    // Manejo de errores
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: `Error ${response.status}`,
+        details: responseText 
+      },
+      { status: response.status }
+    );
 
   } catch (error: any) {
     console.error('❌ Error:', error);
