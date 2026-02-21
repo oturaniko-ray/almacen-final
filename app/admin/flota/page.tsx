@@ -1,8 +1,6 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/auth/context';
 
 // Función para formatear rol
 const formatearRol = (rol: string): string => {
@@ -24,10 +22,24 @@ const formatearRol = (rol: string): string => {
 };
 
 export default function SubmenuFlotaHub() {
-  const user = useUser();
+  const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
-  // ----- MEMBRETE SUPERIOR -----
+  useEffect(() => {
+    const sessionData = localStorage.getItem('user_session');
+    if (!sessionData) {
+      router.replace('/');
+      return;
+    }
+    const currentUser = JSON.parse(sessionData);
+    if (Number(currentUser.nivel_acceso) < 5) {
+      router.replace('/admin');
+      return;
+    }
+    setUser(currentUser);
+  }, [router]);
+
+  // ----- MEMBRETE SUPERIOR (sin subtítulo y sin línea) -----
   const Memebrete = () => {
     const titulo = "GESTOR DE FLOTA";
     const palabras = titulo.split(' ');
@@ -47,26 +59,14 @@ export default function SubmenuFlotaHub() {
             <span className="text-sm text-blue-500 normal-case">
               {formatearRol(user.rol)}
             </span>
-            {user.nivel_acceso && ( // ✅ Solo mostrar si existe
-              <span className="text-sm text-white ml-2">
-                ({user.nivel_acceso})
-              </span>
-            )}
-            {user.provinciaNombre && (
-              <>
-                <span className="text-sm text-white mx-2">•</span>
-                <span className="text-sm text-emerald-400">
-                  {user.provinciaNombre}
-                </span>
-              </>
-            )}
+            <span className="text-sm text-white ml-2">({user.nivel_acceso})</span>
           </div>
         )}
       </div>
     );
   };
 
-  // ----- BOTÓN DE OPCIÓN -----
+  // ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI + DESCRIPCIÓN) -----
   const BotonOpcion = ({
     texto,
     icono,
@@ -100,7 +100,7 @@ export default function SubmenuFlotaHub() {
     </button>
   );
 
-  // ----- FOOTER -----
+  // ----- FOOTER (SIN LÍNEA SUPERIOR) -----
   const Footer = () => (
     <div className="w-full max-w-sm mt-8 pt-4 text-center mx-auto">
       <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
@@ -125,16 +125,16 @@ export default function SubmenuFlotaHub() {
           <BotonOpcion
             texto="Gestión de Perfiles"
             icono="⚙️"
-            onClick={() => router.push('/admin/flota/perfiles')}
+            onClick={() => router.push('/admin/flota/gestionflota')}
             color="bg-blue-600"
             descripcion="Alta de choferes, capacidad de rutas y generación de Smart Pins F"
           />
 
           {/* REPORTES DE ACCESOS */}
           <BotonOpcion
-            texto="Reporte de Flotas"
+            texto=" Reporte de Flotas"
             icono="📅"
-            onClick={() => router.push('/admin/flota/accesos')}
+            onClick={() => router.push('/admin/flota/reportes')}
             color="bg-slate-700"
             descripcion="Historial de entradas y salidas de flota"
           />
