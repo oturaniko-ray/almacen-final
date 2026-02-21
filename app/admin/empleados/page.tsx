@@ -1,7 +1,10 @@
 'use client';
+
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
-import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/lib/auth/context';
+import { supabase } from '@/lib/supabaseClient';
+import { getEmpleados, createEmpleado, updateEmpleado } from '@/lib/database/queries';
 import * as XLSX from 'xlsx';
 import {
   CampoEntrada,
@@ -13,7 +16,7 @@ import {
 } from '../../components';
 
 // ------------------------------------------------------------
-// DEFINICIÓN DE TIPOS PARA SUPABASE
+// TIPOS
 // ------------------------------------------------------------
 type EmpleadoUpdate = {
   nombre: string;
@@ -32,7 +35,7 @@ type EmpleadoInsert = EmpleadoUpdate & {
 };
 
 // ------------------------------------------------------------
-// COMPONENTE MODAL DE CONFIRMACIÓN
+// MODAL DE CONFIRMACIÓN
 // ------------------------------------------------------------
 const ModalConfirmacion = ({
   isOpen,
@@ -96,7 +99,6 @@ const ModalConfirmacion = ({
 // ------------------------------------------------------------
 // FUNCIONES AUXILIARES
 // ------------------------------------------------------------
-
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
   const rolLower = rol.toLowerCase();
@@ -121,59 +123,12 @@ const getTimestamp = () => {
 };
 
 // ------------------------------------------------------------
-// MEMBRETE SUPERIOR
-// ------------------------------------------------------------
-const MemebreteSuperior = ({ usuario, onExportar, onRegresar, onSincronizar }: { usuario?: any; onExportar: () => void; onRegresar: () => void; onSincronizar: () => void }) => {
-  const titulo = "GESTOR DE EMPLEADOS";
-  const palabras = titulo.split(' ');
-  const ultimaPalabra = palabras.pop();
-  const primerasPalabras = palabras.join(' ');
-
-  return (
-    <div className="relative w-full mb-4">
-      <div className="w-full max-w-sm bg-[#1a1a1a] p-5 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
-        <h1 className="text-xl font-black italic uppercase tracking-tighter">
-          <span className="text-white">{primerasPalabras} </span>
-          <span className="text-blue-700">{ultimaPalabra}</span>
-        </h1>
-        {usuario && (
-          <div className="mt-1 text-sm">
-            <span className="text-white">{usuario.nombre}</span>
-            <span className="text-white mx-1">•</span>
-            <span className="text-blue-500">{formatearRol(usuario.rol)}</span>
-            <span className="text-white ml-1">({usuario.nivel_acceso})</span>
-          </div>
-        )}
-      </div>
-      <div className="absolute top-0 right-0 flex gap-2 mt-4 mr-4">
-        <button
-          onClick={onSincronizar}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          🔄 SINCRONIZAR
-        </button>
-        <button
-          onClick={onExportar}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          EXPORTAR
-        </button>
-        <button
-          onClick={onRegresar}
-          className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          REGRESAR
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
 export default function GestionEmpleados() {
-  const [user, setUser] = useState<any>(null);
+  const user = useUser();
+  const router = useRouter();
+  
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [editando, setEditando] = useState<any>(null);
   const [filtro, setFiltro] = useState('');
@@ -182,7 +137,6 @@ export default function GestionEmpleados() {
   const [enviandoWhatsApp, setEnviandoWhatsApp] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
-  const router = useRouter();
 
   const estadoInicial = {
     nombre: '',
@@ -201,56 +155,48 @@ export default function GestionEmpleados() {
     setTimeout(() => setNotificacion({ mensaje: '', tipo: null }), 2000);
   };
 
+  // ------------------------------------------------------------
+  // CARGAR EMPLEADOS
+  // ------------------------------------------------------------
   const fetchEmpleados = useCallback(async () => {
-    const { data } = await supabase
-      .from('empleados')
-      .select('*')
-      .order('nombre', { ascending: true });
-    if (data) setEmpleados(data);
-  }, []);
+    try {
+      const data = await getEmpleados(user);
+      setEmpleados(data);
+    } catch (error) {
+      console.error('Error cargando empleados:', error);
+      mostrarNotificacion('Error al cargar empleados', 'error');
+    }
+  }, [user]);
 
   useEffect(() => {
-    const sessionData = localStorage.getItem('user_session');
-    if (!sessionData) {
-      router.replace('/');
-      return;
-    }
-    const currentUser = JSON.parse(sessionData);
-    if (Number(currentUser.nivel_acceso) < 4) {
-      router.replace('/admin');
-      return;
-    }
-    setUser(currentUser);
     fetchEmpleados();
+  }, [fetchEmpleados]);
 
-    const channel = supabase
-      .channel('empleados_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'empleados' }, fetchEmpleados)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel).catch(error => {
-        console.error('Error removing channel:', error);
-      });
-    };
-  }, [fetchEmpleados, router]);
-
-  const obtenerOpcionesNivel = () => {
-    const r = nuevo.rol;
-    if (r === 'empleado') return [1, 2];
-    if (r === 'supervisor') return [3];
-    if (r === 'admin') return [4, 5, 6, 7];
-    if (r === 'tecnico') return [8, 9, 10];
-    return [1];
-  };
-
+  // ------------------------------------------------------------
+  // VALIDACIONES
+  // ------------------------------------------------------------
   const validarDuplicados = async (): Promise<boolean> => {
-    const { data: docExistente, error: errDoc } = await supabase
+    let queryDoc = supabase
       .from('empleados')
       .select('id, nombre')
       .eq('documento_id', nuevo.documento_id)
-      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
-      .maybeSingle();
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000');
+
+    let queryEmail = supabase
+      .from('empleados')
+      .select('id, nombre')
+      .eq('email', nuevo.email.toLowerCase())
+      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000');
+
+    if (user.provinciaId) {
+      queryDoc = queryDoc.eq('provincia_id', user.provinciaId);
+      queryEmail = queryEmail.eq('provincia_id', user.provinciaId);
+    }
+
+    const [{ data: docExistente, error: errDoc }, { data: emailExistente, error: errEmail }] = await Promise.all([
+      queryDoc.maybeSingle(),
+      queryEmail.maybeSingle()
+    ]);
 
     if (errDoc) {
       mostrarNotificacion('Error al validar documento ID', 'error');
@@ -259,16 +205,12 @@ export default function GestionEmpleados() {
 
     if (docExistente) {
       const existente = docExistente as { id: string; nombre: string };
-      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${existente.nombre}.`, 'advertencia');
+      const mensaje = user.provinciaId 
+        ? `⚠️ El documento ID ya está registrado para ${existente.nombre} en esta provincia.`
+        : `⚠️ El documento ID ya está registrado para ${existente.nombre}.`;
+      mostrarNotificacion(mensaje, 'advertencia');
       return false;
     }
-
-    const { data: emailExistente, error: errEmail } = await supabase
-      .from('empleados')
-      .select('id, nombre')
-      .eq('email', nuevo.email.toLowerCase())
-      .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
-      .maybeSingle();
 
     if (errEmail) {
       mostrarNotificacion('Error al validar email', 'error');
@@ -277,13 +219,19 @@ export default function GestionEmpleados() {
 
     if (emailExistente) {
       const existente = emailExistente as { id: string; nombre: string };
-      mostrarNotificacion(`⚠️ El email ya está registrado para ${existente.nombre}.`, 'advertencia');
+      const mensaje = user.provinciaId
+        ? `⚠️ El email ya está registrado para ${existente.nombre} en esta provincia.`
+        : `⚠️ El email ya está registrado para ${existente.nombre}.`;
+      mostrarNotificacion(mensaje, 'advertencia');
       return false;
     }
 
     return true;
   };
 
+  // ------------------------------------------------------------
+  // ENVÍO DE CORREO
+  // ------------------------------------------------------------
   const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
     setEnviandoCorreo(empleado.id);
     try {
@@ -319,43 +267,12 @@ export default function GestionEmpleados() {
     }
   };
 
-  // ✅ FUNCIÓN PARA SINCRONIZAR CON RESPOND.IO
-  const sincronizarConRespondIO = async (empleado: any) => {
-    if (!empleado.telefono) {
-      mostrarNotificacion('El empleado no tiene teléfono', 'advertencia');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/sync-contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: empleado.telefono,
-          nombre: empleado.nombre,
-          email: empleado.email,
-          documento_id: empleado.documento_id,
-          empleado_id: empleado.id
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        mostrarNotificacion(`✅ Sincronizado con ID: ${data.respondio_contact_id}`, 'exito');
-        fetchEmpleados(); // Recargar para mostrar el estado actualizado
-      } else {
-        mostrarNotificacion(`❌ Error: ${data.error}`, 'error');
-      }
-    } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    }
-  };
-
-  // ✅ FUNCIÓN PARA ENVIAR WHATSAPP (ACTUALIZADA)
+  // ------------------------------------------------------------
+  // ENVÍO DE WHATSAPP
+  // ------------------------------------------------------------
   const handleEnviarWhatsApp = async (empleado: any) => {
     if (!empleado.telefono) {
-      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
+      mostrarNotificacion('El empleado no tiene teléfono', 'advertencia');
       return;
     }
 
@@ -380,28 +297,18 @@ export default function GestionEmpleados() {
       if (resultado.success) {
         mostrarNotificacion('✅ WhatsApp enviado correctamente', 'exito');
       } 
-      // Manejar específicamente el error de contacto nuevo
       else if (resultado.error === 'CONTACTO_NUEVO' || (response.status === 404 && resultado.error?.includes('no interaction'))) {
         if (empleado.email) {
           const enviarPorCorreo = window.confirm(
-            '⚠️ Este contacto es nuevo en WhatsApp y requiere una plantilla aprobada por Meta.\n\n' +
-            'La plantilla está en proceso de aprobación.\n\n' +
+            '⚠️ Este contacto es nuevo en WhatsApp y requiere una plantilla aprobada.\n\n' +
             '¿Deseas enviar las credenciales por correo electrónico?'
           );
           
           if (enviarPorCorreo) {
             await enviarCorreoEmpleado(empleado);
-          } else {
-            mostrarNotificacion(
-              '📱 Cuando Meta apruebe la plantilla, podrás enviar WhatsApp automáticamente',
-              'advertencia'
-            );
           }
         } else {
-          mostrarNotificacion(
-            '⚠️ Contacto nuevo sin email. Espera la aprobación de la plantilla de Meta',
-            'advertencia'
-          );
+          mostrarNotificacion('⚠️ Contacto nuevo sin email. Espera la aprobación de la plantilla', 'advertencia');
         }
       }
       else {
@@ -410,6 +317,41 @@ export default function GestionEmpleados() {
     } catch (error: any) {
       setEnviandoWhatsApp(null);
       mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
+    }
+  };
+
+  // ------------------------------------------------------------
+  // SINCRONIZAR CON RESPOND.IO
+  // ------------------------------------------------------------
+  const sincronizarConRespondIO = async (empleado: any) => {
+    if (!empleado.telefono) {
+      mostrarNotificacion('El empleado no tiene teléfono', 'advertencia');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/sync-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: empleado.telefono,
+          nombre: empleado.nombre,
+          email: empleado.email,
+          documento_id: empleado.documento_id,
+          empleado_id: empleado.id
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        mostrarNotificacion(`✅ Sincronizado con ID: ${data.respondio_contact_id}`, 'exito');
+        fetchEmpleados();
+      } else {
+        mostrarNotificacion(`❌ Error: ${data.error}`, 'error');
+      }
+    } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
     }
   };
 
@@ -425,6 +367,7 @@ export default function GestionEmpleados() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
+        // ACTUALIZAR
         const updateData: EmpleadoUpdate = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
@@ -436,14 +379,8 @@ export default function GestionEmpleados() {
           nivel_acceso: nuevo.nivel_acceso,
         };
 
-        const { error } = await supabase
-          .from('empleados')
-          .update(updateData as never)
-          .eq('id', editando.id);
-
-        if (error) throw error;
+        const empleadoActualizado = await updateEmpleado(editando.id, updateData, user);
         
-        // ✅ SINCRONIZAR AUTOMÁTICAMENTE AL ACTUALIZAR
         if (nuevo.telefono) {
           fetch('/api/sync-contact', {
             method: 'POST',
@@ -461,16 +398,19 @@ export default function GestionEmpleados() {
         mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
         cancelarEdicion();
       } else {
+        // CREAR NUEVO
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
-        if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
-        if (!pinGenerado) throw new Error('No se pudo generar el PIN');
+        
+        if (pinError) {
+          throw new Error('Error al generar PIN');
+        }
 
         const insertData: EmpleadoInsert = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
           telefono: nuevo.telefono,
-          pin_seguridad: pinGenerado,
+          pin_seguridad: pinGenerado || '', // ✅ CORREGIDO: asegurar que sea string
           rol: nuevo.rol,
           activo: nuevo.activo,
           permiso_reportes: nuevo.permiso_reportes,
@@ -478,17 +418,11 @@ export default function GestionEmpleados() {
           pin_generado_en: new Date().toISOString(),
         };
 
-        const { data: nuevoEmpleado, error } = await supabase
-          .from('empleados')
-          .insert([insertData as never])
-          .select()
-          .single();
+        const nuevoEmpleado = await createEmpleado(insertData, user);
 
-        if (error) throw error;
-
-        // ✅ SINCRONIZAR AUTOMÁTICAMENTE AL CREAR
         if (nuevo.telefono && nuevoEmpleado) {
-          const empleadoCreado = nuevoEmpleado as { id: string };
+          // ✅ CORREGIDO: tipar nuevoEmpleado como any temporalmente
+          const empleadoCreado = nuevoEmpleado as any;
           fetch('/api/sync-contact', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -513,6 +447,8 @@ export default function GestionEmpleados() {
         
         cancelarEdicion();
       }
+      
+      fetchEmpleados();
     } catch (error: any) {
       console.error(error);
       mostrarNotificacion(`Error: ${error.message}`, 'error');
@@ -521,17 +457,9 @@ export default function GestionEmpleados() {
     }
   };
 
-  const handleReenviarCorreo = (empleado: any) => {
-    if (!empleado.email) {
-      mostrarNotificacion('El empleado no tiene email para reenviar.', 'advertencia');
-      return;
-    }
-    setModalConfirmacion({
-      isOpen: true,
-      empleado: empleado
-    });
-  };
-
+  // ------------------------------------------------------------
+  // OTRAS FUNCIONES
+  // ------------------------------------------------------------
   const cancelarEdicion = () => {
     setEditando(null);
     setNuevo(estadoInicial);
@@ -552,6 +480,17 @@ export default function GestionEmpleados() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleReenviarCorreo = (empleado: any) => {
+    if (!empleado.email) {
+      mostrarNotificacion('El empleado no tiene email para reenviar.', 'advertencia');
+      return;
+    }
+    setModalConfirmacion({
+      isOpen: true,
+      empleado: empleado
+    });
+  };
+
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new();
     const data = empleados.map((e) => ({
@@ -565,13 +504,14 @@ export default function GestionEmpleados() {
       Activo: e.activo ? 'SÍ' : 'NO',
       Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
       'ID Respond.io': e.respondio_contact_id || '-',
-      Sincronizado: e.respondio_sincronizado ? 'SÍ' : 'NO'
+      Sincronizado: e.respondio_sincronizado ? 'SÍ' : 'NO',
+      Provincia: user.provinciaNombre || 'Principal'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
       { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
-      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 }, { wch: 20 }, { wch: 10 }
+      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 }, { wch: 20 }, { wch: 10 }, { wch: 15 }
     ];
     ws['!cols'] = columnWidths;
 
@@ -580,20 +520,14 @@ export default function GestionEmpleados() {
       hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
 
-    const titulo = `GESTOR DE EMPLEADOS`;
-    const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
+    const titulo = `EMPLEADOS - ${user.provinciaNombre || 'SISTEMA'}`;
+    const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)}` : 'Sistema';
     const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
 
     XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
     XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
     XLSX.utils.sheet_add_aoa(ws, [[fechaInfo]], { origin: 'A3' });
     XLSX.utils.sheet_add_aoa(ws, [['─────────────────────────────────────────────────────────────────']], { origin: 'A4' });
-
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
-    const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 5 });
-    if (newData.length > 0) {
-      XLSX.utils.sheet_add_aoa(ws, newData as any[][], { origin: 'A6' });
-    }
 
     XLSX.utils.book_append_sheet(wb, ws, "Empleados");
     const timestamp = getTimestamp();
@@ -630,13 +564,6 @@ export default function GestionEmpleados() {
           visible={!!notificacion.tipo}
           duracion={2000}
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
-        />
-
-        <MemebreteSuperior
-          usuario={user}
-          onExportar={exportarExcel}
-          onRegresar={handleRegresar}
-          onSincronizar={handleSincronizarMasiva}
         />
 
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
@@ -712,7 +639,7 @@ export default function GestionEmpleados() {
                   label="NIVEL"
                   value={nuevo.nivel_acceso}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => setNuevo({ ...nuevo, nivel_acceso: parseInt(e.target.value) })}
-                  options={obtenerOpcionesNivel().map(n => ({ value: n, label: n.toString() }))}
+                  options={[1,2,3,4,5,6,7,8,9,10].map(n => ({ value: n, label: n.toString() }))}
                 />
               </div>
               
@@ -756,6 +683,15 @@ export default function GestionEmpleados() {
             onChange={(e: ChangeEvent<HTMLInputElement>) => setFiltro(e.target.value)}
             onClear={() => setFiltro('')}
           />
+        </div>
+
+        <div className="mb-3 flex justify-end">
+          <button
+            onClick={handleSincronizarMasiva}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase"
+          >
+            🔄 SINCRONIZACIÓN MASIVA
+          </button>
         </div>
 
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
@@ -835,11 +771,11 @@ export default function GestionEmpleados() {
                       <button
                         onClick={() => sincronizarConRespondIO(emp)}
                         disabled={!emp.telefono}
-                        className={`text-purple-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 ${(
+                        className={`text-purple-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 ${
                           emp.telefono 
                             ? 'border-purple-500/20 hover:bg-purple-600' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                        )}`}
+                        }`}
                       >
                         🔄 SYNC
                       </button>
@@ -895,7 +831,7 @@ export default function GestionEmpleados() {
           </div>
           {empleadosFiltrados.length === 0 && (
             <div className="p-6 text-center">
-              <p className="text-slate-500 text-[10px] uppercase tracking-widest">No hay empleados que coincidan con la búsqueda.</p>
+              <p className="text-slate-500 text-[10px] uppercase tracking-widest">No hay empleados en esta provincia.</p>
             </div>
           )}
         </div>
@@ -912,23 +848,6 @@ export default function GestionEmpleados() {
         mensaje="¿Deseas enviar un correo con las credenciales de acceso?"
         email={modalConfirmacion.empleado?.email || null}
       />
-
-      <style jsx global>{`
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-        @keyframes flash-fast {
-          0%, 100% { opacity: 1; }
-          10%, 30%, 50% { opacity: 0; }
-          20%, 40%, 60% { opacity: 1; }
-        }
-        .animate-flash-fast { animation: flash-fast 2s ease-in-out; }
-        @keyframes modal-appear {
-          0% { opacity: 0; transform: scale(0.9) translateY(20px); }
-          100% { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        .animate-modal-appear { animation: modal-appear 0.3s ease-out; }
-        select option { background-color: #1f2937; color: white; }
-      `}</style>
     </main>
   );
 }
