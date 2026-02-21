@@ -1,24 +1,43 @@
 'use client';
-
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/auth/context';
 
 export default function PanelAdminHub() {
-  const user = useUser();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  useEffect(() => {
+    const sessionData = localStorage.getItem('user_session');
+    if (!sessionData) {
+      router.replace('/');
+      return;
+    }
+    const currentUser = JSON.parse(sessionData);
+    if (Number(currentUser.nivel_acceso) < 4) {
+      router.replace('/');
+      return;
+    }
+    setUser(currentUser);
+    setLoading(false);
+  }, [router]);
+
+  // ===== FUNCIÓN DE NAVEGACIÓN =====
   const volverAlSelector = () => {
     console.log('→ Saliendo del módulo admin al selector inicial');
     router.push('/selector');
   };
 
-  if (!user) {
-    return null;
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+      </main>
+    );
   }
 
-  const nivel = Number(user.nivel_acceso) || 0;
-  // ✅ Ahora permiso_reportes existe en el tipo
+  const nivel = Number(user.nivel_acceso);
   const permisoReportes = user.permiso_reportes === true;
 
   const Memebrete = () => (
@@ -35,12 +54,6 @@ export default function PanelAdminHub() {
         <span className="text-sm text-white mx-2">•</span>
         <span className="text-sm text-blue-500 normal-case">{user.rol || 'Administrador'}</span>
         <span className="text-sm text-white ml-2">({user.nivel_acceso})</span>
-        {user.provinciaNombre && (
-          <>
-            <span className="text-sm text-white mx-2">•</span>
-            <span className="text-sm text-emerald-400">{user.provinciaNombre}</span>
-          </>
-        )}
       </div>
     </div>
   );
@@ -89,10 +102,7 @@ export default function PanelAdminHub() {
           <span className="text-lg">←</span> VOLVER AL SELECTOR
         </button>
         <button
-          onClick={() => {
-            localStorage.removeItem('user_session');
-            router.push('/');
-          }}
+          onClick={() => router.push('/')}
           className="text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto hover:text-white transition-colors"
         >
           <span className="text-lg">🏠</span> CERRAR SESIÓN
