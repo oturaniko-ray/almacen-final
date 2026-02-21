@@ -7,7 +7,8 @@ export interface UserContextType {
   nombre: string;
   email: string;
   rol: UserRole;
-  nivel_acceso?: number; // ✅ AÑADIDO (opcional)
+  nivel_acceso?: number;
+  permiso_reportes?: boolean; // ✅ AÑADIDO
   provinciaId: string | null;
   provinciaNombre?: string;
 }

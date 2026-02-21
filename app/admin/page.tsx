@@ -2,25 +2,23 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/auth/context'; // ✅ Usar el contexto
+import { useUser } from '@/lib/auth/context';
 
 export default function PanelAdminHub() {
-  const user = useUser(); // ✅ Obtener usuario del contexto
+  const user = useUser();
   const router = useRouter();
 
-  // ===== FUNCIÓN DE NAVEGACIÓN =====
   const volverAlSelector = () => {
     console.log('→ Saliendo del módulo admin al selector inicial');
     router.push('/selector');
   };
 
-  // Si no hay usuario, el middleware ya debería redirigir
-  // Pero por seguridad, verificamos
   if (!user) {
     return null;
   }
 
   const nivel = Number(user.nivel_acceso) || 0;
+  // ✅ Ahora permiso_reportes existe en el tipo
   const permisoReportes = user.permiso_reportes === true;
 
   const Memebrete = () => (

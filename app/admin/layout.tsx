@@ -26,6 +26,7 @@ export default function AdminLayout({
       try {
         const userData = JSON.parse(session);
         setUser(userData);
+ permiso_reportes: userData.permiso_reportes || false // Asegurar que existe
       } catch (error) {
         localStorage.removeItem('user_session');
         router.replace('/');
