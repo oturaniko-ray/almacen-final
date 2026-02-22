@@ -130,21 +130,6 @@ const getTimestamp = () => {
   return `${año}${mes}${dia}_${hora}${minuto}${segundo}`;
 };
 
-// Función para enviar WhatsApp
-const enviarWhatsApp = async (telefono: string, mensaje: string) => {
-  try {
-    const response = await fetch('/api/send-whatsapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: telefono, message: mensaje }),
-    });
-    return await response.json();
-  } catch (error: any) {
-    console.error('Error enviando WhatsApp:', error);
-    return { success: false, error: error.message };
-  }
-};
-
 // ------------------------------------------------------------
 // COMPONENTES VISUALES PROPIOS
 // ------------------------------------------------------------
@@ -201,6 +186,7 @@ export default function GestionFlota() {
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
   const [enviandoWhatsApp, setEnviandoWhatsApp] = useState<string | null>(null);
+  const [enviandoTelegram, setEnviandoTelegram] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; perfil: FlotaPerfil | null }>({ isOpen: false, perfil: null });
   const router = useRouter();
@@ -335,7 +321,7 @@ export default function GestionFlota() {
     }
   };
 
-  // --- NUEVA FUNCIÓN: enviar WhatsApp ---
+  // --- FUNCIÓN: enviar WhatsApp ---
   const handleEnviarWhatsApp = async (perfil: FlotaPerfil) => {
     if (!perfil.telefono) {
       mostrarNotificacion('El perfil no tiene teléfono registrado', 'advertencia');
@@ -344,23 +330,93 @@ export default function GestionFlota() {
 
     setEnviandoWhatsApp(perfil.id);
     
-    // Mensaje predeterminado para flota
     const mensaje = `Hola ${perfil.nombre_completo}, tu perfil de flota ha sido registrado.
 Tu PIN de acceso es: ${perfil.pin_secreto}.
 Cuando llegues al almacén, un supervisor registrará tu ingreso.
 Más información en: https://almacen-final.vercel.app/`;
 
-    const resultado = await enviarWhatsApp(perfil.telefono, mensaje);
-    
-    setEnviandoWhatsApp(null);
-    
-    if (resultado.success) {
-      mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
-    } else {
-      mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
+    try {
+      const response = await fetch('/api/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          to: perfil.telefono, 
+          message: mensaje 
+        }),
+      });
+      const resultado = await response.json();
+      
+      if (resultado.success) {
+        mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
+      } else {
+        mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
+      }
+    } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    } finally {
+      setEnviandoWhatsApp(null);
     }
   };
-  // ------------------------------------------------------------
+
+  // --- FUNCIÓN: enviar Telegram ---
+  const handleEnviarTelegram = async (perfil: FlotaPerfil) => {
+    if (!perfil.telefono) {
+      mostrarNotificacion('El perfil no tiene teléfono registrado', 'advertencia');
+      return;
+    }
+
+    setEnviandoTelegram(perfil.id);
+    
+    const mensaje = `🚛 *Perfil de Flota Registrado*
+
+Hola *${perfil.nombre_completo}*,
+Tu PIN de acceso es: *${perfil.pin_secreto}*
+
+Cuando llegues al almacén, un supervisor registrará tu ingreso.
+Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)`;
+
+    try {
+      const response = await fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          to: perfil.telefono, 
+          message: mensaje 
+        }),
+      });
+      const resultado = await response.json();
+      
+      if (resultado.success) {
+        mostrarNotificacion('Telegram enviado correctamente', 'exito');
+      } else {
+        mostrarNotificacion(`Error Telegram: ${resultado.error}`, 'error');
+      }
+    } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    } finally {
+      setEnviandoTelegram(null);
+    }
+  };
+
+  // --- FUNCIÓN: cambiar estado activo/inactivo ---
+const toggleActivo = async (perfil: FlotaPerfil) => {
+  try {
+    const { error } = await supabase
+      .from('flota_perfil')
+      .update({ activo: !perfil.activo } as never) // ✅ SOLUCIÓN: as never
+      .eq('id', perfil.id);
+    
+    if (error) throw error;
+    
+    mostrarNotificacion(
+      perfil.activo ? 'Perfil desactivado' : 'Perfil activado', 
+      'exito'
+    );
+    fetchPerfiles();
+  } catch (error: any) {
+    mostrarNotificacion(`Error: ${error.message}`, 'error');
+  }
+};
 
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR)
@@ -384,10 +440,9 @@ Más información en: https://almacen-final.vercel.app/`;
           cant_rutas: nuevo.cant_rutas,
         };
 
-        // @ts-ignore
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('flota_perfil')
-          .update(updateData)
+          .update(updateData as never)
           .eq('id', editando.id);
 
         if (error) throw error;
@@ -410,10 +465,9 @@ Más información en: https://almacen-final.vercel.app/`;
           fecha_creacion: new Date().toISOString(),
         }];
 
-        // @ts-ignore
-        const { data: nuevoPerfil, error } = await (supabase as any)
+        const { data: nuevoPerfil, error } = await supabase
           .from('flota_perfil')
-          .insert(insertData)
+          .insert(insertData as never)
           .select()
           .single();
 
@@ -475,21 +529,6 @@ Más información en: https://almacen-final.vercel.app/`;
       cant_rutas: perfil.cant_rutas || 0,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // ------------------------------------------------------------
-  // CAMBIAR ESTADO ACTIVO/INACTIVO
-  // ------------------------------------------------------------
-  const toggleActivo = async (perfil: FlotaPerfil) => {
-    try {
-      // @ts-ignore
-      await (supabase as any)
-        .from('flota_perfil')
-        .update({ activo: !perfil.activo })
-        .eq('id', perfil.id);
-    } catch (error: any) {
-      mostrarNotificacion(`Error al cambiar estado: ${error.message}`, 'error');
-    }
   };
 
   // ------------------------------------------------------------
@@ -711,7 +750,7 @@ Más información en: https://almacen-final.vercel.app/`;
           />
         </div>
 
-        {/* TABLA - Con botón de WhatsApp */}
+        {/* TABLA - Con botones de WhatsApp y Telegram */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -725,14 +764,21 @@ Más información en: https://almacen-final.vercel.app/`;
                   <th className="p-3 text-center">RUT</th>
                   <th className="p-3 text-center">PIN</th>
                   <th className="p-3 text-center">EST</th>
-                  <th className="p-3 text-center" colSpan={3}>ACCIONES</th>
+                  <th className="p-3 text-center" colSpan={4}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {perfilesFiltrados.map((perfil) => (
                   <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
-                      <span className="font-bold text-sm uppercase text-white">{perfil.nombre_completo}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleActivo(perfil)}
+                          className={`w-2 h-2 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
+                          title={perfil.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
+                        />
+                        <span className="font-bold text-sm uppercase text-white">{perfil.nombre_completo}</span>
+                      </div>
                     </td>
                     <td className="p-3 font-mono text-[11px]">{perfil.documento_id}</td>
                     <td className="p-3">
@@ -789,24 +835,30 @@ Más información en: https://almacen-final.vercel.app/`;
                       <button
                         onClick={() => handleEnviarWhatsApp(perfil)}
                         disabled={enviandoWhatsApp === perfil.id || !perfil.telefono}
-                        className={`text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
                           perfil.telefono 
-                            ? 'border-emerald-500/20 hover:bg-emerald-600' 
+                            ? 'border-green-500/20 hover:bg-green-600' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
                         }`}
+                        title="WhatsApp"
                       >
-                        {enviandoWhatsApp === perfil.id ? (
-                          <span className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
-                          </span>
-                        ) : (
-                          <>
-                            <span>📱</span>
-                            <span className="text-[8px]">WHATSAPP</span>
-                          </>
-                        )}
+                        <span className="text-[12px]">📱</span>
+                        <span className="text-[8px]">WA</span>
+                      </button>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => handleEnviarTelegram(perfil)}
+                        disabled={enviandoTelegram === perfil.id || !perfil.telefono}
+                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                          perfil.telefono 
+                            ? 'border-blue-400/20 hover:bg-blue-500' 
+                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                        }`}
+                        title="Telegram"
+                      >
+                        <span className="text-[12px]">✈️</span>
+                        <span className="text-[8px]">TG</span>
                       </button>
                     </td>
                   </tr>

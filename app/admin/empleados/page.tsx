@@ -180,6 +180,7 @@ export default function GestionEmpleados() {
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
   const [enviandoWhatsApp, setEnviandoWhatsApp] = useState<string | null>(null);
+  const [enviandoTelegram, setEnviandoTelegram] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
   const router = useRouter();
@@ -284,6 +285,7 @@ export default function GestionEmpleados() {
     return true;
   };
 
+  // --- FUNCIÓN: enviar correo usando fetch a la API ---
   const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
     setEnviandoCorreo(empleado.id);
     try {
@@ -319,40 +321,7 @@ export default function GestionEmpleados() {
     }
   };
 
-  // ✅ FUNCIÓN PARA SINCRONIZAR CON RESPOND.IO
-  const sincronizarConRespondIO = async (empleado: any) => {
-    if (!empleado.telefono) {
-      mostrarNotificacion('El empleado no tiene teléfono', 'advertencia');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/sync-contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: empleado.telefono,
-          nombre: empleado.nombre,
-          email: empleado.email,
-          documento_id: empleado.documento_id,
-          empleado_id: empleado.id
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        mostrarNotificacion(`✅ Sincronizado con ID: ${data.respondio_contact_id}`, 'exito');
-        fetchEmpleados(); // Recargar para mostrar el estado actualizado
-      } else {
-        mostrarNotificacion(`❌ Error: ${data.error}`, 'error');
-      }
-    } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    }
-  };
-
-  // ✅ FUNCIÓN PARA ENVIAR WHATSAPP (ACTUALIZADA)
+  // --- FUNCIÓN: enviar WhatsApp ---
   const handleEnviarWhatsApp = async (empleado: any) => {
     if (!empleado.telefono) {
       mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
@@ -361,57 +330,92 @@ export default function GestionEmpleados() {
 
     setEnviandoWhatsApp(empleado.id);
     
+    const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión. 
+Tu PIN de acceso es: ${empleado.pin_seguridad}. 
+Puedes ingresar en: https://almacen-final.vercel.app/`;
+
     try {
       const response = await fetch('/api/send-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: empleado.telefono,
-          nombre: empleado.nombre,
-          pin: empleado.pin_seguridad,
-          documento_id: empleado.documento_id
+        body: JSON.stringify({ 
+          to: empleado.telefono, 
+          message: mensaje 
         }),
       });
-      
       const resultado = await response.json();
       
-      setEnviandoWhatsApp(null);
-      
       if (resultado.success) {
-        mostrarNotificacion('✅ WhatsApp enviado correctamente', 'exito');
-      } 
-      // Manejar específicamente el error de contacto nuevo
-      else if (resultado.error === 'CONTACTO_NUEVO' || (response.status === 404 && resultado.error?.includes('no interaction'))) {
-        if (empleado.email) {
-          const enviarPorCorreo = window.confirm(
-            '⚠️ Este contacto es nuevo en WhatsApp y requiere una plantilla aprobada por Meta.\n\n' +
-            'La plantilla está en proceso de aprobación.\n\n' +
-            '¿Deseas enviar las credenciales por correo electrónico?'
-          );
-          
-          if (enviarPorCorreo) {
-            await enviarCorreoEmpleado(empleado);
-          } else {
-            mostrarNotificacion(
-              '📱 Cuando Meta apruebe la plantilla, podrás enviar WhatsApp automáticamente',
-              'advertencia'
-            );
-          }
-        } else {
-          mostrarNotificacion(
-            '⚠️ Contacto nuevo sin email. Espera la aprobación de la plantilla de Meta',
-            'advertencia'
-          );
-        }
-      }
-      else {
-        mostrarNotificacion(`❌ Error WhatsApp: ${resultado.error}`, 'error');
+        mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
+      } else {
+        mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
       }
     } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    } finally {
       setEnviandoWhatsApp(null);
-      mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
     }
   };
+
+  // --- FUNCIÓN: enviar Telegram ---
+  const handleEnviarTelegram = async (empleado: any) => {
+    if (!empleado.telefono) {
+      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
+      return;
+    }
+
+    setEnviandoTelegram(empleado.id);
+    
+    const mensaje = `🔐 *Credenciales de acceso*
+
+Hola *${empleado.nombre}*,
+Tu PIN de acceso es: *${empleado.pin_seguridad}*
+
+Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/)`;
+
+    try {
+      const response = await fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          to: empleado.telefono, 
+          message: mensaje 
+        }),
+      });
+      const resultado = await response.json();
+      
+      if (resultado.success) {
+        mostrarNotificacion('Telegram enviado correctamente', 'exito');
+      } else {
+        mostrarNotificacion(`Error Telegram: ${resultado.error}`, 'error');
+      }
+    } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    } finally {
+      setEnviandoTelegram(null);
+    }
+  };
+
+  // --- FUNCIÓN: cambiar estado activo/inactivo ---
+  // --- FUNCIÓN: cambiar estado activo/inactivo ---
+const toggleActivo = async (empleado: any) => {
+  try {
+    const { error } = await supabase
+      .from('empleados')
+      .update({ activo: !empleado.activo } as never) // ✅ SOLUCIÓN: as never
+      .eq('id', empleado.id);
+    
+    if (error) throw error;
+    
+    mostrarNotificacion(
+      empleado.activo ? 'Empleado desactivado' : 'Empleado activado', 
+      'exito'
+    );
+    fetchEmpleados();
+  } catch (error: any) {
+    mostrarNotificacion(`Error: ${error.message}`, 'error');
+  }
+};
 
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR)
@@ -425,7 +429,7 @@ export default function GestionEmpleados() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        const updateData: EmpleadoUpdate = {
+        const updateData = {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
@@ -442,30 +446,13 @@ export default function GestionEmpleados() {
           .eq('id', editando.id);
 
         if (error) throw error;
-        
-        // ✅ SINCRONIZAR AUTOMÁTICAMENTE AL ACTUALIZAR
-        if (nuevo.telefono) {
-          fetch('/api/sync-contact', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: nuevo.telefono,
-              nombre: nuevo.nombre,
-              email: nuevo.email,
-              documento_id: nuevo.documento_id,
-              empleado_id: editando.id
-            }),
-          }).catch(err => console.error('Error en sync:', err));
-        }
-        
         mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
-        cancelarEdicion();
       } else {
         const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        const insertData: EmpleadoInsert = {
+        const insertData = [{
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
@@ -476,31 +463,15 @@ export default function GestionEmpleados() {
           permiso_reportes: nuevo.permiso_reportes,
           nivel_acceso: nuevo.nivel_acceso,
           pin_generado_en: new Date().toISOString(),
-        };
+        }];
 
         const { data: nuevoEmpleado, error } = await supabase
           .from('empleados')
-          .insert([insertData as never])
+          .insert(insertData as never)
           .select()
           .single();
 
         if (error) throw error;
-
-        // ✅ SINCRONIZAR AUTOMÁTICAMENTE AL CREAR
-        if (nuevo.telefono && nuevoEmpleado) {
-          const empleadoCreado = nuevoEmpleado as { id: string };
-          fetch('/api/sync-contact', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: nuevo.telefono,
-              nombre: nuevo.nombre,
-              email: nuevo.email,
-              documento_id: nuevo.documento_id,
-              empleado_id: empleadoCreado.id
-            }),
-          }).catch(err => console.error('Error en sync automático:', err));
-        }
 
         if (nuevo.email) {
           setModalConfirmacion({
@@ -510,9 +481,9 @@ export default function GestionEmpleados() {
         } else {
           mostrarNotificacion('Empleado creado correctamente.', 'exito');
         }
-        
-        cancelarEdicion();
       }
+
+      cancelarEdicion();
     } catch (error: any) {
       console.error(error);
       mostrarNotificacion(`Error: ${error.message}`, 'error');
@@ -521,6 +492,9 @@ export default function GestionEmpleados() {
     }
   };
 
+  // ------------------------------------------------------------
+  // FUNCIÓN PARA REENVIAR CORREO (CON MODAL)
+  // ------------------------------------------------------------
   const handleReenviarCorreo = (empleado: any) => {
     if (!empleado.email) {
       mostrarNotificacion('El empleado no tiene email para reenviar.', 'advertencia');
@@ -532,11 +506,17 @@ export default function GestionEmpleados() {
     });
   };
 
+  // ------------------------------------------------------------
+  // CANCELAR EDICIÓN
+  // ------------------------------------------------------------
   const cancelarEdicion = () => {
     setEditando(null);
     setNuevo(estadoInicial);
   };
 
+  // ------------------------------------------------------------
+  // EDITAR EMPLEADO
+  // ------------------------------------------------------------
   const editarEmpleado = (emp: any) => {
     setEditando(emp);
     setNuevo({
@@ -552,6 +532,9 @@ export default function GestionEmpleados() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // ------------------------------------------------------------
+  // EXPORTAR EXCEL - UNIFICADO
+  // ------------------------------------------------------------
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new();
     const data = empleados.map((e) => ({
@@ -564,14 +547,12 @@ export default function GestionEmpleados() {
       PIN: e.pin_seguridad,
       Activo: e.activo ? 'SÍ' : 'NO',
       Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
-      'ID Respond.io': e.respondio_contact_id || '-',
-      Sincronizado: e.respondio_sincronizado ? 'SÍ' : 'NO'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
       { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
-      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 }, { wch: 20 }, { wch: 10 }
+      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
 
@@ -602,6 +583,9 @@ export default function GestionEmpleados() {
     mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
   };
 
+  // ------------------------------------------------------------
+  // REGRESAR
+  // ------------------------------------------------------------
   const handleRegresar = () => {
     router.push('/admin');
   };
@@ -610,6 +594,9 @@ export default function GestionEmpleados() {
     router.push('/admin/sincronizar-masiva');
   };
 
+  // ------------------------------------------------------------
+  // FILTRAR EMPLEADOS
+  // ------------------------------------------------------------
   const empleadosFiltrados = empleados.filter(
     (e) =>
       e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -624,6 +611,7 @@ export default function GestionEmpleados() {
   return (
     <main className="min-h-screen bg-black p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
+        {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
           tipo={notificacion.tipo}
@@ -632,6 +620,7 @@ export default function GestionEmpleados() {
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
         />
 
+        {/* HEADER */}
         <MemebreteSuperior
           usuario={user}
           onExportar={exportarExcel}
@@ -639,9 +628,11 @@ export default function GestionEmpleados() {
           onSincronizar={handleSincronizarMasiva}
         />
 
+        {/* FORMULARIO - Grid 9 columnas */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
             <div className="grid grid-cols-9 gap-2">
+              {/* Col 1: NOMBRE */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="NOMBRE"
@@ -653,6 +644,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
+              {/* Col 2: DOCUMENTO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="DOCUMENTO"
@@ -664,6 +656,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
+              {/* Col 3: EMAIL */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="EMAIL"
@@ -675,6 +668,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
+              {/* Col 4: TELÉFONO */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="TELÉFONO"
@@ -684,6 +678,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
+              {/* Col 5: ROL */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="ROL"
@@ -707,6 +702,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
+              {/* Col 6: NIVEL */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="NIVEL"
@@ -716,6 +712,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
+              {/* Col 7: REPORTES */}
               <div className="col-span-1">
                 <SelectOpcion
                   label="REPORTES"
@@ -728,6 +725,7 @@ export default function GestionEmpleados() {
                 />
               </div>
               
+              {/* Col 8: PIN (solo edición) */}
               {editando && (
                 <div className="col-span-1">
                   <CampoEntrada
@@ -741,6 +739,7 @@ export default function GestionEmpleados() {
                 </div>
               )}
               
+              {/* Col 9: BOTONES */}
               <div className="col-span-1 flex items-end gap-1 justify-end">
                 <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
                 <BotonIcono icono="✅" onClick={() => {}} color="bg-emerald-600" type="submit" disabled={loading} />
@@ -749,6 +748,7 @@ export default function GestionEmpleados() {
           </form>
         </div>
 
+        {/* BUSCADOR */}
         <div className="mb-3">
           <Buscador
             placeholder="BUSCAR EMPLEADO..."
@@ -758,6 +758,7 @@ export default function GestionEmpleados() {
           />
         </div>
 
+        {/* TABLA - Con botones de WhatsApp y Telegram */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -770,7 +771,6 @@ export default function GestionEmpleados() {
                   <th className="p-3 text-center">PIN</th>
                   <th className="p-3 text-center">REP</th>
                   <th className="p-3 text-center">ESTADO</th>
-                  <th className="p-3 text-center">RESPOND.IO</th>
                   <th className="p-3 text-center" colSpan={4}>ACCIONES</th>
                 </tr>
               </thead>
@@ -779,7 +779,11 @@ export default function GestionEmpleados() {
                   <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`} />
+                        <button
+                          onClick={() => toggleActivo(emp)}
+                          className={`w-2 h-2 rounded-full ${emp.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
+                          title={emp.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
+                        />
                         <span className="font-bold text-sm uppercase text-white">{emp.nombre}</span>
                       </div>
                     </td>
@@ -813,35 +817,11 @@ export default function GestionEmpleados() {
                       <BadgeEstado activo={emp.activo} />
                     </td>
                     <td className="p-3 text-center">
-                      {emp.respondio_sincronizado ? (
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-emerald-600/20 text-emerald-400">
-                          ✅ {emp.respondio_contact_id?.substring(0, 6)}...
-                        </span>
-                      ) : (
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-amber-600/20 text-amber-400">
-                          ⏳ PENDIENTE
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3 text-center">
                       <button
                         onClick={() => editarEmpleado(emp)}
                         className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
                       >
                         EDITAR
-                      </button>
-                    </td>
-                    <td className="p-3 text-center">
-                      <button
-                        onClick={() => sincronizarConRespondIO(emp)}
-                        disabled={!emp.telefono}
-                        className={`text-purple-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 ${(
-                          emp.telefono 
-                            ? 'border-purple-500/20 hover:bg-purple-600' 
-                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                        )}`}
-                      >
-                        🔄 SYNC
                       </button>
                     </td>
                     <td className="p-3 text-center">
@@ -868,24 +848,30 @@ export default function GestionEmpleados() {
                       <button
                         onClick={() => handleEnviarWhatsApp(emp)}
                         disabled={enviandoWhatsApp === emp.id || !emp.telefono}
-                        className={`text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
                           emp.telefono 
-                            ? 'border-emerald-500/20 hover:bg-emerald-600' 
+                            ? 'border-green-500/20 hover:bg-green-600' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
                         }`}
+                        title="WhatsApp"
                       >
-                        {enviandoWhatsApp === emp.id ? (
-                          <span className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
-                          </span>
-                        ) : (
-                          <>
-                            <span>📱</span>
-                            <span className="text-[8px]">WHATSAPP</span>
-                          </>
-                        )}
+                        <span className="text-[12px]">📱</span>
+                        <span className="text-[8px]">WA</span>
+                      </button>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => handleEnviarTelegram(emp)}
+                        disabled={enviandoTelegram === emp.id || !emp.telefono}
+                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                          emp.telefono 
+                            ? 'border-blue-400/20 hover:bg-blue-500' 
+                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                        }`}
+                        title="Telegram"
+                      >
+                        <span className="text-[12px]">✈️</span>
+                        <span className="text-[8px]">TG</span>
                       </button>
                     </td>
                   </tr>
@@ -901,6 +887,7 @@ export default function GestionEmpleados() {
         </div>
       </div>
 
+      {/* Modal de Confirmación para envío de correo */}
       <ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
         onClose={() => setModalConfirmacion({ isOpen: false, empleado: null })}
