@@ -358,43 +358,65 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
   };
 
   // --- FUNCIÓN: enviar Telegram ---
-  const handleEnviarTelegram = async (empleado: any) => {
-    if (!empleado.telefono) {
-      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
-      return;
-    }
+const handleEnviarTelegram = async (empleado: any) => {
+  if (!empleado.telefono) {
+    mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
+    return;
+  }
 
-    setEnviandoTelegram(empleado.id);
-    
-    const mensaje = `🔐 *Credenciales de acceso*
+  // Buscar el chat_id del empleado (usando 'as any' para evitar error de tipos)
+  const { data: telegramUser } = await (supabase as any)
+    .from('telegram_usuarios')
+    .select('chat_id')
+    .eq('empleado_id', empleado.id)
+    .maybeSingle();
+
+  // Verificar si existe el registro
+  if (!telegramUser) {
+    mostrarNotificacion(
+      '❌ El empleado no ha iniciado conversación con @Notificaacceso_bot',
+      'error'
+    );
+    return;
+  }
+
+  // Mostrar en consola para debug (ya sin error de TypeScript)
+  console.log('Enviando Telegram a chat_id:', telegramUser.chat_id);
+
+  setEnviandoTelegram(empleado.id);
+  
+  const mensaje = `🔐 *Credenciales de acceso*
 
 Hola *${empleado.nombre}*,
 Tu PIN de acceso es: *${empleado.pin_seguridad}*
 
 Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/)`;
 
-    try {
-      const response = await fetch('/api/send-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          to: empleado.telefono, 
-          message: mensaje 
-        }),
-      });
-      const resultado = await response.json();
-      
-      if (resultado.success) {
-        mostrarNotificacion('Telegram enviado correctamente', 'exito');
-      } else {
-        mostrarNotificacion(`Error Telegram: ${resultado.error}`, 'error');
-      }
-    } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    } finally {
-      setEnviandoTelegram(null);
+  try {
+    const response = await fetch('/api/send-telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        chat_id: telegramUser.chat_id,  // ✅ Ahora TypeScript lo acepta
+        text: mensaje 
+      }),
+    });
+    
+    const resultado = await response.json();
+    
+    setEnviandoTelegram(null);
+    
+    if (resultado.ok) {
+      mostrarNotificacion('✅ Telegram enviado correctamente', 'exito');
+    } else {
+      mostrarNotificacion(`❌ Error Telegram: ${resultado.description || 'Error desconocido'}`, 'error');
     }
-  };
+  } catch (error: any) {
+    setEnviandoTelegram(null);
+    mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
+  }
+};
+
 
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
   const toggleActivo = async (empleado: any) => {
