@@ -1,98 +1,204 @@
 import { NextResponse } from 'next/server';
-import { RespondIO, RespondIOError } from '@respond-io/typescript-sdk';
+import { supabase } from '@/lib/supabaseClient';
 
-let respondClient: RespondIO | null = null;
+// GET: Para verificación de Meta
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const mode = url.searchParams.get('hub.mode');
+  const token = url.searchParams.get('hub.verify_token');
+  const challenge = url.searchParams.get('hub.challenge');
 
-const getRespondClient = () => {
-  if (!respondClient) {
-    const apiToken = process.env.RESPONDIO_API_TOKEN;
-    if (!apiToken) throw new Error('RESPONDIO_API_TOKEN no está configurado');
-    
-    respondClient = new RespondIO({
-      apiToken: apiToken,
-      baseUrl: 'https://api.respond.io/v2',
-      maxRetries: 3,
-      timeout: 30000,
-    });
+  // Verificar que el token coincida con tu variable de entorno
+  const verifyToken = process.env.META_VERIFY_TOKEN || 'verificacionWhatsApp2026';
+
+  if (mode === 'subscribe' && token === verifyToken) {
+    console.log('✅ Webhook verificado por Meta');
+    return new Response(challenge, { status: 200 });
   }
-  return respondClient;
-};
 
+  console.log('❌ Verificación falló - token incorrecto');
+  return new Response('Verification failed', { status: 403 });
+}
+
+// POST: Para recibir eventos de WhatsApp
 export async function POST(request: Request) {
   try {
-    const { to, nombre, pin, documento_id } = await request.json();
+    const body = await request.json();
     
-    if (!to || !nombre || !pin || !documento_id) {
-      return NextResponse.json(
-        { success: false, error: 'Teléfono, nombre, PIN y documento son requeridos' },
-        { status: 400 }
-      );
-    }
+    // Responder inmediatamente a Meta (timeout de 5 segundos)
+    // El procesamiento se hará en segundo plano
+    const response = NextResponse.json({ status: 'ok' }, { status: 200 });
 
-    const client = getRespondClient();
-    const telefonoLimpio = to.replace(/\s+/g, '');
-    
-    // ✅ El identificador DEBE tener el formato exacto que espera el SDK
-    // El tipo ContactIdentifier acepta: 'id:123' | 'email:user@example.com' | 'phone:+123456789'
-    const contactIdentifier = `phone:${telefonoLimpio}` as const;
-
-    const mensajeTexto = `Hola ${nombre}, 
-Tu DNI/NIE/Doc: ${documento_id}
-Tu PIN de acceso es: ${pin}
-Puedes ingresar en: https://almacen-final.vercel.app/`;
-
-    console.log('📤 Enviando mensaje a:', contactIdentifier);
-
-    // ✅ Usar 'as any' para evitar el error de TypeScript
-    // El SDK tiene tipos muy estrictos, pero en runtime funciona correctamente
-    const result = await (client.messaging.send as any)(contactIdentifier, {
-      message: {
-        type: 'text',
-        text: mensajeTexto,
-      },
+    // Procesar en segundo plano (no await)
+    processWebhook(body).catch(error => {
+      console.error('Error procesando webhook:', error);
     });
 
-    console.log('✅ Mensaje enviado:', result);
+    return response;
 
-    return NextResponse.json({
-      success: true,
-      message: 'WhatsApp enviado correctamente',
-      data: result
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error:', error);
-
-    if (error instanceof RespondIOError) {
-      // Si es contacto nuevo, necesitamos usar plantilla
-      if (error.statusCode === 404 && error.message?.includes('no interaction')) {
-        return NextResponse.json({
-          success: false,
-          error: 'CONTACTO_NUEVO',
-          message: 'Este contacto requiere plantilla de WhatsApp',
-          code: error.code
-        }, { status: 404 });
-      }
-
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-        code: error.code,
-        statusCode: error.statusCode
-      }, { status: error.statusCode || 500 });
-    }
-
-    return NextResponse.json(
-      { success: false, error: error.message || 'Error interno' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error en webhook POST:', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
-export async function GET() {
-  return NextResponse.json({
-    status: 'API de WhatsApp activa',
-    token_configured: !!process.env.RESPONDIO_API_TOKEN,
-    sdk_version: 'SDK de Respond.io'
-  });
+// Función para procesar el webhook en segundo plano
+async function processWebhook(payload: any) {
+  try {
+    const timestamp = new Date().toISOString();
+    console.log(`\n📥 Webhook recibido ${timestamp}`);
+
+    // Extraer datos del payload
+    const entry = payload.entry?.[0];
+    const wabaId = entry?.id;
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+    const field = changes?.field;
+
+    if (!value) {
+      console.log('⚠️ Webhook sin datos en value');
+      return;
+    }
+
+    const metadata = value.metadata || {};
+    const displayPhoneNumber = metadata.display_phone_number;
+    const phoneNumberId = metadata.phone_number_id;
+
+    console.log(`📞 Número: ${displayPhoneNumber} (ID: ${phoneNumberId})`);
+
+    // Procesar mensajes entrantes (de empleados)
+    if (value.messages) {
+      for (const msg of value.messages) {
+        await procesarMensajeEntrante(msg, {
+          displayPhoneNumber,
+          phoneNumberId,
+          wabaId,
+          from: value.contacts?.[0]?.wa_id
+        });
+      }
+    }
+
+    // Procesar estados de mensajes (sent, delivered, read)
+    if (value.statuses) {
+      for (const status of value.statuses) {
+        await procesarEstadoMensaje(status, {
+          displayPhoneNumber,
+          phoneNumberId,
+          wabaId
+        });
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Error en processWebhook:', error);
+  }
+}
+
+// Procesar mensaje entrante (cuando un empleado responde)
+async function procesarMensajeEntrante(msg: any, context: any) {
+  const messageId = msg.id;
+  const from = msg.from; // Número del empleado
+  const type = msg.type;
+  const timestamp = msg.timestamp ? new Date(parseInt(msg.timestamp) * 1000) : new Date();
+
+  console.log(`📨 Mensaje de ${from} (${type})`);
+
+  let messageBody = '';
+  let templateName = '';
+
+  if (type === 'text') {
+    messageBody = msg.text?.body || '';
+  } else if (type === 'template') {
+    templateName = msg.template?.name || '';
+  }
+
+  // Buscar a qué empleado pertenece este número
+  const { data: empleado } = await supabase
+    .from('empleados')
+    .select('id, provincia_id')
+    .eq('telefono', from)
+    .maybeSingle();
+
+  // Guardar en base de datos
+  const { error } = await supabase
+    .from('whatsapp_mensajes')
+    .insert({
+      message_id: messageId,
+      wa_id: from,
+      recipient_id: context.displayPhoneNumber,
+      display_phone_number: context.displayPhoneNumber,
+      message_type: type,
+      message_body: messageBody,
+      template_name: templateName,
+      status: 'received',
+      status_timestamp: timestamp.toISOString(),
+      empleado_id: empleado?.id || null,
+      provincia_id: empleado?.provincia_id || null,
+      raw_payload: msg
+    });
+
+  if (error) {
+    console.error('❌ Error guardando mensaje entrante:', error);
+  } else {
+    console.log(`✅ Mensaje ${messageId} guardado`);
+  }
+}
+
+// Procesar cambios de estado (sent, delivered, read)
+async function procesarEstadoMensaje(status: any, context: any) {
+  const messageId = status.id;
+  const statusType = status.status; // 'sent', 'delivered', 'read', 'failed'
+  const timestamp = status.timestamp ? new Date(parseInt(status.timestamp) * 1000) : new Date();
+  const recipientId = status.recipient_id;
+
+  console.log(`🔄 Estado de mensaje ${messageId}: ${statusType}`);
+
+  // Verificar si ya existe el mensaje
+  const { data: existente } = await supabase
+    .from('whatsapp_mensajes')
+    .select('id, status')
+    .eq('message_id', messageId)
+    .maybeSingle();
+
+  if (existente) {
+    // Actualizar estado
+    const { error } = await supabase
+      .from('whatsapp_mensajes')
+      .update({
+        status: statusType,
+        status_timestamp: timestamp.toISOString(),
+        pricing_category: status.pricing?.category,
+        billable: status.pricing?.billable || false,
+        raw_payload: status
+      })
+      .eq('message_id', messageId);
+
+    if (error) {
+      console.error('❌ Error actualizando estado:', error);
+    } else {
+      console.log(`✅ Estado actualizado: ${messageId} → ${statusType}`);
+    }
+
+  } else {
+    // Si no existe, crear registro parcial (puede pasar con mensajes antiguos)
+    const { error } = await supabase
+      .from('whatsapp_mensajes')
+      .insert({
+        message_id: messageId,
+        wa_id: recipientId,
+        recipient_id: context.displayPhoneNumber,
+        display_phone_number: context.displayPhoneNumber,
+        status: statusType,
+        status_timestamp: timestamp.toISOString(),
+        pricing_category: status.pricing?.category,
+        billable: status.pricing?.billable || false,
+        raw_payload: status
+      });
+
+    if (error) {
+      console.error('❌ Error creando registro parcial:', error);
+    } else {
+      console.log(`✅ Registro creado para estado: ${messageId}`);
+    }
+  }
 }
