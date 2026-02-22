@@ -102,10 +102,9 @@ const ModalConfirmacion = ({
 };
 
 // ------------------------------------------------------------
-// FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
+// FUNCIONES AUXILIARES
 // ------------------------------------------------------------
 
-// Función para formatear rol
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
   const rolLower = rol.toLowerCase();
@@ -118,7 +117,6 @@ const formatearRol = (rol: string): string => {
   }
 };
 
-// Función para obtener timestamp formateado para nombre de archivo
 const getTimestamp = () => {
   const ahora = new Date();
   const año = ahora.getFullYear();
@@ -131,10 +129,8 @@ const getTimestamp = () => {
 };
 
 // ------------------------------------------------------------
-// COMPONENTES VISUALES PROPIOS
+// MEMBRETE SUPERIOR
 // ------------------------------------------------------------
-
-// ----- MEMBRETE SUPERIOR -----
 const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any; onExportar: () => void; onRegresar: () => void }) => {
   const titulo = "GESTOR DE FLOTA";
   const palabras = titulo.split(' ');
@@ -772,10 +768,10 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => toggleActivo(perfil)}
-                          className={`w-3 h-3 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
-                          title={perfil.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
+                        {/* PUNTO VERDE - SOLO VISUAL (no clicable) */}
+                        <div 
+                          className={`w-3 h-3 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'}`}
+                          title={perfil.activo ? 'Activo' : 'Inactivo'}
                         />
                         <span className="font-bold text-sm uppercase text-white truncate" title={perfil.nombre_completo}>
                           {perfil.nombre_completo.length > 20 
@@ -807,7 +803,18 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      <BadgeEstado activo={perfil.activo} textoActivo="ACT" textoInactivo="INA" />
+                      {/* BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
+                      <button
+                        onClick={() => toggleActivo(perfil)}
+                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
+                          perfil.activo 
+                            ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' 
+                            : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
+                        }`}
+                        title={perfil.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
+                      >
+                        {perfil.activo ? 'ACTIVO' : 'INACTIVO'}
+                      </button>
                     </td>
                     <td className="p-3 text-center">
                       <button
