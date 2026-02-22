@@ -399,24 +399,24 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
   };
 
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
-const toggleActivo = async (perfil: FlotaPerfil) => {
-  try {
-    const { error } = await supabase
-      .from('flota_perfil')
-      .update({ activo: !perfil.activo } as never) // ✅ SOLUCIÓN: as never
-      .eq('id', perfil.id);
-    
-    if (error) throw error;
-    
-    mostrarNotificacion(
-      perfil.activo ? 'Perfil desactivado' : 'Perfil activado', 
-      'exito'
-    );
-    fetchPerfiles();
-  } catch (error: any) {
-    mostrarNotificacion(`Error: ${error.message}`, 'error');
-  }
-};
+  const toggleActivo = async (perfil: FlotaPerfil) => {
+    try {
+      const { error } = await supabase
+        .from('flota_perfil')
+        .update({ activo: !perfil.activo } as never)
+        .eq('id', perfil.id);
+      
+      if (error) throw error;
+      
+      mostrarNotificacion(
+        perfil.activo ? 'Perfil desactivado' : 'Perfil activado', 
+        'exito'
+      );
+      fetchPerfiles();
+    } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    }
+  };
 
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR)
@@ -753,18 +753,18 @@ const toggleActivo = async (perfil: FlotaPerfil) => {
         {/* TABLA - Con botones de WhatsApp y Telegram */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left" style={{ minWidth: '1200px' }}>
               <thead className="bg-[#0f172a] text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
-                  <th className="p-3">NOMBRE</th>
-                  <th className="p-3">DOCUMENTO</th>
-                  <th className="p-3">EMAIL / TEL</th>
-                  <th className="p-3">FLOTA</th>
-                  <th className="p-3 text-center">CHOF</th>
-                  <th className="p-3 text-center">RUT</th>
-                  <th className="p-3 text-center">PIN</th>
-                  <th className="p-3 text-center">EST</th>
-                  <th className="p-3 text-center" colSpan={4}>ACCIONES</th>
+                  <th className="p-3 w-[15%]">NOMBRE</th>
+                  <th className="p-3 w-[10%]">DOCUMENTO</th>
+                  <th className="p-3 w-[15%]">EMAIL / TEL</th>
+                  <th className="p-3 w-[10%]">FLOTA</th>
+                  <th className="p-3 text-center w-[6%]">CHOF</th>
+                  <th className="p-3 text-center w-[6%]">RUT</th>
+                  <th className="p-3 text-center w-[8%]">PIN</th>
+                  <th className="p-3 text-center w-[6%]">EST</th>
+                  <th className="p-3 text-center w-[24%]" colSpan={4}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -774,24 +774,30 @@ const toggleActivo = async (perfil: FlotaPerfil) => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => toggleActivo(perfil)}
-                          className={`w-2 h-2 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
+                          className={`w-3 h-3 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
                           title={perfil.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
                         />
-                        <span className="font-bold text-sm uppercase text-white">{perfil.nombre_completo}</span>
+                        <span className="font-bold text-sm uppercase text-white truncate" title={perfil.nombre_completo}>
+                          {perfil.nombre_completo.length > 20 
+                            ? perfil.nombre_completo.substring(0, 18) + '...' 
+                            : perfil.nombre_completo}
+                        </span>
                       </div>
                     </td>
-                    <td className="p-3 font-mono text-[11px]">{perfil.documento_id}</td>
+                    <td className="p-3 font-mono text-[11px] truncate">{perfil.documento_id}</td>
                     <td className="p-3">
                       <div className="text-[11px] font-mono">
-                        <span className="block text-slate-500 text-[9px]">{perfil.email}</span>
+                        <span className="block text-slate-500 text-[9px] truncate" title={perfil.email || ''}>
+                          {perfil.email || '-'}
+                        </span>
                         {perfil.telefono && (
-                          <span className="text-emerald-500 text-[9px] block">
+                          <span className="text-emerald-500 text-[9px] block truncate">
                             📱 {perfil.telefono}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="p-3 text-[11px]">{perfil.nombre_flota || '-'}</td>
+                    <td className="p-3 text-[11px] truncate">{perfil.nombre_flota || '-'}</td>
                     <td className="p-3 text-center font-black text-[11px]">{perfil.cant_choferes}</td>
                     <td className="p-3 text-center font-black text-[11px]">{perfil.cant_rutas}</td>
                     <td className="p-3 text-center">
@@ -806,7 +812,7 @@ const toggleActivo = async (perfil: FlotaPerfil) => {
                     <td className="p-3 text-center">
                       <button
                         onClick={() => editarPerfil(perfil)}
-                        className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
+                        className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all min-w-[60px]"
                       >
                         EDITAR
                       </button>
@@ -815,7 +821,7 @@ const toggleActivo = async (perfil: FlotaPerfil) => {
                       <button
                         onClick={() => handleReenviarCorreo(perfil)}
                         disabled={enviandoCorreo === perfil.id}
-                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto"
+                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px]"
                       >
                         {enviandoCorreo === perfil.id ? (
                           <span className="flex items-center gap-1">
@@ -835,7 +841,7 @@ const toggleActivo = async (perfil: FlotaPerfil) => {
                       <button
                         onClick={() => handleEnviarWhatsApp(perfil)}
                         disabled={enviandoWhatsApp === perfil.id || !perfil.telefono}
-                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
                           perfil.telefono 
                             ? 'border-green-500/20 hover:bg-green-600' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
@@ -850,7 +856,7 @@ const toggleActivo = async (perfil: FlotaPerfil) => {
                       <button
                         onClick={() => handleEnviarTelegram(perfil)}
                         disabled={enviandoTelegram === perfil.id || !perfil.telefono}
-                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
                           perfil.telefono 
                             ? 'border-blue-400/20 hover:bg-blue-500' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'

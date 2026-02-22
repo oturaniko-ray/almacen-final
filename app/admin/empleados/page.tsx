@@ -397,25 +397,24 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
   };
 
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
-  // --- FUNCIÓN: cambiar estado activo/inactivo ---
-const toggleActivo = async (empleado: any) => {
-  try {
-    const { error } = await supabase
-      .from('empleados')
-      .update({ activo: !empleado.activo } as never) // ✅ SOLUCIÓN: as never
-      .eq('id', empleado.id);
-    
-    if (error) throw error;
-    
-    mostrarNotificacion(
-      empleado.activo ? 'Empleado desactivado' : 'Empleado activado', 
-      'exito'
-    );
-    fetchEmpleados();
-  } catch (error: any) {
-    mostrarNotificacion(`Error: ${error.message}`, 'error');
-  }
-};
+  const toggleActivo = async (empleado: any) => {
+    try {
+      const { error } = await supabase
+        .from('empleados')
+        .update({ activo: !empleado.activo } as never)
+        .eq('id', empleado.id);
+      
+      if (error) throw error;
+      
+      mostrarNotificacion(
+        empleado.activo ? 'Empleado desactivado' : 'Empleado activado', 
+        'exito'
+      );
+      fetchEmpleados();
+    } catch (error: any) {
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
+    }
+  };
 
   // ------------------------------------------------------------
   // GUARDAR (CREAR O ACTUALIZAR)
@@ -761,17 +760,17 @@ const toggleActivo = async (empleado: any) => {
         {/* TABLA - Con botones de WhatsApp y Telegram */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left" style={{ minWidth: '1200px' }}>
               <thead className="bg-[#0f172a] text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
-                  <th className="p-3">EMPLEADO</th>
-                  <th className="p-3">DOCUMENTO / EMAIL / TEL</th>
-                  <th className="p-3 text-center">ROL</th>
-                  <th className="p-3 text-center">NIV</th>
-                  <th className="p-3 text-center">PIN</th>
-                  <th className="p-3 text-center">REP</th>
-                  <th className="p-3 text-center">ESTADO</th>
-                  <th className="p-3 text-center" colSpan={4}>ACCIONES</th>
+                  <th className="p-3 w-[15%]">EMPLEADO</th>
+                  <th className="p-3 w-[20%]">DOCUMENTO / EMAIL / TEL</th>
+                  <th className="p-3 text-center w-[8%]">ROL</th>
+                  <th className="p-3 text-center w-[6%]">NIV</th>
+                  <th className="p-3 text-center w-[8%]">PIN</th>
+                  <th className="p-3 text-center w-[6%]">REP</th>
+                  <th className="p-3 text-center w-[6%]">EST</th>
+                  <th className="p-3 text-center w-[31%]" colSpan={4}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -781,18 +780,20 @@ const toggleActivo = async (empleado: any) => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => toggleActivo(emp)}
-                          className={`w-2 h-2 rounded-full ${emp.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
+                          className={`w-3 h-3 rounded-full ${emp.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
                           title={emp.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
                         />
-                        <span className="font-bold text-sm uppercase text-white">{emp.nombre}</span>
+                        <span className="font-bold text-sm uppercase text-white truncate" title={emp.nombre}>
+                          {emp.nombre.length > 20 ? emp.nombre.substring(0, 18) + '...' : emp.nombre}
+                        </span>
                       </div>
                     </td>
                     <td className="p-3">
                       <div className="text-[11px] font-mono">
-                        <span className="block text-white">{emp.documento_id}</span>
-                        <span className="text-slate-500 text-[9px]">{emp.email}</span>
+                        <span className="block text-white truncate" title={emp.documento_id}>{emp.documento_id}</span>
+                        <span className="text-slate-500 text-[9px] truncate block" title={emp.email}>{emp.email}</span>
                         {emp.telefono && (
-                          <span className="text-emerald-500 text-[9px] block mt-1">
+                          <span className="text-emerald-500 text-[9px] block truncate">
                             📱 {emp.telefono}
                           </span>
                         )}
@@ -819,7 +820,7 @@ const toggleActivo = async (empleado: any) => {
                     <td className="p-3 text-center">
                       <button
                         onClick={() => editarEmpleado(emp)}
-                        className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
+                        className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all min-w-[60px]"
                       >
                         EDITAR
                       </button>
@@ -828,7 +829,7 @@ const toggleActivo = async (empleado: any) => {
                       <button
                         onClick={() => handleReenviarCorreo(emp)}
                         disabled={enviandoCorreo === emp.id}
-                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto"
+                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px]"
                       >
                         {enviandoCorreo === emp.id ? (
                           <span className="flex items-center gap-1">
@@ -848,7 +849,7 @@ const toggleActivo = async (empleado: any) => {
                       <button
                         onClick={() => handleEnviarWhatsApp(emp)}
                         disabled={enviandoWhatsApp === emp.id || !emp.telefono}
-                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
                           emp.telefono 
                             ? 'border-green-500/20 hover:bg-green-600' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
@@ -863,7 +864,7 @@ const toggleActivo = async (empleado: any) => {
                       <button
                         onClick={() => handleEnviarTelegram(emp)}
                         disabled={enviandoTelegram === emp.id || !emp.telefono}
-                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto ${
+                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
                           emp.telefono 
                             ? 'border-blue-400/20 hover:bg-blue-500' 
                             : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
