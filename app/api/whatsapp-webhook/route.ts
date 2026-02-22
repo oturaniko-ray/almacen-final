@@ -102,14 +102,19 @@ async function procesarMensajeEntrante(msg: any, context: any) {
     templateName = msg.template?.name || '';
   }
 
-  // Buscar empleado
+  // ✅ TIPAR EXPLÍCITAMENTE LA RESPUESTA DE SUPABASE
+  type EmpleadoResponse = {
+    id: string;
+    provincia_id: string | null;
+  };
+
   const { data: empleado } = await supabase
     .from('empleados')
     .select('id, provincia_id')
     .eq('telefono', from)
-    .maybeSingle();
+    .maybeSingle() as { data: EmpleadoResponse | null };
 
-  // ✅ SOLUCIÓN: usar 'as never' para evitar el error de TypeScript
+  // ✅ SOLUCIÓN: usar 'as never' para el insert
   const { error } = await supabase
     .from('whatsapp_mensajes')
     .insert([{
