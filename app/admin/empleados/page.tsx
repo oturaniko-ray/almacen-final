@@ -778,10 +778,10 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => toggleActivo(emp)}
-                          className={`w-3 h-3 rounded-full ${emp.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} transition-all cursor-pointer hover:scale-125`}
-                          title={emp.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
+                        {/* PUNTO VERDE - SOLO VISUAL (en_almacen) */}
+                        <div 
+                          className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`}
+                          title={emp.en_almacen ? 'En almacén' : 'Fuera del almacén'}
                         />
                         <span className="font-bold text-sm uppercase text-white truncate" title={emp.nombre}>
                           {emp.nombre.length > 20 ? emp.nombre.substring(0, 18) + '...' : emp.nombre}
@@ -815,7 +815,18 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                       </span>
                     </td>
                     <td className="p-3 text-center">
-                      <BadgeEstado activo={emp.activo} />
+                      {/* BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
+                      <button
+                        onClick={() => toggleActivo(emp)}
+                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
+                          emp.activo 
+                            ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' 
+                            : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
+                        }`}
+                        title={emp.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
+                      >
+                        {emp.activo ? 'ACTIVO' : 'INACTIVO'}
+                      </button>
                     </td>
                     <td className="p-3 text-center">
                       <button
