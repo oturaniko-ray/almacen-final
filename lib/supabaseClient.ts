@@ -1,16 +1,28 @@
+// lib/supabaseClient.ts
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Verificar si las variables existen (solo en runtime)
-if (!supabaseUrl) {
-  throw new Error('Falta NEXT_PUBLIC_SUPABASE_URL en variables de entorno');
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Faltan variables de entorno de Supabase');
 }
 
-if (!supabaseAnonKey) {
-  throw new Error('Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno');
-}
+// Prevenir múltiples instancias en desarrollo
+const globalForSupabase = global as typeof global & {
+  supabaseClient?: ReturnType<typeof createClient>;
+};
 
-// Crear el cliente de Supabase (solo una vez)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = 
+  globalForSupabase.supabaseClient ?? 
+  createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForSupabase.supabaseClient = supabase;
+}
