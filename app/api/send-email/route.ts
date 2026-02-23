@@ -5,6 +5,9 @@ import { BienvenidaFlota } from '@/emails/BienvenidaFlota';
 import { supabase } from '@/lib/supabaseClient';
 import { generarTokenUnico } from '@/lib/telegram/generate-link';
 
+// ✅ FORZAR MODO DINÁMICO - SOLUCIÓN AL ERROR DE BUILD
+export const dynamic = 'force-dynamic';
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
@@ -26,16 +29,13 @@ export async function POST(request: Request) {
 
     if (datos.email) {
       try {
-        // Generar token según el tipo
         const tipoPrefijo = tipo === 'empleado' ? 'emp' : 'flt';
         const token = generarTokenUnico(tipoPrefijo, datos.id);
         telegramToken = token;
         
-        // Construir link
         const botUsername = 'Notificaacceso_bot';
         telegramLink = `https://t.me/${botUsername}?start=${token}`;
         
-        // Guardar token en la base de datos (expira en 7 días)
         const expiracion = new Date();
         expiracion.setDate(expiracion.getDate() + 7);
         
@@ -60,7 +60,6 @@ export async function POST(request: Request) {
         console.log(`✅ Token Telegram generado para ${tipo}: ${token}`);
       } catch (error) {
         console.error('Error generando token Telegram:', error);
-        // No falla el envío si no se puede generar el token
       }
     }
 
@@ -103,7 +102,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Enviar el correo
     const { data, error } = await resend.emails.send({
       from: 'Sistema de Gestión <onboarding@resend.dev>',
       to: [to],
