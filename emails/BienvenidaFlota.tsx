@@ -17,8 +17,6 @@ interface BienvenidaFlotaProps {
   cant_rutas: number;
   pin_secreto: string;
   email: string;
-  telegramLink?: string;
-  telegramToken?: string;
 }
 
 export const BienvenidaFlota = ({
@@ -29,8 +27,6 @@ export const BienvenidaFlota = ({
   cant_rutas,
   pin_secreto,
   email,
-  telegramLink,
-  telegramToken,
 }: BienvenidaFlotaProps) => {
   const previewText = `Bienvenido al sistema de flota, ${nombre_completo}`;
   const fechaActual = new Date().toLocaleDateString('es-ES', { 
@@ -39,7 +35,6 @@ export const BienvenidaFlota = ({
     year: 'numeric' 
   });
   const appUrl = 'https://almacen-final.vercel.app/';
-  const telegramDownloadUrl = 'https://telegram.org/apps';
 
   return (
     <Html>
@@ -61,61 +56,6 @@ export const BienvenidaFlota = ({
             <Text style={welcomeDescription}>
               Tu perfil de flota ha sido registrado exitosamente. Cuando un supervisor registre tu ingreso, necesitarás tus credenciales.
             </Text>
-          </Section>
-
-          {/* ===================================================== */}
-          {/* SECCIÓN: Telegram - Canal de comunicación */}
-          {/* ===================================================== */}
-          <Section style={telegramSection}>
-            <Text style={telegramTitle}>📱 CANAL DE COMUNICACIÓN OFICIAL</Text>
-            <Text style={telegramText}>
-              Nuestro canal de comunicación es <strong>Telegram</strong>. 
-              {telegramLink ? (
-                <> Para vincular tu cuenta de flota, haz clic en el siguiente enlace:</>
-              ) : (
-                " Para comenzar, descarga la aplicación desde el siguiente enlace:"
-              )}
-            </Text>
-            
-            {telegramLink ? (
-              <a href={telegramLink} style={telegramButton}>
-                🔗 VINCULAR CON TELEGRAM
-              </a>
-            ) : (
-              <a href={telegramDownloadUrl} style={telegramDownloadButton}>
-                📲 DESCARGAR TELEGRAM
-              </a>
-            )}
-            
-            {telegramToken && (
-              <Text style={telegramTokenStyle}>
-                Token: <strong>{telegramToken}</strong>
-              </Text>
-            )}
-            
-            <Text style={telegramHint}>
-              * Una vez vinculado, recibirás notificaciones sobre tu flota.
-            </Text>
-
-            {/* Botón de confirmación de inicio */}
-            {telegramLink && (
-              <div style={startButtonContainer}>
-                <Text style={startButtonText}>¿Ya tienes Telegram y quieres confirmar la recepción?</Text>
-                <a href={`https://t.me/Notificaacceso_bot?start=confirmar_${telegramToken || 'recepcion'}`} style={startButton}>
-                  ✅ CONFIRMAR RECEPCIÓN DEL CORREO
-                </a>
-                <Text style={startButtonHint}>
-                  Al hacer clic en "INICIO" en el bot, confirmarás que has recibido esta información.
-                </Text>
-              </div>
-            )}
-
-            {/* Enlace de descarga alternativo */}
-            {!telegramLink && (
-              <Text style={telegramHint}>
-                Después de instalar Telegram, busca <strong>@Notificaacceso_bot</strong> y presiona INICIAR.
-              </Text>
-            )}
           </Section>
 
           {/* Link de acceso destacado */}
@@ -410,9 +350,7 @@ export const BienvenidaFlota = ({
 
 export default BienvenidaFlota;
 
-// =====================================================
-// ESTILOS COMPLETOS
-// =====================================================
+// Estilos actualizados
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -447,6 +385,7 @@ const headerSubtitle = {
   margin: '0',
 };
 
+// Nuevos estilos para bienvenida
 const welcomeSection = {
   backgroundColor: '#e6f7e6',
   padding: '20px',
@@ -468,6 +407,7 @@ const welcomeDescription = {
   margin: '0',
 };
 
+// Nuevos estilos para el link de acceso
 const linkSection = {
   backgroundColor: '#f0f9ff',
   padding: '20px',
@@ -507,120 +447,7 @@ const linkHint = {
   margin: '8px 0 0',
 };
 
-// =====================================================
-// ESTILOS DE TELEGRAM
-// =====================================================
-const telegramSection = {
-  backgroundColor: '#e8f5fe',
-  padding: '20px',
-  borderRadius: '12px',
-  marginBottom: '24px',
-  border: '2px solid #0088cc',
-};
-
-const telegramTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#0088cc',
-  margin: '0 0 12px',
-  textAlign: 'center' as const,
-};
-
-const telegramText = {
-  fontSize: '14px',
-  color: '#334155',
-  margin: '0 0 16px',
-  textAlign: 'left' as const,
-};
-
-const telegramButton = {
-  display: 'inline-block',
-  backgroundColor: '#0088cc',
-  color: '#ffffff',
-  padding: '14px 28px',
-  borderRadius: '30px',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  margin: '8px 0',
-  boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
-  textAlign: 'center' as const,
-};
-
-const telegramDownloadButton = {
-  display: 'inline-block',
-  backgroundColor: '#2AABEE',
-  color: '#ffffff',
-  padding: '14px 28px',
-  borderRadius: '30px',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  margin: '8px 0',
-  boxShadow: '0 4px 6px rgba(42, 171, 238, 0.3)',
-  textAlign: 'center' as const,
-};
-
-const telegramTokenStyle = {
-  fontSize: '12px',
-  color: '#4b5563',
-  backgroundColor: '#ffffff',
-  padding: '6px 12px',
-  borderRadius: '20px',
-  display: 'inline-block',
-  margin: '8px 0',
-  fontFamily: 'monospace',
-  border: '1px solid #0088cc',
-};
-
-const telegramHint = {
-  fontSize: '11px',
-  color: '#6b7280',
-  fontStyle: 'italic' as const,
-  margin: '12px 0 0',
-};
-
-const startButtonContainer = {
-  marginTop: '20px',
-  padding: '16px',
-  backgroundColor: '#ffffff',
-  borderRadius: '12px',
-  border: '1px solid #0088cc',
-};
-
-const startButtonText = {
-  fontSize: '14px',
-  color: '#334155',
-  margin: '0 0 12px',
-  textAlign: 'center' as const,
-  fontWeight: 'bold',
-};
-
-const startButton = {
-  display: 'inline-block',
-  backgroundColor: '#00b300',
-  color: '#ffffff',
-  padding: '12px 24px',
-  borderRadius: '30px',
-  fontSize: '14px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  margin: '8px 0',
-  boxShadow: '0 4px 6px rgba(0, 179, 0, 0.3)',
-  textAlign: 'center' as const,
-};
-
-const startButtonHint = {
-  fontSize: '11px',
-  color: '#6b7280',
-  fontStyle: 'italic' as const,
-  margin: '8px 0 0',
-  textAlign: 'center' as const,
-};
-
-// =====================================================
-// ESTILOS ADICIONALES
-// =====================================================
+// Nuevos estilos para instrucciones
 const instructionsSection = {
   marginBottom: '24px',
   backgroundColor: '#f8fafc',

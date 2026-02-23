@@ -1,44 +1,23 @@
+// app/api/telegram-webhook/route.ts
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
 
-// ✅ SOLUCIÓN: Forzar modo dinámico
-export const dynamic = 'force-dynamic';
-
+// Esta es la única función que importa para Telegram
 export async function POST(request: Request) {
+  console.log("🚀 WEBHOOK POST RECIBIDO EN VERCEL (versión mínima)");
+
+  // Opcional: Intenta leer el body para ver si llega algo, pero no es obligatorio para que funcione
   try {
     const body = await request.json();
-    
-    // Responder inmediatamente a Meta
-    const response = NextResponse.json({ status: 'ok' }, { status: 200 });
-
-    // Procesar en segundo plano
-    processWebhook(body).catch(error => {
-      console.error('Error procesando webhook:', error);
-    });
-
-    return response;
-
-  } catch (error) {
-    console.error('Error en webhook POST:', error);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    console.log("Body recibido:", JSON.stringify(body, null, 2));
+  } catch (e) {
+    console.log("No se pudo parsear el body, pero la solicitud POST llegó.");
   }
+
+  // La respuesta es simple y rápida. Telegram necesita un 200 OK.
+  return NextResponse.json({ ok: true, message: "Webhook funcionando" });
 }
 
-async function processWebhook(payload: any) {
-  try {
-    console.log('📥 Webhook recibido:', JSON.stringify(payload, null, 2));
-    
-    // Aquí va toda la lógica de procesamiento
-    // ...
-    
-  } catch (error) {
-    console.error('❌ Error en processWebhook:', error);
-  }
-}
-
+// Opcional: Añade GET solo para probar que el endpoint existe.
 export async function GET() {
-  return NextResponse.json({
-    status: 'API de WhatsApp activa',
-    token_configured: !!process.env.META_ACCESS_TOKEN
-  });
+  return NextResponse.json({ message: "✅ Endpoint de prueba GET activo" });
 }

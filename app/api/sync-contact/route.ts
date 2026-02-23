@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
-// ✅ FORZAR MODO DINÁMICO - EVITA ERRORES EN BUILD
-export const dynamic = 'force-dynamic';
-
 const RESPONDIO_API_TOKEN = process.env.RESPONDIO_API_TOKEN;
 const BASE_URL = 'https://api.respond.io/v2';
 
@@ -32,13 +29,25 @@ export async function POST(request: Request) {
     const firstName = nameParts[0] || 'Empleado';
     const lastName = nameParts.slice(1).join(' ') || '';
 
-    const contactPayload = {
+    // ✅ SOLO los campos que existen en Respond.io
+    const contactPayload: any = {
       firstName: firstName,
       lastName: lastName,
       phone: telefonoLimpio,
       email: email || `${firstName}.${lastName}@ejemplo.com`,
       language: 'es',
+      // 👇 ELIMINADO: countryCode no existe en tu workspace
     };
+
+    // ✅ Agregar documento_id SOLO si existe
+    if (documento_id) {
+      contactPayload.custom_fields = [
+        {
+          name: 'documento_id',
+          value: documento_id
+        }
+      ];
+    }
 
     console.log('📤 Sincronizando contacto:', { identifier, payload: contactPayload });
 
