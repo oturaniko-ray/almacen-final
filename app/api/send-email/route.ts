@@ -5,7 +5,7 @@ import { BienvenidaFlota } from '@/emails/BienvenidaFlota';
 import { supabase } from '@/lib/supabaseClient';
 import { generarTokenUnico } from '@/lib/telegram/generate-link';
 
-// ✅ FORZAR MODO DINÁMICO - SOLUCIÓN AL ERROR DE BUILD
+// ✅ FORZAR MODO DINÁMICO - EVITA ERRORES EN BUILD
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
