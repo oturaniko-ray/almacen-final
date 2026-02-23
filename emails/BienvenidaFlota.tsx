@@ -17,6 +17,8 @@ interface BienvenidaFlotaProps {
   cant_rutas: number;
   pin_secreto: string;
   email: string;
+  telegramLink?: string;
+  telegramToken?: string;
 }
 
 export const BienvenidaFlota = ({
@@ -27,6 +29,8 @@ export const BienvenidaFlota = ({
   cant_rutas,
   pin_secreto,
   email,
+  telegramLink,
+  telegramToken,
 }: BienvenidaFlotaProps) => {
   const previewText = `Bienvenido al sistema de flota, ${nombre_completo}`;
   const fechaActual = new Date().toLocaleDateString('es-ES', { 
@@ -94,6 +98,27 @@ export const BienvenidaFlota = ({
               ⚠️ <strong>IMPORTANTE:</strong> Este PIN es personal e intransferible. No lo compartas con nadie.
             </Text>
           </Section>
+
+          {/* SECCIÓN: Telegram (solo si hay link) */}
+          {telegramLink && (
+            <Section style={telegramSection}>
+              <Text style={telegramTitle}>📱 RECIBE NOTIFICACIONES POR TELEGRAM</Text>
+              <Text style={telegramText}>
+                Haz clic en el siguiente enlace para vincular tu cuenta de Telegram y recibir notificaciones sobre tu flota directamente en tu teléfono:
+              </Text>
+              <a href={telegramLink} style={telegramButton}>
+                🔗 Vincular con Telegram
+              </a>
+              {telegramToken && (
+                <Text style={telegramToken}>
+                  Token: <strong>{telegramToken}</strong>
+                </Text>
+              )}
+              <Text style={telegramHint}>
+                * Este enlace expirará en 7 días. Una vez vinculado, recibirás actualizaciones automáticas.
+              </Text>
+            </Section>
+          )}
 
           {/* Instrucciones para flota */}
           <Section style={instructionsSection}>
@@ -350,7 +375,9 @@ export const BienvenidaFlota = ({
 
 export default BienvenidaFlota;
 
-// Estilos actualizados
+// =====================================================
+// ESTILOS
+// =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -385,7 +412,6 @@ const headerSubtitle = {
   margin: '0',
 };
 
-// Nuevos estilos para bienvenida
 const welcomeSection = {
   backgroundColor: '#e6f7e6',
   padding: '20px',
@@ -407,7 +433,6 @@ const welcomeDescription = {
   margin: '0',
 };
 
-// Nuevos estilos para el link de acceso
 const linkSection = {
   backgroundColor: '#f0f9ff',
   padding: '20px',
@@ -447,7 +472,60 @@ const linkHint = {
   margin: '8px 0 0',
 };
 
-// Nuevos estilos para instrucciones
+const telegramSection = {
+  backgroundColor: '#e8f5fe',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  border: '2px solid #0088cc',
+  textAlign: 'center' as const,
+};
+
+const telegramTitle = {
+  fontSize: '18px',
+  fontWeight: 'bold',
+  color: '#0088cc',
+  margin: '0 0 12px',
+};
+
+const telegramText = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0 0 16px',
+  textAlign: 'left' as const,
+};
+
+const telegramButton = {
+  display: 'inline-block',
+  backgroundColor: '#0088cc',
+  color: '#ffffff',
+  padding: '14px 28px',
+  borderRadius: '30px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  margin: '8px 0',
+  boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
+};
+
+const telegramToken = {
+  fontSize: '12px',
+  color: '#4b5563',
+  backgroundColor: '#f1f5f9',
+  padding: '6px 12px',
+  borderRadius: '20px',
+  display: 'inline-block',
+  margin: '8px 0',
+  fontFamily: 'monospace',
+};
+
+const telegramHint = {
+  fontSize: '11px',
+  color: '#6b7280',
+  fontStyle: 'italic' as const,
+  margin: '12px 0 0',
+};
+
 const instructionsSection = {
   marginBottom: '24px',
   backgroundColor: '#f8fafc',
