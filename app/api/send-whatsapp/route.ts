@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 
+// ✅ FORZAR MODO DINÁMICO
+export const dynamic = 'force-dynamic';
+
+// ... resto del código ...
 const META_API_VERSION = 'v22.0';
 const META_GRAPH_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
