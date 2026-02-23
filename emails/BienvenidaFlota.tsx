@@ -110,10 +110,10 @@ export const BienvenidaFlota = ({
                 🔗 Vincular con Telegram
               </a>
               {telegramToken && (
-                <Text style={telegramToken}>
-                  Token: <strong>{telegramToken}</strong>
-                </Text>
-              )}
+  <Text style={telegramTokenStyle}>  {/* ← Cambiado aquí */}
+    Token: <strong>{telegramToken}</strong>
+  </Text>
+)}
               <Text style={telegramHint}>
                 * Este enlace expirará en 7 días. Una vez vinculado, recibirás actualizaciones automáticas.
               </Text>
@@ -378,6 +378,18 @@ export default BienvenidaFlota;
 // =====================================================
 // ESTILOS
 // =====================================================
+
+const telegramTokenStyle = {  // ← Cambiado aquí
+  fontSize: '12px',
+  color: '#4b5563',
+  backgroundColor: '#f1f5f9',
+  padding: '6px 12px',
+  borderRadius: '20px',
+  display: 'inline-block',
+  margin: '8px 0',
+  fontFamily: 'monospace',
+};
+
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',

@@ -40,17 +40,17 @@ export async function POST(request: Request) {
         expiracion.setDate(expiracion.getDate() + 7);
         
         if (tipo === 'empleado') {
-          await supabase
+          await (supabase as any)
             .from('empleados')
-            .update({ 
+            .update({
               telegram_token: token,
               telegram_token_expira: expiracion.toISOString()
             })
             .eq('id', datos.id);
         } else {
-          await supabase
+          await (supabase as any)
             .from('flota_perfil')
-            .update({ 
+            .update({
               telegram_token: token,
               telegram_token_expira: expiracion.toISOString()
             })

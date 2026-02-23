@@ -113,7 +113,7 @@ export const BienvenidaEmpleado = ({
                 🔗 Vincular con Telegram
               </a>
               {telegramToken && (
-                <Text style={telegramToken}>
+                <Text style={telegramTokenStyle}>  {/* ← Cambiado aquí */}
                   Token: <strong>{telegramToken}</strong>
                 </Text>
               )}
@@ -329,7 +329,8 @@ const telegramButton = {
   boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
 };
 
-const telegramToken = {
+// ⚠️ NOMBRE CAMBIADO para evitar conflicto con la prop telegramToken
+const telegramTokenStyle = {
   fontSize: '12px',
   color: '#4b5563',
   backgroundColor: '#f1f5f9',
