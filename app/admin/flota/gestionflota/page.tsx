@@ -355,15 +355,32 @@ Más información en: https://almacen-final.vercel.app/`;
   };
 
   // --- FUNCIÓN: enviar Telegram ---
-  const handleEnviarTelegram = async (perfil: FlotaPerfil) => {
-    if (!perfil.telefono) {
-      mostrarNotificacion('El perfil no tiene teléfono registrado', 'advertencia');
-      return;
-    }
+// --- FUNCIÓN: enviar Telegram para FLOTA (CORREGIDA) ---
+const handleEnviarTelegram = async (perfil: FlotaPerfil) => {
+  if (!perfil.telefono) {
+    mostrarNotificacion('El perfil no tiene teléfono registrado', 'advertencia');
+    return;
+  }
 
-    setEnviandoTelegram(perfil.id);
-    
-    const mensaje = `🚛 *Perfil de Flota Registrado*
+  // ✅ Buscar chat_id usando flota_id (campo nuevo)
+  const { data: telegramUser } = await (supabase as any)
+    .from('telegram_usuarios')
+    .select('chat_id')
+    .eq('flota_id', perfil.id)
+    .maybeSingle();
+
+  if (!telegramUser) {
+    mostrarNotificacion(
+      '❌ El perfil no ha iniciado conversación con @Notificaacceso_bot\n\n' +
+      'Debe enviar un mensaje con su número de teléfono para vincularse.',
+      'error'
+    );
+    return;
+  }
+
+  setEnviandoTelegram(perfil.id);
+  
+  const mensaje = `🚛 *Perfil de Flota Registrado*
 
 Hola *${perfil.nombre_completo}*,
 Tu PIN de acceso es: *${perfil.pin_secreto}*
@@ -371,28 +388,30 @@ Tu PIN de acceso es: *${perfil.pin_secreto}*
 Cuando llegues al almacén, un supervisor registrará tu ingreso.
 Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)`;
 
-    try {
-      const response = await fetch('/api/send-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          to: perfil.telefono, 
-          message: mensaje 
-        }),
-      });
-      const resultado = await response.json();
-      
-      if (resultado.success) {
-        mostrarNotificacion('Telegram enviado correctamente', 'exito');
-      } else {
-        mostrarNotificacion(`Error Telegram: ${resultado.error}`, 'error');
-      }
-    } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    } finally {
-      setEnviandoTelegram(null);
+  try {
+    const response = await fetch('/api/send-telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        chat_id: telegramUser.chat_id,
+        text: mensaje 
+      }),
+    });
+    
+    const resultado = await response.json();
+    
+    setEnviandoTelegram(null);
+    
+    if (resultado.ok) {
+      mostrarNotificacion('✅ Telegram enviado correctamente', 'exito');
+    } else {
+      mostrarNotificacion(`❌ Error Telegram: ${resultado.error}`, 'error');
     }
-  };
+  } catch (error: any) {
+    setEnviandoTelegram(null);
+    mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
+  }
+};
 
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
   const toggleActivo = async (perfil: FlotaPerfil) => {

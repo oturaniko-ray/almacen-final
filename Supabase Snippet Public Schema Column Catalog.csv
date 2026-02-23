@@ -1,0 +1,101 @@
+table_name,column_name,data_type,is_nullable,column_default
+access_logs,id,uuid,NO,uuid_generate_v4()
+access_logs,employee_id,uuid,YES,null
+access_logs,supervisor_id,uuid,YES,null
+access_logs,event_type,text,YES,null
+access_logs,timestamp,timestamp with time zone,YES,now()
+access_logs,gps_lat,double precision,YES,null
+access_logs,gps_lng,double precision,YES,null
+access_logs,is_offline_sync,boolean,YES,false
+auditoria_flota,id,uuid,NO,uuid_generate_v4()
+auditoria_flota,perfil_id,uuid,NO,null
+auditoria_flota,acceso_id,uuid,NO,null
+auditoria_flota,fecha_proceso,date,YES,CURRENT_DATE
+auditoria_flota,horas_en_patio,numeric,YES,null
+auditoria_flota,horas_exceso,numeric,YES,null
+auditoria_flota,carga_real,integer,YES,null
+auditoria_flota,carga_esperada,integer,YES,null
+auditoria_flota,eficiencia_score,numeric,YES,null
+auditoria_flota,created_at,timestamp with time zone,YES,now()
+auditoria_flota,provincia_id,uuid,YES,null
+configuracion_horarios,id,uuid,NO,gen_random_uuid()
+configuracion_horarios,empleado_id,uuid,YES,null
+configuracion_horarios,hora_entrada_esperada,time without time zone,YES,null
+configuracion_horarios,hora_salida_esperada,time without time zone,YES,null
+configuracion_horarios,dias_laborales,ARRAY,YES,null
+configuracion_horarios,activo,boolean,YES,true
+configuracion_horarios,created_at,timestamp with time zone,YES,now()
+correlativo,id,uuid,NO,uuid_generate_v4()
+correlativo,correlativo_personal,integer,NO,0
+correlativo,correlativo_flota,integer,NO,0
+correlativo,updated_at,timestamp with time zone,YES,now()
+empleados,id,uuid,NO,uuid_generate_v4()
+empleados,nombre,text,NO,null
+empleados,documento_id,text,NO,null
+empleados,rol,text,YES,null
+empleados,fecha_registro,timestamp with time zone,YES,now()
+empleados,activo,boolean,NO,true
+empleados,pin_seguridad,text,YES,null
+empleados,email,text,YES,null
+empleados,created_at,timestamp with time zone,YES,now()
+empleados,session_id,text,YES,null
+empleados,session_token,text,YES,null
+empleados,en_almacen,boolean,YES,false
+empleados,ultimo_ingreso,timestamp with time zone,YES,null
+empleados,ultima_salida,timestamp with time zone,YES,null
+empleados,permiso_reportes,boolean,YES,false
+empleados,nivel_acceso,numeric,YES,'1'::numeric
+empleados,pin_generado_en,timestamp with time zone,YES,null
+empleados,telefono,text,YES,null
+empleados,respondio_contact_id,text,YES,null
+empleados,respondio_sincronizado,boolean,YES,false
+empleados,respondio_ultima_sincronizacion,timestamp without time zone,YES,null
+empleados,provincia_id,uuid,YES,null
+flota_accesos,id,uuid,NO,uuid_generate_v4()
+flota_accesos,perfil_id,uuid,NO,null
+flota_accesos,nombre_completo,text,NO,null
+flota_accesos,documento_id,text,NO,null
+flota_accesos,cant_choferes,integer,NO,null
+flota_accesos,hora_llegada,timestamp with time zone,YES,null
+flota_accesos,hora_salida,timestamp with time zone,YES,null
+flota_accesos,cant_rutas,integer,YES,null
+flota_accesos,cant_carga,integer,YES,null
+flota_accesos,observacion,text,YES,null
+flota_accesos,estado,text,YES,'en_patio'::text
+flota_accesos,autorizado_por,text,YES,null
+flota_accesos,created_at,timestamp with time zone,YES,now()
+flota_carga,id,uuid,NO,uuid_generate_v4()
+flota_carga,nombre_completo,text,NO,null
+flota_carga,documento_id,text,NO,null
+flota_carga,cant_choferes,integer,YES,1
+flota_carga,hora_llegada,timestamp with time zone,YES,now()
+flota_carga,hora_salida,timestamp with time zone,YES,null
+flota_carga,cant_rutas,integer,YES,0
+flota_carga,cant_carga,integer,YES,0
+flota_carga,observacion,text,YES,null
+flota_carga,estado,text,YES,'en_patio'::text
+flota_carga,autorizado_por,text,YES,null
+flota_carga,provincia_id,uuid,YES,null
+flota_perfil,id,uuid,NO,uuid_generate_v4()
+flota_perfil,nombre_completo,text,NO,null
+flota_perfil,documento_id,text,NO,null
+flota_perfil,pin_secreto,text,NO,null
+flota_perfil,nombre_flota,text,YES,null
+flota_perfil,cant_choferes,integer,YES,1
+flota_perfil,cant_rutas,integer,YES,0
+flota_perfil,fecha_creacion,timestamp with time zone,YES,now()
+flota_perfil,activo,boolean,YES,true
+flota_perfil,pin_generado_en,timestamp with time zone,YES,null
+flota_perfil,email,text,YES,null
+flota_perfil,telefono,text,YES,null
+flota_perfil,provincia_id,uuid,YES,null
+flota_perfil_old,id,uuid,NO,uuid_generate_v4()
+flota_perfil_old,nombre_completo,text,YES,null
+flota_perfil_old,fecha_creacion,timestamp with time zone,YES,now()
+flota_perfil_old,pin_secreto,text,YES,null
+flota_perfil_old,nombre_flota,text,YES,null
+flota_perfil_old,cant_choferes,numeric,YES,null
+flota_perfil_old,cant_rutas,numeric,YES,null
+flota_perfil_old,documento_id,text,YES,null
+geofences,id,integer,NO,nextval('geofences_id_seq'::regclass)
+geofences,name,text,YES,null
