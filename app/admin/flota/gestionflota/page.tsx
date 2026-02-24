@@ -26,6 +26,7 @@ interface FlotaPerfil {
   cant_rutas: number;
   pin_secreto: string;
   activo: boolean;
+  en_patio: boolean;  // ✅ NUEVO: indica si está físicamente en el almacén
   fecha_creacion: string;
 }
 
@@ -290,6 +291,7 @@ export default function GestionFlota() {
         body: JSON.stringify({
           tipo: 'flota',
           datos: {
+            id: perfil.id,
             nombre_completo: perfil.nombre_completo,
             documento_id: perfil.documento_id,
             email: perfil.email,
@@ -458,6 +460,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           cant_rutas: nuevo.cant_rutas,
           pin_secreto: pinGenerado,
           activo: true,
+          en_patio: false,  // ✅ Por defecto, no está en el patio
           fecha_creacion: new Date().toISOString(),
         }];
 
@@ -542,12 +545,13 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
       Rutas: p.cant_rutas,
       PIN: p.pin_secreto,
       Activo: p.activo ? 'SÍ' : 'NO',
+      'En Patio': p.en_patio ? 'SÍ' : 'NO',  // ✅ Nuevo campo en Excel
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
       { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
-      { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
+      { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
 
@@ -759,6 +763,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   <th className="p-3 text-center w-[6%]">CHOF</th>
                   <th className="p-3 text-center w-[6%]">RUT</th>
                   <th className="p-3 text-center w-[8%]">PIN</th>
+                  <th className="p-3 text-center w-[6%]">EN PATIO</th>
                   <th className="p-3 text-center w-[6%]">EST</th>
                   <th className="p-3 text-center w-[24%]" colSpan={4}>ACCIONES</th>
                 </tr>
@@ -768,10 +773,10 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* PUNTO VERDE - SOLO VISUAL (no clicable) */}
+                        {/* ✅ PUNTO VERDE - AHORA REFLEJA en_patio (presencia física) */}
                         <div 
-                          className={`w-3 h-3 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'}`}
-                          title={perfil.activo ? 'Activo' : 'Inactivo'}
+                          className={`w-3 h-3 rounded-full ${perfil.en_patio ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`}
+                          title={perfil.en_patio ? 'En el patio' : 'Fuera del patio'}
                         />
                         <span className="font-bold text-sm uppercase text-white truncate" title={perfil.nombre_completo}>
                           {perfil.nombre_completo.length > 20 
@@ -803,7 +808,15 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      {/* BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
+                      {/* ✅ INDICADOR DE EN PATIO (solo visual) */}
+                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${
+                        perfil.en_patio ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'
+                      }`}>
+                        {perfil.en_patio ? 'SÍ' : 'NO'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      {/* ✅ BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
                       <button
                         onClick={() => toggleActivo(perfil)}
                         className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
