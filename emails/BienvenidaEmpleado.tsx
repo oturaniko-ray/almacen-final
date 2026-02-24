@@ -16,6 +16,8 @@ interface BienvenidaEmpleadoProps {
   rol: string;
   nivel_acceso: number;
   pin_seguridad: string;
+  telegramLink?: string;
+  telegramToken?: string;
 }
 
 export const BienvenidaEmpleado = ({
@@ -25,9 +27,12 @@ export const BienvenidaEmpleado = ({
   rol,
   nivel_acceso,
   pin_seguridad,
+  telegramLink,
+  telegramToken,
 }: BienvenidaEmpleadoProps) => {
   const previewText = `Bienvenido al sistema, ${nombre}`;
   const appUrl = 'https://almacen-final.vercel.app/';
+  const telegramDownloadUrl = 'https://telegram.org/apps';
 
   return (
     <Html>
@@ -41,7 +46,7 @@ export const BienvenidaEmpleado = ({
             <Text style={headerSubtitle}>Sistema de Control de Personal</Text>
           </Section>
 
-          {/* Mensaje de bienvenida con link */}
+          {/* Mensaje de bienvenida */}
           <Section style={welcomeSection}>
             <Text style={welcomeText}>
               🎉 ¡Bienvenido a bordo, <strong>{nombre}</strong>!
@@ -49,6 +54,60 @@ export const BienvenidaEmpleado = ({
             <Text style={welcomeDescription}>
               Tu cuenta ha sido creada exitosamente en nuestro sistema. A continuación encontrarás tus credenciales de acceso.
             </Text>
+          </Section>
+
+          {/* ===================================================== */}
+          {/* SECCIÓN: Telegram - Canal de comunicación */}
+          {/* ===================================================== */}
+          <Section style={telegramSection}>
+            <Text style={telegramTitle}>📱 CANAL DE COMUNICACIÓN OFICIAL</Text>
+            <Text style={telegramText}>
+              Utilizamos <strong>Telegram</strong> para enviarte notificaciones importantes y confirmar la recepción de este correo.
+            </Text>
+
+            {telegramLink ? (
+              <>
+                <Text style={telegramText}>
+                  Haz clic en el siguiente enlace para vincular tu cuenta de Telegram:
+                </Text>
+                <a href={telegramLink} style={telegramButton}>
+                  🔗 VINCULAR CON TELEGRAM
+                </a>
+                {telegramToken && (
+                  <Text style={telegramTokenStyle}>
+                    Token: <strong>{telegramToken}</strong>
+                  </Text>
+                )}
+                <Text style={telegramHint}>
+                  * Una vez vinculado, recibirás tus credenciales automáticamente.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={telegramText}>
+                  Para recibir notificaciones por Telegram, descarga la aplicación desde el siguiente enlace:
+                </Text>
+                <a href={telegramDownloadUrl} style={telegramDownloadButton}>
+                  📲 DESCARGAR TELEGRAM
+                </a>
+                <Text style={telegramHint}>
+                  Después de instalar, busca <strong>@Notificaacceso_bot</strong> y presiona INICIAR.
+                </Text>
+              </>
+            )}
+
+            {/* Botón de confirmación de inicio (solo si hay link) */}
+            {telegramLink && (
+              <div style={startButtonContainer}>
+                <Text style={startButtonText}>¿Ya tienes Telegram y quieres confirmar la recepción?</Text>
+                <a href={`https://t.me/Notificaacceso_bot?start=confirmar_${telegramToken || 'recepcion'}`} style={startButton}>
+                  ✅ CONFIRMAR RECEPCIÓN
+                </a>
+                <Text style={startButtonHint}>
+                  Al presionar "INICIAR" en el bot, confirmarás que has recibido esta información.
+                </Text>
+              </div>
+            )}
           </Section>
 
           {/* Link de acceso destacado */}
@@ -98,57 +157,6 @@ export const BienvenidaEmpleado = ({
             </Text>
           </Section>
 
-          {/* Instrucciones de acceso */}
-          <Section style={instructionsSection}>
-            <Text style={instructionsTitle}>📱 CÓMO ACCEDER</Text>
-            <div style={instructionsBox}>
-              <div style={instructionItem}>
-                <span style={instructionNumber}>1</span>
-                <span style={instructionText}>Visita: <strong style={instructionHighlight}>{appUrl}</strong></span>
-              </div>
-              <div style={instructionItem}>
-                <span style={instructionNumber}>2</span>
-                <span style={instructionText}>Selecciona <strong>"ACCESO PERSONAL"</strong></span>
-              </div>
-              <div style={instructionItem}>
-                <span style={instructionNumber}>3</span>
-                <span style={instructionText}>Ingresa tu <strong>Documento</strong> o <strong>Correo</strong></span>
-              </div>
-              <div style={instructionItem}>
-                <span style={instructionNumber}>4</span>
-                <span style={instructionText}>Usa el <strong>PIN</strong> proporcionado arriba</span>
-              </div>
-            </div>
-          </Section>
-
-          {/* Reglas y procedimientos */}
-          <Section style={rulesSection}>
-            <Text style={rulesTitle}>📌 NORMAS Y PROCEDIMIENTOS OBLIGATORIOS</Text>
-            <Text style={rulesText}>
-              Como parte de nuestra política de control de acceso, es fundamental que todos los empleados registren su entrada y salida en el sistema. A continuación, las pautas que debes seguir:
-            </Text>
-            <ul style={rulesList}>
-              <li style={listItem}>
-                <strong>Registro de entrada:</strong> Debes escanear tu código QR en el lector ubicado en la entrada principal cada vez que ingreses a las instalaciones. El sistema validará tu ubicación GPS y te permitirá acceder solo si te encuentras dentro del rango permitido.
-              </li>
-              <li style={listItem}>
-                <strong>Registro de salida:</strong> Al finalizar tu jornada, deberás escanear nuevamente tu QR para registrar tu salida. Esto es obligatorio para llevar un control preciso de horas trabajadas y para fines de seguridad.
-              </li>
-              <li style={listItem}>
-                <strong>Obligatoriedad:</strong> El incumplimiento del registro de entrada o salida será considerado como falta grave y podrá ser sancionado según el reglamento interno.
-              </li>
-              <li style={listItem}>
-                <strong>Confidencialidad:</strong> Tu código QR y PIN son personales. No los compartas ni permitas que otra persona los utilice. Cualquier uso indebido será responsabilidad del titular.
-              </li>
-              <li style={listItem}>
-                <strong>Actualización de datos:</strong> Si cambias de teléfono o tienes problemas con el GPS, notifica de inmediato a tu supervisor para que se tomen las medidas necesarias.
-              </li>
-            </ul>
-            <Text style={rulesFooter}>
-              Al hacer uso de este sistema, aceptas cumplir con estas normas y entiendes que tu presencia queda registrada para efectos administrativos y de seguridad.
-            </Text>
-          </Section>
-
           <Hr style={hr} />
 
           {/* Pie de página */}
@@ -159,9 +167,6 @@ export const BienvenidaEmpleado = ({
             <Text style={footerText}>
               © 2026 Gestor de Acceso. Todos los derechos reservados.
             </Text>
-            <Text style={footerSmall}>
-              Documento generado el {new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}.
-            </Text>
           </Section>
         </Container>
       </Body>
@@ -171,7 +176,9 @@ export const BienvenidaEmpleado = ({
 
 export default BienvenidaEmpleado;
 
-// Estilos actualizados
+// =====================================================
+// ESTILOS (AÑADIDOS LOS NUEVOS PARA TELEGRAM)
+// =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -206,7 +213,6 @@ const headerSubtitle = {
   margin: '0',
 };
 
-// Nuevos estilos para la sección de bienvenida
 const welcomeSection = {
   backgroundColor: '#e6f0ff',
   padding: '20px',
@@ -228,7 +234,115 @@ const welcomeDescription = {
   margin: '0',
 };
 
-// Nuevos estilos para el link de acceso
+// Estilos de Telegram
+const telegramSection = {
+  backgroundColor: '#e8f5fe',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  border: '2px solid #0088cc',
+};
+
+const telegramTitle = {
+  fontSize: '18px',
+  fontWeight: 'bold',
+  color: '#0088cc',
+  margin: '0 0 12px',
+  textAlign: 'center' as const,
+};
+
+const telegramText = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0 0 16px',
+  textAlign: 'left' as const,
+};
+
+const telegramButton = {
+  display: 'inline-block',
+  backgroundColor: '#0088cc',
+  color: '#ffffff',
+  padding: '14px 28px',
+  borderRadius: '30px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  margin: '8px 0',
+  boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
+  textAlign: 'center' as const,
+};
+
+const telegramDownloadButton = {
+  display: 'inline-block',
+  backgroundColor: '#2AABEE',
+  color: '#ffffff',
+  padding: '14px 28px',
+  borderRadius: '30px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  margin: '8px 0',
+  boxShadow: '0 4px 6px rgba(42, 171, 238, 0.3)',
+  textAlign: 'center' as const,
+};
+
+const telegramTokenStyle = {
+  fontSize: '12px',
+  color: '#4b5563',
+  backgroundColor: '#ffffff',
+  padding: '6px 12px',
+  borderRadius: '20px',
+  display: 'inline-block',
+  margin: '8px 0',
+  fontFamily: 'monospace',
+  border: '1px solid #0088cc',
+};
+
+const telegramHint = {
+  fontSize: '11px',
+  color: '#6b7280',
+  fontStyle: 'italic' as const,
+  margin: '12px 0 0',
+};
+
+const startButtonContainer = {
+  marginTop: '20px',
+  padding: '16px',
+  backgroundColor: '#ffffff',
+  borderRadius: '12px',
+  border: '1px solid #0088cc',
+};
+
+const startButtonText = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0 0 12px',
+  textAlign: 'center' as const,
+  fontWeight: 'bold',
+};
+
+const startButton = {
+  display: 'inline-block',
+  backgroundColor: '#00b300',
+  color: '#ffffff',
+  padding: '12px 24px',
+  borderRadius: '30px',
+  fontSize: '14px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  margin: '8px 0',
+  boxShadow: '0 4px 6px rgba(0, 179, 0, 0.3)',
+  textAlign: 'center' as const,
+};
+
+const startButtonHint = {
+  fontSize: '11px',
+  color: '#6b7280',
+  fontStyle: 'italic' as const,
+  margin: '8px 0 0',
+  textAlign: 'center' as const,
+};
+
 const linkSection = {
   backgroundColor: '#f0f9ff',
   padding: '20px',
@@ -266,58 +380,6 @@ const linkHint = {
   color: '#4b5563',
   fontStyle: 'italic' as const,
   margin: '8px 0 0',
-};
-
-// Nuevos estilos para instrucciones paso a paso
-const instructionsSection = {
-  marginBottom: '24px',
-  backgroundColor: '#f8fafc',
-  padding: '16px',
-  borderRadius: '8px',
-  border: '1px solid #e2e8f0',
-};
-
-const instructionsTitle = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  color: '#0f172a',
-  margin: '0 0 16px',
-  textAlign: 'center' as const,
-};
-
-const instructionsBox = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: '12px',
-};
-
-const instructionItem = {
-  display: 'flex',
-  alignItems: 'center' as const,
-  gap: '12px',
-};
-
-const instructionNumber = {
-  width: '28px',
-  height: '28px',
-  backgroundColor: '#2563eb',
-  color: 'white',
-  borderRadius: '50%',
-  display: 'flex',
-  alignItems: 'center' as const,
-  justifyContent: 'center' as const,
-  fontWeight: 'bold',
-  fontSize: '14px',
-};
-
-const instructionText = {
-  fontSize: '14px',
-  color: '#334155',
-};
-
-const instructionHighlight = {
-  color: '#2563eb',
-  fontWeight: 'bold',
 };
 
 const dataSection = {
@@ -383,51 +445,6 @@ const pinWarning = {
   color: '#cbd5e1',
   fontStyle: 'italic' as const,
   margin: '0',
-};
-
-const rulesSection = {
-  marginBottom: '24px',
-};
-
-const rulesTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#0f172a',
-  margin: '0 0 12px',
-  borderBottom: '2px solid #e2e8f0',
-  paddingBottom: '6px',
-};
-
-const rulesText = {
-  fontSize: '14px',
-  lineHeight: '1.6',
-  color: '#334155',
-  margin: '0 0 16px',
-};
-
-const rulesList = {
-  listStyleType: 'none',
-  padding: '0',
-  margin: '0 0 16px',
-};
-
-const listItem = {
-  fontSize: '14px',
-  lineHeight: '1.6',
-  color: '#334155',
-  marginBottom: '12px',
-  paddingLeft: '20px',
-  position: 'relative' as const,
-};
-
-const rulesFooter = {
-  fontSize: '14px',
-  fontStyle: 'italic' as const,
-  color: '#475569',
-  margin: '16px 0 0',
-  padding: '12px',
-  backgroundColor: '#f1f5f9',
-  borderRadius: '4px',
 };
 
 const hr = {
