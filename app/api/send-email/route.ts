@@ -13,6 +13,9 @@ export async function POST(request: Request) {
   try {
     const { tipo, datos, to } = await request.json();
 
+    // LOG 1: Verificar qué datos llegan
+    console.log('🔍 [DEBUG] Datos recibidos:', { tipo, datos, to });
+
     if (!tipo || !datos || !to) {
       return NextResponse.json(
         { success: false, error: 'Faltan datos requeridos' },
@@ -26,10 +29,17 @@ export async function POST(request: Request) {
     let telegramLink: string | undefined;
     let telegramToken: string | undefined;
 
+    // LOG 2: Verificar si hay email
+    console.log('🔍 [DEBUG] Email disponible:', datos.email ? 'SÍ' : 'NO');
+
     if (datos.email) {
       try {
         const tipoPrefijo = tipo === 'empleado' ? 'emp' : 'flt';
+        console.log('🔍 [DEBUG] Tipo prefijo:', tipoPrefijo);
+        
         const token = generarTokenUnico(tipoPrefijo, datos.id);
+        console.log('🔍 [DEBUG] Token generado:', token);
+        
         telegramToken = token;
         
         const botUsername = 'Notificaacceso_bot';
@@ -39,48 +49,54 @@ export async function POST(request: Request) {
         expiracion.setDate(expiracion.getDate() + 7);
         
         console.log(`📝 Intentando guardar token para ${tipo} ID: ${datos.id}`);
-        console.log(`📝 Token: ${token}`);
-        console.log(`📝 Expira: ${expiracion.toISOString()}`);
         
-        // Guardar en la tabla correspondiente
         if (tipo === 'empleado') {
-          const { error } = await supabase
+          const { error, data } = await supabase
             .from('empleados')
             .update({
               telegram_token: token,
               telegram_token_expira: expiracion.toISOString()
             } as never)
-            .eq('id', datos.id);
+            .eq('id', datos.id)
+            .select();
           
           if (error) {
             console.error('❌ Error guardando token en empleados:', error);
           } else {
-            console.log(`✅ Token guardado para empleado ${datos.id}`);
+            console.log(`✅ Token guardado en empleados:`, data);
           }
         } else {
-          const { error } = await supabase
+          // LOG 3: Verificar antes de guardar en flota
+          console.log('🔍 [FLOTA] Intentando guardar en flota_perfil con ID:', datos.id);
+          
+          const { error, data } = await supabase
             .from('flota_perfil')
             .update({
               telegram_token: token,
               telegram_token_expira: expiracion.toISOString()
             } as never)
-            .eq('id', datos.id);
+            .eq('id', datos.id)
+            .select();
           
           if (error) {
             console.error('❌ Error guardando token en flota:', error);
           } else {
-            console.log(`✅ Token guardado para flota ${datos.id}`);
+            console.log(`✅ Token guardado en flota:`, data);
           }
         }
       } catch (error) {
-        console.error('❌ Error generando token Telegram:', error);
+        console.error('❌ Error en bloque de generación de token:', error);
       }
     } else {
       console.log('⚠️ No se generó token: email no disponible');
     }
 
+    // LOG 4: Verificar qué se va a pasar a la plantilla
+    console.log('🔍 [DEBUG] telegramLink:', telegramLink);
+    console.log('🔍 [DEBUG] telegramToken:', telegramToken);
+
     // =====================================================
-    // ENVIAR CORREO
+    // ENVIAR CORREO SEGÚN EL TIPO
     // =====================================================
     let emailContent;
     let subject;
