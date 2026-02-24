@@ -647,6 +647,18 @@ export default function SupervisorPage() {
         .eq('id', (accesoActivo as any).id);
 
       if (updErr) throw updErr;
+      
+      // ✅ ACTUALIZAR en_patio = false en flota_perfil (SALIDA)
+      const { error: updateErr } = await supabase
+        .from('flota_perfil')
+        .update({ en_patio: false } as never)
+        .eq('id', registro.id);
+        
+      if (updateErr) {
+        console.error('Error actualizando en_patio:', updateErr);
+      } else {
+        console.log(`✅ flota_perfil ${registro.id} marcado como en_patio=false`);
+      }
 
       mostrarNotificacion('SALIDA DE FLOTA REGISTRADA ✅', 'exito');
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
@@ -1007,6 +1019,7 @@ export default function SupervisorPage() {
 
       } else {
         if (direccion === 'entrada') {
+          // ✅ ENTRADA DE FLOTA - Insertar acceso y actualizar en_patio = true
           const { error: insErr } = await (supabase as any)
             .from('flota_accesos')
             .insert([{
@@ -1020,6 +1033,19 @@ export default function SupervisorPage() {
             }]);
             
           if (insErr) throw insErr;
+          
+          // ✅ ACTUALIZAR en_patio = true en flota_perfil
+          const { error: updateErr } = await supabase
+            .from('flota_perfil')
+            .update({ en_patio: true } as never)
+            .eq('id', registro.id);
+            
+          if (updateErr) {
+            console.error('Error actualizando en_patio:', updateErr);
+          } else {
+            console.log(`✅ flota_perfil ${registro.id} marcado como en_patio=true`);
+          }
+          
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
           const inputElement = modo === 'usb' ? usbInputRef.current : null;

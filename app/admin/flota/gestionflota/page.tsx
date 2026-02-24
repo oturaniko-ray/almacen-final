@@ -26,7 +26,7 @@ interface FlotaPerfil {
   cant_rutas: number;
   pin_secreto: string;
   activo: boolean;
-  en_patio: boolean;  // ✅ NUEVO: indica si está físicamente en el almacén
+  en_patio: boolean;  // ✅ Indica si está físicamente en el almacén
   fecha_creacion: string;
 }
 
@@ -773,7 +773,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* ✅ PUNTO VERDE - AHORA REFLEJA en_patio (presencia física) */}
+                        {/* ✅ PUNTO VERDE - INDICA en_patio (presencia física) */}
                         <div 
                           className={`w-3 h-3 rounded-full ${perfil.en_patio ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`}
                           title={perfil.en_patio ? 'En el patio' : 'Fuera del patio'}
