@@ -460,7 +460,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           cant_rutas: nuevo.cant_rutas,
           pin_secreto: pinGenerado,
           activo: true,
-          en_patio: false,  // ✅ Por defecto, no está en el patio
+          en_patio: false,
           fecha_creacion: new Date().toISOString(),
         }];
 
@@ -545,7 +545,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
       Rutas: p.cant_rutas,
       PIN: p.pin_secreto,
       Activo: p.activo ? 'SÍ' : 'NO',
-      'En Patio': p.en_patio ? 'SÍ' : 'NO',  // ✅ Nuevo campo en Excel
+      'En Patio': p.en_patio ? 'SÍ' : 'NO',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -607,7 +607,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
   return (
     <main className="min-h-screen bg-black p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
           tipo={notificacion.tipo}
@@ -616,14 +615,12 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
         />
 
-        {/* HEADER */}
         <MemebreteSuperior
           usuario={user}
           onExportar={exportarExcel}
           onRegresar={handleRegresar}
         />
 
-        {/* FORMULARIO - Grid 9 columnas */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
             <div className="grid grid-cols-9 gap-2">
@@ -740,7 +737,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           </form>
         </div>
 
-        {/* BUSCADOR */}
         <div className="mb-3">
           <Buscador
             placeholder="BUSCAR PERFIL..."
@@ -750,7 +746,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           />
         </div>
 
-        {/* TABLA - Con botones de WhatsApp y Telegram */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: '1200px' }}>
@@ -808,7 +803,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      {/* ✅ INDICADOR DE EN PATIO (solo visual) */}
                       <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${
                         perfil.en_patio ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'
                       }`}>
@@ -816,7 +810,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       </span>
                     </td>
                     <td className="p-3 text-center">
-                      {/* ✅ BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
                       <button
                         onClick={() => toggleActivo(perfil)}
                         className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
@@ -900,7 +893,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
         </div>
       </div>
 
-      {/* Modal de Confirmación para envío de correo */}
       <ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
         onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })}
