@@ -98,23 +98,6 @@ export const BienvenidaEmpleado = ({
             </Text>
           </Section>
 
-          {/* Vinculación de Telegram */}
-          <Section style={telegramSection}>
-            <Text style={telegramTitle}>📲 RECIBE NOTIFICACIONES POR TELEGRAM</Text>
-            <Text style={telegramDescription}>
-              Vincula tu cuenta para recibir alertas de turnos, días libres y mensajes importantes directamente en tu celular.
-            </Text>
-            <a href={`https://t.me/Notificaacceso_bot?start=vincular_${documento_id}`} style={telegramButton}>
-              VINCULAR MI TELEGRAM AHORA
-            </a>
-            <Text style={telegramHint}>
-              (Al hacer clic se abrirá la aplicación de Telegram en tu dispositivo)
-            </Text>
-            <Text style={telegramDownloadHint}>
-              ¿No tienes Telegram? <a href="https://telegram.org/" style={telegramLink}>Descárgalo gratis aquí</a>.
-            </Text>
-          </Section>
-
           {/* Instrucciones de acceso */}
           <Section style={instructionsSection}>
             <Text style={instructionsTitle}>📱 CÓMO ACCEDER</Text>
@@ -400,59 +383,6 @@ const pinWarning = {
   color: '#cbd5e1',
   fontStyle: 'italic' as const,
   margin: '0',
-};
-
-// Nuevos estilos para Telegram
-const telegramSection = {
-  backgroundColor: '#f3f8ff',
-  borderRadius: '8px',
-  padding: '20px',
-  textAlign: 'center' as const,
-  marginBottom: '24px',
-  border: '1px solid #cce0ff',
-};
-
-const telegramTitle = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  color: '#0088cc',
-  margin: '0 0 8px',
-};
-
-const telegramDescription = {
-  fontSize: '14px',
-  color: '#334155',
-  margin: '0 0 16px',
-};
-
-const telegramButton = {
-  display: 'inline-block',
-  backgroundColor: '#0088cc',
-  color: '#ffffff',
-  padding: '12px 20px',
-  borderRadius: '6px',
-  fontSize: '14px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  marginBottom: '12px',
-};
-
-const telegramHint = {
-  fontSize: '12px',
-  color: '#64748b',
-  fontStyle: 'italic' as const,
-  margin: '0 0 8px',
-};
-
-const telegramDownloadHint = {
-  fontSize: '12px',
-  color: '#475569',
-  margin: '0',
-};
-
-const telegramLink = {
-  color: '#0088cc',
-  textDecoration: 'underline',
 };
 
 const rulesSection = {

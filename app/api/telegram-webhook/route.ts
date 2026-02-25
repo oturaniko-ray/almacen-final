@@ -38,12 +38,7 @@ async function procesarMensaje(message: any) {
 
   if (texto.startsWith('/start') || texto.startsWith('/vincular')) {
     const partes = texto.split(' ');
-    let documentoId = partes[1];
-
-    // Soporte para Deep Linking: /start vincular_12345678
-    if (documentoId && documentoId.startsWith('vincular_')) {
-      documentoId = documentoId.replace('vincular_', '');
-    }
+    const documentoId = partes[1];
 
     if (!documentoId) {
       await enviarMensajeTelegram(
@@ -74,20 +69,18 @@ async function procesarMensaje(message: any) {
 
     if (existente) {
       // Actualizar empleado
-      const { error: updErr } = await (supabase as any)
+      await supabase
         .from('telegram_usuarios')
         .update({ empleado_id: empleado.id })
         .eq('chat_id', String(chatId));
-      if (updErr) console.error("Error actualizando Telegram:", updErr);
     } else {
       // Insertar nuevo
-      const { error: insErr } = await (supabase as any)
+      await supabase
         .from('telegram_usuarios')
         .insert([{ chat_id: String(chatId), empleado_id: empleado.id }]);
-      if (insErr) console.error("Error insertando Telegram:", insErr);
     }
 
-    await enviarMensajeTelegram(chatId, `✅ *Cuenta vinculada exitosamente.*\n¡Hola ${(empleado as any).nombre}! Ahora recibirás tus notificaciones por aquí.`);
+    await enviarMensajeTelegram(chatId, `✅ *Cuenta vinculada exitosamente.*\n¡Hola ${empleado.nombre}! Ahora recibirás tus notificaciones por aquí.`);
     return;
   }
 
