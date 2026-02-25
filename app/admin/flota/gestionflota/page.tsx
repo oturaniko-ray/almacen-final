@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
-import { getAuthHeaders } from '@/lib/apiClient';
 import {
   CampoEntrada,
   SelectOpcion,
@@ -27,6 +26,7 @@ interface FlotaPerfil {
   cant_rutas: number;
   pin_secreto: string;
   activo: boolean;
+  en_patio: boolean;  // ✅ Indica si está físicamente en el almacén
   fecha_creacion: string;
 }
 
@@ -69,7 +69,7 @@ const ModalConfirmacion = ({
             ✕
           </button>
         </div>
-
+        
         <div className="bg-[#0f172a] p-5 rounded-2xl border border-white/10 mb-4">
           <p className="text-white text-base leading-relaxed">{mensaje}</p>
           {email && (
@@ -79,7 +79,7 @@ const ModalConfirmacion = ({
             </div>
           )}
         </div>
-
+        
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -287,10 +287,11 @@ export default function GestionFlota() {
     try {
       const response = await fetch('/api/send-email', {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipo: 'flota',
           datos: {
+            id: perfil.id,
             nombre_completo: perfil.nombre_completo,
             documento_id: perfil.documento_id,
             email: perfil.email,
@@ -326,7 +327,7 @@ export default function GestionFlota() {
     }
 
     setEnviandoWhatsApp(perfil.id);
-
+    
     const mensaje = `Hola ${perfil.nombre_completo}, tu perfil de flota ha sido registrado.
 Tu PIN de acceso es: ${perfil.pin_secreto}.
 Cuando llegues al almacén, un supervisor registrará tu ingreso.
@@ -335,14 +336,14 @@ Más información en: https://almacen-final.vercel.app/`;
     try {
       const response = await fetch('/api/send-whatsapp', {
         method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          to: perfil.telefono,
-          message: mensaje
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          to: perfil.telefono, 
+          message: mensaje 
         }),
       });
       const resultado = await response.json();
-
+      
       if (resultado.success) {
         mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
       } else {
@@ -363,7 +364,7 @@ Más información en: https://almacen-final.vercel.app/`;
     }
 
     setEnviandoTelegram(perfil.id);
-
+    
     const mensaje = `🚛 *Perfil de Flota Registrado*
 
 Hola *${perfil.nombre_completo}*,
@@ -375,14 +376,14 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
     try {
       const response = await fetch('/api/send-telegram', {
         method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          to: perfil.telefono,
-          message: mensaje
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          to: perfil.telefono, 
+          message: mensaje 
         }),
       });
       const resultado = await response.json();
-
+      
       if (resultado.success) {
         mostrarNotificacion('Telegram enviado correctamente', 'exito');
       } else {
@@ -400,13 +401,13 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
     try {
       const { error } = await supabase
         .from('flota_perfil')
-        .update({ activo: !perfil.activo })
+        .update({ activo: !perfil.activo } as never)
         .eq('id', perfil.id);
-
+      
       if (error) throw error;
-
+      
       mostrarNotificacion(
-        perfil.activo ? 'Perfil desactivado' : 'Perfil activado',
+        perfil.activo ? 'Perfil desactivado' : 'Perfil activado', 
         'exito'
       );
       fetchPerfiles();
@@ -439,7 +440,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
 
         const { error } = await supabase
           .from('flota_perfil')
-          .update(updateData)
+          .update(updateData as never)
           .eq('id', editando.id);
 
         if (error) throw error;
@@ -459,12 +460,13 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           cant_rutas: nuevo.cant_rutas,
           pin_secreto: pinGenerado,
           activo: true,
+          en_patio: false,
           fecha_creacion: new Date().toISOString(),
         }];
 
         const { data: nuevoPerfil, error } = await supabase
           .from('flota_perfil')
-          .insert(insertData)
+          .insert(insertData as never)
           .select()
           .single();
 
@@ -543,12 +545,13 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
       Rutas: p.cant_rutas,
       PIN: p.pin_secreto,
       Activo: p.activo ? 'SÍ' : 'NO',
+      'En Patio': p.en_patio ? 'SÍ' : 'NO',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
       { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
-      { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
+      { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
 
@@ -604,7 +607,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
   return (
     <main className="min-h-screen bg-black p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
           tipo={notificacion.tipo}
@@ -613,18 +615,16 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
         />
 
-        {/* HEADER */}
         <MemebreteSuperior
           usuario={user}
           onExportar={exportarExcel}
           onRegresar={handleRegresar}
         />
 
-        {/* FORMULARIO - Grid 9 columnas */}
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
             <div className="grid grid-cols-9 gap-2">
-
+              
               {/* Col 1: NOMBRE */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -636,7 +636,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   autoFocus
                 />
               </div>
-
+              
               {/* Col 2: DOCUMENTO */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -648,7 +648,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   mayusculas
                 />
               </div>
-
+              
               {/* Col 3: EMAIL */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -659,7 +659,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, email: e.target.value })}
                 />
               </div>
-
+              
               {/* Col 4: TELÉFONO */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -669,7 +669,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, telefono: e.target.value })}
                 />
               </div>
-
+              
               {/* Col 5: FLOTA */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -679,7 +679,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
                 />
               </div>
-
+              
               {/* Col 6: CHOFERES */}
               <div className="col-span-1">
                 <div className="flex flex-col">
@@ -696,7 +696,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   />
                 </div>
               </div>
-
+              
               {/* Col 7: RUTAS */}
               <div className="col-span-1">
                 <div className="flex flex-col">
@@ -713,31 +713,30 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   />
                 </div>
               </div>
-
+              
               {/* Col 8: PIN (solo edición) */}
               {editando && (
                 <div className="col-span-1">
                   <CampoEntrada
                     label="PIN"
                     valor={editando.pin_secreto || ''}
-                    onChange={() => { }}
+                    onChange={() => {}}
                     disabled
                     mayusculas
                     className="border-blue-500/30"
                   />
                 </div>
               )}
-
+              
               {/* Col 9: BOTONES */}
               <div className="col-span-1 flex items-end gap-1 justify-end">
                 <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
-                <BotonIcono icono="✅" onClick={() => { }} color="bg-emerald-600" type="submit" disabled={loading} />
+                <BotonIcono icono="✅" onClick={() => {}} color="bg-emerald-600" type="submit" disabled={loading} />
               </div>
             </div>
           </form>
         </div>
 
-        {/* BUSCADOR */}
         <div className="mb-3">
           <Buscador
             placeholder="BUSCAR PERFIL..."
@@ -747,7 +746,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           />
         </div>
 
-        {/* TABLA - Con botones de WhatsApp y Telegram */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: '1200px' }}>
@@ -760,6 +758,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   <th className="p-3 text-center w-[6%]">CHOF</th>
                   <th className="p-3 text-center w-[6%]">RUT</th>
                   <th className="p-3 text-center w-[8%]">PIN</th>
+                  <th className="p-3 text-center w-[6%]">EN PATIO</th>
                   <th className="p-3 text-center w-[6%]">EST</th>
                   <th className="p-3 text-center w-[24%]" colSpan={4}>ACCIONES</th>
                 </tr>
@@ -769,14 +768,14 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* PUNTO VERDE - SOLO VISUAL (no clicable) */}
-                        <div
-                          className={`w-3 h-3 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'}`}
-                          title={perfil.activo ? 'Activo' : 'Inactivo'}
+                        {/* ✅ PUNTO VERDE - INDICA en_patio (presencia física) */}
+                        <div 
+                          className={`w-3 h-3 rounded-full ${perfil.en_patio ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`}
+                          title={perfil.en_patio ? 'En el patio' : 'Fuera del patio'}
                         />
                         <span className="font-bold text-sm uppercase text-white truncate" title={perfil.nombre_completo}>
-                          {perfil.nombre_completo.length > 20
-                            ? perfil.nombre_completo.substring(0, 18) + '...'
+                          {perfil.nombre_completo.length > 20 
+                            ? perfil.nombre_completo.substring(0, 18) + '...' 
                             : perfil.nombre_completo}
                         </span>
                       </div>
@@ -804,13 +803,20 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      {/* BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
+                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${
+                        perfil.en_patio ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'
+                      }`}>
+                        {perfil.en_patio ? 'SÍ' : 'NO'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
                       <button
                         onClick={() => toggleActivo(perfil)}
-                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${perfil.activo
-                          ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
-                          : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
-                          }`}
+                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
+                          perfil.activo 
+                            ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' 
+                            : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
+                        }`}
                         title={perfil.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
                       >
                         {perfil.activo ? 'ACTIVO' : 'INACTIVO'}
@@ -848,10 +854,11 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       <button
                         onClick={() => handleEnviarWhatsApp(perfil)}
                         disabled={enviandoWhatsApp === perfil.id || !perfil.telefono}
-                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${perfil.telefono
-                          ? 'border-green-500/20 hover:bg-green-600'
-                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                          }`}
+                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
+                          perfil.telefono 
+                            ? 'border-green-500/20 hover:bg-green-600' 
+                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                        }`}
                         title="WhatsApp"
                       >
                         <span className="text-[12px]">📱</span>
@@ -862,10 +869,11 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       <button
                         onClick={() => handleEnviarTelegram(perfil)}
                         disabled={enviandoTelegram === perfil.id || !perfil.telefono}
-                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${perfil.telefono
-                          ? 'border-blue-400/20 hover:bg-blue-500'
-                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                          }`}
+                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
+                          perfil.telefono 
+                            ? 'border-blue-400/20 hover:bg-blue-500' 
+                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                        }`}
                         title="Telegram"
                       >
                         <span className="text-[12px]">✈️</span>
@@ -885,7 +893,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
         </div>
       </div>
 
-      {/* Modal de Confirmación para envío de correo */}
       <ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
         onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })}

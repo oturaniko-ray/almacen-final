@@ -29,10 +29,10 @@ export const BienvenidaFlota = ({
   email,
 }: BienvenidaFlotaProps) => {
   const previewText = `Bienvenido al sistema de flota, ${nombre_completo}`;
-  const fechaActual = new Date().toLocaleDateString('es-ES', { 
-    day: '2-digit', 
-    month: '2-digit', 
-    year: 'numeric' 
+  const fechaActual = new Date().toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
   });
   const appUrl = 'https://almacen-final.vercel.app/';
 
@@ -95,6 +95,23 @@ export const BienvenidaFlota = ({
             </Text>
           </Section>
 
+          {/* Vinculación de Telegram */}
+          <Section style={telegramSection}>
+            <Text style={telegramTitle}>📲 RECIBE NOTIFICACIONES POR TELEGRAM</Text>
+            <Text style={telegramDescription}>
+              Vincula tu cuenta para recibir alertas, avisos de carga e información importante directamente en tu celular.
+            </Text>
+            <a href={`https://t.me/Notificaacceso_bot?start=vincular_${documento_id}`} style={telegramButton}>
+              VINCULAR MI TELEGRAM AHORA
+            </a>
+            <Text style={telegramHint}>
+              (Al hacer clic se abrirá la aplicación de Telegram en tu dispositivo)
+            </Text>
+            <Text style={telegramDownloadHint}>
+              ¿No tienes Telegram? <a href="https://telegram.org/" style={telegramLink}>Descárgalo gratis aquí</a>.
+            </Text>
+          </Section>
+
           {/* Instrucciones para flota */}
           <Section style={instructionsSection}>
             <Text style={instructionsTitle}>📱 ¿CÓMO FUNCIONA?</Text>
@@ -121,7 +138,7 @@ export const BienvenidaFlota = ({
           {/* SEGURIDAD EN LAS INSTALACIONES */}
           <Section style={section}>
             <Text style={sectionTitle}>🏭 SEGURIDAD EN LAS INSTALACIONES</Text>
-            
+
             <Text style={subsectionTitle}>⚠️ RIESGOS DENTRO DEL ALMACÉN</Text>
             <table style={riskTable}>
               <tr>
@@ -169,22 +186,22 @@ export const BienvenidaFlota = ({
           {/* APARCAMIENTO EN BAHÍAS */}
           <Section style={section}>
             <Text style={sectionTitle}>🅿️ APARCAMIENTO EN BAHÍAS DE CARGA</Text>
-            
+
             <div style={procedureBox}>
               <Text style={procedureStep}><strong>1. ACERCAMIENTO</strong></Text>
               <Text style={procedureDetail}>└── Velocidad máxima: 5 km/h</Text>
               <Text style={procedureDetail}>└── Señalizar con direccionales</Text>
-              
+
               <Text style={procedureStep}><strong>2. POSICIONAMIENTO</strong></Text>
               <Text style={procedureDetail}>└── Alinear el vehículo con las marcas del piso</Text>
               <Text style={procedureDetail}>└── Distancia máxima al andén: 15 cm</Text>
               <Text style={procedureDetail}>└── Activar freno de mano</Text>
-              
+
               <Text style={procedureStep}><strong>3. DESCARGA/CARGA</strong></Text>
               <Text style={procedureDetail}>└── Calzar ruedas si es necesario</Text>
               <Text style={procedureDetail}>└── Apagar motor completamente</Text>
               <Text style={procedureDetail}>└── Usar balizas</Text>
-              
+
               <Text style={procedureStep}><strong>4. RETIRADA</strong></Text>
               <Text style={procedureDetail}>└── Verificar espejos laterales</Text>
               <Text style={procedureDetail}>└── Ceder paso a peatones</Text>
@@ -195,7 +212,7 @@ export const BienvenidaFlota = ({
           {/* MANEJO DE LA CARGA */}
           <Section style={section}>
             <Text style={sectionTitle}>📦 MANEJO DE LA CARGA</Text>
-            
+
             <table style={cargoTable}>
               <tr>
                 <th style={tableHeader}>Acción</th>
@@ -236,7 +253,7 @@ export const BienvenidaFlota = ({
           {/* ORDEN Y LIMPIEZA */}
           <Section style={section}>
             <Text style={sectionTitle}>🧹 ORDEN Y LIMPIEZA</Text>
-            
+
             <div style={doDontContainer}>
               <div style={doBox}>
                 <Text style={doDontTitle}>✅ ANTES DE SALIR</Text>
@@ -318,7 +335,7 @@ export const BienvenidaFlota = ({
             <Text style={quote}>
               "Un almacén seguro y ordenado es responsabilidad de todos. Tu compromiso con las normas protege tu vida, la de tus compañeros y la integridad de la carga."
             </Text>
-            
+
             <Text style={signatureTitle}>📝 FIRMA DE ENTERADO</Text>
             <Text style={text}>Por favor, confirma la recepción de este correo y tu compromiso con las normas respondiendo a este mensaje con:</Text>
             <div style={signatureBox}>
@@ -547,6 +564,59 @@ const warning = {
   borderRadius: '4px',
   margin: '12px 0 0',
   border: '1px solid #fecaca',
+};
+
+// Nuevos estilos para Telegram
+const telegramSection = {
+  backgroundColor: '#f3f8ff',
+  borderRadius: '8px',
+  padding: '20px',
+  textAlign: 'center' as const,
+  marginBottom: '24px',
+  border: '1px solid #cce0ff',
+};
+
+const telegramTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#0088cc',
+  margin: '0 0 8px',
+};
+
+const telegramDescription = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0 0 16px',
+};
+
+const telegramButton = {
+  display: 'inline-block',
+  backgroundColor: '#0088cc',
+  color: '#ffffff',
+  padding: '12px 20px',
+  borderRadius: '6px',
+  fontSize: '14px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '12px',
+};
+
+const telegramHint = {
+  fontSize: '12px',
+  color: '#64748b',
+  fontStyle: 'italic' as const,
+  margin: '0 0 8px',
+};
+
+const telegramDownloadHint = {
+  fontSize: '12px',
+  color: '#475569',
+  margin: '0',
+};
+
+const telegramLink = {
+  color: '#0088cc',
+  textDecoration: 'underline',
 };
 
 const section = {
