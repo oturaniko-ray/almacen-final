@@ -258,7 +258,7 @@ export default function SupervisorPage() {
     setUser(JSON.parse(sessionData));
 
     const loadConfig = async () => {
-      const { data } = await supabase.from('sistema_config').select('clave, valor');
+      const { data } = await (supabase as any).from('sistema_config').select('clave, valor');
       if (data) {
         const m = (data as any[]).reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
         const parsedLat = parseFloat(String(m.almacen_lat).replace(/[^\d.-]/g, ''));
@@ -625,7 +625,7 @@ export default function SupervisorPage() {
     const { registro, autorizador } = registroPendiente;
 
     try {
-      const { data: accesoActivo } = await supabase
+      const { data: accesoActivo } = await (supabase as any)
         .from('flota_accesos')
         .select('*')
         .eq('perfil_id', registro.id)
@@ -636,7 +636,7 @@ export default function SupervisorPage() {
 
       if (!accesoActivo) throw new Error('No hay acceso activo');
 
-      const { error: updErr } = await supabase
+      const { error: updErr } = await (supabase as any)
         .from('flota_accesos')
         .update({
           hora_salida: ahora,
@@ -716,7 +716,7 @@ export default function SupervisorPage() {
     let registro = null;
 
     if (modo === 'manual') {
-      const { data: emp } = await supabase
+      const { data: emp } = await (supabase as any)
         .from('empleados')
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
         .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
@@ -725,7 +725,7 @@ export default function SupervisorPage() {
       if (emp && typeof emp === 'object') {
         registro = { ...(emp as any), tipo: 'empleado' };
       } else {
-        const { data: flota } = await supabase
+        const { data: flota } = await (supabase as any)
           .from('flota_perfil')
           .select('*')
           .eq('documento_id', inputBusqueda)
@@ -737,7 +737,7 @@ export default function SupervisorPage() {
       }
     } else {
       if (tipo === 'P') {
-        const { data: emp, error: empErr } = await supabase
+        const { data: emp, error: empErr } = await (supabase as any)
           .from('empleados')
           .select('id, nombre, pin_seguridad, activo, documento_id, email')
           .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
@@ -752,7 +752,7 @@ export default function SupervisorPage() {
           registro = { ...(emp as any), tipo: 'empleado' };
         }
       } else if (tipo === 'F') {
-        const { data: flota, error: flotaErr } = await supabase
+        const { data: flota, error: flotaErr } = await (supabase as any)
           .from('flota_perfil')
           .select('*')
           .eq('documento_id', inputBusqueda)
@@ -814,7 +814,7 @@ export default function SupervisorPage() {
     let errorAutorizador = null;
 
     if (modo === 'manual') {
-      const result = await supabase
+      const result = await (supabase as any)
         .from('empleados')
         .select('nombre, rol, nivel_acceso')
         .eq('pin_seguridad', String(pinAutorizador))
@@ -848,7 +848,7 @@ export default function SupervisorPage() {
         return;
       }
 
-      const result = await supabase
+      const result = await (supabase as any)
         .from('empleados')
         .select('nombre, rol, nivel_acceso')
         .eq('id', usuarioLogueado.id)
@@ -878,7 +878,7 @@ export default function SupervisorPage() {
     // Validación de duplicidad
     if (registro.tipo === 'empleado') {
       if (direccion === 'entrada') {
-        const { data: jornadaActiva } = await supabase
+        const { data: jornadaActiva } = await (supabase as any)
           .from('jornadas')
           .select('id')
           .eq('empleado_id', registro.id)
@@ -891,7 +891,7 @@ export default function SupervisorPage() {
           return;
         }
       } else {
-        const { data: jornadaActiva } = await supabase
+        const { data: jornadaActiva } = await (supabase as any)
           .from('jornadas')
           .select('id')
           .eq('empleado_id', registro.id)
@@ -906,7 +906,7 @@ export default function SupervisorPage() {
       }
     } else if (registro.tipo === 'flota') {
       if (direccion === 'entrada') {
-        const { data: accesoActivo } = await supabase
+        const { data: accesoActivo } = await (supabase as any)
           .from('flota_accesos')
           .select('id')
           .eq('perfil_id', registro.id)
@@ -919,7 +919,7 @@ export default function SupervisorPage() {
           return;
         }
       } else {
-        const { data: accesoActivo } = await supabase
+        const { data: accesoActivo } = await (supabase as any)
           .from('flota_accesos')
           .select('id')
           .eq('perfil_id', registro.id)
@@ -937,7 +937,7 @@ export default function SupervisorPage() {
     try {
       if (registro.tipo === 'empleado') {
         if (direccion === 'entrada') {
-          const { error: insErr } = await supabase
+          const { error: insErr } = await (supabase as any)
             .from('jornadas')
             .insert([{
               empleado_id: registro.id,
@@ -948,14 +948,14 @@ export default function SupervisorPage() {
             }]);
           if (insErr) throw insErr;
 
-          await supabase
+          await (supabase as any)
             .from('empleados')
             .update({ en_almacen: true, ultimo_ingreso: ahora })
             .eq('id', registro.id);
 
           mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
         } else {
-          const { data: j } = await supabase
+          const { data: j } = await (supabase as any)
             .from('jornadas')
             .select('*')
             .eq('empleado_id', registro.id)
@@ -969,7 +969,7 @@ export default function SupervisorPage() {
           if (j && typeof j === 'object' && 'hora_entrada' in (j as any)) {
             const horas = parseFloat(((Date.now() - new Date((j as any).hora_entrada).getTime()) / 3600000).toFixed(2));
 
-            const { error: updErr } = await supabase
+            const { error: updErr } = await (supabase as any)
               .from('jornadas')
               .update({
                 hora_salida: ahora,
@@ -981,7 +981,7 @@ export default function SupervisorPage() {
 
             if (updErr) throw updErr;
 
-            await supabase
+            await (supabase as any)
               .from('empleados')
               .update({ en_almacen: false, ultima_salida: ahora })
               .eq('id', registro.id);
@@ -1007,7 +1007,7 @@ export default function SupervisorPage() {
 
       } else {
         if (direccion === 'entrada') {
-          const { error: insErr } = await supabase
+          const { error: insErr } = await (supabase as any)
             .from('flota_accesos')
             .insert([{
               perfil_id: registro.id,

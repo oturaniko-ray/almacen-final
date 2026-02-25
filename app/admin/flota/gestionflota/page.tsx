@@ -211,7 +211,7 @@ export default function GestionFlota() {
   // CARGAR SESIÓN Y DATOS
   // ------------------------------------------------------------
   const fetchPerfiles = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('flota_perfil')
       .select('*')
       .order('nombre_completo', { ascending: true });
@@ -248,7 +248,7 @@ export default function GestionFlota() {
   // VALIDACIONES DE DUPLICADOS
   // ------------------------------------------------------------
   const validarDuplicados = async (): Promise<boolean> => {
-    const { data: docExistente, error: errDoc } = await supabase
+    const { data: docExistente, error: errDoc } = await (supabase as any)
       .from('flota_perfil')
       .select('id, nombre_completo')
       .eq('documento_id', nuevo.documento_id)
@@ -263,7 +263,7 @@ export default function GestionFlota() {
     }
 
     if (nuevo.email) {
-      const { data: emailExistente, error: errEmail } = await supabase
+      const { data: emailExistente, error: errEmail } = await (supabase as any)
         .from('flota_perfil')
         .select('id, nombre_completo')
         .eq('email', nuevo.email.toLowerCase())
@@ -398,7 +398,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
   const toggleActivo = async (perfil: FlotaPerfil) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('flota_perfil')
         .update({ activo: !perfil.activo })
         .eq('id', perfil.id);
@@ -437,7 +437,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           cant_rutas: nuevo.cant_rutas,
         };
 
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('flota_perfil')
           .update(updateData)
           .eq('id', editando.id);
@@ -445,7 +445,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
         if (error) throw error;
         mostrarNotificacion('Perfil actualizado correctamente.', 'exito');
       } else {
-        const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_flota');
+        const { data: pinGenerado, error: pinError } = await (supabase as any).rpc('generar_pin_flota');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
@@ -462,7 +462,7 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           fecha_creacion: new Date().toISOString(),
         }];
 
-        const { data: nuevoPerfil, error } = await supabase
+        const { data: nuevoPerfil, error } = await (supabase as any)
           .from('flota_perfil')
           .insert(insertData)
           .select()

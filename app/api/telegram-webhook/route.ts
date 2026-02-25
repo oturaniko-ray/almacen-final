@@ -49,7 +49,7 @@ async function procesarMensaje(message: any) {
     }
 
     // Buscar el empleado
-    const { data: empleado, error: empError } = await supabase
+    const { data: empleado, error: empError } = await (supabase as any)
       .from('empleados')
       .select('id, nombre')
       .eq('documento_id', documentoId)
@@ -61,7 +61,7 @@ async function procesarMensaje(message: any) {
     }
 
     // Verificar si ya existe este chat_id
-    const { data: existente } = await supabase
+    const { data: existente } = await (supabase as any)
       .from('telegram_usuarios')
       .select('id')
       .eq('chat_id', String(chatId))
@@ -69,13 +69,13 @@ async function procesarMensaje(message: any) {
 
     if (existente) {
       // Actualizar empleado
-      await supabase
+      await (supabase as any)
         .from('telegram_usuarios')
         .update({ empleado_id: empleado.id })
         .eq('chat_id', String(chatId));
     } else {
       // Insertar nuevo
-      await supabase
+      await (supabase as any)
         .from('telegram_usuarios')
         .insert([{ chat_id: String(chatId), empleado_id: empleado.id }]);
     }

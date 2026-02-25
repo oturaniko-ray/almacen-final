@@ -11,7 +11,7 @@ export async function requireAdminAuth() {
     }
 
     // Verificar credenciales en la base de datos
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
         .from('empleados')
         .select('id, nivel_acceso')
         .eq('id', userId)

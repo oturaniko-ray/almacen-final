@@ -88,7 +88,7 @@ export default function ConfigMaestraPage() {
   const fetchConfig = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('sistema_config').select('clave, valor');
+      const { data, error } = await (supabase as any).from('sistema_config').select('clave, valor');
       if (error) throw error;
 
       if (data) {
@@ -114,7 +114,7 @@ export default function ConfigMaestraPage() {
 
   const fetchEstadisticasRespondIO = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('empleados')
         .select('telefono, respondio_sincronizado');
 
@@ -155,7 +155,7 @@ export default function ConfigMaestraPage() {
       }));
 
       for (const update of updates) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('sistema_config')
           .upsert(update, { onConflict: 'clave' });
 

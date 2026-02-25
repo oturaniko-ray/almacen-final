@@ -204,7 +204,7 @@ export default function GestionEmpleados() {
   };
 
   const fetchEmpleados = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('empleados')
       .select('*')
       .order('nombre', { ascending: true });
@@ -247,7 +247,7 @@ export default function GestionEmpleados() {
   };
 
   const validarDuplicados = async (): Promise<boolean> => {
-    const { data: docExistente, error: errDoc } = await supabase
+    const { data: docExistente, error: errDoc } = await (supabase as any)
       .from('empleados')
       .select('id, nombre')
       .eq('documento_id', nuevo.documento_id)
@@ -265,7 +265,7 @@ export default function GestionEmpleados() {
       return false;
     }
 
-    const { data: emailExistente, error: errEmail } = await supabase
+    const { data: emailExistente, error: errEmail } = await (supabase as any)
       .from('empleados')
       .select('id, nombre')
       .eq('email', nuevo.email.toLowerCase())
@@ -366,7 +366,7 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     }
 
     // Buscar el chat_id del empleado (usando 'as any' para evitar error de tipos)
-    const { data: telegramUser } = await supabase
+    const { data: telegramUser } = await (supabase as any)
       .from('telegram_usuarios')
       .select('chat_id')
       .eq('empleado_id', empleado.id)
@@ -422,7 +422,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
   const toggleActivo = async (empleado: any) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('empleados')
         .update({ activo: !empleado.activo })
         .eq('id', empleado.id);
@@ -462,7 +462,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
           nivel_acceso: nuevo.nivel_acceso,
         };
 
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('empleados')
           .update(updateData)
           .eq('id', editando.id);
@@ -470,7 +470,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
         if (error) throw error;
         mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
       } else {
-        const { data: pinGenerado, error: pinError } = await supabase.rpc('generar_pin_personal');
+        const { data: pinGenerado, error: pinError } = await (supabase as any).rpc('generar_pin_personal');
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
@@ -487,7 +487,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
           pin_generado_en: new Date().toISOString(),
         }];
 
-        const { data: nuevoEmpleado, error } = await supabase
+        const { data: nuevoEmpleado, error } = await (supabase as any)
           .from('empleados')
           .insert(insertData)
           .select()
