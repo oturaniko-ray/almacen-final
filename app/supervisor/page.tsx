@@ -4,8 +4,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getCurrentLocation, getAddressFromCoordinates, LocationData } from '@/lib/locationService';
-import { 
-  CampoEntrada, 
+import {
+  CampoEntrada,
   ContenedorPrincipal,
   NotificacionSistema,
   ModalFlotaSalida
@@ -225,18 +225,18 @@ export default function SupervisorPage() {
   const actualizarGPS = useCallback(async () => {
     try {
       const location = await getCurrentLocation();
-      
+
       if (location) {
         setUbicacionActual(location);
         setGps(prev => ({ ...prev, lat: location.lat, lon: location.lng }));
-        
+
         const d = calcularDistancia(
           location.lat,
           location.lng,
           config.lat,
           config.lon
         );
-        
+
         setGps(prev => ({ ...prev, dist: Math.round(d) }));
         setErrorGps('');
       } else {
@@ -290,27 +290,27 @@ export default function SupervisorPage() {
   // ✅ VERSIÓN ULTRA ROBUSTA DE PROCESAR QR
   const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
     if (!texto || texto.trim() === '') return null;
-    
+
     // Mostrar el texto original con todos los detalles para depuración
     console.log('🔍 QR original (raw):', JSON.stringify(texto));
     console.log('🔍 QR length:', texto.length);
     console.log('🔍 QR char codes:', Array.from(texto).map(c => c.charCodeAt(0)));
-    
+
     // Estrategia 1: Limpiar solo caracteres de control al inicio/final
     let cleanText = texto.replace(/^[\n\r\t\s]+|[\n\r\t\s]+$/g, '');
     console.log('🔍 QR limpio (bordes):', JSON.stringify(cleanText));
-    
+
     // Estrategia 2: Si aún tiene espacios internos sospechosos, intentar decodificar
     try {
       // Intentar decodificar directamente
       let decoded = atob(cleanText);
       console.log('📝 QR decodificado (directo):', decoded);
-      
+
       const partes = decoded.split('|');
       if (partes.length === 3) {
         const [tipo, docId, timestamp] = partes;
         const ts = parseInt(timestamp, 10);
-        
+
         if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
           if (tipo === 'P' || tipo === 'F') {
             console.log('✅ QR válido:', { tipo, docId, ts });
@@ -321,17 +321,17 @@ export default function SupervisorPage() {
     } catch (e) {
       console.log('❌ Falló decodificación directa:', e);
     }
-    
+
     // Estrategia 3: Intentar con decodeURIComponent + escape (para caracteres especiales)
     try {
       const decoded = atob(decodeURIComponent(escape(cleanText)));
       console.log('📝 QR decodificado (con escape):', decoded);
-      
+
       const partes = decoded.split('|');
       if (partes.length === 3) {
         const [tipo, docId, timestamp] = partes;
         const ts = parseInt(timestamp, 10);
-        
+
         if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
           if (tipo === 'P' || tipo === 'F') {
             console.log('✅ QR válido (con escape):', { tipo, docId, ts });
@@ -342,21 +342,21 @@ export default function SupervisorPage() {
     } catch (e) {
       console.log('❌ Falló decodificación con escape:', e);
     }
-    
+
     // Estrategia 4: Intentar limpiar más agresivamente si es necesario
     try {
       // Eliminar cualquier cosa que no sea parte de Base64 válido
       const base64Clean = cleanText.replace(/[^A-Za-z0-9+/=]/g, '');
       console.log('🔍 Base64 limpio agresivo:', base64Clean);
-      
+
       const decoded = atob(base64Clean);
       console.log('📝 QR decodificado (agresivo):', decoded);
-      
+
       const partes = decoded.split('|');
       if (partes.length === 3) {
         const [tipo, docId, timestamp] = partes;
         const ts = parseInt(timestamp, 10);
-        
+
         if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
           if (tipo === 'P' || tipo === 'F') {
             console.log('✅ QR válido (agresivo):', { tipo, docId, ts });
@@ -367,7 +367,7 @@ export default function SupervisorPage() {
     } catch (e) {
       console.log('❌ Falló decodificación agresiva:', e);
     }
-    
+
     console.error('❌ Todas las estrategias fallaron');
     mostrarNotificacion('QR INVÁLIDO (decodificación)', 'error');
     return null;
@@ -386,10 +386,10 @@ export default function SupervisorPage() {
             console.log('📷 QR detectado (raw):', decoded);
             console.log('📷 QR length:', decoded.length);
             console.log('📷 QR char codes:', Array.from(decoded).map(c => c.charCodeAt(0)));
-            
+
             const info = procesarQR(decoded);
             console.log('📷 QR procesado:', info);
-            
+
             if (info) {
               setQrInfo(info);
               setQrData(info.docId);
@@ -407,10 +407,10 @@ export default function SupervisorPage() {
         .catch((error) => {
           console.error('Error al iniciar escáner:', error);
         });
-        
+
       return () => {
         if (scannerRef.current?.isScanning) {
-          scannerRef.current.stop().catch(() => {});
+          scannerRef.current.stop().catch(() => { });
         }
       };
     }
@@ -464,13 +464,13 @@ export default function SupervisorPage() {
   // Función de reseteo por modo
   const resetearPorModo = (modoActual: 'usb' | 'camara' | 'manual', errorTipo?: string) => {
     setAnimar(false);
-    
+
     if (modoActual === 'usb' || modoActual === 'camara') {
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
       setPinAutorizador('');
-      
+
       if (errorTipo === 'pin_supervisor') {
         setTimeout(() => {
           const pinInput = document.querySelector('input[placeholder="PIN SUPERVISOR"]') as HTMLInputElement;
@@ -512,14 +512,14 @@ export default function SupervisorPage() {
   // Navegación
   const volverUnNivel = () => {
     console.log('Nivel actual:', { modo, direccion, lecturaLista, pasoManual, modalFlotaVisible });
-    
+
     if (modalFlotaVisible) {
       setModalFlotaVisible(false);
       setFlotaTempData({ cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
       return;
     }
-    
+
     if (modo === 'manual') {
       if (pasoManual === 3) {
         setPasoManual(2);
@@ -541,13 +541,13 @@ export default function SupervisorPage() {
         return;
       }
     }
-    
+
     if (lecturaLista || (modo === 'usb' && qrData)) {
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
       setPinAutorizador('');
-      
+
       if (modo === 'usb') {
         const inputElement = usbInputRef.current;
         setTimeout(() => {
@@ -559,13 +559,13 @@ export default function SupervisorPage() {
       }
       return;
     }
-    
+
     if (modo !== 'menu') {
       setModo('menu');
       setDireccion(null);
       return;
     }
-    
+
     router.push('/selector');
   };
 
@@ -587,10 +587,10 @@ export default function SupervisorPage() {
 
   // Funciones para modal de flota
   const confirmarSalidaFlota = () => {
-    setFlotaSalida({ 
-      activo: true, 
-      cant_carga: flotaTempData.cant_carga, 
-      observacion: flotaTempData.observacion 
+    setFlotaSalida({
+      activo: true,
+      cant_carga: flotaTempData.cant_carga,
+      observacion: flotaTempData.observacion
     });
     setModalFlotaVisible(false);
     registrarAccesoConDatosFlota();
@@ -605,7 +605,7 @@ export default function SupervisorPage() {
     setQrData('');
     setQrInfo(null);
     setPinAutorizador('');
-    
+
     if (modo === 'usb') {
       const inputElement = usbInputRef.current;
       setTimeout(() => {
@@ -619,7 +619,7 @@ export default function SupervisorPage() {
 
   const registrarAccesoConDatosFlota = async () => {
     if (!registroPendiente) return;
-    
+
     setAnimar(true);
     const ahora = new Date().toISOString();
     const { registro, autorizador } = registroPendiente;
@@ -636,7 +636,7 @@ export default function SupervisorPage() {
 
       if (!accesoActivo) throw new Error('No hay acceso activo');
 
-      const { error: updErr } = await (supabase as any)
+      const { error: updErr } = await supabase
         .from('flota_accesos')
         .update({
           hora_salida: ahora,
@@ -647,18 +647,6 @@ export default function SupervisorPage() {
         .eq('id', (accesoActivo as any).id);
 
       if (updErr) throw updErr;
-      
-      // ✅ ACTUALIZAR en_patio = false en flota_perfil (SALIDA)
-      const { error: updateErr } = await supabase
-        .from('flota_perfil')
-        .update({ en_patio: false } as never)
-        .eq('id', registro.id);
-        
-      if (updateErr) {
-        console.error('Error actualizando en_patio:', updateErr);
-      } else {
-        console.log(`✅ flota_perfil ${registro.id} marcado como en_patio=false`);
-      }
 
       mostrarNotificacion('SALIDA DE FLOTA REGISTRADA ✅', 'exito');
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
@@ -670,7 +658,7 @@ export default function SupervisorPage() {
         setQrData('');
         setQrInfo(null);
         setPinAutorizador('');
-        
+
         if (inputElement) {
           inputElement.value = '';
           inputElement.focus();
@@ -680,12 +668,12 @@ export default function SupervisorPage() {
     } catch (e: any) {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
-      
+
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
       setPinAutorizador('');
-      
+
       resetearPorModo(modo as 'usb' | 'camara' | 'manual');
     } finally {
       setAnimar(false);
@@ -733,7 +721,7 @@ export default function SupervisorPage() {
         .select('id, nombre, pin_seguridad, activo, documento_id, email')
         .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
         .maybeSingle();
-      
+
       if (emp && typeof emp === 'object') {
         registro = { ...(emp as any), tipo: 'empleado' };
       } else {
@@ -742,7 +730,7 @@ export default function SupervisorPage() {
           .select('*')
           .eq('documento_id', inputBusqueda)
           .maybeSingle();
-        
+
         if (flota && typeof flota === 'object') {
           registro = { ...(flota as any), tipo: 'flota' };
         }
@@ -832,10 +820,10 @@ export default function SupervisorPage() {
         .eq('pin_seguridad', String(pinAutorizador))
         .gte('nivel_acceso', 4)
         .maybeSingle();
-      
+
       autorizador = result.data;
       errorAutorizador = result.error;
-      
+
       if (errorAutorizador || !autorizador) {
         mostrarNotificacion('PIN DE ADMINISTRADOR INVÁLIDO (SE REQUIERE NIVEL ≥ 4)', 'error');
         setAnimar(false);
@@ -852,7 +840,7 @@ export default function SupervisorPage() {
       }
 
       const usuarioLogueado = JSON.parse(sessionData);
-      
+
       if (usuarioLogueado.nivel_acceso < 3) {
         mostrarNotificacion('SE REQUIERE NIVEL DE ACCESO ≥ 3', 'error');
         setAnimar(false);
@@ -866,10 +854,10 @@ export default function SupervisorPage() {
         .eq('id', usuarioLogueado.id)
         .eq('pin_seguridad', String(pinAutorizador))
         .maybeSingle();
-      
+
       autorizador = result.data;
       errorAutorizador = result.error;
-      
+
       if (errorAutorizador || !autorizador) {
         mostrarNotificacion('PIN INCORRECTO', 'error');
         setAnimar(false);
@@ -949,7 +937,7 @@ export default function SupervisorPage() {
     try {
       if (registro.tipo === 'empleado') {
         if (direccion === 'entrada') {
-          const { error: insErr } = await (supabase as any)
+          const { error: insErr } = await supabase
             .from('jornadas')
             .insert([{
               empleado_id: registro.id,
@@ -959,12 +947,12 @@ export default function SupervisorPage() {
               estado: 'activo',
             }]);
           if (insErr) throw insErr;
-          
-          await (supabase as any)
+
+          await supabase
             .from('empleados')
             .update({ en_almacen: true, ultimo_ingreso: ahora })
             .eq('id', registro.id);
-            
+
           mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
         } else {
           const { data: j } = await supabase
@@ -975,13 +963,13 @@ export default function SupervisorPage() {
             .order('hora_entrada', { ascending: false })
             .limit(1)
             .maybeSingle();
-            
+
           if (!j) throw new Error('No se encontró entrada activa');
-          
+
           if (j && typeof j === 'object' && 'hora_entrada' in (j as any)) {
             const horas = parseFloat(((Date.now() - new Date((j as any).hora_entrada).getTime()) / 3600000).toFixed(2));
-            
-            const { error: updErr } = await (supabase as any)
+
+            const { error: updErr } = await supabase
               .from('jornadas')
               .update({
                 hora_salida: ahora,
@@ -990,14 +978,14 @@ export default function SupervisorPage() {
                 estado: 'finalizado',
               })
               .eq('id', (j as any).id);
-              
+
             if (updErr) throw updErr;
-            
-            await (supabase as any)
+
+            await supabase
               .from('empleados')
               .update({ en_almacen: false, ultima_salida: ahora })
               .eq('id', registro.id);
-              
+
             mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
           } else {
             throw new Error('Datos de jornada inválidos');
@@ -1010,7 +998,7 @@ export default function SupervisorPage() {
           setQrData('');
           setQrInfo(null);
           setPinAutorizador('');
-          
+
           if (inputElement) {
             inputElement.value = '';
             inputElement.focus();
@@ -1019,8 +1007,7 @@ export default function SupervisorPage() {
 
       } else {
         if (direccion === 'entrada') {
-          // ✅ ENTRADA DE FLOTA - Insertar acceso y actualizar en_patio = true
-          const { error: insErr } = await (supabase as any)
+          const { error: insErr } = await supabase
             .from('flota_accesos')
             .insert([{
               perfil_id: registro.id,
@@ -1031,21 +1018,8 @@ export default function SupervisorPage() {
               estado: 'en_patio',
               autorizado_por: (autorizador as any).nombre,
             }]);
-            
+
           if (insErr) throw insErr;
-          
-          // ✅ ACTUALIZAR en_patio = true en flota_perfil
-          const { error: updateErr } = await supabase
-            .from('flota_perfil')
-            .update({ en_patio: true } as never)
-            .eq('id', registro.id);
-            
-          if (updateErr) {
-            console.error('Error actualizando en_patio:', updateErr);
-          } else {
-            console.log(`✅ flota_perfil ${registro.id} marcado como en_patio=true`);
-          }
-          
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
           const inputElement = modo === 'usb' ? usbInputRef.current : null;
@@ -1054,7 +1028,7 @@ export default function SupervisorPage() {
             setQrData('');
             setQrInfo(null);
             setPinAutorizador('');
-            
+
             if (inputElement) {
               inputElement.value = '';
               inputElement.focus();
@@ -1071,12 +1045,12 @@ export default function SupervisorPage() {
     } catch (e: any) {
       console.error('Error inesperado:', e);
       mostrarNotificacion(`ERROR: ${e.message}`, 'error');
-      
+
       setLecturaLista(false);
       setQrData('');
       setQrInfo(null);
       setPinAutorizador('');
-      
+
       resetearPorModo(modo as 'usb' | 'camara' | 'manual');
     } finally {
       setAnimar(false);
@@ -1085,7 +1059,7 @@ export default function SupervisorPage() {
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
-      
+
       <NotificacionSistema
         mensaje={notificacion.mensaje}
         tipo={notificacion.tipo}
@@ -1168,7 +1142,7 @@ export default function SupervisorPage() {
           </div>
         ) : (
           <div className="space-y-4 w-full">
-            
+
             <div className="px-3 py-2 bg-black/50 rounded-xl border border-white/5 text-center">
               <p className="text-[8.5px] font-mono text-white/50 tracking-tighter">
                 LAT: {gps.lat.toFixed(6)} | LON: {gps.lon.toFixed(6)} |{' '}
@@ -1204,7 +1178,7 @@ export default function SupervisorPage() {
                               console.log('📟 USB input value (raw):', JSON.stringify(inputValue));
                               console.log('📟 USB length:', inputValue.length);
                               console.log('📟 USB char codes:', Array.from(inputValue).map(c => c.charCodeAt(0)));
-                              
+
                               const info = procesarQR(inputValue);
                               if (info) {
                                 setQrInfo(info);

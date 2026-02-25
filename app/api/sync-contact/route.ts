@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
-
-export const dynamic = 'force-dynamic';
+import { requireAdminAuth } from '@/lib/authApi';
 
 const RESPONDIO_API_TOKEN = process.env.RESPONDIO_API_TOKEN;
 const BASE_URL = 'https://api.respond.io/v2';
 
 export async function POST(request: Request) {
   try {
+    await requireAdminAuth();
     const { to, nombre, email, documento_id, empleado_id } = await request.json();
-    
+
     if (!to || !nombre) {
       return NextResponse.json(
         { success: false, error: 'Teléfono y nombre requeridos' },
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     const telefonoLimpio = to.replace(/\s+/g, '');
     const identifier = `phone:${telefonoLimpio}`;
-    
+
     const nameParts = nombre.split(' ');
     const firstName = nameParts[0] || 'Empleado';
     const lastName = nameParts.slice(1).join(' ') || '';
@@ -69,17 +69,17 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           error: `Error ${response.status}: ${responseText}`,
-          status: response.status 
+          status: response.status
         },
         { status: response.status }
       );
     }
 
     const data = JSON.parse(responseText);
-    
+
     if (empleado_id) {
       await supabase
         .from('empleados')

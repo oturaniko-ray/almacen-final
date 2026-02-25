@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getAuthHeaders } from '@/lib/apiClient';
 
 export default function TestWhatsApp() {
   const [telefono, setTelefono] = useState('+34627411370');
@@ -17,11 +18,11 @@ export default function TestWhatsApp() {
     try {
       const response = await fetch('/api/send-whatsapp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          to: telefono, 
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          to: telefono,
           message: mensaje,
-          nombre: nombre 
+          nombre: nombre
         }),
       });
       const data = await response.json();
@@ -37,7 +38,7 @@ export default function TestWhatsApp() {
     <div className="min-h-screen bg-black p-8 text-white">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-black mb-6">📱 WHATSAPP - PRUEBA FINAL</h1>
-        
+
         <div className="mb-6 p-4 bg-emerald-600/20 rounded-xl border border-emerald-500/30">
           <p className="text-sm">
             ✅ Channel ID configurado: <span className="font-mono font-bold">1</span>
@@ -96,9 +97,8 @@ export default function TestWhatsApp() {
         </form>
 
         {resultado && (
-          <div className={`mt-6 p-4 rounded-xl ${
-            resultado.success ? 'bg-emerald-600/20 border border-emerald-500/30' : 'bg-rose-600/20 border border-rose-500/30'
-          }`}>
+          <div className={`mt-6 p-4 rounded-xl ${resultado.success ? 'bg-emerald-600/20 border border-emerald-500/30' : 'bg-rose-600/20 border border-rose-500/30'
+            }`}>
             <h3 className="font-black mb-2 text-sm">
               {resultado.success ? '✅ ENVIADO' : '❌ ERROR'}
             </h3>

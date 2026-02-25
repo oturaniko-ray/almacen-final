@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
+import { requireAdminAuth } from '@/lib/authApi';
 
 const META_API_VERSION = 'v22.0';
 const META_GRAPH_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
 export async function POST(request: Request) {
   try {
+    await requireAdminAuth();
     const { to, nombre, pin, documento_id } = await request.json();
-    
+
     if (!to || !nombre || !pin || !documento_id) {
       return NextResponse.json(
         { success: false, error: 'Teléfono, nombre, PIN y documento son requeridos' },
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     const telefonoLimpio = to.replace(/\s+/g, '');
-    
+
     // Construir mensaje de texto (para contactos existentes)
     const mensajeTexto = `Hola ${nombre}, 
 Tu DNI/NIE/Doc: ${documento_id}
@@ -33,7 +35,7 @@ Tu PIN de acceso es: ${pin}
 Puedes ingresar en: https://almacen-final.vercel.app/`;
 
     const url = `${META_GRAPH_URL}/${phoneNumberId}/messages`;
-    
+
     const payload = {
       messaging_product: 'whatsapp',
       to: telefonoLimpio,
@@ -87,7 +89,7 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
 
     // Parsear respuesta exitosa
     const data = JSON.parse(responseText);
-    
+
     return NextResponse.json({
       success: true,
       message: 'WhatsApp enviado correctamente',

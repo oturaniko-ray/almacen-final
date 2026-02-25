@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
+import { getAuthHeaders } from '@/lib/apiClient';
 import {
   CampoEntrada,
   SelectOpcion,
@@ -60,7 +61,7 @@ const ModalConfirmacion = ({
             ✕
           </button>
         </div>
-        
+
         <div className="bg-[#0f172a] p-5 rounded-2xl border border-white/10 mb-4">
           <p className="text-white text-base leading-relaxed">{mensaje}</p>
           {email && (
@@ -70,7 +71,7 @@ const ModalConfirmacion = ({
             </div>
           )}
         </div>
-        
+
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -291,7 +292,7 @@ export default function GestionEmpleados() {
     try {
       const response = await fetch('/api/send-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           tipo: 'empleado',
           datos: {
@@ -329,7 +330,7 @@ export default function GestionEmpleados() {
     }
 
     setEnviandoWhatsApp(empleado.id);
-    
+
     const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión. 
 Tu PIN de acceso es: ${empleado.pin_seguridad}. 
 Puedes ingresar en: https://almacen-final.vercel.app/`;
@@ -337,14 +338,14 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     try {
       const response = await fetch('/api/send-whatsapp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          to: empleado.telefono, 
-          message: mensaje 
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          to: empleado.telefono,
+          message: mensaje
         }),
       });
       const resultado = await response.json();
-      
+
       if (resultado.success) {
         mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
       } else {
@@ -364,8 +365,27 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
       return;
     }
 
+    // Buscar el chat_id del empleado (usando 'as any' para evitar error de tipos)
+    const { data: telegramUser } = await supabase
+      .from('telegram_usuarios')
+      .select('chat_id')
+      .eq('empleado_id', empleado.id)
+      .maybeSingle();
+
+    // Verificar si existe el registro
+    if (!telegramUser) {
+      mostrarNotificacion(
+        '❌ El empleado no ha iniciado conversación con @Notificaacceso_bot',
+        'error'
+      );
+      return;
+    }
+
+    // Mostrar en consola para debug (ya sin error de TypeScript)
+    console.log('Enviando Telegram a chat_id:', telegramUser.chat_id);
+
     setEnviandoTelegram(empleado.id);
-    
+
     const mensaje = `🔐 *Credenciales de acceso*
 
 Hola *${empleado.nombre}*,
@@ -376,38 +396,41 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
     try {
       const response = await fetch('/api/send-telegram', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          to: empleado.telefono, 
-          message: mensaje 
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          chat_id: telegramUser.chat_id,  // ✅ Ahora TypeScript lo acepta
+          text: mensaje
         }),
       });
+
       const resultado = await response.json();
-      
-      if (resultado.success) {
-        mostrarNotificacion('Telegram enviado correctamente', 'exito');
+
+      setEnviandoTelegram(null);
+
+      if (resultado.ok) {
+        mostrarNotificacion('✅ Telegram enviado correctamente', 'exito');
       } else {
-        mostrarNotificacion(`Error Telegram: ${resultado.error}`, 'error');
+        mostrarNotificacion(`❌ Error Telegram: ${resultado.description || 'Error desconocido'}`, 'error');
       }
     } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    } finally {
       setEnviandoTelegram(null);
+      mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
     }
   };
+
 
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
   const toggleActivo = async (empleado: any) => {
     try {
       const { error } = await supabase
         .from('empleados')
-        .update({ activo: !empleado.activo } as never)
+        .update({ activo: !empleado.activo })
         .eq('id', empleado.id);
-      
+
       if (error) throw error;
-      
+
       mostrarNotificacion(
-        empleado.activo ? 'Empleado desactivado' : 'Empleado activado', 
+        empleado.activo ? 'Empleado desactivado' : 'Empleado activado',
         'exito'
       );
       fetchEmpleados();
@@ -441,7 +464,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
 
         const { error } = await supabase
           .from('empleados')
-          .update(updateData as never)
+          .update(updateData)
           .eq('id', editando.id);
 
         if (error) throw error;
@@ -466,7 +489,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
 
         const { data: nuevoEmpleado, error } = await supabase
           .from('empleados')
-          .insert(insertData as never)
+          .insert(insertData)
           .select()
           .single();
 
@@ -551,7 +574,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
     const ws = XLSX.utils.json_to_sheet(data);
     const columnWidths = [
       { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
-      { wch: 12 }, { wch: 8 },  { wch: 10 }, { wch: 8 },  { wch: 8 },
+      { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 8 },
     ];
     ws['!cols'] = columnWidths;
 
@@ -642,7 +665,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   autoFocus
                 />
               </div>
-              
+
               {/* Col 2: DOCUMENTO */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -654,7 +677,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   mayusculas
                 />
               </div>
-              
+
               {/* Col 3: EMAIL */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -666,7 +689,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   required
                 />
               </div>
-              
+
               {/* Col 4: TELÉFONO */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -676,7 +699,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, telefono: e.target.value })}
                 />
               </div>
-              
+
               {/* Col 5: ROL */}
               <div className="col-span-1">
                 <SelectOpcion
@@ -688,8 +711,8 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                       rol: e.target.value,
                       nivel_acceso:
                         e.target.value === 'supervisor' ? 3 :
-                        e.target.value === 'admin' ? 4 :
-                        e.target.value === 'tecnico' ? 8 : 1,
+                          e.target.value === 'admin' ? 4 :
+                            e.target.value === 'tecnico' ? 8 : 1,
                     })
                   }
                   options={[
@@ -700,7 +723,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   ]}
                 />
               </div>
-              
+
               {/* Col 6: NIVEL */}
               <div className="col-span-1">
                 <SelectOpcion
@@ -710,7 +733,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   options={obtenerOpcionesNivel().map(n => ({ value: n, label: n.toString() }))}
                 />
               </div>
-              
+
               {/* Col 7: REPORTES */}
               <div className="col-span-1">
                 <SelectOpcion
@@ -723,25 +746,25 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                   ]}
                 />
               </div>
-              
+
               {/* Col 8: PIN (solo edición) */}
               {editando && (
                 <div className="col-span-1">
                   <CampoEntrada
                     label="PIN"
                     valor={editando.pin_seguridad || ''}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     disabled
                     mayusculas
                     className="border-blue-500/30"
                   />
                 </div>
               )}
-              
+
               {/* Col 9: BOTONES */}
               <div className="col-span-1 flex items-end gap-1 justify-end">
                 <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
-                <BotonIcono icono="✅" onClick={() => {}} color="bg-emerald-600" type="submit" disabled={loading} />
+                <BotonIcono icono="✅" onClick={() => { }} color="bg-emerald-600" type="submit" disabled={loading} />
               </div>
             </div>
           </form>
@@ -779,7 +802,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         {/* PUNTO VERDE - SOLO VISUAL (en_almacen) */}
-                        <div 
+                        <div
                           className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`}
                           title={emp.en_almacen ? 'En almacén' : 'Fuera del almacén'}
                         />
@@ -818,11 +841,10 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                       {/* BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
                       <button
                         onClick={() => toggleActivo(emp)}
-                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
-                          emp.activo 
-                            ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' 
-                            : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
-                        }`}
+                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${emp.activo
+                          ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
+                          : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
+                          }`}
                         title={emp.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
                       >
                         {emp.activo ? 'ACTIVO' : 'INACTIVO'}
@@ -860,11 +882,10 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                       <button
                         onClick={() => handleEnviarWhatsApp(emp)}
                         disabled={enviandoWhatsApp === emp.id || !emp.telefono}
-                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
-                          emp.telefono 
-                            ? 'border-green-500/20 hover:bg-green-600' 
-                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                        }`}
+                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${emp.telefono
+                          ? 'border-green-500/20 hover:bg-green-600'
+                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                          }`}
                         title="WhatsApp"
                       >
                         <span className="text-[12px]">📱</span>
@@ -875,11 +896,10 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                       <button
                         onClick={() => handleEnviarTelegram(emp)}
                         disabled={enviandoTelegram === emp.id || !emp.telefono}
-                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${
-                          emp.telefono 
-                            ? 'border-blue-400/20 hover:bg-blue-500' 
-                            : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                        }`}
+                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${emp.telefono
+                          ? 'border-blue-400/20 hover:bg-blue-500'
+                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
+                          }`}
                         title="Telegram"
                       >
                         <span className="text-[12px]">✈️</span>

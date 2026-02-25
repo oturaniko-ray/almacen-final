@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
+import { requireAdminAuth } from '@/lib/authApi';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
 export async function POST(request: Request) {
   try {
+    await requireAdminAuth();
     const { to, message } = await request.json();
-    
+
     if (!to || !message) {
       return NextResponse.json(
         { success: false, error: 'Faltan datos requeridos' },
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
     });
 
     const data = await response.json();
-    
+
     if (data.ok) {
       return NextResponse.json({ success: true });
     } else {

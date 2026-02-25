@@ -112,28 +112,28 @@ export default function ConfigMaestraPage() {
     }
   };
 
-const fetchEstadisticasRespondIO = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('empleados')
-      .select('telefono, respondio_sincronizado');
-    
-    if (error) throw error;
-    
-    if (data) {
-      // ✅ TIPAR EXPLÍCITAMENTE EL ARRAY
-      const empleadosData = data as { telefono: string | null; respondio_sincronizado: boolean }[];
-      
-      setEstadisticasRespondIO({
-        total: empleadosData.length,
-        conTelefono: empleadosData.filter(e => e.telefono).length,
-        sincronizados: empleadosData.filter(e => e.respondio_sincronizado).length
-      });
+  const fetchEstadisticasRespondIO = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('empleados')
+        .select('telefono, respondio_sincronizado');
+
+      if (error) throw error;
+
+      if (data) {
+        // ✅ TIPAR EXPLÍCITAMENTE EL ARRAY
+        const empleadosData = data as { telefono: string | null; respondio_sincronizado: boolean }[];
+
+        setEstadisticasRespondIO({
+          total: empleadosData.length,
+          conTelefono: empleadosData.filter(e => e.telefono).length,
+          sincronizados: empleadosData.filter(e => e.respondio_sincronizado).length
+        });
+      }
+    } catch (error) {
+      console.error('Error cargando estadísticas:', error);
     }
-  } catch (error) {
-    console.error('Error cargando estadísticas:', error);
-  }
-};
+  };
 
   const showNotification = (texto: string, tipo: 'success' | 'error') => {
     setMensaje({ texto, tipo });
@@ -155,10 +155,10 @@ const fetchEstadisticasRespondIO = async () => {
       }));
 
       for (const update of updates) {
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('sistema_config')
           .upsert(update, { onConflict: 'clave' });
-          
+
         if (error) throw error;
       }
 
@@ -193,11 +193,10 @@ const fetchEstadisticasRespondIO = async () => {
       <div className="max-w-7xl mx-auto">
         {mensaje.tipo && (
           <div
-            className={`fixed top-10 right-1/2 translate-x-1/2 z-[5000] px-10 py-5 rounded-[25px] border-2 shadow-2xl animate-in slide-in-from-top-10 duration-500 ${
-              mensaje.tipo === 'success'
+            className={`fixed top-10 right-1/2 translate-x-1/2 z-[5000] px-10 py-5 rounded-[25px] border-2 shadow-2xl animate-in slide-in-from-top-10 duration-500 ${mensaje.tipo === 'success'
                 ? 'bg-blue-600/90 border-blue-400 text-white'
                 : 'bg-rose-600/90 border-rose-400 text-white'
-            }`}
+              }`}
           >
             <div className="flex flex-col items-center gap-1">
               <span className="text-[12px] font-black uppercase tracking-[0.4em] italic">Confirmación de Sistema</span>
@@ -238,11 +237,10 @@ const fetchEstadisticasRespondIO = async () => {
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`w-full text-left p-6 rounded-[25px] border transition-all duration-300 ${
-                  tabActual === tab.id
+                className={`w-full text-left p-6 rounded-[25px] border transition-all duration-300 ${tabActual === tab.id
                     ? 'bg-white/5 border-white/20 shadow-lg text-white'
                     : 'border-transparent text-slate-500 hover:text-white'
-                }`}
+                  }`}
               >
                 <span className="text-[12px] font-black uppercase tracking-widest leading-relaxed whitespace-pre-line">
                   {tab.label}
@@ -286,7 +284,7 @@ const fetchEstadisticasRespondIO = async () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="rounded-[35px] overflow-hidden border border-white/10 h-[350px] mb-4">
                     <MapaInteractivo
                       lat={config.almacen_lat}
@@ -391,8 +389,8 @@ const fetchEstadisticasRespondIO = async () => {
                   </div>
                   <div className="bg-blue-500/5 p-8 rounded-[30px] border border-blue-500/20 text-center">
                     <p className="text-[12px] font-bold text-blue-500 uppercase leading-relaxed italic animate-pulse">
-                      "Este valor determina el umbral de eficiencia en los módulos de auditoría. 
-                      Los registros por debajo de este porcentaje se consideran de BAJA EFECTIVIDAD 
+                      "Este valor determina el umbral de eficiencia en los módulos de auditoría.
+                      Los registros por debajo de este porcentaje se consideran de BAJA EFECTIVIDAD
                       y aparecerán en la sección de Atención IA"
                     </p>
                   </div>
@@ -417,7 +415,7 @@ const fetchEstadisticasRespondIO = async () => {
                 <div className="space-y-6">
                   <div className="bg-[#020617] p-8 rounded-[40px] border border-white/5">
                     <h2 className="text-xl font-black text-blue-500 mb-6">🔄 SINCRONIZACIÓN CON RESPOND.IO</h2>
-                    
+
                     <div className="grid grid-cols-3 gap-6 mb-8">
                       <div className="bg-black/30 p-6 rounded-xl">
                         <p className="text-slate-400 text-sm mb-2">Total Empleados</p>
@@ -438,7 +436,7 @@ const fetchEstadisticasRespondIO = async () => {
                         La sincronización masiva se realiza en una página dedicada para no saturar la configuración.
                         Los empleados se sincronizarán automáticamente al crear o editar sus datos.
                       </p>
-                      
+
                       <button
                         onClick={() => router.push('/admin/sincronizar-masiva')}
                         className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl transition-all"

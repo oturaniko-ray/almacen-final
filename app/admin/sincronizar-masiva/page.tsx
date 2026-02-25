@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
+import { getAuthHeaders } from '@/lib/apiClient';
 
 export default function SincronizarMasiva() {
   const [empleados, setEmpleados] = useState<any[]>([]);
@@ -33,7 +34,7 @@ export default function SincronizarMasiva() {
 
     for (let i = 0; i < empleadosSeleccionados.length; i++) {
       const emp = empleadosSeleccionados[i];
-      
+
       if (!emp.telefono) {
         setResultados(prev => [...prev, {
           id: emp.id,
@@ -49,7 +50,7 @@ export default function SincronizarMasiva() {
       try {
         const response = await fetch('/api/sync-contact', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             to: emp.telefono,
             nombre: emp.nombre,
@@ -58,9 +59,9 @@ export default function SincronizarMasiva() {
             empleado_id: emp.id
           }),
         });
-        
+
         const data = await response.json();
-        
+
         setResultados(prev => [...prev, {
           id: emp.id,
           nombre: emp.nombre,
@@ -69,13 +70,13 @@ export default function SincronizarMasiva() {
           id_respondio: data.respondio_contact_id,
           error: data.error
         }]);
-        
+
         if (data.success) {
           setEstadisticas(prev => ({ ...prev, exitos: prev.exitos + 1 }));
         } else {
           setEstadisticas(prev => ({ ...prev, errores: prev.errores + 1 }));
         }
-        
+
       } catch (error: any) {
         setResultados(prev => [...prev, {
           id: emp.id,
@@ -86,13 +87,13 @@ export default function SincronizarMasiva() {
         }]);
         setEstadisticas(prev => ({ ...prev, errores: prev.errores + 1 }));
       }
-      
+
       const nuevoProgreso = Math.round(((i + 1) / empleadosSeleccionados.length) * 100);
       setProgreso(nuevoProgreso);
-      
+
       await new Promise(resolve => setTimeout(resolve, 300));
     }
-    
+
     setProcesando(false);
   };
 
@@ -175,7 +176,7 @@ export default function SincronizarMasiva() {
           {procesando && (
             <div className="mt-4">
               <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-blue-600 transition-all duration-300"
                   style={{ width: `${progreso}%` }}
                 />
@@ -210,9 +211,8 @@ export default function SincronizarMasiva() {
                       <td className="p-3">{r.nombre}</td>
                       <td className="p-3 font-mono text-sm">{r.telefono}</td>
                       <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-[9px] font-black ${
-                          r.success ? 'bg-emerald-600/20 text-emerald-400' : 'bg-rose-600/20 text-rose-400'
-                        }`}>
+                        <span className={`px-2 py-1 rounded-full text-[9px] font-black ${r.success ? 'bg-emerald-600/20 text-emerald-400' : 'bg-rose-600/20 text-rose-400'
+                          }`}>
                           {r.success ? '✅ SINCRONIZADO' : '❌ ERROR'}
                         </span>
                       </td>

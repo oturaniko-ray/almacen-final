@@ -17,9 +17,6 @@ interface BienvenidaFlotaProps {
   cant_rutas: number;
   pin_secreto: string;
   email: string;
-  // ✅ AÑADIR ESTAS DOS PROPS
-  telegramLink?: string;
-  telegramToken?: string;
 }
 
 export const BienvenidaFlota = ({
@@ -30,9 +27,6 @@ export const BienvenidaFlota = ({
   cant_rutas,
   pin_secreto,
   email,
-  // ✅ RECIBIR LAS PROPS
-  telegramLink,
-  telegramToken,
 }: BienvenidaFlotaProps) => {
   const previewText = `Bienvenido al sistema de flota, ${nombre_completo}`;
   const fechaActual = new Date().toLocaleDateString('es-ES', { 
@@ -41,7 +35,6 @@ export const BienvenidaFlota = ({
     year: 'numeric' 
   });
   const appUrl = 'https://almacen-final.vercel.app/';
-  const telegramDownloadUrl = 'https://telegram.org/apps';
 
   return (
     <Html>
@@ -62,6 +55,17 @@ export const BienvenidaFlota = ({
             </Text>
             <Text style={welcomeDescription}>
               Tu perfil de flota ha sido registrado exitosamente. Cuando un supervisor registre tu ingreso, necesitarás tus credenciales.
+            </Text>
+          </Section>
+
+          {/* Link de acceso destacado */}
+          <Section style={linkSection}>
+            <Text style={linkLabel}>📍 SISTEMA DE ACCESO</Text>
+            <a href={appUrl} style={linkButton}>
+              {appUrl}
+            </a>
+            <Text style={linkHint}>
+              Haz clic para acceder a la plataforma
             </Text>
           </Section>
 
@@ -91,41 +95,6 @@ export const BienvenidaFlota = ({
             </Text>
           </Section>
 
-          {/* SECCIÓN TELEGRAM - BOTONES LADO A LADO */}
-          <Section style={telegramSection}>
-            <Text style={telegramTitle}>📱 CANAL DE COMUNICACIÓN OFICIAL</Text>
-            <div style={telegramButtonsContainer}>
-              {telegramLink ? (
-                <a href={telegramLink} style={telegramButton}>
-                  🔗 VINCULAR CON TELEGRAM
-                </a>
-              ) : (
-                <a href={telegramDownloadUrl} style={telegramDownloadButton}>
-                  📲 DESCARGAR TELEGRAM
-                </a>
-              )}
-              {telegramToken && (
-                <Text style={telegramTokenStyle}>
-                  Token: <strong>{telegramToken}</strong>
-                </Text>
-              )}
-            </div>
-            <Text style={telegramHint}>
-              * Una vez vinculado, recibirás notificaciones automáticas.
-            </Text>
-          </Section>
-
-          {/* Link de acceso destacado */}
-          <Section style={linkSection}>
-            <Text style={linkLabel}>📍 SISTEMA DE ACCESO</Text>
-            <a href={appUrl} style={linkButton}>
-              {appUrl}
-            </a>
-            <Text style={linkHint}>
-              Haz clic para acceder a la plataforma
-            </Text>
-          </Section>
-
           {/* Instrucciones para flota */}
           <Section style={instructionsSection}>
             <Text style={instructionsTitle}>📱 ¿CÓMO FUNCIONA?</Text>
@@ -146,6 +115,216 @@ export const BienvenidaFlota = ({
                 <span style={instructionNumber}>4</span>
                 <span style={instructionText}>Tu <strong>PIN</strong> es solo por seguridad, no lo necesitas para ingresar</span>
               </div>
+            </div>
+          </Section>
+
+          {/* SEGURIDAD EN LAS INSTALACIONES */}
+          <Section style={section}>
+            <Text style={sectionTitle}>🏭 SEGURIDAD EN LAS INSTALACIONES</Text>
+            
+            <Text style={subsectionTitle}>⚠️ RIESGOS DENTRO DEL ALMACÉN</Text>
+            <table style={riskTable}>
+              <tr>
+                <td style={riskLabel}>Espacios reducidos</td>
+                <td style={riskDesc}>Las áreas de maniobra son limitadas. Circula a velocidad mínima (5 km/h).</td>
+              </tr>
+              <tr>
+                <td style={riskLabel}>Gases tóxicos</td>
+                <td style={riskDesc}>Motores encendidos en áreas cerradas pueden acumular CO2. Apaga siempre el motor.</td>
+              </tr>
+              <tr>
+                <td style={riskLabel}>Superficies resbaladizas</td>
+                <td style={riskDesc}>Posibles derrames de aceite o combustible. Precaución al caminar.</td>
+              </tr>
+              <tr>
+                <td style={riskLabel}>Zonas de carga</td>
+                <td style={riskDesc}>Áreas con movimiento constante de personal y maquinaria.</td>
+              </tr>
+            </table>
+
+            <div style={doDontContainer}>
+              <div style={doBox}>
+                <Text style={doDontTitle}>✅ LO QUE SÍ DEBES HACER</Text>
+                <ul style={list}>
+                  <li>Respetar señales de tránsito interno</li>
+                  <li>Usar siempre el cinturón de seguridad</li>
+                  <li>Mantener luces bajas encendidas</li>
+                  <li>Respetar prioridad peatonal</li>
+                  <li>Reportar incidentes inmediatamente</li>
+                </ul>
+              </div>
+              <div style={dontBox}>
+                <Text style={doDontTitle}>❌ LO QUE NO DEBES HACER</Text>
+                <ul style={list}>
+                  <li>Exceder velocidad de 5 km/h</li>
+                  <li>Estacionar en zonas no designadas</li>
+                  <li>Dejar motor encendido en áreas cerradas</li>
+                  <li>Usar teléfono mientras conduces</li>
+                  <li>Fumar dentro de las instalaciones</li>
+                </ul>
+              </div>
+            </div>
+          </Section>
+
+          {/* APARCAMIENTO EN BAHÍAS */}
+          <Section style={section}>
+            <Text style={sectionTitle}>🅿️ APARCAMIENTO EN BAHÍAS DE CARGA</Text>
+            
+            <div style={procedureBox}>
+              <Text style={procedureStep}><strong>1. ACERCAMIENTO</strong></Text>
+              <Text style={procedureDetail}>└── Velocidad máxima: 5 km/h</Text>
+              <Text style={procedureDetail}>└── Señalizar con direccionales</Text>
+              
+              <Text style={procedureStep}><strong>2. POSICIONAMIENTO</strong></Text>
+              <Text style={procedureDetail}>└── Alinear el vehículo con las marcas del piso</Text>
+              <Text style={procedureDetail}>└── Distancia máxima al andén: 15 cm</Text>
+              <Text style={procedureDetail}>└── Activar freno de mano</Text>
+              
+              <Text style={procedureStep}><strong>3. DESCARGA/CARGA</strong></Text>
+              <Text style={procedureDetail}>└── Calzar ruedas si es necesario</Text>
+              <Text style={procedureDetail}>└── Apagar motor completamente</Text>
+              <Text style={procedureDetail}>└── Usar balizas</Text>
+              
+              <Text style={procedureStep}><strong>4. RETIRADA</strong></Text>
+              <Text style={procedureDetail}>└── Verificar espejos laterales</Text>
+              <Text style={procedureDetail}>└── Ceder paso a peatones</Text>
+              <Text style={procedureDetail}>└── Salir en reversa con ayuda si es necesario</Text>
+            </div>
+          </Section>
+
+          {/* MANEJO DE LA CARGA */}
+          <Section style={section}>
+            <Text style={sectionTitle}>📦 MANEJO DE LA CARGA</Text>
+            
+            <table style={cargoTable}>
+              <tr>
+                <th style={tableHeader}>Acción</th>
+                <th style={tableHeader}>Correcto</th>
+                <th style={tableHeader}>Incorrecto</th>
+              </tr>
+              <tr>
+                <td style={tableCell}><strong>Asegurar carga</strong></td>
+                <td style={tableCell}>Usar cinchas y topes</td>
+                <td style={tableCellIncorrect}>Carga suelta</td>
+              </tr>
+              <tr>
+                <td style={tableCell}><strong>Estiba</strong></td>
+                <td style={tableCell}>Distribuir peso uniformemente</td>
+                <td style={tableCellIncorrect}>Sobrecargar un lado</td>
+              </tr>
+              <tr>
+                <td style={tableCell}><strong>Altura máxima</strong></td>
+                <td style={tableCell}>Respetar límite del vehículo</td>
+                <td style={tableCellIncorrect}>Exceder altura permitida</td>
+              </tr>
+              <tr>
+                <td style={tableCell}><strong>Protección</strong></td>
+                <td style={tableCell}>Usar esquineros y protectores</td>
+                <td style={tableCellIncorrect}>Carga sin protección</td>
+              </tr>
+            </table>
+
+            <Text style={subsectionTitle}>Pasos para una carga segura:</Text>
+            <ol style={list}>
+              <li><strong>INSPECCIÓN:</strong> Revisar que la carga esté en buen estado</li>
+              <li><strong>PLANIFICACIÓN:</strong> Distribuir según peso y destino</li>
+              <li><strong>SUJECIÓN:</strong> Verificar amarres antes de movilizar</li>
+              <li><strong>DOCUMENTACIÓN:</strong> Confirmar que la guía coincida con la carga</li>
+            </ol>
+          </Section>
+
+          {/* ORDEN Y LIMPIEZA */}
+          <Section style={section}>
+            <Text style={sectionTitle}>🧹 ORDEN Y LIMPIEZA</Text>
+            
+            <div style={doDontContainer}>
+              <div style={doBox}>
+                <Text style={doDontTitle}>✅ ANTES DE SALIR</Text>
+                <ul style={list}>
+                  <li>Barrer la zona de carga</li>
+                  <li>Recoger restos de flejes</li>
+                  <li>Devolver jaulas y pallets</li>
+                  <li>Reportar derrames</li>
+                  <li>Colocar calzos en su lugar</li>
+                </ul>
+              </div>
+              <div style={dontBox}>
+                <Text style={doDontTitle}>❌ NUNCA DEJES</Text>
+                <ul style={list}>
+                  <li>Basura en el piso</li>
+                  <li>Envases vacíos</li>
+                  <li>Jaulas en pasillos</li>
+                  <li>Manchas de aceite</li>
+                  <li>Herramientas tiradas</li>
+                </ul>
+              </div>
+            </div>
+
+            <Text style={text}><strong>Ubicación de elementos:</strong></Text>
+            <ul style={list}>
+              <li><strong>Jaulas vacías:</strong> Zona E-3 (marcada con amarillo)</li>
+              <li><strong>Pallets:</strong> Almacén de retorno, sector A</li>
+              <li><strong>Residuos:</strong> Contenedores en bahía 5</li>
+            </ul>
+          </Section>
+
+          {/* ADVERTENCIAS */}
+          <Section style={warningSection}>
+            <Text style={warningTitle}>🔴 ALTO - Detención inmediata</Text>
+            <ul style={warningList}>
+              <li>Derrame de combustible o químicos</li>
+              <li>Presencia de personal no autorizado en zona de maniobras</li>
+              <li>Luces de emergencia activadas</li>
+              <li>Condiciones climáticas adversas (lluvia intensa)</li>
+            </ul>
+          </Section>
+
+          <Section style={cautionSection}>
+            <Text style={cautionTitle}>🟡 PRECAUCIÓN - Atención especial cuando:</Text>
+            <ul style={warningList}>
+              <li>Haya personal realizando mantenimiento</li>
+              <li>Se estén moviendo cargas suspendidas</li>
+              <li>Operen montacargas cercanos</li>
+              <li>Visibilidad reducida por niebla o polvo</li>
+            </ul>
+          </Section>
+
+          {/* CONTACTOS DE EMERGENCIA */}
+          <Section style={section}>
+            <Text style={sectionTitle}>📞 CONTACTOS DE EMERGENCIA</Text>
+            <div style={emergencyGrid}>
+              <div style={emergencyItem}>
+                <Text style={emergencyLabel}>Accidente</Text>
+                <Text style={emergencyNumber}>Jefe de Patio - 101</Text>
+              </div>
+              <div style={emergencyItem}>
+                <Text style={emergencyLabel}>Derrame químico</Text>
+                <Text style={emergencyNumber}>Seguridad - 102</Text>
+              </div>
+              <div style={emergencyItem}>
+                <Text style={emergencyLabel}>Emergencia médica</Text>
+                <Text style={emergencyNumber}>Enfermería - 103</Text>
+              </div>
+              <div style={emergencyItem}>
+                <Text style={emergencyLabel}>Incendio</Text>
+                <Text style={emergencyNumber}>Brigada - 104</Text>
+              </div>
+            </div>
+          </Section>
+
+          {/* FIRMA */}
+          <Section style={signatureSection}>
+            <Text style={quote}>🏆</Text>
+            <Text style={quote}>
+              "Un almacén seguro y ordenado es responsabilidad de todos. Tu compromiso con las normas protege tu vida, la de tus compañeros y la integridad de la carga."
+            </Text>
+            
+            <Text style={signatureTitle}>📝 FIRMA DE ENTERADO</Text>
+            <Text style={text}>Por favor, confirma la recepción de este correo y tu compromiso con las normas respondiendo a este mensaje con:</Text>
+            <div style={signatureBox}>
+              <Text style={signatureText}>
+                "He leído y acepto cumplir con todos los protocolos de seguridad establecidos"
+              </Text>
             </div>
           </Section>
 
@@ -171,9 +350,7 @@ export const BienvenidaFlota = ({
 
 export default BienvenidaFlota;
 
-// =====================================================
-// ESTILOS
-// =====================================================
+// Estilos actualizados
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -208,6 +385,7 @@ const headerSubtitle = {
   margin: '0',
 };
 
+// Nuevos estilos para bienvenida
 const welcomeSection = {
   backgroundColor: '#e6f7e6',
   padding: '20px',
@@ -227,6 +405,93 @@ const welcomeDescription = {
   fontSize: '14px',
   color: '#334155',
   margin: '0',
+};
+
+// Nuevos estilos para el link de acceso
+const linkSection = {
+  backgroundColor: '#f0f9ff',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  textAlign: 'center' as const,
+  border: '1px solid #7ab3ff',
+  boxShadow: '0 4px 8px rgba(0, 102, 255, 0.1)',
+};
+
+const linkLabel = {
+  fontSize: '12px',
+  fontWeight: 'bold',
+  color: '#1e40af',
+  letterSpacing: '1px',
+  margin: '0 0 12px',
+  textTransform: 'uppercase' as const,
+};
+
+const linkButton = {
+  display: 'inline-block',
+  backgroundColor: '#2563eb',
+  color: '#ffffff',
+  padding: '14px 24px',
+  borderRadius: '30px',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '8px',
+  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
+};
+
+const linkHint = {
+  fontSize: '12px',
+  color: '#4b5563',
+  fontStyle: 'italic' as const,
+  margin: '8px 0 0',
+};
+
+// Nuevos estilos para instrucciones
+const instructionsSection = {
+  marginBottom: '24px',
+  backgroundColor: '#f8fafc',
+  padding: '16px',
+  borderRadius: '8px',
+  border: '1px solid #e2e8f0',
+};
+
+const instructionsTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+};
+
+const instructionsBox = {
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: '12px',
+};
+
+const instructionItem = {
+  display: 'flex',
+  alignItems: 'center' as const,
+  gap: '12px',
+};
+
+const instructionNumber = {
+  width: '28px',
+  height: '28px',
+  backgroundColor: '#059669',
+  color: 'white',
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  fontWeight: 'bold',
+  fontSize: '14px',
+};
+
+const instructionText = {
+  fontSize: '14px',
+  color: '#334155',
 };
 
 const dataSection = {
@@ -284,158 +549,234 @@ const warning = {
   border: '1px solid #fecaca',
 };
 
-// =====================================================
-// ESTILOS DE TELEGRAM
-// =====================================================
-const telegramSection = {
+const section = {
   marginBottom: '24px',
-  padding: '16px',
-  backgroundColor: '#f8fafc',
-  borderRadius: '8px',
 };
 
-const telegramTitle = {
-  fontSize: '16px',
+const sectionTitle = {
+  fontSize: '18px',
   fontWeight: 'bold',
   color: '#0f172a',
-  margin: '0 0 16px',
-  textAlign: 'center' as const,
-};
-
-const telegramButtonsContainer = {
-  display: 'flex',
-  justifyContent: 'center',
-  gap: '16px',
-  marginBottom: '12px',
-};
-
-const telegramButton = {
-  display: 'inline-block',
-  backgroundColor: '#0088cc',
-  color: '#ffffff',
-  padding: '12px 24px',
-  borderRadius: '30px',
-  fontSize: '14px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
-  textAlign: 'center' as const,
-};
-
-const telegramDownloadButton = {
-  display: 'inline-block',
-  backgroundColor: '#2AABEE',
-  color: '#ffffff',
-  padding: '12px 24px',
-  borderRadius: '30px',
-  fontSize: '14px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  boxShadow: '0 4px 6px rgba(42, 171, 238, 0.3)',
-  textAlign: 'center' as const,
-};
-
-const telegramTokenStyle = {
-  fontSize: '12px',
-  color: '#4b5563',
-  backgroundColor: '#ffffff',
-  padding: '6px 12px',
-  borderRadius: '20px',
-  display: 'inline-block',
-  margin: '8px 0 0',
-  fontFamily: 'monospace',
-  border: '1px solid #0088cc',
-};
-
-const telegramHint = {
-  fontSize: '11px',
-  color: '#6b7280',
-  fontStyle: 'italic' as const,
-  margin: '8px 0 0',
-  textAlign: 'center' as const,
-};
-
-const linkSection = {
-  backgroundColor: '#f0f9ff',
-  padding: '16px',
-  borderRadius: '8px',
-  marginBottom: '24px',
-  textAlign: 'center' as const,
-  border: '1px solid #7ab3ff',
-};
-
-const linkLabel = {
-  fontSize: '12px',
-  fontWeight: 'bold',
-  color: '#1e40af',
-  letterSpacing: '1px',
   margin: '0 0 12px',
-  textTransform: 'uppercase' as const,
+  borderBottom: '2px solid #e2e8f0',
+  paddingBottom: '6px',
 };
 
-const linkButton = {
-  display: 'inline-block',
-  backgroundColor: '#2563eb',
-  color: '#ffffff',
-  padding: '14px 24px',
-  borderRadius: '30px',
+const subsectionTitle = {
   fontSize: '16px',
   fontWeight: 'bold',
-  textDecoration: 'none',
-  marginBottom: '8px',
-  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
+  color: '#334155',
+  margin: '16px 0 8px',
 };
 
-const linkHint = {
-  fontSize: '12px',
-  color: '#4b5563',
-  fontStyle: 'italic' as const,
-  margin: '8px 0 0',
+const riskTable = {
+  width: '100%',
+  borderCollapse: 'collapse' as const,
+  marginBottom: '16px',
 };
 
-const instructionsSection = {
-  marginBottom: '24px',
-  backgroundColor: '#f8fafc',
+const riskLabel = {
+  padding: '8px 12px',
+  backgroundColor: '#fee2e2',
+  fontWeight: '600',
+  color: '#991b1b',
+  width: '25%',
+  border: '1px solid #fecaca',
+};
+
+const riskDesc = {
+  padding: '8px 12px',
+  backgroundColor: '#fff',
+  color: '#334155',
+  border: '1px solid #e2e8f0',
+};
+
+const doDontContainer = {
+  display: 'flex',
+  gap: '16px',
+  marginBottom: '16px',
+};
+
+const doBox = {
+  flex: 1,
+  backgroundColor: '#dcfce7',
+  padding: '12px',
+  borderRadius: '8px',
+  border: '1px solid #86efac',
+};
+
+const dontBox = {
+  flex: 1,
+  backgroundColor: '#fee2e2',
+  padding: '12px',
+  borderRadius: '8px',
+  border: '1px solid #fecaca',
+};
+
+const doDontTitle = {
+  fontSize: '14px',
+  fontWeight: 'bold',
+  textAlign: 'center' as const,
+  margin: '0 0 8px',
+};
+
+const list = {
+  margin: '0',
+  paddingLeft: '20px',
+};
+
+const procedureBox = {
+  backgroundColor: '#f1f5f9',
   padding: '16px',
   borderRadius: '8px',
+  fontFamily: 'monospace',
 };
 
-const instructionsTitle = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  color: '#0f172a',
-  margin: '0 0 16px',
-  textAlign: 'center' as const,
+const procedureStep = {
+  fontSize: '14px',
+  margin: '8px 0 2px',
 };
 
-const instructionsBox = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: '8px',
+const procedureDetail = {
+  fontSize: '13px',
+  color: '#475569',
+  margin: '0 0 2px 16px',
 };
 
-const instructionItem = {
-  display: 'flex',
-  alignItems: 'center' as const,
-  gap: '12px',
+const cargoTable = {
+  width: '100%',
+  borderCollapse: 'collapse' as const,
+  marginBottom: '16px',
 };
 
-const instructionNumber = {
-  width: '24px',
-  height: '24px',
+const tableHeader = {
+  padding: '8px 12px',
   backgroundColor: '#059669',
   color: 'white',
-  borderRadius: '50%',
-  display: 'flex',
-  alignItems: 'center' as const,
-  justifyContent: 'center' as const,
-  fontWeight: 'bold',
+  border: '1px solid #047857',
   fontSize: '12px',
 };
 
-const instructionText = {
+const tableCell = {
+  padding: '8px 12px',
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+};
+
+const tableCellIncorrect = {
+  padding: '8px 12px',
+  backgroundColor: '#fee2e2',
+  border: '1px solid #fecaca',
+  color: '#991b1b',
+};
+
+const text = {
   fontSize: '14px',
+  lineHeight: '1.6',
   color: '#334155',
+  margin: '8px 0',
+};
+
+const warningSection = {
+  backgroundColor: '#fee2e2',
+  borderLeft: '4px solid #dc2626',
+  padding: '12px',
+  marginBottom: '16px',
+  borderRadius: '4px',
+};
+
+const warningTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#991b1b',
+  margin: '0 0 8px',
+};
+
+const cautionSection = {
+  backgroundColor: '#fef9c3',
+  borderLeft: '4px solid #eab308',
+  padding: '12px',
+  marginBottom: '16px',
+  borderRadius: '4px',
+};
+
+const cautionTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#854d0e',
+  margin: '0 0 8px',
+};
+
+const warningList = {
+  margin: '0',
+  paddingLeft: '20px',
+  color: '#334155',
+};
+
+const emergencyGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: '8px',
+  marginTop: '8px',
+};
+
+const emergencyItem = {
+  backgroundColor: '#1e293b',
+  color: 'white',
+  padding: '8px',
+  borderRadius: '4px',
+};
+
+const emergencyLabel = {
+  fontSize: '11px',
+  fontWeight: 'bold',
+  margin: '0',
+  color: '#94a3b8',
+};
+
+const emergencyNumber = {
+  fontSize: '13px',
+  fontWeight: 'bold',
+  margin: '4px 0 0',
+};
+
+const signatureSection = {
+  backgroundColor: '#f0fdf4',
+  padding: '16px',
+  borderRadius: '8px',
+  marginBottom: '24px',
+  border: '2px dashed #059669',
+};
+
+const quote = {
+  fontSize: '14px',
+  fontStyle: 'italic' as const,
+  textAlign: 'center' as const,
+  color: '#059669',
+  margin: '8px 0',
+};
+
+const signatureTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#059669',
+  textAlign: 'center' as const,
+  margin: '16px 0 8px',
+};
+
+const signatureBox = {
+  backgroundColor: '#059669',
+  padding: '12px',
+  borderRadius: '8px',
+  marginTop: '8px',
+};
+
+const signatureText = {
+  color: 'white',
+  fontWeight: 'bold',
+  textAlign: 'center' as const,
+  margin: '0',
+  fontSize: '14px',
 };
 
 const hr = {

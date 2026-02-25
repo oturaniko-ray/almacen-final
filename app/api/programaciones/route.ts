@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import { requireAdminAuth } from '@/lib/authApi';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,7 @@ interface ProgramacionData {
 
 export async function POST(request: Request) {
   try {
+    await requireAdminAuth();
     const data = await request.json();
     const { tipo, titulo, fecha_programada, destinatarios, mensaje_template, descripcion, fecha_fin } = data;
 
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     // Validar que destinatarios tenga al menos una opción
-    const tieneDestinatarios = 
+    const tieneDestinatarios =
       (destinatarios.roles && destinatarios.roles.length > 0) ||
       (destinatarios.empleados && destinatarios.empleados.length > 0) ||
       (destinatarios.flota && destinatarios.flota.length > 0);
@@ -55,7 +57,7 @@ export async function POST(request: Request) {
 
     if (descripcion) insertData.descripcion = descripcion;
     if (fecha_fin) insertData.fecha_fin = fecha_fin;
-    
+
     // TODO: Obtener el ID del usuario actual de la sesión
     // insertData.creado_por = usuarioId;
 
@@ -68,8 +70,8 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       data: programacion,
       message: 'Programación creada exitosamente'
     });
@@ -86,6 +88,7 @@ export async function POST(request: Request) {
 // GET para listar programaciones
 export async function GET(request: Request) {
   try {
+    await requireAdminAuth();
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo');
     const desde = searchParams.get('desde');
@@ -114,8 +117,8 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       data: data || [],
       pagination: {
         total: count || 0,
@@ -137,6 +140,7 @@ export async function GET(request: Request) {
 // DELETE para cancelar una programación
 export async function DELETE(request: Request) {
   try {
+    await requireAdminAuth();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -155,9 +159,9 @@ export async function DELETE(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Programación eliminada correctamente' 
+    return NextResponse.json({
+      success: true,
+      message: 'Programación eliminada correctamente'
     });
 
   } catch (error: any) {
@@ -172,6 +176,7 @@ export async function DELETE(request: Request) {
 // PATCH para actualizar una programación
 export async function PATCH(request: Request) {
   try {
+    await requireAdminAuth();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const updates = await request.json();
@@ -198,10 +203,10 @@ export async function PATCH(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       data,
-      message: 'Programación actualizada correctamente' 
+      message: 'Programación actualizada correctamente'
     });
 
   } catch (error: any) {

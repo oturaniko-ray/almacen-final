@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import crypto from 'crypto';
 
 // GET: Para verificación de Meta
 export async function GET(request: Request) {
@@ -22,16 +23,31 @@ export async function GET(request: Request) {
 // POST: Para recibir eventos de WhatsApp
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    
-    const response = NextResponse.json({ status: 'ok' }, { status: 200 });
+    const rawBody = await request.text();
+    const signature = request.headers.get('x-hub-signature-256');
+    const appSecret = process.env.META_APP_SECRET;
 
-    // Procesar en segundo plano
-    processWebhook(body).catch(error => {
-      console.error('Error procesando webhook:', error);
+    if (appSecret && signature) {
+      const expectedSignature = `sha256=${crypto
+        .createHmac('sha256', appSecret)
+        .update(rawBody, 'utf-8')
+        .digest('hex')}`;
+
+      if (signature !== expectedSignature) {
+        console.error('❌ Firma de Meta inválida');
+        return new Response('Invalid signature', { status: 401 });
+      }
+    }
+
+    const body = JSON.parse(rawBody);
+
+    // Es mejor usar await en Vercel para evitar que se mate la función prematuramente.
+    // Meta permite varios segundos para responder con 200 OK.
+    await processWebhook(body).catch((error) => {
+      console.error('Error procesando webhook en bloque await:', error);
     });
 
-    return response;
+    return NextResponse.json({ status: 'ok' }, { status: 200 });
 
   } catch (error) {
     console.error('Error en webhook POST:', error);
