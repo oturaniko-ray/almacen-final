@@ -99,13 +99,14 @@ async function procesarMensaje(message: any) {
         .eq('id', tokenRecord.empleado_id)
         .single();
 
-      // Actualizar el registro con los nuevos datos
+      // ✅ CORREGIDO: Añadido token_unico al update
       await (supabase as any)
         .from('telegram_usuarios')
         .update({
           chat_id: String(chatId),
           nombre,
           username,
+          token_unico: token,  // ← AÑADIDO
           activo: true,
           ultimo_mensaje: ahora,
           updated_at: ahora
@@ -122,13 +123,14 @@ async function procesarMensaje(message: any) {
         .eq('id', tokenRecord.flota_id)
         .single();
 
-      // Actualizar el registro con los nuevos datos
+      // ✅ CORREGIDO: Añadido token_unico al update
       await (supabase as any)
         .from('telegram_usuarios')
         .update({
           chat_id: String(chatId),
           nombre,
           username,
+          token_unico: token,  // ← AÑADIDO
           activo: true,
           ultimo_mensaje: ahora,
           updated_at: ahora

@@ -18,7 +18,7 @@ interface BienvenidaEmpleadoProps {
   rol: string;
   nivel_acceso: number;
   pin_seguridad: string;
-  empleadoId: string;  // ← NUEVO: ID del empleado
+  empleadoId: string;
   telegramBotUsername?: string;
 }
 
@@ -29,25 +29,23 @@ export const BienvenidaEmpleado = async ({
   rol,
   nivel_acceso,
   pin_seguridad,
-  empleadoId,  // ← NUEVO
+  empleadoId,
   telegramBotUsername = 'Notificaacceso_bot',
 }: BienvenidaEmpleadoProps) => {
   const previewText = `Bienvenido al sistema, ${nombre}`;
   const appUrl = 'https://almacen-final-git-main-rayperez-projects.vercel.app/';
   const telegramDownloadUrl = 'https://telegram.org/apps';
   
-  // ===== NUEVA LÓGICA DE TOKEN =====
+  // ===== LÓGICA DE TOKEN =====
   let token = '';
   let telegramBotLink = '';
   
   try {
-    // Crear cliente de Supabase con variables de entorno
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     
-    // Buscar si ya tiene un token en telegram_usuarios
     const { data: existingUser } = await supabase
       .from('telegram_usuarios')
       .select('token_unico')
@@ -55,21 +53,21 @@ export const BienvenidaEmpleado = async ({
       .maybeSingle();
     
     if (existingUser?.token_unico) {
-      // REUTILIZAR token existente
       token = existingUser.token_unico;
       console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
     } else {
-      // GENERAR token nuevo
       token = generarTokenUnico('emp', documento_id);
       
-      // Guardar el token en la tabla (para futuras reutilizaciones)
+      // ✅ CORREGIDO: insert → upsert con onConflict
       await supabase
         .from('telegram_usuarios')
-        .insert({
+        .upsert({
           empleado_id: empleadoId,
           token_unico: token,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'empleado_id'
         });
       
       console.log(`🆕 Generado nuevo token para empleado ${nombre}`);
@@ -78,7 +76,6 @@ export const BienvenidaEmpleado = async ({
     telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
   } catch (error) {
     console.error('Error al procesar token:', error);
-    // Fallback: generar token nuevo si hay error
     token = generarTokenUnico('emp', documento_id);
     telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
   }
@@ -153,11 +150,10 @@ export const BienvenidaEmpleado = async ({
             </Text>
           </Section>
 
-          {/* SECCIÓN TELEGRAM - CON TOKEN */}
+          {/* SECCIÓN TELEGRAM */}
           <Section style={telegramSection}>
             <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
             
-            {/* Botón principal: conectar con el bot (CON TOKEN) */}
             <div style={telegramMainContainer}>
               <Text style={telegramMainText}>
                 Para recibir notificaciones y confirmar la recepción de este correo:
@@ -170,7 +166,6 @@ export const BienvenidaEmpleado = async ({
               </Text>
             </div>
 
-            {/* Botón de descarga (si no tiene Telegram) */}
             <div style={telegramDownloadContainer}>
               <Text style={telegramDownloadText}>
                 ¿No tienes Telegram?
@@ -259,7 +254,7 @@ export const BienvenidaEmpleado = async ({
 export default BienvenidaEmpleado;
 
 // =====================================================
-// ESTILOS (IGUALES)
+// ESTILOS
 // =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
@@ -377,7 +372,6 @@ const pinWarning = {
   margin: '0',
 };
 
-// ACCESO AL SISTEMA
 const accessSection = {
   backgroundColor: '#e6f0ff',
   padding: '20px',
@@ -415,7 +409,6 @@ const accessHint = {
   margin: '0',
 };
 
-// TELEGRAM - REDISEÑADO
 const telegramSection = {
   marginBottom: '24px',
   padding: '16px',
@@ -501,7 +494,6 @@ const telegramHint = {
   textAlign: 'center' as const,
 };
 
-// Instrucciones
 const instructionsSection = {
   marginBottom: '24px',
   backgroundColor: '#f8fafc',
@@ -547,7 +539,6 @@ const instructionText = {
   color: '#334155',
 };
 
-// Reglas (mantener igual que antes)
 const rulesSection = {
   marginBottom: '24px',
 };

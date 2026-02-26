@@ -19,7 +19,7 @@ interface BienvenidaFlotaProps {
   cant_rutas: number;
   pin_secreto: string;
   email: string;
-  flotaId: string;  // ← NUEVO: ID de flota
+  flotaId: string;
   telegramBotUsername?: string;
 }
 
@@ -31,25 +31,23 @@ export const BienvenidaFlota = async ({
   cant_rutas,
   pin_secreto,
   email,
-  flotaId,  // ← NUEVO
+  flotaId,
   telegramBotUsername = 'Notificaacceso_bot',
 }: BienvenidaFlotaProps) => {
   const previewText = `Bienvenido al sistema de flota, ${nombre_completo}`;
   const appUrl = 'https://almacen-final-git-main-rayperez-projects.vercel.app/';
   const telegramDownloadUrl = 'https://telegram.org/apps';
   
-  // ===== NUEVA LÓGICA DE TOKEN =====
+  // ===== LÓGICA DE TOKEN =====
   let token = '';
   let telegramBotLink = '';
   
   try {
-    // Crear cliente de Supabase con variables de entorno
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     
-    // Buscar si ya tiene un token en telegram_usuarios
     const { data: existingUser } = await supabase
       .from('telegram_usuarios')
       .select('token_unico')
@@ -57,21 +55,21 @@ export const BienvenidaFlota = async ({
       .maybeSingle();
     
     if (existingUser?.token_unico) {
-      // REUTILIZAR token existente
       token = existingUser.token_unico;
       console.log(`📱 Reutilizando token existente para flota ${nombre_completo}`);
     } else {
-      // GENERAR token nuevo
       token = generarTokenUnico('flt', documento_id);
       
-      // Guardar el token en la tabla (para futuras reutilizaciones)
+      // ✅ CORREGIDO: insert → upsert con onConflict
       await supabase
         .from('telegram_usuarios')
-        .insert({
+        .upsert({
           flota_id: flotaId,
           token_unico: token,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'flota_id'
         });
       
       console.log(`🆕 Generado nuevo token para flota ${nombre_completo}`);
@@ -80,7 +78,6 @@ export const BienvenidaFlota = async ({
     telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
   } catch (error) {
     console.error('Error al procesar token:', error);
-    // Fallback: generar token nuevo si hay error
     token = generarTokenUnico('flt', documento_id);
     telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
   }
@@ -159,11 +156,10 @@ export const BienvenidaFlota = async ({
             </Text>
           </Section>
 
-          {/* SECCIÓN TELEGRAM - CON TOKEN */}
+          {/* SECCIÓN TELEGRAM */}
           <Section style={telegramSection}>
             <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
             
-            {/* Botón principal: conectar con el bot (CON TOKEN) */}
             <div style={telegramMainContainer}>
               <Text style={telegramMainText}>
                 Para recibir notificaciones y confirmar la recepción de este correo:
@@ -176,7 +172,6 @@ export const BienvenidaFlota = async ({
               </Text>
             </div>
 
-            {/* Botón de descarga (si no tiene Telegram) */}
             <div style={telegramDownloadContainer}>
               <Text style={telegramDownloadText}>
                 ¿No tienes Telegram?
@@ -265,7 +260,7 @@ export const BienvenidaFlota = async ({
 export default BienvenidaFlota;
 
 // =====================================================
-// ESTILOS (IGUALES)
+// ESTILOS
 // =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
@@ -383,7 +378,6 @@ const pinWarning = {
   margin: '0',
 };
 
-// ACCESO AL SISTEMA
 const accessSection = {
   backgroundColor: '#e6f0ff',
   padding: '20px',
@@ -421,7 +415,6 @@ const accessHint = {
   margin: '0',
 };
 
-// TELEGRAM - REDISEÑADO
 const telegramSection = {
   marginBottom: '24px',
   padding: '16px',
@@ -507,7 +500,6 @@ const telegramHint = {
   textAlign: 'center' as const,
 };
 
-// Instrucciones
 const instructionsSection = {
   marginBottom: '24px',
   backgroundColor: '#f8fafc',
@@ -553,7 +545,6 @@ const instructionText = {
   color: '#334155',
 };
 
-// Reglas y procedimientos
 const rulesSection = {
   marginBottom: '24px',
 };
