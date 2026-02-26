@@ -7,9 +7,7 @@ import { getAuthHeaders } from '@/lib/apiClient';
 import {
   CampoEntrada,
   SelectOpcion,
-  BotonIcono,
   Buscador,
-  BadgeEstado,
   NotificacionSistema
 } from '../../../components';
 
@@ -133,6 +131,11 @@ const getTimestamp = () => {
 // ------------------------------------------------------------
 // MEMBRETE SUPERIOR
 // ------------------------------------------------------------
+// SOLO LA PARTE DEL MEMBRETE SUPERIOR - REEMPLAZAR EN EL ARCHIVO EXISTENTE
+
+// ------------------------------------------------------------
+// MEMBRETE SUPERIOR - DISTRIBUIDO SIN ESPACIOS (IGUAL QUE EMPLEADOS)
+// ------------------------------------------------------------
 const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any; onExportar: () => void; onRegresar: () => void }) => {
   const titulo = "GESTOR DE FLOTA";
   const palabras = titulo.split(' ');
@@ -140,39 +143,43 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any;
   const primerasPalabras = palabras.join(' ');
 
   return (
-    <div className="relative w-full mb-4">
-      <div className="w-full max-w-sm bg-[#1a1a1a] p-5 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
-        <h1 className="text-xl font-black italic uppercase tracking-tighter">
-          <span className="text-white">{primerasPalabras} </span>
-          <span className="text-blue-700">{ultimaPalabra}</span>
-        </h1>
-        {usuario && (
-          <div className="mt-1 text-sm">
-            <span className="text-white">{usuario.nombre}</span>
-            <span className="text-white mx-1">•</span>
-            <span className="text-blue-500">{formatearRol(usuario.rol)}</span>
-            <span className="text-white ml-1">({usuario.nivel_acceso})</span>
-          </div>
-        )}
-      </div>
-      <div className="absolute top-0 right-0 flex gap-2 mt-4 mr-4">
-        <button
-          onClick={onExportar}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          EXPORTAR
-        </button>
-        <button
-          onClick={onRegresar}
-          className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          REGRESAR
-        </button>
+    <div className="w-full mb-4">
+      <div className="w-full bg-[#1a1a1a] px-6 py-4 rounded-[25px] border border-white/5 shadow-2xl flex items-center justify-between">
+        {/* Título y usuario a la izquierda */}
+        <div className="flex flex-col">
+          <h1 className="text-xl font-black italic uppercase tracking-tighter">
+            <span className="text-white">{primerasPalabras} </span>
+            <span className="text-blue-700">{ultimaPalabra}</span>
+          </h1>
+          {usuario && (
+            <div className="text-sm">
+              <span className="text-white">{usuario.nombre}</span>
+              <span className="text-white mx-1">•</span>
+              <span className="text-blue-500">{formatearRol(usuario.rol)}</span>
+              <span className="text-white ml-1">({usuario.nivel_acceso})</span>
+            </div>
+          )}
+        </div>
+
+        {/* Botones a la derecha */}
+        <div className="flex gap-2">
+          <button
+            onClick={onExportar}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+          >
+            EXPORTAR
+          </button>
+          <button
+            onClick={onRegresar}
+            className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+          >
+            REGRESAR
+          </button>
+        </div>
       </div>
     </div>
   );
 };
-
 // ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
@@ -328,10 +335,7 @@ export default function GestionFlota() {
 
     setEnviandoWhatsApp(perfil.id);
 
-    const mensaje = `Hola ${perfil.nombre_completo}, tu perfil de flota ha sido registrado.
-Tu PIN de acceso es: ${perfil.pin_secreto}.
-Cuando llegues al almacén, un supervisor registrará tu ingreso.
-Más información en: https://almacen-final.vercel.app/`;
+    const mensaje = `Hola ${perfil.nombre_completo}, tu perfil de flota ha sido registrado.\nTu PIN de acceso es: ${perfil.pin_secreto}.\nCuando llegues al almacén, un supervisor registrará tu ingreso.\nMás información en: https://almacen-final.vercel.app/`;
 
     try {
       const response = await fetch('/api/send-whatsapp', {
@@ -365,13 +369,7 @@ Más información en: https://almacen-final.vercel.app/`;
 
     setEnviandoTelegram(perfil.id);
 
-    const mensaje = `🚛 *Perfil de Flota Registrado*
-
-Hola *${perfil.nombre_completo}*,
-Tu PIN de acceso es: *${perfil.pin_secreto}*
-
-Cuando llegues al almacén, un supervisor registrará tu ingreso.
-Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)`;
+    const mensaje = `🚛 *Perfil de Flota Registrado*\n\nHola *${perfil.nombre_completo}*,\nTu PIN de acceso es: *${perfil.pin_secreto}*\n\nCuando llegues al almacén, un supervisor registrará tu ingreso.\nMás información: https://almacen-final.vercel.app/`;
 
     try {
       const response = await fetch('/api/send-telegram', {
@@ -681,29 +679,27 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                 />
               </div>
 
-              {/* Col 6: CHOFERES */}
+              {/* Col 6: CHOFERES - CORREGIDO: SIN PROP MIN */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="CHOF"
                   placeholder="0"
                   tipo="number"
-                  valor={nuevo.cant_choferes}
+                  valor={nuevo.cant_choferes.toString()}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 0 })}
                   required
-                  min="0"
                 />
               </div>
 
-              {/* Col 7: RUTAS */}
+              {/* Col 7: RUTAS - CORREGIDO: SIN PROP MIN */}
               <div className="col-span-1">
                 <CampoEntrada
                   label="RUTAS"
                   placeholder="0"
                   tipo="number"
-                  valor={nuevo.cant_rutas}
+                  valor={nuevo.cant_rutas.toString()}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
                   required
-                  min="0"
                 />
               </div>
 
@@ -867,13 +863,12 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
             </div>
           )}
         </div>
-      </div >
+      </div>
 
       {/* Modal de Confirmación para envío de correo */}
-      < ModalConfirmacion
+      <ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
-        onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })
-        }
+        onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })}
         onConfirm={() => {
           if (modalConfirmacion.perfil) {
             enviarCorreoFlota(modalConfirmacion.perfil);
@@ -904,6 +899,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           height: 24px;
         }
       `}</style>
-    </main >
+    </main>
   );
 }

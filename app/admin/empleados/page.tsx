@@ -7,9 +7,7 @@ import { getAuthHeaders } from '@/lib/apiClient';
 import {
   CampoEntrada,
   SelectOpcion,
-  BotonIcono,
   Buscador,
-  BadgeEstado,
   NotificacionSistema
 } from '../../components';
 
@@ -122,7 +120,7 @@ const getTimestamp = () => {
 };
 
 // ------------------------------------------------------------
-// MEMBRETE SUPERIOR
+// MEMBRETE SUPERIOR - DISTRIBUIDO SIN ESPACIOS
 // ------------------------------------------------------------
 const MemebreteSuperior = ({ usuario, onExportar, onRegresar, onSincronizar }: { usuario?: any; onExportar: () => void; onRegresar: () => void; onSincronizar: () => void }) => {
   const titulo = "GESTOR DE EMPLEADOS";
@@ -131,40 +129,45 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar, onSincronizar }: {
   const primerasPalabras = palabras.join(' ');
 
   return (
-    <div className="relative w-full mb-4">
-      <div className="w-full max-w-sm bg-[#1a1a1a] p-5 rounded-[25px] border border-white/5 text-center shadow-2xl mx-auto">
-        <h1 className="text-xl font-black italic uppercase tracking-tighter">
-          <span className="text-white">{primerasPalabras} </span>
-          <span className="text-blue-700">{ultimaPalabra}</span>
-        </h1>
-        {usuario && (
-          <div className="mt-1 text-sm">
-            <span className="text-white">{usuario.nombre}</span>
-            <span className="text-white mx-1">•</span>
-            <span className="text-blue-500">{formatearRol(usuario.rol)}</span>
-            <span className="text-white ml-1">({usuario.nivel_acceso})</span>
-          </div>
-        )}
-      </div>
-      <div className="absolute top-0 right-0 flex gap-2 mt-4 mr-4">
-        <button
-          onClick={onSincronizar}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          🔄 SINCRONIZAR
-        </button>
-        <button
-          onClick={onExportar}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          EXPORTAR
-        </button>
-        <button
-          onClick={onRegresar}
-          className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
-        >
-          REGRESAR
-        </button>
+    <div className="w-full mb-4">
+      <div className="w-full bg-[#1a1a1a] px-6 py-4 rounded-[25px] border border-white/5 shadow-2xl flex items-center justify-between">
+        {/* Título y usuario a la izquierda */}
+        <div className="flex flex-col">
+          <h1 className="text-xl font-black italic uppercase tracking-tighter">
+            <span className="text-white">{primerasPalabras} </span>
+            <span className="text-blue-700">{ultimaPalabra}</span>
+          </h1>
+          {usuario && (
+            <div className="text-sm">
+              <span className="text-white">{usuario.nombre}</span>
+              <span className="text-white mx-1">•</span>
+              <span className="text-blue-500">{formatearRol(usuario.rol)}</span>
+              <span className="text-white ml-1">({usuario.nivel_acceso})</span>
+            </div>
+          )}
+        </div>
+
+        {/* Botones a la derecha */}
+        <div className="flex gap-2">
+          <button
+            onClick={onSincronizar}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+          >
+            🔄 SINCRONIZAR
+          </button>
+          <button
+            onClick={onExportar}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+          >
+            EXPORTAR
+          </button>
+          <button
+            onClick={onRegresar}
+            className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+          >
+            REGRESAR
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -331,9 +334,7 @@ export default function GestionEmpleados() {
 
     setEnviandoWhatsApp(empleado.id);
 
-    const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión. 
-Tu PIN de acceso es: ${empleado.pin_seguridad}. 
-Puedes ingresar en: https://almacen-final.vercel.app/`;
+    const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión.\nTu PIN de acceso es: ${empleado.pin_seguridad}.\nPuedes ingresar en: https://almacen-final.vercel.app/`;
 
     try {
       const response = await fetch('/api/send-whatsapp', {
@@ -358,54 +359,45 @@ Puedes ingresar en: https://almacen-final.vercel.app/`;
     }
   };
 
-  // --- FUNCIÓN: enviar Telegram ---
+  // --- FUNCIÓN: enviar Telegram (MEJORADA) ---
   const handleEnviarTelegram = async (empleado: any) => {
     if (!empleado.telefono) {
       mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
       return;
     }
 
-    // Buscar el chat_id del empleado (usando 'as any' para evitar error de tipos)
-    const { data: telegramUser } = await (supabase as any)
-      .from('telegram_usuarios')
-      .select('chat_id')
-      .eq('empleado_id', empleado.id)
-      .maybeSingle();
-
-    // Verificar si existe el registro
-    if (!telegramUser) {
-      mostrarNotificacion(
-        '❌ El empleado no ha iniciado conversación con @Notificaacceso_bot',
-        'error'
-      );
-      return;
-    }
-
-    // Mostrar en consola para debug (ya sin error de TypeScript)
-    console.log('Enviando Telegram a chat_id:', telegramUser.chat_id);
-
     setEnviandoTelegram(empleado.id);
 
-    const mensaje = `🔐 *Credenciales de acceso*
-
-Hola *${empleado.nombre}*,
-Tu PIN de acceso es: *${empleado.pin_seguridad}*
-
-Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/)`;
-
     try {
+      const { data: telegramUser, error } = await (supabase as any)
+        .from('telegram_usuarios')
+        .select('chat_id')
+        .eq('empleado_id', empleado.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!telegramUser) {
+        mostrarNotificacion(
+          '❌ El empleado no ha iniciado conversación con @Notificaacceso_bot',
+          'error'
+        );
+        setEnviandoTelegram(null);
+        return;
+      }
+
+      const mensaje = `🔐 *Credenciales de acceso*\n\nHola *${empleado.nombre}*,\nTu PIN de acceso es: *${empleado.pin_seguridad}*\n\nPuedes ingresar en: https://almacen-final.vercel.app/`;
+
       const response = await fetch('/api/send-telegram', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          chat_id: telegramUser.chat_id,  // ✅ Ahora TypeScript lo acepta
+          chat_id: telegramUser.chat_id,
           text: mensaje
         }),
       });
 
       const resultado = await response.json();
-
-      setEnviandoTelegram(null);
 
       if (resultado.ok) {
         mostrarNotificacion('✅ Telegram enviado correctamente', 'exito');
@@ -413,11 +405,12 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
         mostrarNotificacion(`❌ Error Telegram: ${resultado.description || 'Error desconocido'}`, 'error');
       }
     } catch (error: any) {
-      setEnviandoTelegram(null);
+      console.error('Error en Telegram:', error);
       mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
+    } finally {
+      setEnviandoTelegram(null);
     }
   };
-
 
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
   const toggleActivo = async (empleado: any) => {
@@ -642,7 +635,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
         />
 
-        {/* HEADER */}
+        {/* HEADER - DISTRIBUIDO SIN ESPACIOS */}
         <MemebreteSuperior
           usuario={user}
           onExportar={exportarExcel}
@@ -654,6 +647,7 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
         <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
           <form onSubmit={handleGuardar}>
             <div className="grid grid-cols-9 gap-2">
+
               {/* Col 1: NOMBRE */}
               <div className="col-span-1">
                 <CampoEntrada
@@ -761,10 +755,22 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                 </div>
               )}
 
-              {/* Col 9: BOTONES */}
-              <div className="col-span-1 flex items-end gap-1 justify-end">
-                <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
-                <BotonIcono icono="✅" onClick={() => { }} color="bg-emerald-600" type="submit" disabled={loading} />
+              {/* Col 9: BOTONES - ESTILO FLOTA (sin BotonIcono) */}
+              <div className="col-span-1 flex flex-col items-stretch justify-center gap-1">
+                <button
+                  type="button"
+                  onClick={cancelarEdicion}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all disabled:opacity-50"
+                >
+                  {loading ? '...' : 'ACEPTAR'}
+                </button>
               </div>
             </div>
           </form>
@@ -780,14 +786,14 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
           />
         </div>
 
-        {/* TABLA - Con botones de WhatsApp y Telegram */}
+        {/* TABLA - Con distribución de 2 columnas: nombre+documento | email+teléfono */}
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: '1200px' }}>
               <thead className="bg-[#0f172a] text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
-                  <th className="p-3 w-[15%]">EMPLEADO</th>
-                  <th className="p-3 w-[20%]">DOCUMENTO / EMAIL / TEL</th>
+                  <th className="p-3 w-[15%]">NOMBRE / DOC</th>
+                  <th className="p-3 w-[20%]">EMAIL / TEL</th>
                   <th className="p-3 text-center w-[8%]">ROL</th>
                   <th className="p-3 text-center w-[6%]">NIV</th>
                   <th className="p-3 text-center w-[8%]">PIN</th>
@@ -799,29 +805,43 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
               <tbody className="divide-y divide-white/5">
                 {empleadosFiltrados.map((emp) => (
                   <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors">
+                    {/* COLUMNA 1: NOMBRE + DOCUMENTO */}
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* PUNTO VERDE - SOLO VISUAL (en_almacen) */}
+                        {/* INDICADOR VERDE PARA EN_ALMACEN */}
                         <div
-                          className={`w-2 h-2 rounded-full ${emp.en_almacen ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-white/20'}`}
+                          className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                            emp.en_almacen 
+                              ? 'bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse' 
+                              : 'bg-slate-600'
+                          }`}
                           title={emp.en_almacen ? 'En almacén' : 'Fuera del almacén'}
                         />
-                        <span className="font-bold text-sm uppercase text-white truncate" title={emp.nombre}>
-                          {emp.nombre.length > 20 ? emp.nombre.substring(0, 18) + '...' : emp.nombre}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm uppercase text-white truncate" title={emp.nombre}>
+                            {emp.nombre.length > 20 ? emp.nombre.substring(0, 18) + '...' : emp.nombre}
+                          </span>
+                          <span className="text-slate-400 text-[10px] font-mono truncate" title={emp.documento_id}>
+                            {emp.documento_id}
+                          </span>
+                        </div>
                       </div>
                     </td>
+
+                    {/* COLUMNA 2: EMAIL + TELÉFONO */}
                     <td className="p-3">
-                      <div className="text-[11px] font-mono">
-                        <span className="block text-white truncate" title={emp.documento_id}>{emp.documento_id}</span>
-                        <span className="text-slate-500 text-[9px] truncate block" title={emp.email}>{emp.email}</span>
+                      <div className="flex flex-col">
+                        <span className="text-slate-400 text-[10px] truncate" title={emp.email}>
+                          {emp.email}
+                        </span>
                         {emp.telefono && (
-                          <span className="text-emerald-500 text-[9px] block truncate">
+                          <span className="text-emerald-500 text-[10px] truncate">
                             📱 {emp.telefono}
                           </span>
                         )}
                       </div>
                     </td>
+
                     <td className="p-3 text-center text-[10px] font-black uppercase text-blue-400">
                       {formatearRol(emp.rol)}
                     </td>
@@ -851,60 +871,39 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
                       </button>
                     </td>
                     <td className="p-3 text-center">
-                      <button
-                        onClick={() => editarEmpleado(emp)}
-                        className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all min-w-[60px]"
-                      >
-                        EDITAR
-                      </button>
+                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
+                        <button
+                          onClick={() => editarEmpleado(emp)}
+                          className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all text-center"
+                        >
+                          EDITAR
+                        </button>
+                      </div>
                     </td>
                     <td className="p-3 text-center">
-                      <button
-                        onClick={() => handleReenviarCorreo(emp)}
-                        disabled={enviandoCorreo === emp.id}
-                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px]"
-                      >
-                        {enviandoCorreo === emp.id ? (
-                          <span className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
-                          </span>
-                        ) : (
-                          <>
-                            <span>📧</span>
-                            <span className="text-[8px]">EMAIL</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
-                    <td className="p-3 text-center">
-                      <button
-                        onClick={() => handleEnviarWhatsApp(emp)}
-                        disabled={enviandoWhatsApp === emp.id || !emp.telefono}
-                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${emp.telefono
-                          ? 'border-green-500/20 hover:bg-green-600'
-                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                          }`}
-                        title="WhatsApp"
-                      >
-                        <span className="text-[12px]">📱</span>
-                        <span className="text-[8px]">WA</span>
-                      </button>
-                    </td>
-                    <td className="p-3 text-center">
-                      <button
-                        onClick={() => handleEnviarTelegram(emp)}
-                        disabled={enviandoTelegram === emp.id || !emp.telefono}
-                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${emp.telefono
-                          ? 'border-blue-400/20 hover:bg-blue-500'
-                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                          }`}
-                        title="Telegram"
-                      >
-                        <span className="text-[12px]">✈️</span>
-                        <span className="text-[8px]">TG</span>
-                      </button>
+                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
+                        <button
+                          onClick={() => handleReenviarCorreo(emp)}
+                          disabled={enviandoCorreo === emp.id}
+                          className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 text-center"
+                        >
+                          {enviandoCorreo === emp.id ? '...' : 'EMAIL'}
+                        </button>
+                        <button
+                          onClick={() => handleEnviarWhatsApp(emp)}
+                          disabled={enviandoWhatsApp === emp.id || !emp.telefono}
+                          className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${emp.telefono ? 'border-green-500/20 hover:bg-green-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
+                        >
+                          {enviandoWhatsApp === emp.id ? '...' : 'WHATSAPP'}
+                        </button>
+                        <button
+                          onClick={() => handleEnviarTelegram(emp)}
+                          disabled={enviandoTelegram === emp.id || !emp.telefono}
+                          className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${emp.telefono ? 'border-blue-400/20 hover:bg-blue-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
+                        >
+                          {enviandoTelegram === emp.id ? '...' : 'TELEGRAM'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -947,6 +946,11 @@ Puedes ingresar en: [almacen-final.vercel.app](https://almacen-final.vercel.app/
         }
         .animate-modal-appear { animation: modal-appear 0.3s ease-out; }
         select option { background-color: #1f2937; color: white; }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          opacity: 0.5;
+          height: 24px;
+        }
       `}</style>
     </main>
   );
