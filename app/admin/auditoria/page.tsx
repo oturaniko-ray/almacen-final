@@ -8,7 +8,12 @@ import {
 } from 'recharts';
 import { NotificacionSistema } from '../../components';
 
-// ✅ Crear el cliente de Supabase (o importar el singleton si ya lo tienes)
+// =====================================================
+// 🚀 DIRECTIVAS CRÍTICAS PARA EVITAR EL ERROR DE PRERENDERIZADO
+// =====================================================
+export const dynamic = 'force-dynamic';
+export const runtime = 'edge';  // ← usa runtime edge en lugar de revalidate
+// =====================================================
 
 // ------------------------------------------------------------
 // FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
