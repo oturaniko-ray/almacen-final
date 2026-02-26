@@ -28,6 +28,7 @@ interface FlotaPerfil {
   pin_secreto: string;
   activo: boolean;
   fecha_creacion: string;
+  en_patio?: boolean;
 }
 
 interface NuevoPerfil {
@@ -682,36 +683,28 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
 
               {/* Col 6: CHOFERES */}
               <div className="col-span-1">
-                <div className="flex flex-col">
-                  <label className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-wider">
-                    CHOFERES
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="999"
-                    value={nuevo.cant_choferes}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 1 })}
-                    className="w-full bg-[#020617] border border-white/10 rounded-lg px-3 py-2 text-white font-black text-lg outline-none focus:border-blue-500/50 transition-all text-center"
-                  />
-                </div>
+                <CampoEntrada
+                  label="CHOF"
+                  placeholder="0"
+                  tipo="number"
+                  valor={nuevo.cant_choferes}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 0 })}
+                  required
+                  min="0"
+                />
               </div>
 
               {/* Col 7: RUTAS */}
               <div className="col-span-1">
-                <div className="flex flex-col">
-                  <label className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-wider">
-                    RUTAS
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="999"
-                    value={nuevo.cant_rutas}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-[#020617] border border-white/10 rounded-lg px-3 py-2 text-white font-black text-lg outline-none focus:border-blue-500/50 transition-all text-center"
-                  />
-                </div>
+                <CampoEntrada
+                  label="RUTAS"
+                  placeholder="0"
+                  tipo="number"
+                  valor={nuevo.cant_rutas}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
+                  required
+                  min="0"
+                />
               </div>
 
               {/* Col 8: PIN (solo edición) */}
@@ -729,9 +722,21 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
               )}
 
               {/* Col 9: BOTONES */}
-              <div className="col-span-1 flex items-end gap-1 justify-end">
-                <BotonIcono icono="🚫" onClick={cancelarEdicion} color="bg-rose-600" type="button" />
-                <BotonIcono icono="✅" onClick={() => { }} color="bg-emerald-600" type="submit" disabled={loading} />
+              <div className="col-span-1 flex flex-col items-stretch justify-center gap-1">
+                <button
+                  type="button"
+                  onClick={cancelarEdicion}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all disabled:opacity-50"
+                >
+                  ACEPTAR
+                </button>
               </div>
             </div>
           </form>
@@ -755,13 +760,13 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                 <tr>
                   <th className="p-3 w-[15%]">NOMBRE</th>
                   <th className="p-3 w-[10%]">DOCUMENTO</th>
-                  <th className="p-3 w-[15%]">EMAIL / TEL</th>
-                  <th className="p-3 w-[10%]">FLOTA</th>
+                  <th className="p-3 w-[18%] text-[10px]">EMAIL / TEL</th>
+                  <th className="p-3 w-[15%] text-[10px]">FLOTA</th>
                   <th className="p-3 text-center w-[6%]">CHOF</th>
                   <th className="p-3 text-center w-[6%]">RUT</th>
                   <th className="p-3 text-center w-[8%]">PIN</th>
                   <th className="p-3 text-center w-[6%]">EST</th>
-                  <th className="p-3 text-center w-[24%]" colSpan={4}>ACCIONES</th>
+                  <th className="p-3 text-center w-[16%]" colSpan={2}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -769,10 +774,10 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                   <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* PUNTO VERDE - SOLO VISUAL (no clicable) */}
+                        {/* INDICADOR EN PATIO (AMBAR) o GRIS SI NO ESTA */}
                         <div
-                          className={`w-3 h-3 rounded-full ${perfil.activo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'}`}
-                          title={perfil.activo ? 'Activo' : 'Inactivo'}
+                          className={`w-3 h-3 rounded-full flex-shrink-0 ${perfil.en_patio ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse' : 'bg-slate-600'}`}
+                          title={perfil.en_patio ? 'En Patio' : 'Fuera del almacén'}
                         />
                         <span className="font-bold text-sm uppercase text-white truncate" title={perfil.nombre_completo}>
                           {perfil.nombre_completo.length > 20
@@ -783,18 +788,18 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                     </td>
                     <td className="p-3 font-mono text-[11px] truncate">{perfil.documento_id}</td>
                     <td className="p-3">
-                      <div className="text-[11px] font-mono">
-                        <span className="block text-slate-500 text-[9px] truncate" title={perfil.email || ''}>
+                      <div className="text-[12px] font-mono">
+                        <span className="block text-slate-500 text-[10px] truncate" title={perfil.email || ''}>
                           {perfil.email || '-'}
                         </span>
                         {perfil.telefono && (
-                          <span className="text-emerald-500 text-[9px] block truncate">
+                          <span className="text-emerald-500 text-[11px] block truncate">
                             📱 {perfil.telefono}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="p-3 text-[11px] truncate">{perfil.nombre_flota || '-'}</td>
+                    <td className="p-3 text-[12px] truncate">{perfil.nombre_flota || '-'}</td>
                     <td className="p-3 text-center font-black text-[11px]">{perfil.cant_choferes}</td>
                     <td className="p-3 text-center font-black text-[11px]">{perfil.cant_rutas}</td>
                     <td className="p-3 text-center">
@@ -817,60 +822,39 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
                       </button>
                     </td>
                     <td className="p-3 text-center">
-                      <button
-                        onClick={() => editarPerfil(perfil)}
-                        className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all min-w-[60px]"
-                      >
-                        EDITAR
-                      </button>
+                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
+                        <button
+                          onClick={() => editarPerfil(perfil)}
+                          className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all text-center"
+                        >
+                          EDITAR
+                        </button>
+                      </div>
                     </td>
                     <td className="p-3 text-center">
-                      <button
-                        onClick={() => handleReenviarCorreo(perfil)}
-                        disabled={enviandoCorreo === perfil.id}
-                        className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px]"
-                      >
-                        {enviandoCorreo === perfil.id ? (
-                          <span className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-150" />
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-300" />
-                          </span>
-                        ) : (
-                          <>
-                            <span>📧</span>
-                            <span className="text-[8px]">EMAIL</span>
-                          </>
-                        )}
-                      </button>
-                    </td>
-                    <td className="p-3 text-center">
-                      <button
-                        onClick={() => handleEnviarWhatsApp(perfil)}
-                        disabled={enviandoWhatsApp === perfil.id || !perfil.telefono}
-                        className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${perfil.telefono
-                          ? 'border-green-500/20 hover:bg-green-600'
-                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                          }`}
-                        title="WhatsApp"
-                      >
-                        <span className="text-[12px]">📱</span>
-                        <span className="text-[8px]">WA</span>
-                      </button>
-                    </td>
-                    <td className="p-3 text-center">
-                      <button
-                        onClick={() => handleEnviarTelegram(perfil)}
-                        disabled={enviandoTelegram === perfil.id || !perfil.telefono}
-                        className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1 rounded-lg border transition-all disabled:opacity-50 flex items-center gap-1 mx-auto min-w-[60px] ${perfil.telefono
-                          ? 'border-blue-400/20 hover:bg-blue-500'
-                          : 'border-gray-500/20 text-gray-500 cursor-not-allowed'
-                          }`}
-                        title="Telegram"
-                      >
-                        <span className="text-[12px]">✈️</span>
-                        <span className="text-[8px]">TG</span>
-                      </button>
+                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
+                        <button
+                          onClick={() => handleReenviarCorreo(perfil)}
+                          disabled={enviandoCorreo === perfil.id}
+                          className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 text-center"
+                        >
+                          {enviandoCorreo === perfil.id ? '...' : 'EMAIL'}
+                        </button>
+                        <button
+                          onClick={() => handleEnviarWhatsApp(perfil)}
+                          disabled={enviandoWhatsApp === perfil.id || !perfil.telefono}
+                          className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${perfil.telefono ? 'border-green-500/20 hover:bg-green-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
+                        >
+                          {enviandoWhatsApp === perfil.id ? '...' : 'WHATSAPP'}
+                        </button>
+                        <button
+                          onClick={() => handleEnviarTelegram(perfil)}
+                          disabled={enviandoTelegram === perfil.id || !perfil.telefono}
+                          className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${perfil.telefono ? 'border-blue-400/20 hover:bg-blue-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
+                        >
+                          {enviandoTelegram === perfil.id ? '...' : 'TELEGRAM'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -883,12 +867,13 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
             </div>
           )}
         </div>
-      </div>
+      </div >
 
       {/* Modal de Confirmación para envío de correo */}
-      <ModalConfirmacion
+      < ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
-        onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })}
+        onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })
+        }
         onConfirm={() => {
           if (modalConfirmacion.perfil) {
             enviarCorreoFlota(modalConfirmacion.perfil);
@@ -919,6 +904,6 @@ Más información: [almacen-final.vercel.app](https://almacen-final.vercel.app/)
           height: 24px;
         }
       `}</style>
-    </main>
+    </main >
   );
 }

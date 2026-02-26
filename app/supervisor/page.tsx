@@ -152,7 +152,7 @@ const BotonAccion = ({
 export default function SupervisorPage() {
   // Estados de UI
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
-  const [direccion, setDireccion] = useState<'entrada' | 'salida' | null>(null);
+  const [direccion, setDireccion] = useState<'entrada' | 'salida' | 'auto' | null>(null);
   const [qrData, setQrData] = useState('');
   const [qrInfo, setQrInfo] = useState<{ tipo: string; docId: string; timestamp: number } | null>(null);
   const [pinEmpleado, setPinEmpleado] = useState('');
@@ -419,6 +419,7 @@ export default function SupervisorPage() {
   // Modo manual
   const iniciarModoManual = () => {
     setModo('manual');
+    setDireccion('auto'); // Salta directo al modo kiosko
     setPasoManual(0);
     setQrData('');
     setQrInfo(null);
@@ -648,6 +649,11 @@ export default function SupervisorPage() {
 
       if (updErr) throw updErr;
 
+      await (supabase as any)
+        .from('flota_perfil')
+        .update({ en_patio: false })
+        .eq('id', registro.id);
+
       mostrarNotificacion('SALIDA DE FLOTA REGISTRADA ✅', 'exito');
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
@@ -875,15 +881,22 @@ export default function SupervisorPage() {
 
     const firma = `Autoriza ${(autorizador as any).nombre} - ${modo.toUpperCase()}`;
 
-    // Validación de duplicidad
+    // Auto-detección inteligente "Kiosko" y Validación de duplicidad
+    let accionDetectada = direccion; // Por si acaso algún día forzan un valor no 'auto'
+
     if (registro.tipo === 'empleado') {
-      if (direccion === 'entrada') {
-        const { data: jornadaActiva } = await (supabase as any)
-          .from('jornadas')
-          .select('id')
-          .eq('empleado_id', registro.id)
-          .is('hora_salida', null)
-          .maybeSingle();
+      const { data: jornadaActiva } = await (supabase as any)
+        .from('jornadas')
+        .select('id, hora_entrada')
+        .eq('empleado_id', registro.id)
+        .is('hora_salida', null)
+        .maybeSingle();
+
+      if (accionDetectada === 'auto') {
+        accionDetectada = jornadaActiva ? 'salida' : 'entrada';
+      }
+
+      if (accionDetectada === 'entrada') {
         if (jornadaActiva) {
           mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA', 'advertencia');
           setAnimar(false);
@@ -905,13 +918,18 @@ export default function SupervisorPage() {
         }
       }
     } else if (registro.tipo === 'flota') {
-      if (direccion === 'entrada') {
-        const { data: accesoActivo } = await (supabase as any)
-          .from('flota_accesos')
-          .select('id')
-          .eq('perfil_id', registro.id)
-          .is('hora_salida', null)
-          .maybeSingle();
+      const { data: accesoActivo } = await (supabase as any)
+        .from('flota_accesos')
+        .select('id, hora_llegada')
+        .eq('perfil_id', registro.id)
+        .is('hora_salida', null)
+        .maybeSingle();
+
+      if (accionDetectada === 'auto') {
+        accionDetectada = accesoActivo ? 'salida' : 'entrada';
+      }
+
+      if (accionDetectada === 'entrada') {
         if (accesoActivo) {
           mostrarNotificacion('YA TIENE UNA ENTRADA ACTIVA (FLOTA)', 'advertencia');
           setAnimar(false);
@@ -936,7 +954,7 @@ export default function SupervisorPage() {
 
     try {
       if (registro.tipo === 'empleado') {
-        if (direccion === 'entrada') {
+        if (accionDetectada === 'entrada') {
           const { error: insErr } = await (supabase as any)
             .from('jornadas')
             .insert([{
@@ -1006,7 +1024,7 @@ export default function SupervisorPage() {
         }, 2000);
 
       } else {
-        if (direccion === 'entrada') {
+        if (accionDetectada === 'entrada') {
           const { error: insErr } = await (supabase as any)
             .from('flota_accesos')
             .insert([{
@@ -1020,6 +1038,12 @@ export default function SupervisorPage() {
             }]);
 
           if (insErr) throw insErr;
+
+          await (supabase as any)
+            .from('flota_perfil')
+            .update({ en_patio: true })
+            .eq('id', registro.id);
+
           mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
 
           const inputElement = modo === 'usb' ? usbInputRef.current : null;
@@ -1077,14 +1101,14 @@ export default function SupervisorPage() {
               texto="SCANNER USB"
               descripcion="Lectura mediante escáner conectado"
               icono="🔌"
-              onClick={() => setModo('usb')}
+              onClick={() => { setModo('usb'); setDireccion('auto'); }}
               color="bg-blue-600"
             />
             <BotonOpcion
               texto="CÁMARA MÓVIL"
               descripcion="Lectura con cámara del dispositivo"
               icono="📱"
-              onClick={() => setModo('camara')}
+              onClick={() => { setModo('camara'); setDireccion('auto'); }}
               color="bg-emerald-600"
             />
             <BotonOpcion

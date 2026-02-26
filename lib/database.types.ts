@@ -38,6 +38,7 @@ type FlotaPerfilRow = {
     cant_rutas: number
     pin_secreto: string
     activo: boolean
+    en_patio: boolean | null
     fecha_creacion: string
 }
 

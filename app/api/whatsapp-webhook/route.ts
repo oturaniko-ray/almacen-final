@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 // GET: Para verificación de Meta
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -131,7 +133,7 @@ async function procesarMensajeEntrante(msg: any, context: any) {
     .maybeSingle() as { data: EmpleadoResponse | null };
 
   // ✅ SOLUCIÓN: usar 'as never' para el insert
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from('whatsapp_mensajes')
     .insert([{
       message_id: messageId,
@@ -146,7 +148,7 @@ async function procesarMensajeEntrante(msg: any, context: any) {
       empleado_id: empleado?.id || null,
       provincia_id: empleado?.provincia_id || null,
       raw_payload: msg
-    } as never]);
+    }]);
 
   if (error) {
     console.error('❌ Error guardando mensaje entrante:', error);
@@ -164,7 +166,7 @@ async function procesarEstadoMensaje(status: any, context: any) {
   console.log(`🔄 Estado de mensaje ${messageId}: ${statusType}`);
 
   // Verificar si existe
-  const { data: existente } = await supabase
+  const { data: existente } = await (supabase as any)
     .from('whatsapp_mensajes')
     .select('id')
     .eq('message_id', messageId)
@@ -172,7 +174,7 @@ async function procesarEstadoMensaje(status: any, context: any) {
 
   if (existente) {
     // Actualizar
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('whatsapp_mensajes')
       .update({
         status: statusType,
@@ -180,7 +182,7 @@ async function procesarEstadoMensaje(status: any, context: any) {
         pricing_category: status.pricing?.category,
         billable: status.pricing?.billable || false,
         raw_payload: status
-      } as never)
+      })
       .eq('message_id', messageId);
 
     if (error) {
@@ -191,7 +193,7 @@ async function procesarEstadoMensaje(status: any, context: any) {
 
   } else {
     // Crear nuevo
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('whatsapp_mensajes')
       .insert([{
         message_id: messageId,
@@ -203,7 +205,7 @@ async function procesarEstadoMensaje(status: any, context: any) {
         pricing_category: status.pricing?.category,
         billable: status.pricing?.billable || false,
         raw_payload: status
-      } as never]);
+      }]);
 
     if (error) {
       console.error('❌ Error creando registro parcial:', error);

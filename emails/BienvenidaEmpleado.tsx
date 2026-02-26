@@ -16,6 +16,8 @@ interface BienvenidaEmpleadoProps {
   rol: string;
   nivel_acceso: number;
   pin_seguridad: string;
+  telegramLink?: string;
+  telegramToken?: string;
 }
 
 export const BienvenidaEmpleado = ({
@@ -25,9 +27,12 @@ export const BienvenidaEmpleado = ({
   rol,
   nivel_acceso,
   pin_seguridad,
+  telegramLink,
+  telegramToken,
 }: BienvenidaEmpleadoProps) => {
   const previewText = `Bienvenido al sistema, ${nombre}`;
   const appUrl = 'https://almacen-final.vercel.app/';
+  const telegramDownloadUrl = 'https://telegram.org/apps';
 
   return (
     <Html>
@@ -41,7 +46,7 @@ export const BienvenidaEmpleado = ({
             <Text style={headerSubtitle}>Sistema de Control de Personal</Text>
           </Section>
 
-          {/* Mensaje de bienvenida con link */}
+          {/* Mensaje de bienvenida */}
           <Section style={welcomeSection}>
             <Text style={welcomeText}>
               🎉 ¡Bienvenido a bordo, <strong>{nombre}</strong>!
@@ -51,18 +56,7 @@ export const BienvenidaEmpleado = ({
             </Text>
           </Section>
 
-          {/* Link de acceso destacado */}
-          <Section style={linkSection}>
-            <Text style={linkLabel}>📍 ACCEDE DESDE AQUÍ</Text>
-            <a href={appUrl} style={linkButton}>
-              {appUrl}
-            </a>
-            <Text style={linkHint}>
-              Haz clic en el enlace o cópialo en tu navegador
-            </Text>
-          </Section>
-
-          {/* Datos del empleado */}
+          {/* DATOS DEL EMPLEADO (tabla) - AHORA ANTES DEL ACCESO */}
           <Section style={dataSection}>
             <Text style={dataTitle}>📋 DATOS DEL EMPLEADO</Text>
             <table style={dataTable}>
@@ -95,6 +89,53 @@ export const BienvenidaEmpleado = ({
             <Text style={pinValue}>{pin_seguridad}</Text>
             <Text style={pinWarning}>
               Este PIN es personal e intransferible. No lo compartas con nadie.
+            </Text>
+          </Section>
+
+          {/* SECCIÓN TELEGRAM - BOTONES LADO A LADO */}
+          <Section style={telegramSection}>
+            <Text style={telegramTitle}>📱 CANAL DE COMUNICACIÓN OFICIAL</Text>
+            <div style={telegramButtonsContainer}>
+              {telegramLink ? (
+                <a href={telegramLink} style={telegramButton}>
+                  🔗 VINCULAR CON TELEGRAM
+                </a>
+              ) : (
+                <a href={telegramDownloadUrl} style={telegramDownloadButton}>
+                  📲 DESCARGAR TELEGRAM
+                </a>
+              )}
+              {telegramToken && (
+                <Text style={telegramTokenStyle}>
+                  Token: <strong>{telegramToken}</strong>
+                </Text>
+              )}
+            </div>
+            <Text style={telegramHint}>
+              * Una vez vinculado, recibirás tus credenciales automáticamente.
+            </Text>
+          </Section>
+
+          {/* Link de acceso destacado y contacto */}
+          <Section style={linkSection}>
+            <Text style={linkLabel}>🚀 SISTEMA DE ACCESO Y COMUNICACIÓN</Text>
+
+            <a href={appUrl} style={linkButton}>
+              Ingresar al Sistema
+            </a>
+
+            {telegramLink && (
+              <a href={telegramLink} style={telegramButton}>
+                Conectar con Telegram
+              </a>
+            )}
+
+            <a href={`https://wa.me/?text=Hola%20${nombre},%20este%20es%20tu%20acceso:%20${appUrl}`} style={whatsappButton}>
+              Conectar con WhatsApp
+            </a>
+
+            <Text style={linkHint}>
+              Si no tienes Telegram, descárgalo aquí: <a href="https://telegram.org/" style={{ color: '#2563eb' }}>telegram.org</a>
             </Text>
           </Section>
 
@@ -171,7 +212,9 @@ export const BienvenidaEmpleado = ({
 
 export default BienvenidaEmpleado;
 
-// Estilos actualizados
+// =====================================================
+// ESTILOS
+// =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -206,13 +249,8 @@ const headerSubtitle = {
   margin: '0',
 };
 
-// Nuevos estilos para la sección de bienvenida
 const welcomeSection = {
-  backgroundColor: '#e6f0ff',
-  padding: '20px',
-  borderRadius: '12px',
   marginBottom: '24px',
-  border: '1px solid #b8d4ff',
 };
 
 const welcomeText = {
@@ -226,98 +264,6 @@ const welcomeDescription = {
   fontSize: '14px',
   color: '#334155',
   margin: '0',
-};
-
-// Nuevos estilos para el link de acceso
-const linkSection = {
-  backgroundColor: '#f0f9ff',
-  padding: '20px',
-  borderRadius: '12px',
-  marginBottom: '24px',
-  textAlign: 'center' as const,
-  border: '1px solid #7ab3ff',
-  boxShadow: '0 4px 8px rgba(0, 102, 255, 0.1)',
-};
-
-const linkLabel = {
-  fontSize: '12px',
-  fontWeight: 'bold',
-  color: '#1e40af',
-  letterSpacing: '1px',
-  margin: '0 0 12px',
-  textTransform: 'uppercase' as const,
-};
-
-const linkButton = {
-  display: 'inline-block',
-  backgroundColor: '#2563eb',
-  color: '#ffffff',
-  padding: '14px 24px',
-  borderRadius: '30px',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  marginBottom: '8px',
-  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
-};
-
-const linkHint = {
-  fontSize: '12px',
-  color: '#4b5563',
-  fontStyle: 'italic' as const,
-  margin: '8px 0 0',
-};
-
-// Nuevos estilos para instrucciones paso a paso
-const instructionsSection = {
-  marginBottom: '24px',
-  backgroundColor: '#f8fafc',
-  padding: '16px',
-  borderRadius: '8px',
-  border: '1px solid #e2e8f0',
-};
-
-const instructionsTitle = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  color: '#0f172a',
-  margin: '0 0 16px',
-  textAlign: 'center' as const,
-};
-
-const instructionsBox = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: '12px',
-};
-
-const instructionItem = {
-  display: 'flex',
-  alignItems: 'center' as const,
-  gap: '12px',
-};
-
-const instructionNumber = {
-  width: '28px',
-  height: '28px',
-  backgroundColor: '#2563eb',
-  color: 'white',
-  borderRadius: '50%',
-  display: 'flex',
-  alignItems: 'center' as const,
-  justifyContent: 'center' as const,
-  fontWeight: 'bold',
-  fontSize: '14px',
-};
-
-const instructionText = {
-  fontSize: '14px',
-  color: '#334155',
-};
-
-const instructionHighlight = {
-  color: '#2563eb',
-  fontWeight: 'bold',
 };
 
 const dataSection = {
@@ -383,6 +329,180 @@ const pinWarning = {
   color: '#cbd5e1',
   fontStyle: 'italic' as const,
   margin: '0',
+};
+
+// =====================================================
+// ESTILOS DE TELEGRAM - BOTONES LADO A LADO
+// =====================================================
+const telegramSection = {
+  marginBottom: '24px',
+  padding: '16px',
+  backgroundColor: '#f8fafc',
+  borderRadius: '8px',
+};
+
+const telegramTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+};
+
+const telegramButtonsContainer = {
+  display: 'flex',
+  justifyContent: 'center',
+  gap: '16px',
+  marginBottom: '12px',
+};
+
+const telegramButton = {
+  display: 'inline-block',
+  backgroundColor: '#0088cc',
+  color: '#ffffff',
+  padding: '12px 24px',
+  borderRadius: '30px',
+  fontSize: '14px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
+  textAlign: 'center' as const,
+};
+
+const telegramDownloadButton = {
+  display: 'inline-block',
+  backgroundColor: '#2AABEE',
+  color: '#ffffff',
+  padding: '12px 24px',
+  borderRadius: '30px',
+  fontSize: '14px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  boxShadow: '0 4px 6px rgba(42, 171, 238, 0.3)',
+  textAlign: 'center' as const,
+};
+
+const telegramTokenStyle = {
+  fontSize: '12px',
+  color: '#4b5563',
+  backgroundColor: '#ffffff',
+  padding: '6px 12px',
+  borderRadius: '20px',
+  display: 'inline-block',
+  margin: '8px 0 0',
+  fontFamily: 'monospace',
+  border: '1px solid #0088cc',
+};
+
+const telegramHint = {
+  fontSize: '11px',
+  color: '#6b7280',
+  fontStyle: 'italic' as const,
+  margin: '8px 0 0',
+  textAlign: 'center' as const,
+};
+
+const linkSection = {
+  backgroundColor: '#f0f9ff',
+  padding: '16px',
+  borderRadius: '8px',
+  marginBottom: '24px',
+  textAlign: 'center' as const,
+  border: '1px solid #7ab3ff',
+};
+
+const linkLabel = {
+  fontSize: '12px',
+  fontWeight: 'bold',
+  color: '#1e40af',
+  letterSpacing: '1px',
+  margin: '0 0 12px',
+  textTransform: 'uppercase' as const,
+};
+
+const linkButton = {
+  display: 'block',
+  width: '100%',
+  backgroundColor: '#2563eb',
+  color: '#ffffff',
+  padding: '12px 0',
+  borderRadius: '8px',
+  fontSize: '15px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '10px',
+  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
+};
+
+const whatsappButton = {
+  display: 'block',
+  width: '100%',
+  backgroundColor: '#25D366',
+  color: '#ffffff',
+  padding: '12px 0',
+  borderRadius: '8px',
+  fontSize: '15px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '10px',
+  boxShadow: '0 4px 6px rgba(37, 211, 102, 0.3)',
+};
+
+const linkHint = {
+  fontSize: '12px',
+  color: '#4b5563',
+  fontStyle: 'italic' as const,
+  margin: '12px 0 0',
+};
+
+const instructionsSection = {
+  marginBottom: '24px',
+  backgroundColor: '#f8fafc',
+  padding: '16px',
+  borderRadius: '8px',
+};
+
+const instructionsTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+};
+
+const instructionsBox = {
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: '8px',
+};
+
+const instructionItem = {
+  display: 'flex',
+  alignItems: 'center' as const,
+  gap: '12px',
+};
+
+const instructionNumber = {
+  width: '24px',
+  height: '24px',
+  backgroundColor: '#2563eb',
+  color: 'white',
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  fontWeight: 'bold',
+  fontSize: '12px',
+};
+
+const instructionText = {
+  fontSize: '14px',
+  color: '#334155',
+};
+
+const instructionHighlight = {
+  color: '#2563eb',
+  fontWeight: 'bold',
 };
 
 const rulesSection = {
