@@ -56,9 +56,10 @@ export async function POST(request: Request) {
         rol: datos.rol,
         nivel_acceso: datos.nivel_acceso,
         pin_seguridad: datos.pin_seguridad,
+        empleadoId: datos.empleadoId,  // ← CORREGIDO: datos.empleadoId
       });
 
-      html = await render(emailTemplate); // ← AGREGAR AWAIT AQUÍ
+      html = await render(emailTemplate);
 
     } else if (tipo === 'flota') {
       subject = `🚛 Perfil de Flota Creado - ${datos.nombre_completo}`;
@@ -72,9 +73,10 @@ export async function POST(request: Request) {
         cant_rutas: datos.cant_rutas,
         pin_secreto: datos.pin_secreto,
         email: datos.email,
+        flotaId: datos.flotaId,  // ← CORREGIDO: datos.flotaId
       });
 
-      html = await render(emailTemplate); // ← AGREGAR AWAIT AQUÍ
+      html = await render(emailTemplate);
     }
 
     const info = await transporter.sendMail({

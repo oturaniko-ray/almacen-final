@@ -20,15 +20,25 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+    // Detectar si el usuario bloqueó el bot
+    if (body.my_chat_member?.new_chat_member?.status === 'kicked') {
+      const chatId = body.my_chat_member.chat.id;
+      await (supabase as any)
+        .from('telegram_usuarios')
+        .update({ activo: false, updated_at: new Date().toISOString() })
+        .eq('chat_id', String(chatId));
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.message) {
       await procesarMensaje(body.message).catch(err => {
         console.error('Error procesando mensaje de Telegram:', err);
       });
     }
 
-    return NextResponse.json({ ok: true, message: "Webhook funcionando" });
+    return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("No se pudo parsear el body Telegram:", e);
+    console.error("Error en webhook:", e);
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }
@@ -36,61 +46,108 @@ export async function POST(request: Request) {
 async function procesarMensaje(message: any) {
   const chatId = message.chat?.id;
   const texto = message.text?.trim() || '';
+  const from = message.from;
 
-  if (!chatId || !texto) return;
+  if (!chatId || !texto || !from) return;
 
-  if (texto.startsWith('/start') || texto.startsWith('/vincular')) {
+  // Datos del usuario de Telegram
+  const nombre = from.first_name + (from.last_name ? ` ${from.last_name}` : '');
+  const username = from.username || null;
+  const ahora = new Date().toISOString();
+
+  // Actualizar último mensaje SIEMPRE (para cualquier mensaje)
+  await (supabase as any)
+    .from('telegram_usuarios')
+    .update({ 
+      ultimo_mensaje: ahora,
+      updated_at: ahora,
+      nombre,
+      username
+    })
+    .eq('chat_id', String(chatId));
+
+  // SOLO /start CON TOKEN
+  if (texto.startsWith('/start')) {
     const partes = texto.split(' ');
-    const documentoId = partes[1];
+    const token = partes[1];
 
-    if (!documentoId) {
+    if (!token) {
       await enviarMensajeTelegram(
         chatId,
-        "🤖 *Bienvenido!*\nPara vincular tu cuenta con el sistema, por favor envía tu documento de identidad usando el comando:\n\n`/vincular TU_DOCUMENTO`"
+        "🤖 *Bienvenido al sistema de notificaciones!*\n\nPara comenzar, haz clic en el enlace que recibiste en tu correo de bienvenida."
       );
       return;
     }
 
-    // Buscar el empleado
-    const { data: empleado, error: empError } = await (supabase as any)
-      .from('empleados')
-      .select('id, nombre')
-      .eq('documento_id', documentoId)
+    // Buscar el token en la tabla
+    const { data: tokenRecord, error } = await (supabase as any)
+      .from('telegram_usuarios')
+      .select('empleado_id, flota_id, token_unico')
+      .eq('token_unico', token)
       .maybeSingle();
 
-    if (empError || !empleado) {
-      await enviarMensajeTelegram(chatId, "❌ No se encontró ningún empleado con ese documento de identidad.");
+    if (error || !tokenRecord) {
+      await enviarMensajeTelegram(chatId, "❌ El enlace no es válido o ha expirado. Solicita un nuevo correo de bienvenida.");
       return;
     }
 
-    // Verificar si ya existe este chat_id
-    const { data: existente } = await (supabase as any)
-      .from('telegram_usuarios')
-      .select('id')
-      .eq('chat_id', String(chatId))
-      .maybeSingle();
+    if (tokenRecord.empleado_id) {
+      // Es un empleado
+      const { data: empleado } = await (supabase as any)
+        .from('empleados')
+        .select('nombre')
+        .eq('id', tokenRecord.empleado_id)
+        .single();
 
-    if (existente) {
-      // Actualizar empleado
+      // Actualizar el registro con los nuevos datos
       await (supabase as any)
         .from('telegram_usuarios')
-        .update({ empleado_id: empleado.id })
-        .eq('chat_id', String(chatId));
-    } else {
-      // Insertar nuevo
+        .update({
+          chat_id: String(chatId),
+          nombre,
+          username,
+          activo: true,
+          ultimo_mensaje: ahora,
+          updated_at: ahora
+        })
+        .eq('token_unico', token);
+
+      await enviarMensajeTelegram(chatId, `✅ *¡Vinculación exitosa!*\n\nHola *${empleado.nombre}*,\nTu cuenta ha sido vinculada correctamente. A partir de ahora recibirás notificaciones del sistema por este canal.`);
+
+    } else if (tokenRecord.flota_id) {
+      // Es flota
+      const { data: flota } = await (supabase as any)
+        .from('flota_perfil')
+        .select('nombre_completo')
+        .eq('id', tokenRecord.flota_id)
+        .single();
+
+      // Actualizar el registro con los nuevos datos
       await (supabase as any)
         .from('telegram_usuarios')
-        .insert([{ chat_id: String(chatId), empleado_id: empleado.id }]);
+        .update({
+          chat_id: String(chatId),
+          nombre,
+          username,
+          activo: true,
+          ultimo_mensaje: ahora,
+          updated_at: ahora
+        })
+        .eq('token_unico', token);
+
+      await enviarMensajeTelegram(chatId, `✅ *¡Vinculación exitosa!*\n\nHola *${flota.nombre_completo}*,\nTu perfil de flota ha sido vinculado correctamente. A partir de ahora recibirás notificaciones del sistema por este canal.`);
     }
 
-    await enviarMensajeTelegram(chatId, `✅ *Cuenta vinculada exitosamente.*\n¡Hola ${empleado.nombre}! Ahora recibirás tus notificaciones por aquí.`);
     return;
   }
 
-  // Comandos genéricos o no reconocidos
-  await enviarMensajeTelegram(chatId, "⚠️ Comando no reconocido.\nEnvía `/vincular TU_DOCUMENTO` para asociar tu cuenta.");
+  // CUALQUIER OTRO MENSAJE (no /start)
+  await enviarMensajeTelegram(
+    chatId,
+    "⚠️ Comando no reconocido.\n\nPara vincular tu cuenta, haz clic en el enlace que recibiste en tu correo de bienvenida."
+  );
 }
 
 export async function GET() {
-  return NextResponse.json({ message: "✅ Endpoint de prueba GET activo" });
+  return NextResponse.json({ message: "✅ Webhook de Telegram activo" });
 }

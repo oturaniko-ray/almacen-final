@@ -8,6 +8,8 @@ import {
   Text,
   Hr,
 } from '@react-email/components';
+import { generarTokenUnico } from '@/lib/telegram/generate-link';
+import { createClient } from '@supabase/supabase-js';
 
 interface BienvenidaEmpleadoProps {
   nombre: string;
@@ -16,23 +18,71 @@ interface BienvenidaEmpleadoProps {
   rol: string;
   nivel_acceso: number;
   pin_seguridad: string;
-  telegramLink?: string;
-  telegramToken?: string;
+  empleadoId: string;  // ← NUEVO: ID del empleado
+  telegramBotUsername?: string;
 }
 
-export const BienvenidaEmpleado = ({
+export const BienvenidaEmpleado = async ({
   nombre,
   documento_id,
   email,
   rol,
   nivel_acceso,
   pin_seguridad,
-  telegramLink,
-  telegramToken,
+  empleadoId,  // ← NUEVO
+  telegramBotUsername = 'Notificaacceso_bot',
 }: BienvenidaEmpleadoProps) => {
   const previewText = `Bienvenido al sistema, ${nombre}`;
-  const appUrl = 'https://almacen-final.vercel.app/';
+  const appUrl = 'https://almacen-final-git-main-rayperez-projects.vercel.app/';
   const telegramDownloadUrl = 'https://telegram.org/apps';
+  
+  // ===== NUEVA LÓGICA DE TOKEN =====
+  let token = '';
+  let telegramBotLink = '';
+  
+  try {
+    // Crear cliente de Supabase con variables de entorno
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    
+    // Buscar si ya tiene un token en telegram_usuarios
+    const { data: existingUser } = await supabase
+      .from('telegram_usuarios')
+      .select('token_unico')
+      .eq('empleado_id', empleadoId)
+      .maybeSingle();
+    
+    if (existingUser?.token_unico) {
+      // REUTILIZAR token existente
+      token = existingUser.token_unico;
+      console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
+    } else {
+      // GENERAR token nuevo
+      token = generarTokenUnico('emp', documento_id);
+      
+      // Guardar el token en la tabla (para futuras reutilizaciones)
+      await supabase
+        .from('telegram_usuarios')
+        .insert({
+          empleado_id: empleadoId,
+          token_unico: token,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      
+      console.log(`🆕 Generado nuevo token para empleado ${nombre}`);
+    }
+    
+    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
+  } catch (error) {
+    console.error('Error al procesar token:', error);
+    // Fallback: generar token nuevo si hay error
+    token = generarTokenUnico('emp', documento_id);
+    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
+  }
+  // ===== FIN LÓGICA DE TOKEN =====
 
   return (
     <Html>
@@ -56,7 +106,7 @@ export const BienvenidaEmpleado = ({
             </Text>
           </Section>
 
-          {/* DATOS DEL EMPLEADO (tabla) - AHORA ANTES DEL ACCESO */}
+          {/* DATOS DEL EMPLEADO */}
           <Section style={dataSection}>
             <Text style={dataTitle}>📋 DATOS DEL EMPLEADO</Text>
             <table style={dataTable}>
@@ -92,60 +142,56 @@ export const BienvenidaEmpleado = ({
             </Text>
           </Section>
 
-          {/* SECCIÓN TELEGRAM - BOTONES LADO A LADO */}
-          <Section style={telegramSection}>
-            <Text style={telegramTitle}>📱 CANAL DE COMUNICACIÓN OFICIAL</Text>
-            <div style={telegramButtonsContainer}>
-              {telegramLink ? (
-                <a href={telegramLink} style={telegramButton}>
-                  🔗 VINCULAR CON TELEGRAM
-                </a>
-              ) : (
-                <a href={telegramDownloadUrl} style={telegramDownloadButton}>
-                  📲 DESCARGAR TELEGRAM
-                </a>
-              )}
-              {telegramToken && (
-                <Text style={telegramTokenStyle}>
-                  Token: <strong>{telegramToken}</strong>
-                </Text>
-              )}
-            </div>
-            <Text style={telegramHint}>
-              * Una vez vinculado, recibirás tus credenciales automáticamente.
+          {/* ACCESO AL SISTEMA */}
+          <Section style={accessSection}>
+            <Text style={accessTitle}>🚀 ACCEDER AL SISTEMA</Text>
+            <a href={appUrl} style={accessButton}>
+              INGRESAR AL SISTEMA
+            </a>
+            <Text style={accessHint}>
+              Haz clic en el botón para acceder con tu Documento/Email y el PIN de seguridad.
             </Text>
           </Section>
 
-          {/* Link de acceso destacado y contacto */}
-          <Section style={linkSection}>
-            <Text style={linkLabel}>🚀 SISTEMA DE ACCESO Y COMUNICACIÓN</Text>
-
-            <a href={appUrl} style={linkButton}>
-              Ingresar al Sistema
-            </a>
-
-            {telegramLink && (
-              <a href={telegramLink} style={telegramButton}>
-                Conectar con Telegram
+          {/* SECCIÓN TELEGRAM - CON TOKEN */}
+          <Section style={telegramSection}>
+            <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
+            
+            {/* Botón principal: conectar con el bot (CON TOKEN) */}
+            <div style={telegramMainContainer}>
+              <Text style={telegramMainText}>
+                Para recibir notificaciones y confirmar la recepción de este correo:
+              </Text>
+              <a href={telegramBotLink} style={telegramMainButton}>
+                🤖 INGRESAR A TELEGRAM PARA CONFIRMAR
               </a>
-            )}
+              <Text style={telegramBotName}>
+                @{telegramBotUsername}
+              </Text>
+            </div>
 
-            <a href={`https://wa.me/?text=Hola%20${nombre},%20este%20es%20tu%20acceso:%20${appUrl}`} style={whatsappButton}>
-              Conectar con WhatsApp
-            </a>
+            {/* Botón de descarga (si no tiene Telegram) */}
+            <div style={telegramDownloadContainer}>
+              <Text style={telegramDownloadText}>
+                ¿No tienes Telegram?
+              </Text>
+              <a href={telegramDownloadUrl} style={telegramDownloadButton}>
+                📲 DESCARGAR TELEGRAM
+              </a>
+            </div>
 
-            <Text style={linkHint}>
-              Si no tienes Telegram, descárgalo aquí: <a href="https://telegram.org/" style={{ color: '#2563eb' }}>telegram.org</a>
+            <Text style={telegramHint}>
+              * Una vez que inicies conversación con el bot, tu cuenta quedará vinculada automáticamente para futuras notificaciones.
             </Text>
           </Section>
 
           {/* Instrucciones de acceso */}
           <Section style={instructionsSection}>
-            <Text style={instructionsTitle}>📱 CÓMO ACCEDER</Text>
+            <Text style={instructionsTitle}>📱 CÓMO ACCEDER AL SISTEMA</Text>
             <div style={instructionsBox}>
               <div style={instructionItem}>
                 <span style={instructionNumber}>1</span>
-                <span style={instructionText}>Visita: <strong style={instructionHighlight}>{appUrl}</strong></span>
+                <span style={instructionText}>Haz clic en <strong>"INGRESAR AL SISTEMA"</strong></span>
               </div>
               <div style={instructionItem}>
                 <span style={instructionNumber}>2</span>
@@ -213,7 +259,7 @@ export const BienvenidaEmpleado = ({
 export default BienvenidaEmpleado;
 
 // =====================================================
-// ESTILOS
+// ESTILOS (IGUALES)
 // =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
@@ -331,14 +377,51 @@ const pinWarning = {
   margin: '0',
 };
 
-// =====================================================
-// ESTILOS DE TELEGRAM - BOTONES LADO A LADO
-// =====================================================
+// ACCESO AL SISTEMA
+const accessSection = {
+  backgroundColor: '#e6f0ff',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  textAlign: 'center' as const,
+  border: '2px solid #2563eb',
+};
+
+const accessTitle = {
+  fontSize: '16px',
+  fontWeight: 'bold',
+  color: '#1e3a8a',
+  margin: '0 0 16px',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '1px',
+};
+
+const accessButton = {
+  display: 'inline-block',
+  backgroundColor: '#2563eb',
+  color: '#ffffff',
+  padding: '16px 32px',
+  borderRadius: '50px',
+  fontSize: '18px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '12px',
+  boxShadow: '0 8px 16px rgba(37, 99, 235, 0.4)',
+};
+
+const accessHint = {
+  fontSize: '13px',
+  color: '#4b5563',
+  margin: '0',
+};
+
+// TELEGRAM - REDISEÑADO
 const telegramSection = {
   marginBottom: '24px',
   padding: '16px',
   backgroundColor: '#f8fafc',
   borderRadius: '8px',
+  border: '1px solid #0088cc',
 };
 
 const telegramTitle = {
@@ -349,24 +432,53 @@ const telegramTitle = {
   textAlign: 'center' as const,
 };
 
-const telegramButtonsContainer = {
-  display: 'flex',
-  justifyContent: 'center',
-  gap: '16px',
+const telegramMainContainer = {
+  backgroundColor: '#e6f7ff',
+  padding: '16px',
+  borderRadius: '8px',
   marginBottom: '12px',
+  border: '1px solid #0088cc',
 };
 
-const telegramButton = {
-  display: 'inline-block',
+const telegramMainText = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0 0 12px',
+  textAlign: 'center' as const,
+};
+
+const telegramMainButton = {
+  display: 'block',
   backgroundColor: '#0088cc',
   color: '#ffffff',
-  padding: '12px 24px',
+  padding: '14px',
   borderRadius: '30px',
-  fontSize: '14px',
+  fontSize: '15px',
   fontWeight: 'bold',
   textDecoration: 'none',
-  boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
   textAlign: 'center' as const,
+  marginBottom: '8px',
+  boxShadow: '0 4px 8px rgba(0, 136, 204, 0.4)',
+};
+
+const telegramBotName = {
+  fontSize: '13px',
+  color: '#0088cc',
+  fontFamily: 'monospace',
+  fontWeight: 'bold',
+  textAlign: 'center' as const,
+  margin: '4px 0 0',
+};
+
+const telegramDownloadContainer = {
+  padding: '12px',
+  textAlign: 'center' as const,
+};
+
+const telegramDownloadText = {
+  fontSize: '13px',
+  color: '#6b7280',
+  margin: '0 0 8px',
 };
 
 const telegramDownloadButton = {
@@ -379,82 +491,17 @@ const telegramDownloadButton = {
   fontWeight: 'bold',
   textDecoration: 'none',
   boxShadow: '0 4px 6px rgba(42, 171, 238, 0.3)',
-  textAlign: 'center' as const,
-};
-
-const telegramTokenStyle = {
-  fontSize: '12px',
-  color: '#4b5563',
-  backgroundColor: '#ffffff',
-  padding: '6px 12px',
-  borderRadius: '20px',
-  display: 'inline-block',
-  margin: '8px 0 0',
-  fontFamily: 'monospace',
-  border: '1px solid #0088cc',
 };
 
 const telegramHint = {
   fontSize: '11px',
   color: '#6b7280',
   fontStyle: 'italic' as const,
-  margin: '8px 0 0',
-  textAlign: 'center' as const,
-};
-
-const linkSection = {
-  backgroundColor: '#f0f9ff',
-  padding: '16px',
-  borderRadius: '8px',
-  marginBottom: '24px',
-  textAlign: 'center' as const,
-  border: '1px solid #7ab3ff',
-};
-
-const linkLabel = {
-  fontSize: '12px',
-  fontWeight: 'bold',
-  color: '#1e40af',
-  letterSpacing: '1px',
-  margin: '0 0 12px',
-  textTransform: 'uppercase' as const,
-};
-
-const linkButton = {
-  display: 'block',
-  width: '100%',
-  backgroundColor: '#2563eb',
-  color: '#ffffff',
-  padding: '12px 0',
-  borderRadius: '8px',
-  fontSize: '15px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  marginBottom: '10px',
-  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
-};
-
-const whatsappButton = {
-  display: 'block',
-  width: '100%',
-  backgroundColor: '#25D366',
-  color: '#ffffff',
-  padding: '12px 0',
-  borderRadius: '8px',
-  fontSize: '15px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  marginBottom: '10px',
-  boxShadow: '0 4px 6px rgba(37, 211, 102, 0.3)',
-};
-
-const linkHint = {
-  fontSize: '12px',
-  color: '#4b5563',
-  fontStyle: 'italic' as const,
   margin: '12px 0 0',
+  textAlign: 'center' as const,
 };
 
+// Instrucciones
 const instructionsSection = {
   marginBottom: '24px',
   backgroundColor: '#f8fafc',
@@ -500,11 +547,7 @@ const instructionText = {
   color: '#334155',
 };
 
-const instructionHighlight = {
-  color: '#2563eb',
-  fontWeight: 'bold',
-};
-
+// Reglas (mantener igual que antes)
 const rulesSection = {
   marginBottom: '24px',
 };

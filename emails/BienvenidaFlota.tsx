@@ -8,6 +8,8 @@ import {
   Text,
   Hr,
 } from '@react-email/components';
+import { generarTokenUnico } from '@/lib/telegram/generate-link';
+import { createClient } from '@supabase/supabase-js';
 
 interface BienvenidaFlotaProps {
   nombre_completo: string;
@@ -17,11 +19,11 @@ interface BienvenidaFlotaProps {
   cant_rutas: number;
   pin_secreto: string;
   email: string;
-  telegramLink?: string;
-  telegramToken?: string;
+  flotaId: string;  // ← NUEVO: ID de flota
+  telegramBotUsername?: string;
 }
 
-export const BienvenidaFlota = ({
+export const BienvenidaFlota = async ({
   nombre_completo,
   documento_id,
   nombre_flota,
@@ -29,17 +31,60 @@ export const BienvenidaFlota = ({
   cant_rutas,
   pin_secreto,
   email,
-  telegramLink,
-  telegramToken,
+  flotaId,  // ← NUEVO
+  telegramBotUsername = 'Notificaacceso_bot',
 }: BienvenidaFlotaProps) => {
   const previewText = `Bienvenido al sistema de flota, ${nombre_completo}`;
-  const fechaActual = new Date().toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
-  const appUrl = 'https://almacen-final.vercel.app/';
+  const appUrl = 'https://almacen-final-git-main-rayperez-projects.vercel.app/';
   const telegramDownloadUrl = 'https://telegram.org/apps';
+  
+  // ===== NUEVA LÓGICA DE TOKEN =====
+  let token = '';
+  let telegramBotLink = '';
+  
+  try {
+    // Crear cliente de Supabase con variables de entorno
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    
+    // Buscar si ya tiene un token en telegram_usuarios
+    const { data: existingUser } = await supabase
+      .from('telegram_usuarios')
+      .select('token_unico')
+      .eq('flota_id', flotaId)
+      .maybeSingle();
+    
+    if (existingUser?.token_unico) {
+      // REUTILIZAR token existente
+      token = existingUser.token_unico;
+      console.log(`📱 Reutilizando token existente para flota ${nombre_completo}`);
+    } else {
+      // GENERAR token nuevo
+      token = generarTokenUnico('flt', documento_id);
+      
+      // Guardar el token en la tabla (para futuras reutilizaciones)
+      await supabase
+        .from('telegram_usuarios')
+        .insert({
+          flota_id: flotaId,
+          token_unico: token,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      
+      console.log(`🆕 Generado nuevo token para flota ${nombre_completo}`);
+    }
+    
+    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
+  } catch (error) {
+    console.error('Error al procesar token:', error);
+    // Fallback: generar token nuevo si hay error
+    token = generarTokenUnico('flt', documento_id);
+    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
+  }
+  // ===== FIN LÓGICA DE TOKEN =====
 
   return (
     <Html>
@@ -59,7 +104,7 @@ export const BienvenidaFlota = ({
               🎉 ¡Bienvenido, <strong>{nombre_completo}</strong>!
             </Text>
             <Text style={welcomeDescription}>
-              Tu perfil de flota ha sido registrado exitosamente. Cuando un supervisor registre tu ingreso, necesitarás tus credenciales.
+              Tu perfil de flota ha sido registrado exitosamente en nuestro sistema. A continuación encontrarás tus credenciales de acceso.
             </Text>
           </Section>
 
@@ -68,93 +113,133 @@ export const BienvenidaFlota = ({
             <Text style={dataTitle}>📋 DATOS DEL CONDUCTOR</Text>
             <table style={dataTable}>
               <tr>
-                <td style={dataLabel}>Documento de Identidad:</td>
-                <td style={dataValue}><strong>{documento_id}</strong></td>
+                <td style={dataLabel}>Nombre completo:</td>
+                <td style={dataValue}>{nombre_completo}</td>
               </tr>
               <tr>
-                <td style={dataLabel}>PIN Secreto de Acceso:</td>
-                <td style={dataValue}><strong style={pinHighlight}>{pin_secreto}</strong></td>
+                <td style={dataLabel}>Documento:</td>
+                <td style={dataValue}>{documento_id}</td>
               </tr>
               <tr>
-                <td style={dataLabel}>Nombre de la Flota:</td>
+                <td style={dataLabel}>Email:</td>
+                <td style={dataValue}>{email}</td>
+              </tr>
+              <tr>
+                <td style={dataLabel}>Flota/Empresa:</td>
                 <td style={dataValue}>{nombre_flota || 'No especificada'}</td>
               </tr>
               <tr>
-                <td style={dataLabel}>Fecha de Creación:</td>
-                <td style={dataValue}>{fechaActual}</td>
+                <td style={dataLabel}>Cantidad de choferes:</td>
+                <td style={dataValue}>{cant_choferes}</td>
+              </tr>
+              <tr>
+                <td style={dataLabel}>Cantidad de rutas:</td>
+                <td style={dataValue}>{cant_rutas}</td>
               </tr>
             </table>
-            <Text style={warning}>
-              ⚠️ <strong>IMPORTANTE:</strong> Este PIN es personal e intransferible. No lo compartas con nadie.
+          </Section>
+
+          {/* PIN de seguridad */}
+          <Section style={pinSection}>
+            <Text style={pinLabel}>🔐 PIN DE SEGURIDAD</Text>
+            <Text style={pinValue}>{pin_secreto}</Text>
+            <Text style={pinWarning}>
+              Este PIN es personal e intransferible. No lo compartas con nadie.
             </Text>
           </Section>
 
-          {/* SECCIÓN TELEGRAM - BOTONES LADO A LADO */}
+          {/* ACCESO AL SISTEMA */}
+          <Section style={accessSection}>
+            <Text style={accessTitle}>🚀 ACCEDER AL SISTEMA</Text>
+            <a href={appUrl} style={accessButton}>
+              INGRESAR AL SISTEMA
+            </a>
+            <Text style={accessHint}>
+              Haz clic en el botón para acceder con tu Documento/Email y el PIN de seguridad.
+            </Text>
+          </Section>
+
+          {/* SECCIÓN TELEGRAM - CON TOKEN */}
           <Section style={telegramSection}>
-            <Text style={telegramTitle}>📱 CANAL DE COMUNICACIÓN OFICIAL</Text>
-            <div style={telegramButtonsContainer}>
-              {telegramLink ? (
-                <a href={telegramLink} style={telegramButton}>
-                  🔗 VINCULAR CON TELEGRAM
-                </a>
-              ) : (
-                <a href={telegramDownloadUrl} style={telegramDownloadButton}>
-                  📲 DESCARGAR TELEGRAM
-                </a>
-              )}
-              {telegramToken && (
-                <Text style={telegramTokenStyle}>
-                  Token: <strong>{telegramToken}</strong>
-                </Text>
-              )}
+            <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
+            
+            {/* Botón principal: conectar con el bot (CON TOKEN) */}
+            <div style={telegramMainContainer}>
+              <Text style={telegramMainText}>
+                Para recibir notificaciones y confirmar la recepción de este correo:
+              </Text>
+              <a href={telegramBotLink} style={telegramMainButton}>
+                🤖 INGRESAR A TELEGRAM PARA CONFIRMAR
+              </a>
+              <Text style={telegramBotName}>
+                @{telegramBotUsername}
+              </Text>
             </div>
+
+            {/* Botón de descarga (si no tiene Telegram) */}
+            <div style={telegramDownloadContainer}>
+              <Text style={telegramDownloadText}>
+                ¿No tienes Telegram?
+              </Text>
+              <a href={telegramDownloadUrl} style={telegramDownloadButton}>
+                📲 DESCARGAR TELEGRAM
+              </a>
+            </div>
+
             <Text style={telegramHint}>
-              * Una vez vinculado, recibirás notificaciones automáticas.
-            </Text>
-          </Section>
-
-          {/* Link de acceso destacado y contacto */}
-          <Section style={linkSection}>
-            <Text style={linkLabel}>🚀 SISTEMA DE ACCESO Y COMUNICACIÓN</Text>
-
-            <a href={appUrl} style={linkButton}>
-              Ingresar al Sistema
-            </a>
-
-            <a href="https://t.me/Notificaacceso_bot" style={telegramButton}>
-              Conectar con Telegram
-            </a>
-
-            <a href={`https://wa.me/?text=Hola%20${nombre_completo},%20este%20es%20tu%20registro%20de%20flota:%20${appUrl}`} style={whatsappButton}>
-              Conectar con WhatsApp
-            </a>
-
-            <Text style={linkHint}>
-              Si no tienes Telegram, descárgalo aquí: <a href="https://telegram.org/" style={{ color: '#2563eb' }}>telegram.org</a>
+              * Una vez que inicies conversación con el bot, tu cuenta quedará vinculada automáticamente para futuras notificaciones.
             </Text>
           </Section>
 
           {/* Instrucciones para flota */}
           <Section style={instructionsSection}>
-            <Text style={instructionsTitle}>📱 ¿CÓMO FUNCIONA?</Text>
+            <Text style={instructionsTitle}>📱 ¿CÓMO FUNCIONA EL ACCESO?</Text>
             <div style={instructionsBox}>
               <div style={instructionItem}>
                 <span style={instructionNumber}>1</span>
-                <span style={instructionText}>Cuando llegues al almacén, un supervisor registrará tu ingreso</span>
+                <span style={instructionText}>Cuando llegues al almacén, dirígete al área de supervisión</span>
               </div>
               <div style={instructionItem}>
                 <span style={instructionNumber}>2</span>
-                <span style={instructionText}>Deberás presentar tu <strong>Documento de Identidad</strong></span>
+                <span style={instructionText}>Un supervisor registrará tu ingreso en el sistema</span>
               </div>
               <div style={instructionItem}>
                 <span style={instructionNumber}>3</span>
-                <span style={instructionText}>El supervisor verificará tus datos en el sistema</span>
+                <span style={instructionText}>Presenta tu <strong>Documento de Identidad</strong> al supervisor</span>
               </div>
               <div style={instructionItem}>
                 <span style={instructionNumber}>4</span>
-                <span style={instructionText}>Tu <strong>PIN</strong> es solo por seguridad, no lo necesitas para ingresar</span>
+                <span style={instructionText}>Tu <strong>PIN</strong> es solo por seguridad (no lo necesitas para ingresar)</span>
               </div>
             </div>
+          </Section>
+
+          {/* Reglas y procedimientos */}
+          <Section style={rulesSection}>
+            <Text style={rulesTitle}>📌 NORMAS Y PROCEDIMIENTOS OBLIGATORIOS</Text>
+            <Text style={rulesText}>
+              Como parte de nuestra política de control de acceso para transporte, es fundamental que todos los conductores registren su ingreso y salida del almacén. A continuación, las pautas que debes seguir:
+            </Text>
+            <ul style={rulesList}>
+              <li style={listItem}>
+                <strong>Registro obligatorio:</strong> Todo conductor debe registrarse con el supervisor al ingresar al almacén. El incumplimiento será considerado falta grave.
+              </li>
+              <li style={listItem}>
+                <strong>Documentación:</strong> Debes presentar tu documento de identidad en cada ingreso para verificar tus datos en el sistema.
+              </li>
+              <li style={listItem}>
+                <strong>Horarios de carga/descarga:</strong> Respeta los horarios asignados para tu flota. La puntualidad es fundamental para la operación.
+              </li>
+              <li style={listItem}>
+                <strong>Confidencialidad:</strong> Tu PIN es personal. No lo compartas con otros conductores. Cualquier uso indebido será responsabilidad del titular.
+              </li>
+              <li style={listItem}>
+                <strong>Notificaciones:</strong> Activa Telegram para recibir actualizaciones sobre tus rutas y horarios.
+              </li>
+            </ul>
+            <Text style={rulesFooter}>
+              Al hacer uso de este sistema, aceptas cumplir con estas normas y entiendes que tu ingreso queda registrado para efectos administrativos y de seguridad.
+            </Text>
           </Section>
 
           <Hr style={hr} />
@@ -168,7 +253,7 @@ export const BienvenidaFlota = ({
               © 2026 Gestor de Acceso. Todos los derechos reservados.
             </Text>
             <Text style={footerSmall}>
-              Documento generado el {fechaActual}.
+              Documento generado el {new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}.
             </Text>
           </Section>
         </Container>
@@ -180,7 +265,7 @@ export const BienvenidaFlota = ({
 export default BienvenidaFlota;
 
 // =====================================================
-// ESTILOS
+// ESTILOS (IGUALES)
 // =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
@@ -217,11 +302,7 @@ const headerSubtitle = {
 };
 
 const welcomeSection = {
-  backgroundColor: '#e6f7e6',
-  padding: '20px',
-  borderRadius: '12px',
   marginBottom: '24px',
-  border: '1px solid #b8e0b8',
 };
 
 const welcomeText = {
@@ -239,10 +320,6 @@ const welcomeDescription = {
 
 const dataSection = {
   marginBottom: '24px',
-  backgroundColor: '#f8fafc',
-  padding: '16px',
-  borderRadius: '8px',
-  border: '1px solid #e2e8f0',
 };
 
 const dataTitle = {
@@ -257,49 +334,100 @@ const dataTitle = {
 const dataTable = {
   width: '100%',
   borderCollapse: 'collapse' as const,
-  marginBottom: '12px',
 };
 
 const dataLabel = {
   padding: '8px 12px',
-  backgroundColor: '#f1f5f9',
+  backgroundColor: '#f8fafc',
   fontWeight: '600',
   color: '#334155',
-  width: '40%',
-  border: '1px solid #cbd5e1',
+  width: '30%',
+  border: '1px solid #e2e8f0',
 };
 
 const dataValue = {
   padding: '8px 12px',
   backgroundColor: '#ffffff',
   color: '#0f172a',
-  border: '1px solid #cbd5e1',
+  border: '1px solid #e2e8f0',
 };
 
-const pinHighlight = {
-  color: '#059669',
+const pinSection = {
+  backgroundColor: '#1e293b',
+  borderRadius: '8px',
+  padding: '20px',
+  textAlign: 'center' as const,
+  marginBottom: '24px',
+};
+
+const pinLabel = {
+  fontSize: '14px',
+  fontWeight: 'bold',
+  color: '#94a3b8',
+  letterSpacing: '1px',
+  margin: '0 0 8px',
+};
+
+const pinValue = {
+  fontSize: '32px',
+  fontWeight: 'bold',
+  color: '#fbbf24',
+  fontFamily: 'monospace',
+  margin: '0 0 8px',
+};
+
+const pinWarning = {
+  fontSize: '12px',
+  color: '#cbd5e1',
+  fontStyle: 'italic' as const,
+  margin: '0',
+};
+
+// ACCESO AL SISTEMA
+const accessSection = {
+  backgroundColor: '#e6f0ff',
+  padding: '20px',
+  borderRadius: '12px',
+  marginBottom: '24px',
+  textAlign: 'center' as const,
+  border: '2px solid #2563eb',
+};
+
+const accessTitle = {
   fontSize: '16px',
-  letterSpacing: '2px',
+  fontWeight: 'bold',
+  color: '#1e3a8a',
+  margin: '0 0 16px',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '1px',
 };
 
-const warning = {
+const accessButton = {
+  display: 'inline-block',
+  backgroundColor: '#2563eb',
+  color: '#ffffff',
+  padding: '16px 32px',
+  borderRadius: '50px',
+  fontSize: '18px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  marginBottom: '12px',
+  boxShadow: '0 8px 16px rgba(37, 99, 235, 0.4)',
+};
+
+const accessHint = {
   fontSize: '13px',
-  color: '#dc2626',
-  backgroundColor: '#fee2e2',
-  padding: '10px',
-  borderRadius: '4px',
-  margin: '12px 0 0',
-  border: '1px solid #fecaca',
+  color: '#4b5563',
+  margin: '0',
 };
 
-// =====================================================
-// ESTILOS DE TELEGRAM
-// =====================================================
+// TELEGRAM - REDISEÑADO
 const telegramSection = {
   marginBottom: '24px',
   padding: '16px',
   backgroundColor: '#f8fafc',
   borderRadius: '8px',
+  border: '1px solid #0088cc',
 };
 
 const telegramTitle = {
@@ -310,24 +438,53 @@ const telegramTitle = {
   textAlign: 'center' as const,
 };
 
-const telegramButtonsContainer = {
-  display: 'flex',
-  justifyContent: 'center',
-  gap: '16px',
+const telegramMainContainer = {
+  backgroundColor: '#e6f7ff',
+  padding: '16px',
+  borderRadius: '8px',
   marginBottom: '12px',
+  border: '1px solid #0088cc',
 };
 
-const telegramButton = {
-  display: 'inline-block',
+const telegramMainText = {
+  fontSize: '14px',
+  color: '#334155',
+  margin: '0 0 12px',
+  textAlign: 'center' as const,
+};
+
+const telegramMainButton = {
+  display: 'block',
   backgroundColor: '#0088cc',
   color: '#ffffff',
-  padding: '12px 24px',
+  padding: '14px',
   borderRadius: '30px',
-  fontSize: '14px',
+  fontSize: '15px',
   fontWeight: 'bold',
   textDecoration: 'none',
-  boxShadow: '0 4px 6px rgba(0, 136, 204, 0.3)',
   textAlign: 'center' as const,
+  marginBottom: '8px',
+  boxShadow: '0 4px 8px rgba(0, 136, 204, 0.4)',
+};
+
+const telegramBotName = {
+  fontSize: '13px',
+  color: '#0088cc',
+  fontFamily: 'monospace',
+  fontWeight: 'bold',
+  textAlign: 'center' as const,
+  margin: '4px 0 0',
+};
+
+const telegramDownloadContainer = {
+  padding: '12px',
+  textAlign: 'center' as const,
+};
+
+const telegramDownloadText = {
+  fontSize: '13px',
+  color: '#6b7280',
+  margin: '0 0 8px',
 };
 
 const telegramDownloadButton = {
@@ -340,82 +497,17 @@ const telegramDownloadButton = {
   fontWeight: 'bold',
   textDecoration: 'none',
   boxShadow: '0 4px 6px rgba(42, 171, 238, 0.3)',
-  textAlign: 'center' as const,
-};
-
-const telegramTokenStyle = {
-  fontSize: '12px',
-  color: '#4b5563',
-  backgroundColor: '#ffffff',
-  padding: '6px 12px',
-  borderRadius: '20px',
-  display: 'inline-block',
-  margin: '8px 0 0',
-  fontFamily: 'monospace',
-  border: '1px solid #0088cc',
 };
 
 const telegramHint = {
   fontSize: '11px',
   color: '#6b7280',
   fontStyle: 'italic' as const,
-  margin: '8px 0 0',
-  textAlign: 'center' as const,
-};
-
-const linkSection = {
-  backgroundColor: '#f0f9ff',
-  padding: '16px',
-  borderRadius: '8px',
-  marginBottom: '24px',
-  textAlign: 'center' as const,
-  border: '1px solid #7ab3ff',
-};
-
-const linkLabel = {
-  fontSize: '12px',
-  fontWeight: 'bold',
-  color: '#1e40af',
-  letterSpacing: '1px',
-  margin: '0 0 12px',
-  textTransform: 'uppercase' as const,
-};
-
-const linkButton = {
-  display: 'block',
-  width: '100%',
-  backgroundColor: '#2563eb',
-  color: '#ffffff',
-  padding: '12px 0',
-  borderRadius: '8px',
-  fontSize: '15px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  marginBottom: '10px',
-  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.3)',
-};
-
-const whatsappButton = {
-  display: 'block',
-  width: '100%',
-  backgroundColor: '#25D366',
-  color: '#ffffff',
-  padding: '12px 0',
-  borderRadius: '8px',
-  fontSize: '15px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  marginBottom: '10px',
-  boxShadow: '0 4px 6px rgba(37, 211, 102, 0.3)',
-};
-
-const linkHint = {
-  fontSize: '12px',
-  color: '#4b5563',
-  fontStyle: 'italic' as const,
   margin: '12px 0 0',
+  textAlign: 'center' as const,
 };
 
+// Instrucciones
 const instructionsSection = {
   marginBottom: '24px',
   backgroundColor: '#f8fafc',
@@ -426,7 +518,7 @@ const instructionsSection = {
 const instructionsTitle = {
   fontSize: '16px',
   fontWeight: 'bold',
-  color: '#0f172a',
+  color: '#059669',
   margin: '0 0 16px',
   textAlign: 'center' as const,
 };
@@ -459,6 +551,52 @@ const instructionNumber = {
 const instructionText = {
   fontSize: '14px',
   color: '#334155',
+};
+
+// Reglas y procedimientos
+const rulesSection = {
+  marginBottom: '24px',
+};
+
+const rulesTitle = {
+  fontSize: '18px',
+  fontWeight: 'bold',
+  color: '#0f172a',
+  margin: '0 0 12px',
+  borderBottom: '2px solid #e2e8f0',
+  paddingBottom: '6px',
+};
+
+const rulesText = {
+  fontSize: '14px',
+  lineHeight: '1.6',
+  color: '#334155',
+  margin: '0 0 16px',
+};
+
+const rulesList = {
+  listStyleType: 'none',
+  padding: '0',
+  margin: '0 0 16px',
+};
+
+const listItem = {
+  fontSize: '14px',
+  lineHeight: '1.6',
+  color: '#334155',
+  marginBottom: '12px',
+  paddingLeft: '20px',
+  position: 'relative' as const,
+};
+
+const rulesFooter = {
+  fontSize: '14px',
+  fontStyle: 'italic' as const,
+  color: '#475569',
+  margin: '16px 0 0',
+  padding: '12px',
+  backgroundColor: '#f1f5f9',
+  borderRadius: '4px',
 };
 
 const hr = {
