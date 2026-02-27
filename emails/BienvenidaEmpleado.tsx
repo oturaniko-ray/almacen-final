@@ -47,43 +47,44 @@ export const BienvenidaEmpleado = async ({
     );
     
     // ✅ PASO 1: Buscar token en la tabla empleados
-    const { data: empleado } = await supabase
-      .from('empleados')
-      .select('telegram_token')
-      .eq('id', empleadoId)
-      .maybeSingle();
-    
-    if (empleado?.telegram_token) {
-      // REUTILIZAR token existente
-      token = empleado.telegram_token;
-      console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
-    } else {
-      // GENERAR token nuevo
-      token = generarTokenUnico('emp', documento_id);
-      
-      // ✅ PASO 2: Guardar token en empleados (FUENTE DE VERDAD)
-      await supabase
-        .from('empleados')
-        .update({
-          telegram_token: token,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', empleadoId);
-      
-      // ✅ PASO 3: También guardar en telegram_usuarios (para futura vinculación)
-      await supabase
-        .from('telegram_usuarios')
-        .upsert({
-          empleado_id: empleadoId,
-          token_unico: token,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, { 
-          onConflict: 'empleado_id'
-        });
-      
-      console.log(`🆕 Generado nuevo token para empleado ${nombre}`);
-    }
+    // Buscar token en la tabla empleados
+const { data: empleado } = await supabase
+  .from('empleados')
+  .select('telegram_token')
+  .eq('id', empleadoId)
+  .maybeSingle();
+
+if (empleado?.telegram_token) {
+  token = empleado.telegram_token;
+  console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
+} else {
+  token = generarTokenUnico('emp', documento_id);
+  
+  const { error: updateError } = await supabase
+    .from('empleados')
+    .update({
+      telegram_token: token,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', empleadoId);
+  
+  const { error: upsertError } = await supabase
+    .from('telegram_usuarios')
+    .upsert({
+      empleado_id: empleadoId,
+      token_unico: token,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { 
+      onConflict: 'empleado_id'
+    });
+  
+  console.log(`🆕 Generado nuevo token para empleado ${nombre}`);
+  console.log('🔵 TOKEN GENERADO:', token);
+  console.log('🔵 EMPLEADO ID:', empleadoId);
+  console.log('🔵 RESULTADO UPDATE:', updateError || 'OK');
+  console.log('🔵 RESULTADO UPSERT:', upsertError || 'OK');
+}
     
     telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
   } catch (error) {

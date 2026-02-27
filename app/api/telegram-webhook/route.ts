@@ -116,6 +116,10 @@ async function procesarMensaje(message: any) {
             updated_at: ahora
           });
       }
+console.log('🟢 TOKEN RECIBIDO:', token);
+console.log('🟢 BUSCANDO EN EMPLEADOS...');
+console.log('🟢 RESULTADO EMPLEADO:', empleado);
+console.log('🟢 ERROR EMPLEADO:', empError);
 
       await enviarMensajeTelegram(chatId, `✅ *¡Vinculación exitosa!*\n\nHola *${empleado.nombre}*,\nTu cuenta ha sido vinculada correctamente. A partir de ahora recibirás notificaciones del sistema por este canal.`);
       return;
