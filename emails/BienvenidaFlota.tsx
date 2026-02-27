@@ -48,7 +48,7 @@ export const BienvenidaFlota = async ({
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     
-    // Buscar token en flota_perfil
+// Buscar token en flota_perfil
 const { data: flota } = await supabase
   .from('flota_perfil')
   .select('telegram_token')
