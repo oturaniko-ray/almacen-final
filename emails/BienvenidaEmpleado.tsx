@@ -36,7 +36,7 @@ export const BienvenidaEmpleado = async ({
   const appUrl = 'https://almacen-final-git-main-rayperez-projects.vercel.app/';
   const telegramDownloadUrl = 'https://telegram.org/apps';
   
-  // ===== LÓGICA DE TOKEN =====
+  // ===== NUEVA LÓGICA CON TOKEN EN EMPLEADOS =====
   let token = '';
   let telegramBotLink = '';
   
@@ -46,19 +46,31 @@ export const BienvenidaEmpleado = async ({
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     
-    const { data: existingUser } = await supabase
-      .from('telegram_usuarios')
-      .select('token_unico')
-      .eq('empleado_id', empleadoId)
+    // ✅ PASO 1: Buscar token en la tabla empleados
+    const { data: empleado } = await supabase
+      .from('empleados')
+      .select('telegram_token')
+      .eq('id', empleadoId)
       .maybeSingle();
     
-    if (existingUser?.token_unico) {
-      token = existingUser.token_unico;
+    if (empleado?.telegram_token) {
+      // REUTILIZAR token existente
+      token = empleado.telegram_token;
       console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
     } else {
+      // GENERAR token nuevo
       token = generarTokenUnico('emp', documento_id);
       
-      // ✅ CORREGIDO: insert → upsert con onConflict
+      // ✅ PASO 2: Guardar token en empleados (FUENTE DE VERDAD)
+      await supabase
+        .from('empleados')
+        .update({
+          telegram_token: token,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', empleadoId);
+      
+      // ✅ PASO 3: También guardar en telegram_usuarios (para futura vinculación)
       await supabase
         .from('telegram_usuarios')
         .upsert({
@@ -79,7 +91,7 @@ export const BienvenidaEmpleado = async ({
     token = generarTokenUnico('emp', documento_id);
     telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
   }
-  // ===== FIN LÓGICA DE TOKEN =====
+  // ===== FIN LÓGICA =====
 
   return (
     <Html>
@@ -254,7 +266,7 @@ export const BienvenidaEmpleado = async ({
 export default BienvenidaEmpleado;
 
 // =====================================================
-// ESTILOS
+// ESTILOS (IGUALES)
 // =====================================================
 const main = {
   backgroundColor: '#f4f4f4',

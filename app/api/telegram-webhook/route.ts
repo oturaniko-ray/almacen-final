@@ -55,17 +55,6 @@ async function procesarMensaje(message: any) {
   const username = from.username || null;
   const ahora = new Date().toISOString();
 
-  // Actualizar último mensaje SIEMPRE (para cualquier mensaje)
-  await (supabase as any)
-    .from('telegram_usuarios')
-    .update({ 
-      ultimo_mensaje: ahora,
-      updated_at: ahora,
-      nombre,
-      username
-    })
-    .eq('chat_id', String(chatId));
-
   // SOLO /start CON TOKEN
   if (texto.startsWith('/start')) {
     const partes = texto.split(' ');
@@ -79,67 +68,111 @@ async function procesarMensaje(message: any) {
       return;
     }
 
-    // Buscar el token en la tabla
-    const { data: tokenRecord, error } = await (supabase as any)
-      .from('telegram_usuarios')
-      .select('empleado_id, flota_id, token_unico')
-      .eq('token_unico', token)
+    // ✅ BUSCAR PRIMERO EN EMPLEADOS (FUENTE DE VERDAD)
+    const { data: empleado, error: empError } = await (supabase as any)
+      .from('empleados')
+      .select('id, nombre')
+      .eq('telegram_token', token)
       .maybeSingle();
 
-    if (error || !tokenRecord) {
-      await enviarMensajeTelegram(chatId, "❌ El enlace no es válido o ha expirado. Solicita un nuevo correo de bienvenida.");
+    if (!empError && empleado) {
+      // Es un empleado
+      const empleadoId = empleado.id;
+
+      // Verificar si ya existe en telegram_usuarios
+      const { data: existente } = await (supabase as any)
+        .from('telegram_usuarios')
+        .select('id')
+        .eq('empleado_id', empleadoId)
+        .maybeSingle();
+
+      if (existente) {
+        // Actualizar existente
+        await (supabase as any)
+          .from('telegram_usuarios')
+          .update({
+            chat_id: String(chatId),
+            nombre,
+            username,
+            token_unico: token,
+            activo: true,
+            ultimo_mensaje: ahora,
+            updated_at: ahora
+          })
+          .eq('empleado_id', empleadoId);
+      } else {
+        // Crear nuevo
+        await (supabase as any)
+          .from('telegram_usuarios')
+          .insert({
+            empleado_id: empleadoId,
+            chat_id: String(chatId),
+            nombre,
+            username,
+            token_unico: token,
+            activo: true,
+            ultimo_mensaje: ahora,
+            created_at: ahora,
+            updated_at: ahora
+          });
+      }
+
+      await enviarMensajeTelegram(chatId, `✅ *¡Vinculación exitosa!*\n\nHola *${empleado.nombre}*,\nTu cuenta ha sido vinculada correctamente. A partir de ahora recibirás notificaciones del sistema por este canal.`);
       return;
     }
 
-    if (tokenRecord.empleado_id) {
-      // Es un empleado
-      const { data: empleado } = await (supabase as any)
-        .from('empleados')
-        .select('nombre')
-        .eq('id', tokenRecord.empleado_id)
-        .single();
+    // ✅ BUSCAR EN FLOTA
+    const { data: flota, error: fltError } = await (supabase as any)
+      .from('flota_perfil')
+      .select('id, nombre_completo')
+      .eq('telegram_token', token)
+      .maybeSingle();
 
-      // ✅ CORREGIDO: Añadido token_unico al update
-      await (supabase as any)
-        .from('telegram_usuarios')
-        .update({
-          chat_id: String(chatId),
-          nombre,
-          username,
-          token_unico: token,  // ← AÑADIDO
-          activo: true,
-          ultimo_mensaje: ahora,
-          updated_at: ahora
-        })
-        .eq('token_unico', token);
-
-      await enviarMensajeTelegram(chatId, `✅ *¡Vinculación exitosa!*\n\nHola *${empleado.nombre}*,\nTu cuenta ha sido vinculada correctamente. A partir de ahora recibirás notificaciones del sistema por este canal.`);
-
-    } else if (tokenRecord.flota_id) {
+    if (!fltError && flota) {
       // Es flota
-      const { data: flota } = await (supabase as any)
-        .from('flota_perfil')
-        .select('nombre_completo')
-        .eq('id', tokenRecord.flota_id)
-        .single();
+      const flotaId = flota.id;
 
-      // ✅ CORREGIDO: Añadido token_unico al update
-      await (supabase as any)
+      const { data: existente } = await (supabase as any)
         .from('telegram_usuarios')
-        .update({
-          chat_id: String(chatId),
-          nombre,
-          username,
-          token_unico: token,  // ← AÑADIDO
-          activo: true,
-          ultimo_mensaje: ahora,
-          updated_at: ahora
-        })
-        .eq('token_unico', token);
+        .select('id')
+        .eq('flota_id', flotaId)
+        .maybeSingle();
+
+      if (existente) {
+        await (supabase as any)
+          .from('telegram_usuarios')
+          .update({
+            chat_id: String(chatId),
+            nombre,
+            username,
+            token_unico: token,
+            activo: true,
+            ultimo_mensaje: ahora,
+            updated_at: ahora
+          })
+          .eq('flota_id', flotaId);
+      } else {
+        await (supabase as any)
+          .from('telegram_usuarios')
+          .insert({
+            flota_id: flotaId,
+            chat_id: String(chatId),
+            nombre,
+            username,
+            token_unico: token,
+            activo: true,
+            ultimo_mensaje: ahora,
+            created_at: ahora,
+            updated_at: ahora
+          });
+      }
 
       await enviarMensajeTelegram(chatId, `✅ *¡Vinculación exitosa!*\n\nHola *${flota.nombre_completo}*,\nTu perfil de flota ha sido vinculado correctamente. A partir de ahora recibirás notificaciones del sistema por este canal.`);
+      return;
     }
 
+    // Si llegamos aquí, el token no es válido
+    await enviarMensajeTelegram(chatId, "❌ El enlace no es válido o ha expirado. Solicita un nuevo correo de bienvenida.");
     return;
   }
 

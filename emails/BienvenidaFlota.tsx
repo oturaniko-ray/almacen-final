@@ -48,32 +48,33 @@ export const BienvenidaFlota = async ({
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     
-    const { data: existingUser } = await supabase
-      .from('telegram_usuarios')
-      .select('token_unico')
-      .eq('flota_id', flotaId)
-      .maybeSingle();
-    
-    if (existingUser?.token_unico) {
-      token = existingUser.token_unico;
-      console.log(`📱 Reutilizando token existente para flota ${nombre_completo}`);
-    } else {
-      token = generarTokenUnico('flt', documento_id);
-      
-      // ✅ CORREGIDO: insert → upsert con onConflict
-      await supabase
-        .from('telegram_usuarios')
-        .upsert({
-          flota_id: flotaId,
-          token_unico: token,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, { 
-          onConflict: 'flota_id'
-        });
-      
-      console.log(`🆕 Generado nuevo token para flota ${nombre_completo}`);
-    }
+    // Buscar token en flota_perfil
+const { data: flota } = await supabase
+  .from('flota_perfil')
+  .select('telegram_token')
+  .eq('id', flotaId)
+  .maybeSingle();
+
+if (flota?.telegram_token) {
+  token = flota.telegram_token;
+} else {
+  token = generarTokenUnico('flt', documento_id);
+  
+  // Guardar en flota_perfil
+  await supabase
+    .from('flota_perfil')
+    .update({ telegram_token: token })
+    .eq('id', flotaId);
+  
+  // Guardar en telegram_usuarios
+  await supabase
+    .from('telegram_usuarios')
+    .upsert({
+      flota_id: flotaId,
+      token_unico: token,
+      // ...
+    });
+}
     
     telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
   } catch (error) {
