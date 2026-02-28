@@ -11,6 +11,13 @@ import {
   NotificacionSistema
 } from '../../components';
 
+// ✅ Directivas para evitar prerenderizado estático
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
+// ... resto del código sin cambios
+
 // ------------------------------------------------------------
 // DEFINICIÓN DE TIPOS PARA SUPABASE
 // ------------------------------------------------------------
