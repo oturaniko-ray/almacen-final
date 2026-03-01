@@ -58,16 +58,23 @@ if (empleado?.telegram_token) {
   token = empleado.telegram_token;
   console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
 } else {
+ } else {
   token = generarTokenUnico('emp', documento_id);
-  
+  console.log('🔵 [EMAIL] Token generado:', token);
+
+  // Actualizar empleados
   const { error: updateError } = await supabase
     .from('empleados')
-    .update({
-      telegram_token: token,
-      updated_at: new Date().toISOString()
-    })
+    .update({ telegram_token: token, updated_at: new Date().toISOString() })
     .eq('id', empleadoId);
-  
+
+  if (updateError) {
+    console.error('🔴 [EMAIL] Error al actualizar empleados:', updateError);
+  } else {
+    console.log('🟢 [EMAIL] Token guardado en empleados OK');
+  }
+
+  // Upsert en telegram_usuarios
   const { error: upsertError } = await supabase
     .from('telegram_usuarios')
     .upsert({
@@ -75,23 +82,14 @@ if (empleado?.telegram_token) {
       token_unico: token,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    }, { 
-      onConflict: 'empleado_id'
-    });
-  
-  console.log(`🆕 Generado nuevo token para empleado ${nombre}`);
-  console.log('🔵 TOKEN GENERADO:', token);
-  console.log('🔵 EMPLEADO ID:', empleadoId);
-  console.log('🔵 RESULTADO UPDATE:', updateError || 'OK');
-  console.log('🔵 RESULTADO UPSERT:', upsertError || 'OK');
-}
-    
-    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
-  } catch (error) {
-    console.error('Error al procesar token:', error);
-    token = generarTokenUnico('emp', documento_id);
-    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
+    }, { onConflict: 'empleado_id' });
+
+  if (upsertError) {
+    console.error('🔴 [EMAIL] Error al hacer upsert en telegram_usuarios:', upsertError);
+  } else {
+    console.log('🟢 [EMAIL] Token guardado en telegram_usuarios OK');
   }
+}
   // ===== FIN LÓGICA =====
 
   return (
