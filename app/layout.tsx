@@ -1,3 +1,7 @@
+// Ninguna página debe prerenderizarse estáticamente:
+// la app requiere autenticación y datos en tiempo real en todas sus rutas.
+export const dynamic = 'force-dynamic';
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
