@@ -115,7 +115,7 @@ bot.on('callback_query:data', async (ctx) => {
         activo: true,
         ultimo_mensaje: ahora,
         updated_at: ahora,
-      }, { onConflict: 'empleado_id' });
+      }, { onConflict: 'chat_id' });
 
     if (upsertError) {
       console.error('Error upsert telegram_usuarios (empleado):', upsertError);
@@ -157,7 +157,7 @@ bot.on('callback_query:data', async (ctx) => {
         activo: true,
         ultimo_mensaje: ahora,
         updated_at: ahora,
-      }, { onConflict: 'flota_id' });
+      }, { onConflict: 'chat_id' });
 
     if (upsertError) {
       console.error('Error upsert telegram_usuarios (flota):', upsertError);

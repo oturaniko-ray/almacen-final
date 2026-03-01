@@ -66,23 +66,8 @@ async function obtenerTokenEmpleado(supabase: any, empleadoId: string, documento
     console.log('🟢 Token guardado en empleados.telegram_token OK');
   }
 
-  // 4. Upsert inicial en telegram_usuarios (sin chat_id aún)
-  const { error: upsertError } = await (supabase as any)
-    .from('telegram_usuarios')
-    .upsert({
-      empleado_id: empleadoId,
-      token_unico: token,
-      tipo: 'empleado',
-      activo: false,
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    }, { onConflict: 'empleado_id' });
-
-  if (upsertError) {
-    console.error('🔴 Error en upsert telegram_usuarios (empleado):', upsertError);
-  } else {
-    console.log('🟢 Registro inicial en telegram_usuarios OK');
-  }
+  // NOTA: NO insertamos en telegram_usuarios aquí.
+  // chat_id es NOT NULL → se creará solo cuando el usuario confirme en el bot de Telegram.
 
   return token;
 }
@@ -120,23 +105,8 @@ async function obtenerTokenFlota(supabase: any, flotaId: string, documentoId: st
     console.log('🟢 Token guardado en flota_perfil.telegram_token OK');
   }
 
-  // 4. Upsert inicial en telegram_usuarios (sin chat_id aún)
-  const { error: upsertError } = await (supabase as any)
-    .from('telegram_usuarios')
-    .upsert({
-      flota_id: flotaId,
-      token_unico: token,
-      tipo: 'flota',
-      activo: false,
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    }, { onConflict: 'flota_id' });
-
-  if (upsertError) {
-    console.error('🔴 Error en upsert telegram_usuarios (flota):', upsertError);
-  } else {
-    console.log('🟢 Registro inicial en telegram_usuarios OK');
-  }
+  // NOTA: NO insertamos en telegram_usuarios aquí.
+  // chat_id es NOT NULL → se creará solo cuando el usuario confirme en el bot de Telegram.
 
   return token;
 }
