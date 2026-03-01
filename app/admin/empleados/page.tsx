@@ -303,6 +303,7 @@ export default function GestionEmpleados() {
         body: JSON.stringify({
           tipo: 'empleado',
           datos: {
+            empleadoId: empleado.id,          // ← REQUERIDO para el token de Telegram
             nombre: empleado.nombre,
             documento_id: empleado.documento_id,
             email: empleado.email,

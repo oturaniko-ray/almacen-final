@@ -299,6 +299,7 @@ export default function GestionFlota() {
         body: JSON.stringify({
           tipo: 'flota',
           datos: {
+            flotaId: perfil.id,              // ← REQUERIDO para el token de Telegram
             nombre_completo: perfil.nombre_completo,
             documento_id: perfil.documento_id,
             email: perfil.email,
