@@ -126,6 +126,15 @@ export default function PanelAdminHub() {
               color="bg-amber-600"
             />
           )}
+          {nivel >= 4 && (
+            <BotonOpcion
+              texto="MENSAJERÍA TELEGRAM"
+              descripcion="Envío de mensajes a empleados y flota. Plantillas e historial"
+              icono="📱"
+              onClick={() => router.push('/admin/mensajeria')}
+              color="bg-blue-700"
+            />
+          )}
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
             <BotonOpcion
               texto="AUDITORÍA"
