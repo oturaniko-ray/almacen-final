@@ -25,6 +25,8 @@ type EmpleadoRow = {
     en_almacen: boolean | null
     ultimo_ingreso: string | null
     ultima_salida: string | null
+    telegram_token: string | null
+    updated_at: string | null
 }
 
 type FlotaPerfilRow = {
@@ -40,6 +42,8 @@ type FlotaPerfilRow = {
     activo: boolean
     en_patio: boolean | null
     fecha_creacion: string
+    telegram_token: string | null
+    updated_at: string | null
 }
 
 type ProgramacionesRow = {
@@ -75,8 +79,17 @@ type WhatsappMensajesRow = {
 
 type TelegramUsuariosRow = {
     id: string
-    chat_id: string
-    empleado_id: string
+    chat_id: string | null
+    empleado_id: string | null
+    flota_id: string | null
+    nombre: string | null
+    username: string | null
+    token_unico: string | null
+    tipo: string | null
+    activo: boolean | null
+    ultimo_mensaje: string | null
+    created_at: string | null
+    updated_at: string | null
 }
 
 type SistemaConfigRow = {

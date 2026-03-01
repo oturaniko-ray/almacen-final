@@ -8,8 +8,6 @@ import {
   Text,
   Hr,
 } from '@react-email/components';
-import { generarTokenUnico } from '@/lib/telegram/generate-link';
-import { createClient } from '@supabase/supabase-js';
 
 interface BienvenidaEmpleadoProps {
   nombre: string;
@@ -18,85 +16,24 @@ interface BienvenidaEmpleadoProps {
   rol: string;
   nivel_acceso: number;
   pin_seguridad: string;
-  empleadoId: string;
+  telegramLink: string;
   telegramBotUsername?: string;
 }
 
-export const BienvenidaEmpleado = async ({
+// Componente SÍNCRONO — toda la lógica de BD se hace en el API route
+export const BienvenidaEmpleado = ({
   nombre,
   documento_id,
   email,
   rol,
   nivel_acceso,
   pin_seguridad,
-  empleadoId,
+  telegramLink,
   telegramBotUsername = 'Notificaacceso_bot',
 }: BienvenidaEmpleadoProps) => {
   const previewText = `Bienvenido al sistema, ${nombre}`;
   const appUrl = 'https://almacen-final-git-main-rayperez-projects.vercel.app/';
   const telegramDownloadUrl = 'https://telegram.org/apps';
-  
-  // ===== NUEVA LÓGICA CON TOKEN EN EMPLEADOS =====
-  let token = '';
-  let telegramBotLink = '';
-  
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    
-    // ✅ PASO 1: Buscar token en la tabla empleados
-    // Buscar token en la tabla empleados
-const { data: empleado } = await supabase
-  .from('empleados')
-  .select('telegram_token')
-  .eq('id', empleadoId)
-  .maybeSingle();
-
-if (empleado?.telegram_token) {
-  token = empleado.telegram_token;
-  console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
-} else {
-  token = generarTokenUnico('emp', documento_id);
-  console.log('🔵 [EMAIL] Token generado:', token);
-
-  // Actualizar empleados
-  const { error: updateError } = await supabase
-    .from('empleados')
-    .update({ telegram_token: token, updated_at: new Date().toISOString() })
-    .eq('id', empleadoId);
-
-  if (updateError) {
-    console.error('🔴 [EMAIL] Error al actualizar empleados:', updateError);
-  } else {
-    console.log('🟢 [EMAIL] Token guardado en empleados OK');
-  }
-
-  // Upsert en telegram_usuarios
-  const { error: upsertError } = await supabase
-    .from('telegram_usuarios')
-    .upsert({
-      empleado_id: empleadoId,
-      token_unico: token,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'empleado_id' });
-
-  if (upsertError) {
-    console.error('🔴 [EMAIL] Error al hacer upsert en telegram_usuarios:', upsertError);
-  } else {
-    console.log('🟢 [EMAIL] Token guardado en telegram_usuarios OK');
-  }
-}
-  // ===== FIN LÓGICA =====
-  
-  // Construir el link de Telegram con el token
-  telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
-} catch (error) {
-  console.error('🔴 [EMAIL] Error en lógica de Telegram:', error);
-  telegramBotLink = `https://t.me/${telegramBotUsername}`;
-}
 
   return (
     <Html>
@@ -170,12 +107,12 @@ if (empleado?.telegram_token) {
           {/* SECCIÓN TELEGRAM */}
           <Section style={telegramSection}>
             <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
-            
+
             <div style={telegramMainContainer}>
               <Text style={telegramMainText}>
                 Para recibir notificaciones y confirmar la recepción de este correo:
               </Text>
-              <a href={telegramBotLink} style={telegramMainButton}>
+              <a href={telegramLink} style={telegramMainButton}>
                 🤖 INGRESAR A TELEGRAM PARA CONFIRMAR
               </a>
               <Text style={telegramBotName}>
@@ -203,11 +140,11 @@ if (empleado?.telegram_token) {
             <div style={instructionsBox}>
               <div style={instructionItem}>
                 <span style={instructionNumber}>1</span>
-                <span style={instructionText}>Haz clic en <strong>"INGRESAR AL SISTEMA"</strong></span>
+                <span style={instructionText}>Haz clic en <strong>&quot;INGRESAR AL SISTEMA&quot;</strong></span>
               </div>
               <div style={instructionItem}>
                 <span style={instructionNumber}>2</span>
-                <span style={instructionText}>Selecciona <strong>"ACCESO PERSONAL"</strong></span>
+                <span style={instructionText}>Selecciona <strong>&quot;ACCESO PERSONAL&quot;</strong></span>
               </div>
               <div style={instructionItem}>
                 <span style={instructionNumber}>3</span>
@@ -224,28 +161,22 @@ if (empleado?.telegram_token) {
           <Section style={rulesSection}>
             <Text style={rulesTitle}>📌 NORMAS Y PROCEDIMIENTOS OBLIGATORIOS</Text>
             <Text style={rulesText}>
-              Como parte de nuestra política de control de acceso, es fundamental que todos los empleados registren su entrada y salida en el sistema. A continuación, las pautas que debes seguir:
+              Como parte de nuestra política de control de acceso, es fundamental que todos los empleados registren su entrada y salida en el sistema.
             </Text>
             <ul style={rulesList}>
               <li style={listItem}>
-                <strong>Registro de entrada:</strong> Debes escanear tu código QR en el lector ubicado en la entrada principal cada vez que ingreses a las instalaciones. El sistema validará tu ubicación GPS y te permitirá acceder solo si te encuentras dentro del rango permitido.
+                <strong>Registro de entrada:</strong> Debes escanear tu código QR en el lector ubicado en la entrada principal cada vez que ingreses a las instalaciones.
               </li>
               <li style={listItem}>
-                <strong>Registro de salida:</strong> Al finalizar tu jornada, deberás escanear nuevamente tu QR para registrar tu salida. Esto es obligatorio para llevar un control preciso de horas trabajadas y para fines de seguridad.
+                <strong>Registro de salida:</strong> Al finalizar tu jornada, deberás escanear nuevamente tu QR para registrar tu salida.
               </li>
               <li style={listItem}>
-                <strong>Obligatoriedad:</strong> El incumplimiento del registro de entrada o salida será considerado como falta grave y podrá ser sancionado según el reglamento interno.
+                <strong>Obligatoriedad:</strong> El incumplimiento del registro será considerado como falta grave.
               </li>
               <li style={listItem}>
-                <strong>Confidencialidad:</strong> Tu código QR y PIN son personales. No los compartas ni permitas que otra persona los utilice. Cualquier uso indebido será responsabilidad del titular.
-              </li>
-              <li style={listItem}>
-                <strong>Actualización de datos:</strong> Si cambias de teléfono o tienes problemas con el GPS, notifica de inmediato a tu supervisor para que se tomen las medidas necesarias.
+                <strong>Confidencialidad:</strong> Tu código QR y PIN son personales. No los compartas ni permitas que otra persona los utilice.
               </li>
             </ul>
-            <Text style={rulesFooter}>
-              Al hacer uso de este sistema, aceptas cumplir con estas normas y entiendes que tu presencia queda registrada para efectos administrativos y de seguridad.
-            </Text>
           </Section>
 
           <Hr style={hr} />
@@ -271,7 +202,7 @@ if (empleado?.telegram_token) {
 export default BienvenidaEmpleado;
 
 // =====================================================
-// ESTILOS (IGUALES)
+// ESTILOS
 // =====================================================
 const main = {
   backgroundColor: '#f4f4f4',
@@ -307,9 +238,7 @@ const headerSubtitle = {
   margin: '0',
 };
 
-const welcomeSection = {
-  marginBottom: '24px',
-};
+const welcomeSection = { marginBottom: '24px' };
 
 const welcomeText = {
   fontSize: '18px',
@@ -324,9 +253,7 @@ const welcomeDescription = {
   margin: '0',
 };
 
-const dataSection = {
-  marginBottom: '24px',
-};
+const dataSection = { marginBottom: '24px' };
 
 const dataTitle = {
   fontSize: '18px',
@@ -556,9 +483,7 @@ const instructionText = {
   color: '#334155',
 };
 
-const rulesSection = {
-  marginBottom: '24px',
-};
+const rulesSection = { marginBottom: '24px' };
 
 const rulesTitle = {
   fontSize: '18px',
@@ -591,24 +516,12 @@ const listItem = {
   position: 'relative' as const,
 };
 
-const rulesFooter = {
-  fontSize: '14px',
-  fontStyle: 'italic' as const,
-  color: '#475569',
-  margin: '16px 0 0',
-  padding: '12px',
-  backgroundColor: '#f1f5f9',
-  borderRadius: '4px',
-};
-
 const hr = {
   borderColor: '#e2e8f0',
   margin: '24px 0',
 };
 
-const footer = {
-  textAlign: 'center' as const,
-};
+const footer = { textAlign: 'center' as const };
 
 const footerText = {
   fontSize: '12px',
@@ -621,4 +534,3 @@ const footerSmall = {
   color: '#94a3b8',
   margin: '8px 0 0',
 };
-

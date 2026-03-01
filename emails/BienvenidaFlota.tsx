@@ -8,8 +8,6 @@ import {
   Text,
   Hr,
 } from '@react-email/components';
-import { generarTokenUnico } from '@/lib/telegram/generate-link';
-import { createClient } from '@supabase/supabase-js';
 
 interface BienvenidaFlotaProps {
   nombre_completo: string;
@@ -19,11 +17,12 @@ interface BienvenidaFlotaProps {
   cant_rutas: number;
   pin_secreto: string;
   email: string;
-  flotaId: string;
+  telegramLink: string;
   telegramBotUsername?: string;
 }
 
-export const BienvenidaFlota = async ({
+// Componente SÍNCRONO — toda la lógica de BD se hace en el API route
+export const BienvenidaFlota = ({
   nombre_completo,
   documento_id,
   nombre_flota,
@@ -31,58 +30,12 @@ export const BienvenidaFlota = async ({
   cant_rutas,
   pin_secreto,
   email,
-  flotaId,
+  telegramLink,
   telegramBotUsername = 'Notificaacceso_bot',
 }: BienvenidaFlotaProps) => {
   const previewText = `Bienvenido al sistema de flota, ${nombre_completo}`;
   const appUrl = 'https://almacen-final-git-main-rayperez-projects.vercel.app/';
   const telegramDownloadUrl = 'https://telegram.org/apps';
-  
-  // ===== LÓGICA DE TOKEN =====
-  let token = '';
-  let telegramBotLink = '';
-  
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    
-// Buscar token en flota_perfil
-const { data: flota } = await supabase
-  .from('flota_perfil')
-  .select('telegram_token')
-  .eq('id', flotaId)
-  .maybeSingle();
-
-if (flota?.telegram_token) {
-  token = flota.telegram_token;
-} else {
-  token = generarTokenUnico('flt', documento_id);
-  
-  // Guardar en flota_perfil
-  await supabase
-    .from('flota_perfil')
-    .update({ telegram_token: token })
-    .eq('id', flotaId);
-  
-  // Guardar en telegram_usuarios
-  await supabase
-    .from('telegram_usuarios')
-    .upsert({
-      flota_id: flotaId,
-      token_unico: token,
-      // ...
-    });
-}
-    
-    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
-  } catch (error) {
-    console.error('Error al procesar token:', error);
-    token = generarTokenUnico('flt', documento_id);
-    telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
-  }
-  // ===== FIN LÓGICA DE TOKEN =====
 
   return (
     <Html>
@@ -160,12 +113,12 @@ if (flota?.telegram_token) {
           {/* SECCIÓN TELEGRAM */}
           <Section style={telegramSection}>
             <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
-            
+
             <div style={telegramMainContainer}>
               <Text style={telegramMainText}>
                 Para recibir notificaciones y confirmar la recepción de este correo:
               </Text>
-              <a href={telegramBotLink} style={telegramMainButton}>
+              <a href={telegramLink} style={telegramMainButton}>
                 🤖 INGRESAR A TELEGRAM PARA CONFIRMAR
               </a>
               <Text style={telegramBotName}>
@@ -210,32 +163,23 @@ if (flota?.telegram_token) {
             </div>
           </Section>
 
-          {/* Reglas y procedimientos */}
+          {/* Reglas */}
           <Section style={rulesSection}>
             <Text style={rulesTitle}>📌 NORMAS Y PROCEDIMIENTOS OBLIGATORIOS</Text>
-            <Text style={rulesText}>
-              Como parte de nuestra política de control de acceso para transporte, es fundamental que todos los conductores registren su ingreso y salida del almacén. A continuación, las pautas que debes seguir:
-            </Text>
             <ul style={rulesList}>
               <li style={listItem}>
-                <strong>Registro obligatorio:</strong> Todo conductor debe registrarse con el supervisor al ingresar al almacén. El incumplimiento será considerado falta grave.
+                <strong>Registro obligatorio:</strong> Todo conductor debe registrarse con el supervisor al ingresar al almacén.
               </li>
               <li style={listItem}>
-                <strong>Documentación:</strong> Debes presentar tu documento de identidad en cada ingreso para verificar tus datos en el sistema.
+                <strong>Documentación:</strong> Debes presentar tu documento de identidad en cada ingreso.
               </li>
               <li style={listItem}>
-                <strong>Horarios de carga/descarga:</strong> Respeta los horarios asignados para tu flota. La puntualidad es fundamental para la operación.
-              </li>
-              <li style={listItem}>
-                <strong>Confidencialidad:</strong> Tu PIN es personal. No lo compartas con otros conductores. Cualquier uso indebido será responsabilidad del titular.
+                <strong>Horarios de carga/descarga:</strong> Respeta los horarios asignados para tu flota.
               </li>
               <li style={listItem}>
                 <strong>Notificaciones:</strong> Activa Telegram para recibir actualizaciones sobre tus rutas y horarios.
               </li>
             </ul>
-            <Text style={rulesFooter}>
-              Al hacer uso de este sistema, aceptas cumplir con estas normas y entiendes que tu ingreso queda registrado para efectos administrativos y de seguridad.
-            </Text>
           </Section>
 
           <Hr style={hr} />
@@ -297,9 +241,7 @@ const headerSubtitle = {
   margin: '0',
 };
 
-const welcomeSection = {
-  marginBottom: '24px',
-};
+const welcomeSection = { marginBottom: '24px' };
 
 const welcomeText = {
   fontSize: '18px',
@@ -314,9 +256,7 @@ const welcomeDescription = {
   margin: '0',
 };
 
-const dataSection = {
-  marginBottom: '24px',
-};
+const dataSection = { marginBottom: '24px' };
 
 const dataTitle = {
   fontSize: '18px',
@@ -546,9 +486,7 @@ const instructionText = {
   color: '#334155',
 };
 
-const rulesSection = {
-  marginBottom: '24px',
-};
+const rulesSection = { marginBottom: '24px' };
 
 const rulesTitle = {
   fontSize: '18px',
@@ -557,13 +495,6 @@ const rulesTitle = {
   margin: '0 0 12px',
   borderBottom: '2px solid #e2e8f0',
   paddingBottom: '6px',
-};
-
-const rulesText = {
-  fontSize: '14px',
-  lineHeight: '1.6',
-  color: '#334155',
-  margin: '0 0 16px',
 };
 
 const rulesList = {
@@ -581,24 +512,12 @@ const listItem = {
   position: 'relative' as const,
 };
 
-const rulesFooter = {
-  fontSize: '14px',
-  fontStyle: 'italic' as const,
-  color: '#475569',
-  margin: '16px 0 0',
-  padding: '12px',
-  backgroundColor: '#f1f5f9',
-  borderRadius: '4px',
-};
-
 const hr = {
   borderColor: '#e2e8f0',
   margin: '24px 0',
 };
 
-const footer = {
-  textAlign: 'center' as const,
-};
+const footer = { textAlign: 'center' as const };
 
 const footerText = {
   fontSize: '12px',
