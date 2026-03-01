@@ -58,7 +58,6 @@ if (empleado?.telegram_token) {
   token = empleado.telegram_token;
   console.log(`📱 Reutilizando token existente para empleado ${nombre}`);
 } else {
- } else {
   token = generarTokenUnico('emp', documento_id);
   console.log('🔵 [EMAIL] Token generado:', token);
 
@@ -91,6 +90,13 @@ if (empleado?.telegram_token) {
   }
 }
   // ===== FIN LÓGICA =====
+  
+  // Construir el link de Telegram con el token
+  telegramBotLink = `https://t.me/${telegramBotUsername}?start=${token}`;
+} catch (error) {
+  console.error('🔴 [EMAIL] Error en lógica de Telegram:', error);
+  telegramBotLink = `https://t.me/${telegramBotUsername}`;
+}
 
   return (
     <Html>
@@ -615,3 +621,4 @@ const footerSmall = {
   color: '#94a3b8',
   margin: '8px 0 0',
 };
+

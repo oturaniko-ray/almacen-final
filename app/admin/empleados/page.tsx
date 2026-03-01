@@ -11,10 +11,7 @@ import {
   NotificacionSistema
 } from '../../components';
 
-// ✅ Directivas para evitar prerenderizado estático
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-export const revalidate = 0;
+
 
 // ... resto del código sin cambios
 
@@ -806,7 +803,7 @@ export default function GestionEmpleados() {
                   <th className="p-3 text-center w-[8%]">PIN</th>
                   <th className="p-3 text-center w-[6%]">REP</th>
                   <th className="p-3 text-center w-[6%]">EST</th>
-                  <th className="p-3 text-center w-[31%]" colSpan={4}>ACCIONES</th>
+                  <th className="p-3 text-center w-[31%]" colSpan={2}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -817,11 +814,10 @@ export default function GestionEmpleados() {
                       <div className="flex items-center gap-2">
                         {/* INDICADOR VERDE PARA EN_ALMACEN */}
                         <div
-                          className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                            emp.en_almacen 
-                              ? 'bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse' 
-                              : 'bg-slate-600'
-                          }`}
+                          className={`w-3 h-3 rounded-full flex-shrink-0 ${emp.en_almacen
+                            ? 'bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse'
+                            : 'bg-slate-600'
+                            }`}
                           title={emp.en_almacen ? 'En almacén' : 'Fuera del almacén'}
                         />
                         <div className="flex flex-col">
