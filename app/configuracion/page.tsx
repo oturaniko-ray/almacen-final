@@ -307,24 +307,24 @@ export default function ConfigMaestraPage() {
           {/* ── SIDEBAR IZQUIERDO ─────────────────────────────────────── */}
           <div className="md:col-span-3 flex flex-col gap-3">
             {[
-              { id: 'geolocalizacion', emoji: '📍', label: 'GEOCERCA\nGPS', active: 'bg-emerald-700 shadow-emerald-900/40' },
-              { id: 'seguridad', emoji: '🛡️', label: 'PARÁMETROS\nDe TIEMPO', active: 'bg-blue-600 shadow-blue-900/40' },
-              { id: 'laboral', emoji: '⏱️', label: 'JORNADA\nLABORAL', active: 'bg-slate-600 shadow-slate-900/40' },
-              { id: 'efectividad', emoji: '📊', label: 'PORCENTAJE\nEFECTIVIDAD', active: 'bg-amber-600 shadow-amber-900/40' },
-              { id: 'interfaz', emoji: '🖥️', label: 'INTERFAZ\nSISTEMA', active: 'bg-violet-600 shadow-violet-900/40' },
-              { id: 'respondio', emoji: '🔄', label: 'RESPOND\nIO', active: 'bg-indigo-600 shadow-indigo-900/40' },
-              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', emoji: '🧹', label: 'LIMPIEZA\nDATOS', active: 'bg-rose-700 shadow-rose-900/40' }] : []),
+              { id: 'geolocalizacion', emoji: '📍', label: 'Geocerca GPS', active: 'bg-emerald-700 shadow-emerald-900/40' },
+              { id: 'seguridad', emoji: '🛡️', label: 'Parámetros Tiempo', active: 'bg-blue-600 shadow-blue-900/40' },
+              { id: 'laboral', emoji: '⏱️', label: 'Jornada Laboral', active: 'bg-slate-600 shadow-slate-900/40' },
+              { id: 'efectividad', emoji: '📊', label: '% Efectividad', active: 'bg-amber-600 shadow-amber-900/40' },
+              { id: 'interfaz', emoji: '🖥️', label: 'Sistema', active: 'bg-violet-600 shadow-violet-900/40' },
+              { id: 'respondio', emoji: '🔄', label: 'Respond.io', active: 'bg-indigo-600 shadow-indigo-900/40' },
+              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', emoji: '🧹', label: 'Limpieza DATA', active: 'bg-rose-700 shadow-rose-900/40' }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`w-full flex flex-col items-center gap-2 py-5 px-4 rounded-[22px] transition-all duration-300 shadow-md ${tabActual === tab.id
-                    ? tab.active + ' text-white shadow-xl scale-[1.03]'
+                className={`w-full flex items-center gap-3 py-3 px-4 rounded-[18px] transition-all duration-300 ${tabActual === tab.id
+                    ? tab.active + ' text-white shadow-lg'
                     : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
                   }`}
               >
-                <span className="text-3xl leading-none">{tab.emoji}</span>
-                <span className="text-[9px] font-black uppercase tracking-widest text-center leading-tight whitespace-pre-line">
+                <span className="text-xl leading-none shrink-0">{tab.emoji}</span>
+                <span className="text-[10px] font-black uppercase tracking-wide text-left leading-tight">
                   {tab.label}
                 </span>
               </button>
@@ -334,19 +334,9 @@ export default function ConfigMaestraPage() {
           <div className="md:col-span-9 bg-[#0f172a] rounded-[40px] border border-white/5 p-7 md:p-10 shadow-2xl">
             <div className="space-y-8">
               {tabActual === 'geolocalizacion' && (
-                <div className="space-y-4">
-                  {/* Botón UBÍCAME */}
-                  <button
-                    onClick={handleUbicame}
-                    disabled={ubicandome}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-[18px] bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/40 disabled:opacity-50"
-                  >
-                    <span className={ubicandome ? 'animate-spin' : ''}>{ubicandome ? '⏳' : '📍'}</span>
-                    {ubicandome ? 'OBTENIENDO UBICACIÓN GPS...' : 'UBÍCAME — USAR MI UBICACIÓN ACTUAL'}
-                  </button>
-
+                <div className="space-y-3">
                   {/* Mapa grande */}
-                  <div className="rounded-[28px] overflow-hidden border border-white/10" style={{ height: '430px' }}>
+                  <div className="rounded-[20px] overflow-hidden border border-white/[0.07]" style={{ height: '460px' }}>
                     <MapaInteractivo
                       lat={config.almacen_lat}
                       lng={config.almacen_lon}

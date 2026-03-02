@@ -113,42 +113,50 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInte
       },
       onAdd: function () {
         const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
-        btn.innerHTML = '📍';
-        btn.title = 'Mi ubicación';
-        btn.style.backgroundColor = 'white';
-        btn.style.width = '40px';
-        btn.style.height = '40px';
-        btn.style.fontSize = '20px';
+        btn.innerHTML = '📍 Ubícame';
+        btn.title = 'Usar mi ubicación actual';
+        btn.style.backgroundColor = '#065f46';
+        btn.style.color = 'white';
+        btn.style.width = 'auto';
+        btn.style.height = '34px';
+        btn.style.padding = '0 12px';
+        btn.style.fontSize = '12px';
+        btn.style.fontWeight = '900';
+        btn.style.letterSpacing = '0.05em';
         btn.style.cursor = 'pointer';
-        btn.style.border = '2px solid #3b82f6';
-        btn.style.borderRadius = '8px';
-        btn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+        btn.style.border = '2px solid #10b981';
+        btn.style.borderRadius = '10px';
+        btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
+        btn.style.whiteSpace = 'nowrap';
 
-        btn.onclick = async () => {
-          setLoadingLocation(true);
-
-          try {
-            const location = await getCurrentLocation();
-
-            // ✅ VERIFICACIÓN: Asegurar que el mapa existe antes de usarlo
-            if (mapRef.current && location) {
-              mapRef.current.setView([location.lat, location.lng], 18);
-
-              if (markerRef.current) {
-                markerRef.current.setLatLng([location.lat, location.lng]);
-              }
-
-              fetchAddress(location.lat, location.lng);
-              onLocationChange(location.lat, location.lng);
-            } else if (!location) {
-              alert('No se pudo obtener tu ubicación. Verifica los permisos.');
-            }
-          } catch (error) {
-            console.error('Error getting location:', error);
-            alert('Error al obtener ubicación');
-          } finally {
-            setLoadingLocation(false);
+        btn.onclick = () => {
+          if (!navigator.geolocation) {
+            alert('Tu navegador no soporta geolocalización.');
+            return;
           }
+          setLoadingLocation(true);
+          btn.innerHTML = '⏳ Buscando...';
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const { latitude: lat, longitude: lng } = pos.coords;
+              if (mapRef.current) {
+                mapRef.current.setView([lat, lng], 18);
+                if (markerRef.current) {
+                  markerRef.current.setLatLng([lat, lng]);
+                }
+              }
+              fetchAddress(lat, lng);
+              onLocationChange(lat, lng);
+              setLoadingLocation(false);
+              btn.innerHTML = '📍 Ubícame';
+            },
+            (err) => {
+              alert(`No se pudo obtener la ubicación: ${err.message}`);
+              setLoadingLocation(false);
+              btn.innerHTML = '📍 Ubícame';
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
         };
 
         return btn;
