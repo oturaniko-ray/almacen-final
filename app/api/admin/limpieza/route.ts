@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdminAuth } from '@/lib/authApi';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // ──────────────────────────────────────────────
 // Lista blanca: únicas tablas limpiables
 // ──────────────────────────────────────────────
@@ -31,7 +26,12 @@ function esAntigua(hasta: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-    // requireAdminAuth no acepta argumentos — lee headers internamente vía next/headers
+    // createClient DENTRO del handler — evita evaluación en build time
+    const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     let auth: any;
     try {
         auth = await requireAdminAuth();
