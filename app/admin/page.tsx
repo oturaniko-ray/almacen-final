@@ -155,6 +155,15 @@ export default function PanelAdminHub() {
               color="bg-emerald-600"
             />
           )}
+          {nivel >= 8 && (
+            <BotonOpcion
+              texto="SUCURSALES"
+              descripcion="Gestión de sedes y configuración por provincia"
+              icono="🏢"
+              onClick={() => router.push('/admin/sucursales')}
+              color="bg-violet-700"
+            />
+          )}
         </div>
 
         <Footer />
