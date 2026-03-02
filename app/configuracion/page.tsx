@@ -281,70 +281,64 @@ export default function ConfigMaestraPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="md:col-span-3 space-y-2">
+        <div>
+          {/* ── TABS HORIZONTALES ───────────────────────────────────── */}
+          <div className="flex gap-3 overflow-x-auto pb-4 mb-6" style={{ scrollbarWidth: 'none' }}>
             {[
-              { id: 'geolocalizacion', label: '📍 GEOCERCA GPS' },
-              { id: 'seguridad', label: '🛡️ PARÁMETROS DE\nTIEMPO' },
-              { id: 'laboral', label: '⏱️ TIEMPO MÁXIMO\nLABORABLE' },
-              { id: 'efectividad', label: '📊 PORCENTAJE DE\nEFECTIVIDAD' },
-              { id: 'interfaz', label: '🖥️ INTERFAZ' },
-              { id: 'respondio', label: '🔄 SINCRONIZACIÓN\nRESPOND.IO' },
-              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', label: '🧹 LIMPIEZA DE\nDATOS' }] : []),
+              { id: 'geolocalizacion', emoji: '📍', label: 'GEOCERCA\nGPS', active: 'bg-emerald-700 shadow-emerald-900/50' },
+              { id: 'seguridad', emoji: '🛡️', label: 'PARÁMETROS\nTIEMPO', active: 'bg-blue-600 shadow-blue-900/50' },
+              { id: 'laboral', emoji: '⏱️', label: 'JORNADA\nLABORAL', active: 'bg-slate-600 shadow-slate-900/50' },
+              { id: 'efectividad', emoji: '📊', label: 'PORCENTAJE\nEFECTIVIDAD', active: 'bg-amber-600 shadow-amber-900/50' },
+              { id: 'interfaz', emoji: '🖥️', label: 'INTERFAZ\nSISTEMA', active: 'bg-violet-600 shadow-violet-900/50' },
+              { id: 'respondio', emoji: '🔄', label: 'RESPOND\nIO', active: 'bg-indigo-600 shadow-indigo-900/50' },
+              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', emoji: '🧹', label: 'LIMPIEZA\nDATOS', active: 'bg-rose-700 shadow-rose-900/50' }] : []),
             ].map((tab) => (
-
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`w-full text-left p-6 rounded-[25px] border transition-all duration-300 ${tabActual === tab.id
-                  ? 'bg-white/5 border-white/20 shadow-lg text-white'
-                  : 'border-transparent text-slate-500 hover:text-white'
+                className={`flex-shrink-0 flex flex-col items-center gap-2 px-6 py-4 rounded-[22px] transition-all duration-300 shadow-lg ${tabActual === tab.id
+                    ? tab.active + ' text-white scale-105 shadow-xl'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
                   }`}
               >
-                <span className="text-[12px] font-black uppercase tracking-widest leading-relaxed whitespace-pre-line">
+                <span className="text-2xl leading-none">{tab.emoji}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-center leading-tight whitespace-pre-line">
                   {tab.label}
                 </span>
               </button>
             ))}
           </div>
 
-          <div className="md:col-span-9 bg-[#0f172a] rounded-[45px] border border-white/5 p-8 md:p-12 shadow-2xl">
+          <div className="bg-[#0f172a] rounded-[40px] border border-white/5 p-7 md:p-10 shadow-2xl">
             <div className="space-y-8">
               {tabActual === 'geolocalizacion' && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-[#020617] p-6 rounded-[30px] border border-white/5">
-                      <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">
-                        Rango de Tolerancia (Metros):
-                      </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-[#020617] p-5 rounded-[22px] border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Radio (m):</p>
                       <select
                         value={config.radio_maximo}
                         onChange={(e) => setConfig({ ...config, radio_maximo: e.target.value })}
                         className="bg-transparent text-3xl font-black text-white w-full outline-none cursor-pointer"
                       >
                         {rango100.map((v) => (
-                          <option key={v} value={v} className="bg-[#0f172a]">
-                            {v} m
-                          </option>
+                          <option key={v} value={v} className="bg-[#0f172a]">{v} m</option>
                         ))}
                       </select>
                     </div>
-                    <div className="bg-[#020617] p-6 rounded-[30px] border border-white/5">
-                      <p className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">
-                        Ajuste de Ubicación:
-                      </p>
-                      <div className="space-y-1">
-                        <p className="text-[11px] font-mono text-blue-500 leading-none truncate">
-                          LAT: {config.almacen_lat}
-                        </p>
-                        <p className="text-[11px] font-mono text-emerald-500 leading-none truncate">
-                          LON: {config.almacen_lon}
-                        </p>
-                      </div>
+                    <div className="bg-[#020617] p-5 rounded-[22px] border border-blue-500/20">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Latitud:</p>
+                      <p className="text-base font-mono text-blue-400 font-bold truncate">{config.almacen_lat || '—'}</p>
+                      <p className="text-[8px] text-slate-600 mt-1">↓ Haz clic en el mapa</p>
+                    </div>
+                    <div className="bg-[#020617] p-5 rounded-[22px] border border-emerald-500/20">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Longitud:</p>
+                      <p className="text-base font-mono text-emerald-400 font-bold truncate">{config.almacen_lon || '—'}</p>
+                      <p className="text-[8px] text-slate-600 mt-1">↓ Haz clic en el mapa</p>
                     </div>
                   </div>
 
-                  <div className="rounded-[35px] overflow-hidden border border-white/10 h-[350px] mb-4">
+                  <div className="rounded-[30px] overflow-hidden border border-white/10 h-[200px] mb-3">
                     <MapaInteractivo
                       lat={config.almacen_lat}
                       lng={config.almacen_lon}
