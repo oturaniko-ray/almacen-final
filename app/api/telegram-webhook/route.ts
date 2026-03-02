@@ -253,11 +253,16 @@ export async function POST(request: NextRequest) {
     // ── Callback query (botón de confirmar) ──
     if (update.callback_query) {
       const cq = update.callback_query;
-      const chatId: number = cq.message?.chat?.id;
+      // cq.from.id es siempre el Telegram user ID (= chat_id en privado)
+      const chatId: number = cq.from?.id || cq.message?.chat?.id;
       const messageId: number = cq.message?.message_id;
       const callbackQueryId: string = cq.id;
-      const username: string | undefined = cq.from?.username;
+      const username: string | undefined = cq.from?.username; // @handle — OPCIONAL en Telegram
+      const telegramNombre: string = [cq.from?.first_name, cq.from?.last_name].filter(Boolean).join(' ');
       const data: string = cq.data || '';
+
+      console.log(`👤 from: id=${chatId} username=${username || '(sin username)'} first_name=${cq.from?.first_name}`);
+
 
       if (data.startsWith('confirm_emp_')) {
         const token = data.replace('confirm_emp_', '');

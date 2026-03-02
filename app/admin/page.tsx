@@ -73,21 +73,23 @@ export default function PanelAdminHub() {
   }) => (
     <button
       onClick={onClick}
-      className={`w-full ${color} p-4 rounded-xl border border-white/5 
-        active:scale-95 transition-transform shadow-lg 
-        flex flex-col items-center justify-center gap-2`}
+      className={`w-full ${color} px-4 py-3 rounded-xl border border-white/10
+        active:scale-95 transition-transform shadow-md
+        flex items-center gap-3 text-left`}
     >
-      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-        <span className="text-3xl">{icono}</span>
+      <span className="text-2xl shrink-0">{icono}</span>
+      <div className="flex flex-col min-w-0">
+        <span className="text-white font-bold uppercase text-[11px] tracking-wider leading-tight">
+          {texto}
+        </span>
+        <span className="text-white/55 text-[9px] uppercase font-semibold tracking-widest leading-relaxed truncate">
+          {descripcion}
+        </span>
       </div>
-      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
-        {texto}
-      </span>
-      <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
-        {descripcion}
-      </span>
+      <span className="ml-auto text-white/30 text-lg shrink-0">›</span>
     </button>
   );
+
 
   const Footer = () => (
     <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
