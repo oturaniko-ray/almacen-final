@@ -753,56 +753,59 @@ export default function GestionFlota() {
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: '1200px' }}>
-              <thead className="bg-[#0f172a] text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
+              <thead className="bg-[#0f172a] text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
-                  <th className="p-3 w-[15%]">NOMBRE</th>
-                  <th className="p-3 w-[10%]">DOCUMENTO</th>
-                  <th className="p-3 w-[18%] text-[10px]">EMAIL / TEL</th>
-                  <th className="p-3 w-[15%] text-[10px]">FLOTA</th>
-                  <th className="p-3 text-center w-[6%]">CHOF</th>
-                  <th className="p-3 text-center w-[6%]">RUT</th>
-                  <th className="p-3 text-center w-[8%]">PIN</th>
+                  <th className="p-3 w-[18%]">NOMBRE / DOC</th>
+                  <th className="p-3 w-[22%]">📧 EMAIL / 📱 TEL</th>
+                  <th className="p-3 w-[14%]">FLOTA</th>
+                  <th className="p-3 text-center w-[5%]">CHOF</th>
+                  <th className="p-3 text-center w-[5%]">RUT</th>
+                  <th className="p-3 text-center w-[9%]">PIN</th>
                   <th className="p-3 text-center w-[6%]">EST</th>
-                  <th className="p-3 text-center w-[16%]" colSpan={2}>ACCIONES</th>
+                  <th className="p-3 text-center w-[8%]">EDITAR</th>
+                  <th className="p-3 text-center w-[13%]">NOTIFICACIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {perfilesFiltrados.map((perfil) => (
                   <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
+                    {/* COLUMNA 1: NOMBRE + DOCUMENTO unificados */}
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* INDICADOR EN PATIO (AMBAR) o GRIS SI NO ESTA */}
                         <div
-                          className={`w-3 h-3 rounded-full flex-shrink-0 ${perfil.en_patio ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse' : 'bg-slate-600'}`}
+                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${perfil.en_patio ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse' : 'bg-slate-600'}`}
                           title={perfil.en_patio ? 'En Patio' : 'Fuera del almacén'}
                         />
-                        <span className="font-bold text-sm uppercase text-white truncate" title={perfil.nombre_completo}>
-                          {perfil.nombre_completo.length > 20
-                            ? perfil.nombre_completo.substring(0, 18) + '...'
-                            : perfil.nombre_completo}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[13px] uppercase text-white truncate" title={perfil.nombre_completo}>
+                            {perfil.nombre_completo.length > 20
+                              ? perfil.nombre_completo.substring(0, 18) + '...'
+                              : perfil.nombre_completo}
+                          </span>
+                          <span className="text-slate-400 text-[11px] font-mono truncate">{perfil.documento_id}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="p-3 font-mono text-[11px] truncate">{perfil.documento_id}</td>
+                    {/* COLUMNA 2: EMAIL + TEL con emojis */}
                     <td className="p-3">
-                      <div className="text-[12px] font-mono">
-                        <span className="block text-slate-500 text-[10px] truncate" title={perfil.email || ''}>
-                          {perfil.email || '-'}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-300 text-xs truncate" title={perfil.email || ''}>
+                          📧 {perfil.email || '-'}
                         </span>
                         {perfil.telefono && (
-                          <span className="text-emerald-500 text-[11px] block truncate">
+                          <span className="text-emerald-400 text-xs truncate">
                             📱 {perfil.telefono}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="p-3 text-[12px] truncate">{perfil.nombre_flota || '-'}</td>
-                    <td className="p-3 text-center font-black text-[11px]">{perfil.cant_choferes}</td>
-                    <td className="p-3 text-center font-black text-[11px]">{perfil.cant_rutas}</td>
+                    <td className="p-3 text-xs truncate text-white/80">{perfil.nombre_flota || '-'}</td>
+                    <td className="p-3 text-center font-black text-xs">{perfil.cant_choferes}</td>
+                    <td className="p-3 text-center font-black text-xs">{perfil.cant_rutas}</td>
                     <td className="p-3 text-center">
                       <div className="group relative inline-block">
-                        <span className="text-[10px] font-mono text-slate-600 group-hover:hidden tracking-widest">••••••</span>
-                        <span className="text-[10px] font-mono text-amber-500 hidden group-hover:block font-bold">{perfil.pin_secreto}</span>
+                        <span className="text-xs font-mono text-slate-600 group-hover:hidden tracking-widest">••••••</span>
+                        <span className="text-xs font-mono text-amber-500 hidden group-hover:block font-bold">{perfil.pin_secreto}</span>
                       </div>
                     </td>
                     <td className="p-3 text-center">
@@ -818,39 +821,37 @@ export default function GestionFlota() {
                         {perfil.activo ? 'ACTIVO' : 'INACTIVO'}
                       </button>
                     </td>
+                    {/* EDITAR - compacto */}
                     <td className="p-3 text-center">
-                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
-                        <button
-                          onClick={() => editarPerfil(perfil)}
-                          className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all text-center"
-                        >
-                          EDITAR
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => editarPerfil(perfil)}
+                        className="text-blue-400 hover:text-white font-black text-[10px] uppercase px-3 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
+                      >
+                        ✏️
+                      </button>
                     </td>
+                    {/* NOTIFICACIONES */}
                     <td className="p-3 text-center">
-                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
+                      <div className="flex gap-1.5 items-center justify-center">
+                        {/* EMAIL */}
                         <button
                           onClick={() => handleReenviarCorreo(perfil)}
                           disabled={enviandoCorreo === perfil.id}
-                          className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 text-center"
+                          title="Enviar correo de bienvenida"
+                          className="flex items-center gap-1 text-emerald-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
                         >
-                          {enviandoCorreo === perfil.id ? '...' : 'EMAIL'}
+                          {enviandoCorreo === perfil.id ? '⏳' : '📧 Email'}
                         </button>
+                        {/* TELEGRAM → redirige a módulo de mensajería */}
                         <button
-                          onClick={() => handleEnviarWhatsApp(perfil)}
-                          disabled={enviandoWhatsApp === perfil.id || !perfil.telefono}
-                          className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${perfil.telefono ? 'border-green-500/20 hover:bg-green-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
+                          onClick={() => router.push('/admin/mensajeria')}
+                          title="Ir al módulo de mensajería Telegram"
+                          className="flex items-center gap-1 text-blue-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-blue-400/20 hover:bg-blue-600 transition-all"
                         >
-                          {enviandoWhatsApp === perfil.id ? '...' : 'WHATSAPP'}
+                          ✈️ Telegram
                         </button>
-                        <button
-                          onClick={() => handleEnviarTelegram(perfil)}
-                          disabled={enviandoTelegram === perfil.id || !perfil.telefono}
-                          className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${perfil.telefono ? 'border-blue-400/20 hover:bg-blue-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
-                        >
-                          {enviandoTelegram === perfil.id ? '...' : 'TELEGRAM'}
-                        </button>
+                        {/* WHATSAPP — oculto hasta autorización Meta */}
+                        {/* <button onClick={() => handleEnviarWhatsApp(perfil)} …>WHATSAPP</button> */}
                       </div>
                     </td>
                   </tr>
