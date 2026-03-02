@@ -67,7 +67,28 @@ export default function ConfigMaestraPage() {
     tipo: null,
   });
   const [estadisticasRespondIO, setEstadisticasRespondIO] = useState({ total: 0, conTelefono: 0, sincronizados: 0 });
+
+  // Estado del módulo de limpieza
+  const [limpieza, setLimpieza] = useState<Record<string, {
+    modo: 'dias' | 'rango';
+    dias: number;
+    desde: string;
+    hasta: string;
+    preview: number | null;
+    cargando: boolean;
+    confirmText: string;
+    modalAbierto: boolean;
+  }>>({
+    jornadas: { modo: 'dias', dias: 90, desde: '', hasta: '', preview: null, cargando: false, confirmText: '', modalAbierto: false },
+    flota_accesos: { modo: 'dias', dias: 180, desde: '', hasta: '', preview: null, cargando: false, confirmText: '', modalAbierto: false },
+    auditoria_flota: { modo: 'dias', dias: 180, desde: '', hasta: '', preview: null, cargando: false, confirmText: '', modalAbierto: false },
+    telegram_mensajes: { modo: 'dias', dias: 60, desde: '', hasta: '', preview: null, cargando: false, confirmText: '', modalAbierto: false },
+    whatsapp_mensajes: { modo: 'dias', dias: 60, desde: '', hasta: '', preview: null, cargando: false, confirmText: '', modalAbierto: false },
+    programaciones: { modo: 'dias', dias: 30, desde: '', hasta: '', preview: null, cargando: false, confirmText: '', modalAbierto: false },
+  });
+
   const router = useRouter();
+
 
   const rango100 = Array.from({ length: 100 }, (_, i) => i + 1);
   const rango24 = Array.from({ length: 24 }, (_, i) => i + 1);
@@ -181,6 +202,42 @@ export default function ConfigMaestraPage() {
     guardarModulo(m[tabActual]);
   };
 
+  const getAuthH = (): Record<string, string> => {
+    const s = localStorage.getItem('user_session');
+    if (!s) return {};
+    const u = JSON.parse(s);
+    return { 'x-user-id': u.id ?? '', 'x-user-pin': u.pin_seguridad ?? '' };
+  };
+
+  const setL = (tabla: string, patch: any) =>
+    setLimpieza(prev => ({ ...prev, [tabla]: { ...prev[tabla], ...patch } }));
+
+  const previsualizarLimpieza = async (tabla: string) => {
+    const st = limpieza[tabla];
+    setL(tabla, { cargando: true, preview: null });
+    const body: any = { tabla, accion: 'preview' };
+    if (st.modo === 'dias') body.dias = st.dias;
+    else { body.desde = st.desde || undefined; body.hasta = st.hasta; }
+    const res = await fetch('/api/admin/limpieza', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthH() }, body: JSON.stringify(body) });
+    const data = await res.json();
+    setL(tabla, { cargando: false, preview: res.ok ? data.count : null, modalAbierto: res.ok });
+    if (!res.ok) showNotification(data.error || 'Error al calcular', 'error');
+  };
+
+  const ejecutarLimpieza = async (tabla: string) => {
+    const st = limpieza[tabla];
+    if (st.confirmText !== 'ELIMINAR') return;
+    setL(tabla, { cargando: true });
+    const body: any = { tabla, accion: 'delete' };
+    if (st.modo === 'dias') body.dias = st.dias;
+    else { body.desde = st.desde || undefined; body.hasta = st.hasta; }
+    const res = await fetch('/api/admin/limpieza', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthH() }, body: JSON.stringify(body) });
+    const data = await res.json();
+    setL(tabla, { cargando: false, preview: null, modalAbierto: false, confirmText: '' });
+    if (res.ok) showNotification(`✅ ${data.eliminados} registros eliminados de ${data.label}`, 'success');
+    else showNotification(data.error || 'Error al eliminar', 'error');
+  };
+
   if (loading || !config)
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-blue-500 font-black italic tracking-widest animate-pulse">
@@ -194,8 +251,8 @@ export default function ConfigMaestraPage() {
         {mensaje.tipo && (
           <div
             className={`fixed top-10 right-1/2 translate-x-1/2 z-[5000] px-10 py-5 rounded-[25px] border-2 shadow-2xl animate-in slide-in-from-top-10 duration-500 ${mensaje.tipo === 'success'
-                ? 'bg-blue-600/90 border-blue-400 text-white'
-                : 'bg-rose-600/90 border-rose-400 text-white'
+              ? 'bg-blue-600/90 border-blue-400 text-white'
+              : 'bg-rose-600/90 border-rose-400 text-white'
               }`}
           >
             <div className="flex flex-col items-center gap-1">
@@ -233,13 +290,15 @@ export default function ConfigMaestraPage() {
               { id: 'efectividad', label: '📊 PORCENTAJE DE\nEFECTIVIDAD' },
               { id: 'interfaz', label: '🖥️ INTERFAZ' },
               { id: 'respondio', label: '🔄 SINCRONIZACIÓN\nRESPOND.IO' },
+              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', label: '🧹 LIMPIEZA DE\nDATOS' }] : []),
             ].map((tab) => (
+
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
                 className={`w-full text-left p-6 rounded-[25px] border transition-all duration-300 ${tabActual === tab.id
-                    ? 'bg-white/5 border-white/20 shadow-lg text-white'
-                    : 'border-transparent text-slate-500 hover:text-white'
+                  ? 'bg-white/5 border-white/20 shadow-lg text-white'
+                  : 'border-transparent text-slate-500 hover:text-white'
                   }`}
               >
                 <span className="text-[12px] font-black uppercase tracking-widest leading-relaxed whitespace-pre-line">
@@ -454,6 +513,135 @@ export default function ConfigMaestraPage() {
                   </div>
                 </div>
               )}
+
+              {/* ── TAB LIMPIEZA ── */}
+              {tabActual === 'limpieza' && Number(user?.nivel_acceso) >= 8 && (() => {
+                const CARDS = [
+                  { tabla: 'jornadas', emoji: '📋', label: 'Jornadas de empleados', desc: 'Fecha entrada/salida, GPS, duración de jornada' },
+                  { tabla: 'flota_accesos', emoji: '🚛', label: 'Accesos de flota', desc: 'Hora llegada/salida, cantidad de carga registrada' },
+                  { tabla: 'auditoria_flota', emoji: '📊', label: 'Auditoría de flota', desc: 'Horas en patio, exceso, eficiencia calculada (%)' },
+                  { tabla: 'telegram_mensajes', emoji: '📱', label: 'Historial Telegram', desc: 'Textos enviados, destinatario, estado del envío' },
+                  { tabla: 'whatsapp_mensajes', emoji: '💬', label: 'Historial WhatsApp', desc: 'Conversaciones, números, timestamps de mensajes' },
+                  { tabla: 'programaciones', emoji: '⏰', label: 'Programaciones ejecutadas', desc: 'Solo las ejecutadas/con error — las pendientes se conservan' },
+                ];
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-rose-900/20 border border-rose-500/30 rounded-2xl p-4 flex gap-3 items-start">
+                      <span className="text-xl shrink-0">⚠️</span>
+                      <p className="text-rose-300 text-xs font-bold uppercase tracking-wide leading-relaxed">
+                        Las eliminaciones son permanentes e irreversibles. Los datos maestros (empleados, flota, configuración, vinculaciones Telegram) nunca se tocan.
+                        El sistema aplica un mínimo de 180 días para proteger datos recientes.
+                      </p>
+                    </div>
+
+                    {CARDS.map(({ tabla, emoji, label, desc }) => {
+                      const st = limpieza[tabla];
+                      const fechaMaxHasta = (() => {
+                        const d = new Date(); d.setDate(d.getDate() - 180);
+                        return d.toISOString().split('T')[0];
+                      })();
+
+                      return (
+                        <div key={tabla} className="bg-[#020617] rounded-2xl border border-white/5 p-5 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-base font-black text-white">{emoji} {label}</span>
+                              <p className="text-slate-500 text-xs mt-0.5">{desc}</p>
+                            </div>
+                          </div>
+
+                          {/* Selector modo */}
+                          <div className="flex gap-2">
+                            {(['dias', 'rango'] as const).map(m => (
+                              <button key={m} onClick={() => setL(tabla, { modo: m, preview: null })}
+                                className={`text-[10px] font-black uppercase px-3 py-1 rounded-lg border transition-all ${st.modo === m ? 'bg-blue-700 border-blue-500 text-white' : 'border-white/10 text-slate-500 hover:text-white'
+                                  }`}>
+                                {m === 'dias' ? '⚡ Período rápido' : '📅 Rango de fechas'}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Modo días */}
+                          {st.modo === 'dias' && (
+                            <div className="flex gap-2 flex-wrap">
+                              {[30, 60, 90, 180].map(d => (
+                                <button key={d} onClick={() => setL(tabla, { dias: d, preview: null })}
+                                  className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all ${st.dias === d ? 'bg-slate-700 border-slate-400 text-white' : 'border-white/10 text-slate-500 hover:text-white'
+                                    }`}>
+                                  {d} días
+                                </button>
+                              ))}
+                              <span className="text-slate-600 text-xs self-center">← registros anteriores a este período</span>
+                            </div>
+                          )}
+
+                          {/* Modo rango */}
+                          {st.modo === 'rango' && (
+                            <div className="flex gap-3 flex-wrap items-center">
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[10px] text-slate-500 uppercase tracking-wider">Desde (opcional)</label>
+                                <input type="date" max={fechaMaxHasta}
+                                  value={st.desde}
+                                  onChange={e => setL(tabla, { desde: e.target.value, preview: null })}
+                                  className="bg-[#0f172a] border border-white/10 text-white text-xs rounded-lg px-3 py-1.5 outline-none"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[10px] text-slate-500 uppercase tracking-wider">Hasta <span className="text-rose-400">(máx: {fechaMaxHasta})</span></label>
+                                <input type="date" max={fechaMaxHasta}
+                                  value={st.hasta}
+                                  onChange={e => setL(tabla, { hasta: e.target.value, preview: null })}
+                                  className="bg-[#0f172a] border border-white/10 text-white text-xs rounded-lg px-3 py-1.5 outline-none"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => previsualizarLimpieza(tabla)}
+                            disabled={st.cargando || (st.modo === 'rango' && !st.hasta)}
+                            className="text-xs font-bold px-4 py-2 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all disabled:opacity-40"
+                          >
+                            {st.cargando ? '⏳ Calculando...' : '🔍 Ver cuántos registros se eliminarían'}
+                          </button>
+
+                          {/* Modal confirmación */}
+                          {st.modalAbierto && (
+                            <div className="bg-rose-900/20 border border-rose-500/40 rounded-xl p-4 space-y-3">
+                              <p className="text-rose-300 text-sm font-bold">
+                                Se eliminarán permanentemente <span className="text-white text-lg">{st.preview ?? '?'}</span> registros de <span className="text-white">{label}</span>.
+                              </p>
+                              <p className="text-rose-400 text-xs">Esta acción no se puede deshacer. Escribe <strong>ELIMINAR</strong> para confirmar:</p>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="ELIMINAR"
+                                  value={st.confirmText}
+                                  onChange={e => setL(tabla, { confirmText: e.target.value.toUpperCase() })}
+                                  className="flex-1 bg-black border border-rose-500/40 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-rose-400 font-mono uppercase"
+                                />
+                                <button
+                                  onClick={() => ejecutarLimpieza(tabla)}
+                                  disabled={st.confirmText !== 'ELIMINAR' || st.cargando}
+                                  className="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white text-xs font-black rounded-lg disabled:opacity-30 transition-all uppercase"
+                                >
+                                  {st.cargando ? '⏳' : '🗑️ Eliminar'}
+                                </button>
+                                <button onClick={() => setL(tabla, { modalAbierto: false, confirmText: '', preview: null })}
+                                  className="px-3 py-2 border border-white/10 text-slate-400 text-xs rounded-lg hover:text-white transition-all">
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
             </div>
           </div>
         </div>
