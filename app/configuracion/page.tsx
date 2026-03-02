@@ -62,6 +62,7 @@ export default function ConfigMaestraPage() {
   const [loading, setLoading] = useState(true);
   const [tabActual, setTabActual] = useState('geolocalizacion');
   const [guardando, setGuardando] = useState(false);
+  const [ubicandome, setUbicandome] = useState(false);
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({
     texto: '',
     tipo: null,
@@ -238,6 +239,27 @@ export default function ConfigMaestraPage() {
     else showNotification(data.error || 'Error al eliminar', 'error');
   };
 
+  const handleUbicame = () => {
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización.');
+      return;
+    }
+    setUbicandome(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toString();
+        const lon = pos.coords.longitude.toString();
+        setConfig((prev: any) => ({ ...prev, almacen_lat: lat, almacen_lon: lon }));
+        setUbicandome(false);
+      },
+      (err) => {
+        alert(`No se pudo obtener la ubicación GPS: ${err.message}\n\nVerifica que hayas dado permiso de ubicación al navegador.`);
+        setUbicandome(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
   if (loading || !config)
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-blue-500 font-black italic tracking-widest animate-pulse">
@@ -281,27 +303,27 @@ export default function ConfigMaestraPage() {
           </div>
         </div>
 
-        <div>
-          {/* ── TABS HORIZONTALES ───────────────────────────────────── */}
-          <div className="flex gap-3 overflow-x-auto pb-4 mb-6" style={{ scrollbarWidth: 'none' }}>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* ── SIDEBAR IZQUIERDO ─────────────────────────────────────── */}
+          <div className="md:col-span-3 flex flex-col gap-3">
             {[
-              { id: 'geolocalizacion', emoji: '📍', label: 'GEOCERCA\nGPS', active: 'bg-emerald-700 shadow-emerald-900/50' },
-              { id: 'seguridad', emoji: '🛡️', label: 'PARÁMETROS\nTIEMPO', active: 'bg-blue-600 shadow-blue-900/50' },
-              { id: 'laboral', emoji: '⏱️', label: 'JORNADA\nLABORAL', active: 'bg-slate-600 shadow-slate-900/50' },
-              { id: 'efectividad', emoji: '📊', label: 'PORCENTAJE\nEFECTIVIDAD', active: 'bg-amber-600 shadow-amber-900/50' },
-              { id: 'interfaz', emoji: '🖥️', label: 'INTERFAZ\nSISTEMA', active: 'bg-violet-600 shadow-violet-900/50' },
-              { id: 'respondio', emoji: '🔄', label: 'RESPOND\nIO', active: 'bg-indigo-600 shadow-indigo-900/50' },
-              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', emoji: '🧹', label: 'LIMPIEZA\nDATOS', active: 'bg-rose-700 shadow-rose-900/50' }] : []),
+              { id: 'geolocalizacion', emoji: '📍', label: 'GEOCERCA\nGPS', active: 'bg-emerald-700 shadow-emerald-900/40' },
+              { id: 'seguridad', emoji: '🛡️', label: 'PARÁMETROS\nDe TIEMPO', active: 'bg-blue-600 shadow-blue-900/40' },
+              { id: 'laboral', emoji: '⏱️', label: 'JORNADA\nLABORAL', active: 'bg-slate-600 shadow-slate-900/40' },
+              { id: 'efectividad', emoji: '📊', label: 'PORCENTAJE\nEFECTIVIDAD', active: 'bg-amber-600 shadow-amber-900/40' },
+              { id: 'interfaz', emoji: '🖥️', label: 'INTERFAZ\nSISTEMA', active: 'bg-violet-600 shadow-violet-900/40' },
+              { id: 'respondio', emoji: '🔄', label: 'RESPOND\nIO', active: 'bg-indigo-600 shadow-indigo-900/40' },
+              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', emoji: '🧹', label: 'LIMPIEZA\nDATOS', active: 'bg-rose-700 shadow-rose-900/40' }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`flex-shrink-0 flex flex-col items-center gap-2 px-6 py-4 rounded-[22px] transition-all duration-300 shadow-lg ${tabActual === tab.id
-                    ? tab.active + ' text-white scale-105 shadow-xl'
+                className={`w-full flex flex-col items-center gap-2 py-5 px-4 rounded-[22px] transition-all duration-300 shadow-md ${tabActual === tab.id
+                    ? tab.active + ' text-white shadow-xl scale-[1.03]'
                     : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
                   }`}
               >
-                <span className="text-2xl leading-none">{tab.emoji}</span>
+                <span className="text-3xl leading-none">{tab.emoji}</span>
                 <span className="text-[9px] font-black uppercase tracking-widest text-center leading-tight whitespace-pre-line">
                   {tab.label}
                 </span>
@@ -309,46 +331,54 @@ export default function ConfigMaestraPage() {
             ))}
           </div>
 
-          <div className="bg-[#0f172a] rounded-[40px] border border-white/5 p-7 md:p-10 shadow-2xl">
+          <div className="md:col-span-9 bg-[#0f172a] rounded-[40px] border border-white/5 p-7 md:p-10 shadow-2xl">
             <div className="space-y-8">
               {tabActual === 'geolocalizacion' && (
-                <div className="space-y-6">
+                <div className="space-y-4">
+                  {/* Botón UBÍCAME */}
+                  <button
+                    onClick={handleUbicame}
+                    disabled={ubicandome}
+                    className="w-full flex items-center justify-center gap-3 py-4 rounded-[18px] bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/40 disabled:opacity-50"
+                  >
+                    <span className={ubicandome ? 'animate-spin' : ''}>{ubicandome ? '⏳' : '📍'}</span>
+                    {ubicandome ? 'OBTENIENDO UBICACIÓN GPS...' : 'UBÍCAME — USAR MI UBICACIÓN ACTUAL'}
+                  </button>
+
+                  {/* Mapa grande */}
+                  <div className="rounded-[28px] overflow-hidden border border-white/10" style={{ height: '430px' }}>
+                    <MapaInteractivo
+                      lat={config.almacen_lat}
+                      lng={config.almacen_lon}
+                      onLocationChange={(lat: number, lng: number) =>
+                        setConfig((prev: any) => ({ ...prev, almacen_lat: lat.toString(), almacen_lon: lng.toString() }))
+                      }
+                    />
+                  </div>
+
+                  {/* Tarjetas de datos debajo del mapa */}
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-[#020617] p-5 rounded-[22px] border border-white/5">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Radio (m):</p>
+                    <div className="bg-[#020617] p-4 rounded-[18px] border border-white/5">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-widest">Radio (m):</p>
                       <select
                         value={config.radio_maximo}
-                        onChange={(e) => setConfig({ ...config, radio_maximo: e.target.value })}
-                        className="bg-transparent text-3xl font-black text-white w-full outline-none cursor-pointer"
+                        onChange={(e) => setConfig((prev: any) => ({ ...prev, radio_maximo: e.target.value }))}
+                        className="bg-transparent text-2xl font-black text-white w-full outline-none cursor-pointer"
                       >
                         {rango100.map((v) => (
                           <option key={v} value={v} className="bg-[#0f172a]">{v} m</option>
                         ))}
                       </select>
                     </div>
-                    <div className="bg-[#020617] p-5 rounded-[22px] border border-blue-500/20">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Latitud:</p>
-                      <p className="text-base font-mono text-blue-400 font-bold truncate">{config.almacen_lat || '—'}</p>
-                      <p className="text-[8px] text-slate-600 mt-1">↓ Haz clic en el mapa</p>
+                    <div className="bg-[#020617] p-4 rounded-[18px] border border-blue-500/20">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-widest">Latitud:</p>
+                      <p className="text-sm font-mono text-blue-400 font-bold truncate">{config.almacen_lat || '—'}</p>
                     </div>
-                    <div className="bg-[#020617] p-5 rounded-[22px] border border-emerald-500/20">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Longitud:</p>
-                      <p className="text-base font-mono text-emerald-400 font-bold truncate">{config.almacen_lon || '—'}</p>
-                      <p className="text-[8px] text-slate-600 mt-1">↓ Haz clic en el mapa</p>
+                    <div className="bg-[#020617] p-4 rounded-[18px] border border-emerald-500/20">
+                      <p className="text-[9px] font-black text-slate-500 uppercase mb-1 tracking-widest">Longitud:</p>
+                      <p className="text-sm font-mono text-emerald-400 font-bold truncate">{config.almacen_lon || '—'}</p>
                     </div>
                   </div>
-
-                  <div className="rounded-[30px] overflow-hidden border border-white/10 h-[200px] mb-3">
-                    <MapaInteractivo
-                      lat={config.almacen_lat}
-                      lng={config.almacen_lon}
-                      onLocationChange={(lat: number, lng: number) =>
-                        setConfig({ ...config, almacen_lat: lat.toString(), almacen_lon: lng.toString() })
-                      }
-                    />
-                  </div>
-
-                  <GPSDiagnostic />
                 </div>
               )}
 

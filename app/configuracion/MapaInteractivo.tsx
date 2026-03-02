@@ -37,24 +37,24 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInte
   }, []);
 
   // Función para obtener dirección con manejo de errores
- // En MapaInteractivo.tsx, la función fetchAddress:
-const fetchAddress = async (lat: number, lng: number) => {
-  setGeocodingStatus('loading');
-  try {
-    const addressResult = await getAddressFromCoordinates(lat, lng);
-    if (addressResult) {
-      setAddress(addressResult);
-      setGeocodingStatus('success');
-    } else {
+  // En MapaInteractivo.tsx, la función fetchAddress:
+  const fetchAddress = async (lat: number, lng: number) => {
+    setGeocodingStatus('loading');
+    try {
+      const addressResult = await getAddressFromCoordinates(lat, lng);
+      if (addressResult) {
+        setAddress(addressResult);
+        setGeocodingStatus('success');
+      } else {
+        setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        setGeocodingStatus('error');
+      }
+    } catch (error) {
+      console.error('Error obteniendo dirección:', error);
       setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       setGeocodingStatus('error');
     }
-  } catch (error) {
-    console.error('Error obteniendo dirección:', error);
-    setAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-    setGeocodingStatus('error');
-  }
-};
+  };
 
   // Obtener dirección cuando cambian las coordenadas
   useEffect(() => {
@@ -90,7 +90,7 @@ const fetchAddress = async (lat: number, lng: number) => {
     // Manejar clics en el mapa
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
-      
+
       // Actualizar marcador
       if (markerRef.current) {
         markerRef.current.setLatLng([lat, lng]);
@@ -111,7 +111,7 @@ const fetchAddress = async (lat: number, lng: number) => {
       options: {
         position: 'bottomright'
       },
-      onAdd: function() {
+      onAdd: function () {
         const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
         btn.innerHTML = '📍';
         btn.title = 'Mi ubicación';
@@ -123,21 +123,21 @@ const fetchAddress = async (lat: number, lng: number) => {
         btn.style.border = '2px solid #3b82f6';
         btn.style.borderRadius = '8px';
         btn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-        
+
         btn.onclick = async () => {
           setLoadingLocation(true);
-          
+
           try {
             const location = await getCurrentLocation();
-            
+
             // ✅ VERIFICACIÓN: Asegurar que el mapa existe antes de usarlo
             if (mapRef.current && location) {
               mapRef.current.setView([location.lat, location.lng], 18);
-              
+
               if (markerRef.current) {
                 markerRef.current.setLatLng([location.lat, location.lng]);
               }
-              
+
               fetchAddress(location.lat, location.lng);
               onLocationChange(location.lat, location.lng);
             } else if (!location) {
@@ -150,7 +150,7 @@ const fetchAddress = async (lat: number, lng: number) => {
             setLoadingLocation(false);
           }
         };
-        
+
         return btn;
       }
     });
@@ -160,7 +160,7 @@ const fetchAddress = async (lat: number, lng: number) => {
     // Manejar evento de localización
     map.on('locationfound', (e) => {
       const { lat, lng } = e.latlng;
-      
+
       if (markerRef.current) {
         markerRef.current.setLatLng([lat, lng]);
       } else if (mapRef.current) {
@@ -205,12 +205,12 @@ const fetchAddress = async (lat: number, lng: number) => {
 
   return (
     <div className="h-full w-full relative">
-      <div 
-        ref={mapContainerRef} 
+      <div
+        ref={mapContainerRef}
         className="h-full w-full"
-        style={{ minHeight: '350px' }}
+        style={{ minHeight: '100%' }}
       />
-      
+
       {/* Overlay con dirección */}
       {address && (
         <div className="absolute top-4 left-4 z-[1000] max-w-md bg-[#1a1a1a] border border-blue-500/30 rounded-lg p-2 shadow-lg">
@@ -225,7 +225,7 @@ const fetchAddress = async (lat: number, lng: number) => {
           )}
         </div>
       )}
-      
+
       {loadingLocation && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-[1001]">
           <div className="bg-[#1a1a1a] p-4 rounded-lg border border-blue-500/30">
