@@ -795,16 +795,17 @@ export default function GestionEmpleados() {
         <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: '1200px' }}>
-              <thead className="bg-[#0f172a] text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
+              <thead className="bg-[#0f172a] text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
-                  <th className="p-3 w-[15%]">NOMBRE / DOC</th>
-                  <th className="p-3 w-[20%]">EMAIL / TEL</th>
+                  <th className="p-3 w-[18%]">NOMBRE / DOC</th>
+                  <th className="p-3 w-[22%]">📧 EMAIL / 📱 TEL</th>
                   <th className="p-3 text-center w-[8%]">ROL</th>
-                  <th className="p-3 text-center w-[6%]">NIV</th>
-                  <th className="p-3 text-center w-[8%]">PIN</th>
+                  <th className="p-3 text-center w-[5%]">NIV</th>
+                  <th className="p-3 text-center w-[9%]">PIN</th>
                   <th className="p-3 text-center w-[6%]">REP</th>
                   <th className="p-3 text-center w-[6%]">EST</th>
-                  <th className="p-3 text-center w-[31%]" colSpan={2}>ACCIONES</th>
+                  <th className="p-3 text-center w-[8%]">EDITAR</th>
+                  <th className="p-3 text-center w-[18%]">NOTIFICACIONES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -813,51 +814,51 @@ export default function GestionEmpleados() {
                     {/* COLUMNA 1: NOMBRE + DOCUMENTO */}
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* INDICADOR VERDE PARA EN_ALMACEN */}
+                        {/* INDICADOR PARA EN_ALMACEN */}
                         <div
-                          className={`w-3 h-3 rounded-full flex-shrink-0 ${emp.en_almacen
+                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${emp.en_almacen
                             ? 'bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse'
                             : 'bg-slate-600'
                             }`}
                           title={emp.en_almacen ? 'En almacén' : 'Fuera del almacén'}
                         />
                         <div className="flex flex-col">
-                          <span className="font-bold text-sm uppercase text-white truncate" title={emp.nombre}>
+                          <span className="font-bold text-[13px] uppercase text-white truncate" title={emp.nombre}>
                             {emp.nombre.length > 20 ? emp.nombre.substring(0, 18) + '...' : emp.nombre}
                           </span>
-                          <span className="text-slate-400 text-[10px] font-mono truncate" title={emp.documento_id}>
+                          <span className="text-slate-400 text-[11px] font-mono truncate" title={emp.documento_id}>
                             {emp.documento_id}
                           </span>
                         </div>
                       </div>
                     </td>
 
-                    {/* COLUMNA 2: EMAIL + TELÉFONO */}
+                    {/* COLUMNA 2: EMAIL + TELÉFONO con emojis */}
                     <td className="p-3">
-                      <div className="flex flex-col">
-                        <span className="text-slate-400 text-[10px] truncate" title={emp.email}>
-                          {emp.email}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-300 text-xs truncate" title={emp.email}>
+                          📧 {emp.email}
                         </span>
                         {emp.telefono && (
-                          <span className="text-emerald-500 text-[10px] truncate">
+                          <span className="text-emerald-400 text-xs truncate">
                             📱 {emp.telefono}
                           </span>
                         )}
                       </div>
                     </td>
 
-                    <td className="p-3 text-center text-[10px] font-black uppercase text-blue-400">
+                    <td className="p-3 text-center text-xs font-black uppercase text-blue-400">
                       {formatearRol(emp.rol)}
                     </td>
-                    <td className="p-3 text-center font-black text-white text-[11px]">{emp.nivel_acceso}</td>
+                    <td className="p-3 text-center font-black text-white text-xs">{emp.nivel_acceso}</td>
                     <td className="p-3 text-center">
                       <div className="group relative inline-block">
-                        <span className="text-[10px] font-mono text-slate-600 group-hover:hidden tracking-widest">••••••</span>
-                        <span className="text-[10px] font-mono text-amber-500 hidden group-hover:block font-bold">{emp.pin_seguridad}</span>
+                        <span className="text-xs font-mono text-slate-600 group-hover:hidden tracking-widest">••••••</span>
+                        <span className="text-xs font-mono text-amber-500 hidden group-hover:block font-bold">{emp.pin_seguridad}</span>
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${emp.permiso_reportes ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${emp.permiso_reportes ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
                         {emp.permiso_reportes ? 'SÍ' : 'NO'}
                       </span>
                     </td>
@@ -874,39 +875,37 @@ export default function GestionEmpleados() {
                         {emp.activo ? 'ACTIVO' : 'INACTIVO'}
                       </button>
                     </td>
+                    {/* EDITAR - compacto */}
                     <td className="p-3 text-center">
-                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
-                        <button
-                          onClick={() => editarEmpleado(emp)}
-                          className="text-blue-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all text-center"
-                        >
-                          EDITAR
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => editarEmpleado(emp)}
+                        className="text-blue-400 hover:text-white font-black text-[10px] uppercase px-3 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
+                      >
+                        ✏️
+                      </button>
                     </td>
+                    {/* NOTIFICACIONES */}
                     <td className="p-3 text-center">
-                      <div className="flex flex-col gap-1 items-stretch justify-center w-full min-w-[70px]">
+                      <div className="flex gap-1.5 items-center justify-center">
+                        {/* EMAIL */}
                         <button
                           onClick={() => handleReenviarCorreo(emp)}
                           disabled={enviandoCorreo === emp.id}
-                          className="text-emerald-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 text-center"
+                          title="Enviar correo de bienvenida"
+                          className="flex items-center gap-1 text-emerald-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
                         >
-                          {enviandoCorreo === emp.id ? '...' : 'EMAIL'}
+                          {enviandoCorreo === emp.id ? '⏳' : '📧 Email'}
                         </button>
+                        {/* TELEGRAM → redirige a módulo de mensajería */}
                         <button
-                          onClick={() => handleEnviarWhatsApp(emp)}
-                          disabled={enviandoWhatsApp === emp.id || !emp.telefono}
-                          className={`text-green-500 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${emp.telefono ? 'border-green-500/20 hover:bg-green-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
+                          onClick={() => router.push('/admin/mensajeria')}
+                          title="Ir al módulo de mensajería Telegram"
+                          className="flex items-center gap-1 text-blue-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-blue-400/20 hover:bg-blue-600 transition-all"
                         >
-                          {enviandoWhatsApp === emp.id ? '...' : 'WHATSAPP'}
+                          ✈️ Telegram
                         </button>
-                        <button
-                          onClick={() => handleEnviarTelegram(emp)}
-                          disabled={enviandoTelegram === emp.id || !emp.telefono}
-                          className={`text-blue-400 hover:text-white font-black text-[9px] uppercase px-2 py-1.5 rounded-lg border transition-all text-center ${emp.telefono ? 'border-blue-400/20 hover:bg-blue-600' : 'border-gray-500/20 hover:bg-gray-600 disabled:opacity-50'}`}
-                        >
-                          {enviandoTelegram === emp.id ? '...' : 'TELEGRAM'}
-                        </button>
+                        {/* WHATSAPP — oculto hasta autorización Meta */}
+                        {/* <button onClick={() => handleEnviarWhatsApp(emp)} …>WHATSAPP</button> */}
                       </div>
                     </td>
                   </tr>
