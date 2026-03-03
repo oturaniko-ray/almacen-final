@@ -47,9 +47,8 @@ function resolverVariables(texto: string, datos: Record<string, string>): string
 
 // ================================================================
 // POST /api/telegram/send
-// Body: { tipo: 'empleado'|'flota', alcance: 'todos'|'individual'|'etiqueta',
-//         destinatario_id?: string, etiqueta?: string,
-//         mensaje: string, plantilla_id?: string }
+// Body: { tipo, alcance, destinatario_id?, etiqueta?,
+//         mensaje, plantilla_id?, nombre_mensaje? }
 // ================================================================
 export async function POST(request: NextRequest) {
     let user: any;
@@ -61,13 +60,12 @@ export async function POST(request: NextRequest) {
 
     const nivel = Number(user.nivel_acceso);
     const body = await request.json();
-    const { tipo, alcance, destinatario_id, etiqueta, mensaje, plantilla_id } = body;
+    const { tipo, alcance, destinatario_id, etiqueta, mensaje, plantilla_id, nombre_mensaje } = body;
 
     if (!tipo || !alcance || !mensaje) {
         return NextResponse.json({ error: 'Faltan campos requeridos: tipo, alcance, mensaje' }, { status: 400 });
     }
 
-    // Validar nivel de acceso según el tipo de destinatario
     if (tipo === 'flota' && nivel < 5) {
         return NextResponse.json({ error: 'Nivel 5+ requerido para mensajes a flota' }, { status: 403 });
     }
@@ -76,7 +74,25 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const ahora = new Date().toISOString();
+
+    // ── Obtener nombre de la plantilla (para el encabezado del mensaje) ──
+    let nombrePlantilla: string | null = null;
+    if (plantilla_id) {
+        const { data: plantilla } = await (supabase as any)
+            .from('telegram_plantillas')
+            .select('nombre')
+            .eq('id', plantilla_id)
+            .single();
+        nombrePlantilla = plantilla?.nombre || nombre_mensaje || null;
+    } else if (nombre_mensaje) {
+        nombrePlantilla = nombre_mensaje;
+    }
+
+    // ── Construir encabezado si hay nombre de mensaje/plantilla ──
+    // El nombre aparece en el Telegram como: 📋 <b>NOMBRE</b>\n\nmensaje
+    const plantillaHeader = nombrePlantilla
+        ? `📋 <b>${nombrePlantilla.toUpperCase()}</b>\n${'—'.repeat(Math.min(nombrePlantilla.length + 4, 30))}\n\n`
+        : '';
 
     // ── Obtener destinatarios ──
     let chatIds: { chat_id: string; datos: Record<string, string> }[] = [];
@@ -91,7 +107,6 @@ export async function POST(request: NextRequest) {
         if (alcance === 'individual' && destinatario_id) {
             query = query.eq('empleado_id', destinatario_id);
         }
-        // etiqueta: por ahora reservado para futuros campos de turno/zona
 
         const { data: usuarios } = await query;
         chatIds = (usuarios || []).map((u: any) => ({
@@ -137,30 +152,36 @@ export async function POST(request: NextRequest) {
     let errores = 0;
 
     for (const dest of chatIds) {
-        const textoFinal = resolverVariables(mensaje, {
+        const textoResuelto = resolverVariables(mensaje, {
             ...dest.datos,
             fecha: new Date().toLocaleDateString('es-ES'),
             hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
         });
+        // El nombre de la plantilla/mensaje aparece como encabezado en Telegram
+        const textoFinal = plantillaHeader + textoResuelto;
         const ok = await enviarMensajeTelegram(dest.chat_id, textoFinal);
         if (ok) enviados++; else errores++;
         if (chatIds.length > 1) await sleep(50); // 20 msg/s máximo
     }
 
-    // ── Guardar en historial ──
+    // ── Guardar en historial (con columnas CORRECTAS de la tabla) ──
     await (supabase as any)
         .from('telegram_mensajes')
         .insert({
             enviado_por: user.id,
-            destinatario_tipo: alcance === 'individual' ? `individual_${tipo}` : `grupo_${tipo}`,
+            // ✅ Nombre correcto de columna según el esquema SQL
+            tipo_destinatario: alcance === 'individual' ? `individual_${tipo}` : `grupo_${tipo}`,
             destinatario_id: alcance === 'individual' ? destinatario_id : null,
+            // ✅ Columnas correctas
+            contenido: mensaje,          // texto original (con variables sin resolver)
+            mensaje_final: plantillaHeader + mensaje, // incluye el header
+            nombre: nombrePlantilla,  // nombre/asunto del mensaje
             etiqueta: etiqueta || null,
             plantilla_id: plantilla_id || null,
-            mensaje_final: mensaje,
-            total_enviados: enviados,
-            total_errores: errores,
+            enviados,                            // ✅ nombre correcto (no total_enviados)
+            errores,                             // ✅ nombre correcto (no total_errores)
             estado: errores === 0 ? 'enviado' : enviados === 0 ? 'error' : 'parcial',
         });
 
-    return NextResponse.json({ success: true, enviados, errores, total: chatIds.length });
+    return NextResponse.json({ success: true, enviados, errores, total: chatIds.length, nombre: nombrePlantilla });
 }
