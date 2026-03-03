@@ -7,6 +7,7 @@ import {
   AreaChart, Area
 } from 'recharts';
 import { NotificacionSistema } from '../../components';
+import { useSucursalGlobal } from '@/lib/SucursalContext';
 
 // =====================================================
 // 🚀 Evitar prerenderizado estático en Vercel
@@ -85,8 +86,7 @@ export default function AuditoriaInteligenteQuirurgica() {
   const [umbralEfectividad, setUmbralEfectividad] = useState<number>(70);
   const [filtroEficiencia, setFiltroEficiencia] = useState<string>('todos');
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
-  const [sucursales, setSucursales] = useState<any[]>([]);
-  const [sucursalFiltro, setSucursalFiltro] = useState<string>('');
+  const { sucursalFiltro } = useSucursalGlobal();
 
   const router = useRouter();
 
@@ -185,9 +185,6 @@ export default function AuditoriaInteligenteQuirurgica() {
     fetchUserSession();
     fetchUmbral();
     fetchAuditoria();
-    // Cargar lista de sucursales para el filtro
-    supabase.from('sucursales').select('codigo, nombre').order('codigo')
-      .then(({ data }) => { if (data) setSucursales(data); });
 
     const canalAuditoria = supabase
       .channel('cambios-auditoria')
@@ -206,7 +203,7 @@ export default function AuditoriaInteligenteQuirurgica() {
   // ------------------------------------------------------------
   const dataFiltradaTemp = useMemo(() => {
     let base = metricas;
-    if (sucursalFiltro) {
+    if (sucursalFiltro && sucursalFiltro !== 'all') {
       base = base.filter(m => m.empleados?.sucursal_origen === sucursalFiltro);
     }
     if (rangoDias === 'todo') return base;
@@ -340,18 +337,6 @@ export default function AuditoriaInteligenteQuirurgica() {
             </div>
 
             {/* INDICADOR DE UMBRAL DE EFECTIVIDAD */}
-            {sucursales.length > 0 && (
-              <select
-                value={sucursalFiltro}
-                onChange={e => setSucursalFiltro(e.target.value)}
-                className="ml-2 bg-white/5 border border-white/10 p-1.5 rounded-lg text-[10px] font-black text-white outline-none focus:border-blue-500/50"
-              >
-                <option value="">🏢 TODAS LAS SUCURSALES</option>
-                {sucursales.map((s: any) => (
-                  <option key={s.codigo} value={s.codigo}>{s.codigo} — {s.nombre}</option>
-                ))}
-              </select>
-            )}
             <div className="ml-2 flex items-center gap-1 bg-blue-600/10 px-3 py-1.5 rounded-lg border border-blue-500/30">
               <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">UMBRAL:</span>
               <span className="text-sm font-black text-blue-500">{umbralEfectividad}%</span>

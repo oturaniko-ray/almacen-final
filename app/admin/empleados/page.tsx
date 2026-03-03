@@ -10,6 +10,7 @@ import {
   Buscador,
   NotificacionSistema
 } from '../../components';
+import { useSucursalGlobal } from '@/lib/SucursalContext';
 
 
 
@@ -192,8 +193,9 @@ export default function GestionEmpleados() {
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
   const router = useRouter();
-  const [sucursalDetectada, setSucursalDetectada] = useState<string>('01'); // código 2 dígitos
+  const [sucursalDetectada, setSucursalDetectada] = useState<string>('01');
   const [sucursalNombre, setSucursalNombre] = useState<string>('');
+  const { sucursalFiltro: sGlobal } = useSucursalGlobal();
 
   const estadoInicial = {
     nombre: '',
@@ -641,13 +643,15 @@ export default function GestionEmpleados() {
   // ------------------------------------------------------------
   // FILTRAR EMPLEADOS
   // ------------------------------------------------------------
-  const empleadosFiltrados = empleados.filter(
-    (e) =>
+  const empleadosFiltrados = empleados.filter((e) => {
+    const matchTexto =
       e.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
       e.documento_id?.toLowerCase().includes(filtro.toLowerCase()) ||
       e.email?.toLowerCase().includes(filtro.toLowerCase()) ||
-      (e.telefono && e.telefono.includes(filtro))
-  );
+      (e.telefono && e.telefono.includes(filtro));
+    const matchSucursal = !sGlobal || sGlobal === 'all' || e.sucursal_origen === sGlobal;
+    return matchTexto && matchSucursal;
+  });
 
   // ------------------------------------------------------------
   // RENDERIZADO

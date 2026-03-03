@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
-import { NotificacionSistema, Buscador } from '../../../components'; // ✅ 4 niveles arriba
+import { NotificacionSistema, Buscador } from '../../../components';
+import { useSucursalGlobal } from '@/lib/SucursalContext';
 
 // ------------------------------------------------------------
 // FUNCIONES AUXILIARES (DEFINIDAS PRIMERO)
@@ -153,8 +154,7 @@ export default function ReportesFlotaPage() {
   const [busqueda, setBusqueda] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
-  const [sucursales, setSucursales] = useState<any[]>([]);
-  const [sucursalFiltro, setSucursalFiltro] = useState<string>('');
+  const { sucursalFiltro } = useSucursalGlobal();
 
   // Estado para el modal de observación
   const [modalOpen, setModalOpen] = useState(false);
@@ -240,9 +240,6 @@ export default function ReportesFlotaPage() {
     }
     setUser(currentUser);
     fetchData();
-    // Cargar lista de sucursales para el filtro
-    supabase.from('sucursales').select('codigo, nombre').order('codigo')
-      .then(({ data }) => { if (data) setSucursales(data); });
 
     const interval = setInterval(() => setAhora(new Date()), 1000);
 
@@ -272,14 +269,14 @@ export default function ReportesFlotaPage() {
       ...(a as any).flota_perfil,
       acceso: a
     }));
-    if (!sucursalFiltro) return lista;
+    if (!sucursalFiltro || sucursalFiltro === 'all') return lista;
     return lista.filter(p => (p as any).sucursal_origen === sucursalFiltro);
   }, [accesosActivos, sucursalFiltro]);
 
   const ausentes = useMemo(() => {
     const presentesIds = new Set(presentes.map(p => (p as any).id));
     const todos = perfiles.filter(p => !presentesIds.has((p as any).id));
-    if (!sucursalFiltro) return todos;
+    if (!sucursalFiltro || sucursalFiltro === 'all') return todos;
     return todos.filter(p => (p as any).sucursal_origen === sucursalFiltro);
   }, [perfiles, presentes, sucursalFiltro]);
 
@@ -290,7 +287,7 @@ export default function ReportesFlotaPage() {
       const matchDoc = (a as any).flota_perfil?.documento_id?.toLowerCase().includes(busqueda.toLowerCase());
       const matchDesde = desde ? fecha >= desde : true;
       const matchHasta = hasta ? fecha <= hasta : true;
-      const matchSucursal = sucursalFiltro ? (a as any).flota_perfil?.sucursal_origen === sucursalFiltro : true;
+      const matchSucursal = !sucursalFiltro || sucursalFiltro === 'all' ? true : (a as any).flota_perfil?.sucursal_origen === sucursalFiltro;
       return (matchNombre || matchDoc) && matchDesde && matchHasta && matchSucursal;
     });
   }, [accesos, busqueda, desde, hasta, sucursalFiltro]);
@@ -465,8 +462,8 @@ export default function ReportesFlotaPage() {
           <button
             onClick={() => setTabActiva('presencia')}
             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${tabActiva === 'presencia'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-white/5 text-slate-400 hover:text-white'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'bg-white/5 text-slate-400 hover:text-white'
               }`}
           >
             PRESENCIA
@@ -474,24 +471,12 @@ export default function ReportesFlotaPage() {
           <button
             onClick={() => setTabActiva('accesos')}
             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${tabActiva === 'accesos'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-white/5 text-slate-400 hover:text-white'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'bg-white/5 text-slate-400 hover:text-white'
               }`}
           >
             ACCESOS
           </button>
-          {sucursales.length > 0 && (
-            <select
-              value={sucursalFiltro}
-              onChange={e => setSucursalFiltro(e.target.value)}
-              className="bg-white/5 border border-white/10 px-3 py-2 rounded-xl text-[10px] font-black text-white outline-none focus:border-blue-500/50"
-            >
-              <option value="">🏢 TODAS LAS SUCURSALES</option>
-              {sucursales.map((s: any) => (
-                <option key={s.codigo} value={s.codigo}>{s.codigo} — {s.nombre}</option>
-              ))}
-            </select>
-          )}
         </div>
 
         {loading ? (
@@ -517,8 +502,8 @@ export default function ReportesFlotaPage() {
                         <div
                           key={(p as any).id}
                           className={`p-3 rounded-xl border-2 transition-all shadow-lg flex flex-col items-center ${excedido
-                              ? 'border-lime-400 bg-lime-400/10'
-                              : 'border-emerald-500 bg-[#0f172a]'
+                            ? 'border-lime-400 bg-lime-400/10'
+                            : 'border-emerald-500 bg-[#0f172a]'
                             }`}
                         >
                           <p className="text-white text-[11px] font-black uppercase truncate w-full text-center leading-none mb-1">
@@ -681,10 +666,10 @@ export default function ReportesFlotaPage() {
                                   </td>
                                   <td className="p-2 text-center">
                                     <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase ${(a as any).estado === 'despachado'
-                                        ? 'bg-emerald-500/20 text-emerald-500'
-                                        : (a as any).estado === 'en_patio'
-                                          ? 'bg-amber-500/20 text-amber-500'
-                                          : 'bg-slate-500/20 text-slate-400'
+                                      ? 'bg-emerald-500/20 text-emerald-500'
+                                      : (a as any).estado === 'en_patio'
+                                        ? 'bg-amber-500/20 text-amber-500'
+                                        : 'bg-slate-500/20 text-slate-400'
                                       }`}>
                                       {(a as any).estado === 'despachado' ? 'DESP' : (a as any).estado === 'en_patio' ? 'PATIO' : (a as any).estado}
                                     </span>
