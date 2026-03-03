@@ -9,10 +9,9 @@ import {
 import { NotificacionSistema } from '../../components';
 
 // =====================================================
-// 🚀 DIRECTIVAS CRÍTICAS PARA EVITAR EL ERROR DE PRERENDERIZADO
-// =====================================================
+// 🚀 Evitar prerenderizado estático en Vercel
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';  // ← usa runtime edge en lugar de revalidate
+// NOTA: NO usar runtime = 'edge' → rompe Supabase Realtime (WebSockets)
 // =====================================================
 
 // ------------------------------------------------------------
@@ -133,15 +132,27 @@ export default function AuditoriaInteligenteQuirurgica() {
     else setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      // Intentar primero con sucursal_origen en el join
+      let { data, error } = await supabase
         .from('reportes_auditoria')
         .select('*, empleados:empleado_id ( nombre, rol, nivel_acceso, documento_id, sucursal_origen )')
         .order('fecha_proceso', { ascending: false });
 
+      // Fallback: si falla por columna inexistente, repetir sin sucursal_origen
+      if (error && (error.message?.includes('sucursal_origen') || error.code === '42703')) {
+        console.warn('sucursal_origen no disponible, usando query reducida');
+        const res2 = await supabase
+          .from('reportes_auditoria')
+          .select('*, empleados:empleado_id ( nombre, rol, nivel_acceso, documento_id )')
+          .order('fecha_proceso', { ascending: false });
+        data = res2.data;
+        error = res2.error;
+      }
+
       if (error) throw error;
 
       // ✅ CORREGIDO: Verificar que data existe y es un array
-      let dataProcesada = [];
+      let dataProcesada: any[] = [];
 
       if (data && Array.isArray(data)) {
         dataProcesada = data.map((m: any) => {
