@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+import {
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area
 } from 'recharts';
 import { NotificacionSistema } from '../../components';
@@ -82,11 +82,13 @@ export default function AuditoriaInteligenteQuirurgica() {
   const [rangoDias, setRangoDias] = useState<number | 'todo'>(7);
   const [busquedaEmpleado, setBusquedaEmpleado] = useState('');
   const [checksValidados, setChecksValidados] = useState<Record<string, boolean>>({});
-  const [usuarioLogueado, setUsuarioLogueado] = useState<{nombre: string, rol: string, nivel_acceso: any} | null>(null);
+  const [usuarioLogueado, setUsuarioLogueado] = useState<{ nombre: string, rol: string, nivel_acceso: any } | null>(null);
   const [umbralEfectividad, setUmbralEfectividad] = useState<number>(70);
   const [filtroEficiencia, setFiltroEficiencia] = useState<string>('todos');
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
-  
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [sucursalFiltro, setSucursalFiltro] = useState<string>('');
+
   const router = useRouter();
 
   // ------------------------------------------------------------
@@ -129,18 +131,18 @@ export default function AuditoriaInteligenteQuirurgica() {
   const fetchAuditoria = useCallback(async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
     else setLoading(true);
-    
+
     try {
       const { data, error } = await supabase
         .from('reportes_auditoria')
-        .select('*, empleados:empleado_id ( nombre, rol, nivel_acceso, documento_id )')
+        .select('*, empleados:empleado_id ( nombre, rol, nivel_acceso, documento_id, sucursal_origen )')
         .order('fecha_proceso', { ascending: false });
 
       if (error) throw error;
-      
+
       // ✅ CORREGIDO: Verificar que data existe y es un array
       let dataProcesada = [];
-      
+
       if (data && Array.isArray(data)) {
         dataProcesada = data.map((m: any) => {
           const emp = m.empleados;
@@ -172,11 +174,14 @@ export default function AuditoriaInteligenteQuirurgica() {
     fetchUserSession();
     fetchUmbral();
     fetchAuditoria();
+    // Cargar lista de sucursales para el filtro
+    supabase.from('sucursales').select('codigo, nombre').order('codigo')
+      .then(({ data }) => { if (data) setSucursales(data); });
 
     const canalAuditoria = supabase
       .channel('cambios-auditoria')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reportes_auditoria' }, () => {
-        fetchAuditoria(true); 
+        fetchAuditoria(true);
       })
       .subscribe();
 
@@ -189,12 +194,16 @@ export default function AuditoriaInteligenteQuirurgica() {
   // CÁLCULOS Y FILTROS
   // ------------------------------------------------------------
   const dataFiltradaTemp = useMemo(() => {
-    if (rangoDias === 'todo') return metricas;
+    let base = metricas;
+    if (sucursalFiltro) {
+      base = base.filter(m => m.empleados?.sucursal_origen === sucursalFiltro);
+    }
+    if (rangoDias === 'todo') return base;
     const limite = new Date();
     limite.setDate(limite.getDate() - (rangoDias as number));
-    limite.setHours(0,0,0,0);
-    return metricas.filter(m => m.raw_date >= limite);
-  }, [metricas, rangoDias]);
+    limite.setHours(0, 0, 0, 0);
+    return base.filter(m => m.raw_date >= limite);
+  }, [metricas, rangoDias, sucursalFiltro]);
 
   const dataFiltrada = useMemo(() => {
     if (filtroEficiencia === 'todos') return dataFiltradaTemp;
@@ -210,7 +219,7 @@ export default function AuditoriaInteligenteQuirurgica() {
 
   const dataIndividual = useMemo(() => {
     if (!busquedaEmpleado) return [];
-    return [...dataFiltrada].filter(m => 
+    return [...dataFiltrada].filter(m =>
       m.nombre_empleado.toLowerCase().includes(busquedaEmpleado.toLowerCase()) ||
       m.doc_empleado.includes(busquedaEmpleado)
     ).reverse();
@@ -287,7 +296,7 @@ export default function AuditoriaInteligenteQuirurgica() {
   return (
     <main className="min-h-screen bg-[#020617] p-4 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-4rem)]">
-        
+
         {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
@@ -303,8 +312,8 @@ export default function AuditoriaInteligenteQuirurgica() {
         {/* BARRA DE HERRAMIENTAS */}
         <div className="flex items-center justify-between gap-4 mb-4 shrink-0 bg-[#0f172a] p-3 rounded-xl border border-white/5">
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => fetchAuditoria(true)} 
+            <button
+              onClick={() => fetchAuditoria(true)}
               disabled={isRefreshing}
               className="p-2 bg-blue-600/10 border border-blue-500/20 rounded-xl hover:bg-blue-600 hover:text-white transition-all group"
               title="Sincronizar ahora"
@@ -318,8 +327,20 @@ export default function AuditoriaInteligenteQuirurgica() {
                 <button key={v} onClick={() => setRangoDias(v as any)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${rangoDias === v ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}>{v === 'todo' ? 'TODO' : `${v}D`}</button>
               ))}
             </div>
-            
+
             {/* INDICADOR DE UMBRAL DE EFECTIVIDAD */}
+            {sucursales.length > 0 && (
+              <select
+                value={sucursalFiltro}
+                onChange={e => setSucursalFiltro(e.target.value)}
+                className="ml-2 bg-white/5 border border-white/10 p-1.5 rounded-lg text-[10px] font-black text-white outline-none focus:border-blue-500/50"
+              >
+                <option value="">🏢 TODAS LAS SUCURSALES</option>
+                {sucursales.map((s: any) => (
+                  <option key={s.codigo} value={s.codigo}>{s.codigo} — {s.nombre}</option>
+                ))}
+              </select>
+            )}
             <div className="ml-2 flex items-center gap-1 bg-blue-600/10 px-3 py-1.5 rounded-lg border border-blue-500/30">
               <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">UMBRAL:</span>
               <span className="text-sm font-black text-blue-500">{umbralEfectividad}%</span>
@@ -328,11 +349,11 @@ export default function AuditoriaInteligenteQuirurgica() {
 
           <div className="flex gap-1">
             {[
-              { id: 'global', label: 'GLOBAL' }, 
-              { id: 'atencion', label: 'ATENCIÓN IA', alert: insightsIA.length > 0 }, 
+              { id: 'global', label: 'GLOBAL' },
+              { id: 'atencion', label: 'ATENCIÓN IA', alert: insightsIA.length > 0 },
               { id: 'individual', label: 'POR EMPLEADO' }
             ].map(tab => (
-              <button key={tab.id} onClick={() => setTabActiva(tab.id as any)} 
+              <button key={tab.id} onClick={() => setTabActiva(tab.id as any)}
                 className={`px-4 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all border ${tabActiva === tab.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10'}`}>
                 {tab.label} {tab.alert && <span className="ml-1 w-2 h-2 bg-rose-500 rounded-full inline-block animate-pulse"></span>}
               </button>
@@ -458,11 +479,11 @@ export default function AuditoriaInteligenteQuirurgica() {
                 <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
                   <div className="bg-[#0f172a] p-4 rounded-lg border border-white/5 mb-4">
                     <div className="relative">
-                      <input 
-                        type="text" 
-                        placeholder="BUSCAR EMPLEADO..." 
-                        value={busquedaEmpleado} 
-                        onChange={(e) => setBusquedaEmpleado(e.target.value)} 
+                      <input
+                        type="text"
+                        placeholder="BUSCAR EMPLEADO..."
+                        value={busquedaEmpleado}
+                        onChange={(e) => setBusquedaEmpleado(e.target.value)}
                         className="w-full bg-black/40 border border-white/10 p-3 pr-10 rounded-lg text-white font-black text-base outline-none focus:border-blue-500"
                       />
                       {busquedaEmpleado && (
@@ -479,14 +500,14 @@ export default function AuditoriaInteligenteQuirurgica() {
                             <AreaChart data={dataIndividual}>
                               <defs>
                                 <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                                 </linearGradient>
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                               <XAxis dataKey="fecha_corta" stroke="#475569" fontSize={11} />
                               <YAxis stroke="#475569" fontSize={11} />
-                              <Tooltip contentStyle={{backgroundColor: '#020617', border: 'none', borderRadius: '8px', fontSize: '11px'}} />
+                              <Tooltip contentStyle={{ backgroundColor: '#020617', border: 'none', borderRadius: '8px', fontSize: '11px' }} />
                               <Area type="monotone" dataKey="eficiencia_score" stroke="#3b82f6" fill="url(#colorScore)" strokeWidth={2} />
                             </AreaChart>
                           </ResponsiveContainer>

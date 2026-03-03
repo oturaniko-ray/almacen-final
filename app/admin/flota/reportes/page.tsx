@@ -56,11 +56,11 @@ const formatearFechaHora = (fechaIso: string | null) => {
 // Función para formatear fecha título
 const formatearFechaTitulo = (fechaStr: string) => {
   const fecha = new Date(fechaStr);
-  return fecha.toLocaleDateString('es-ES', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  return fecha.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
 };
 
@@ -153,7 +153,9 @@ export default function ReportesFlotaPage() {
   const [busqueda, setBusqueda] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
-  
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [sucursalFiltro, setSucursalFiltro] = useState<string>('');
+
   // Estado para el modal de observación
   const [modalOpen, setModalOpen] = useState(false);
   const [observacionSeleccionada, setObservacionSeleccionada] = useState('');
@@ -179,7 +181,7 @@ export default function ReportesFlotaPage() {
       .select('valor')
       .eq('clave', 'maximo_labor')
       .maybeSingle();
-      
+
     if (config && typeof config === 'object' && 'valor' in config) {
       const val = parseInt((config as { valor: string }).valor, 10);
       if (!isNaN(val)) setMaximoPatio(val);
@@ -204,13 +206,13 @@ export default function ReportesFlotaPage() {
       .from('flota_accesos')
       .select('*, flota_perfil!inner(*)')
       .order('hora_llegada', { ascending: false });
-      
+
     if (accesosData) {
       const accesosConHoras = (accesosData as any[]).map(acceso => {
         // Verificar que acceso existe y tiene las propiedades
         if (acceso && typeof acceso === 'object') {
-          if ('hora_salida' in acceso && 'hora_llegada' in acceso && 
-              acceso.hora_salida && acceso.hora_llegada) {
+          if ('hora_salida' in acceso && 'hora_llegada' in acceso &&
+            acceso.hora_salida && acceso.hora_llegada) {
             const llegada = new Date(acceso.hora_llegada).getTime();
             const salida = new Date(acceso.hora_salida).getTime();
             const horasEnPatio = ((salida - llegada) / (1000 * 60 * 60)).toFixed(2);
@@ -238,6 +240,9 @@ export default function ReportesFlotaPage() {
     }
     setUser(currentUser);
     fetchData();
+    // Cargar lista de sucursales para el filtro
+    supabase.from('sucursales').select('codigo, nombre').order('codigo')
+      .then(({ data }) => { if (data) setSucursales(data); });
 
     const interval = setInterval(() => setAhora(new Date()), 1000);
 
@@ -263,16 +268,20 @@ export default function ReportesFlotaPage() {
   };
 
   const presentes = useMemo(() => {
-    return accesosActivos.map(a => ({
+    const lista = accesosActivos.map(a => ({
       ...(a as any).flota_perfil,
       acceso: a
     }));
-  }, [accesosActivos]);
+    if (!sucursalFiltro) return lista;
+    return lista.filter(p => (p as any).sucursal_origen === sucursalFiltro);
+  }, [accesosActivos, sucursalFiltro]);
 
   const ausentes = useMemo(() => {
     const presentesIds = new Set(presentes.map(p => (p as any).id));
-    return perfiles.filter(p => !presentesIds.has((p as any).id));
-  }, [perfiles, presentes]);
+    const todos = perfiles.filter(p => !presentesIds.has((p as any).id));
+    if (!sucursalFiltro) return todos;
+    return todos.filter(p => (p as any).sucursal_origen === sucursalFiltro);
+  }, [perfiles, presentes, sucursalFiltro]);
 
   const accesosFiltrados = useMemo(() => {
     return accesos.filter(a => {
@@ -281,13 +290,14 @@ export default function ReportesFlotaPage() {
       const matchDoc = (a as any).flota_perfil?.documento_id?.toLowerCase().includes(busqueda.toLowerCase());
       const matchDesde = desde ? fecha >= desde : true;
       const matchHasta = hasta ? fecha <= hasta : true;
-      return (matchNombre || matchDoc) && matchDesde && matchHasta;
+      const matchSucursal = sucursalFiltro ? (a as any).flota_perfil?.sucursal_origen === sucursalFiltro : true;
+      return (matchNombre || matchDoc) && matchDesde && matchHasta && matchSucursal;
     });
-  }, [accesos, busqueda, desde, hasta]);
+  }, [accesos, busqueda, desde, hasta, sucursalFiltro]);
 
   const accesosPorFecha = useMemo(() => {
     const agrupados: Record<string, any[]> = {};
-    
+
     accesosFiltrados.forEach(acceso => {
       const fecha = (acceso as any).hora_llegada?.split('T')[0] || 'Sin fecha';
       if (!agrupados[fecha]) {
@@ -295,7 +305,7 @@ export default function ReportesFlotaPage() {
       }
       agrupados[fecha].push(acceso);
     });
-    
+
     return Object.entries(agrupados)
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([fecha, accesos]) => ({
@@ -325,12 +335,12 @@ export default function ReportesFlotaPage() {
   const exportarExcel = () => {
     // Crear libro de Excel
     const wb = XLSX.utils.book_new();
-    
+
     // Preparar datos según la pestaña activa
     let data: any[] = [];
     let sheetName = '';
     let columnWidths: any[] = [];
-    
+
     if (tabActiva === 'presencia') {
       sheetName = 'Presencia';
       data = presentes.map(p => ({
@@ -374,13 +384,13 @@ export default function ReportesFlotaPage() {
         { wch: 12 }, // Estado
       ];
     }
-    
+
     // Crear hoja de cálculo
     const ws = XLSX.utils.json_to_sheet(data);
-    
+
     // Definir ancho de columnas basado en el encabezado
     ws['!cols'] = columnWidths;
-    
+
     // Crear contenido del membrete
     const fechaEmision = new Date().toLocaleString('es-ES', {
       year: 'numeric',
@@ -390,36 +400,36 @@ export default function ReportesFlotaPage() {
       minute: '2-digit',
       second: '2-digit'
     });
-    
+
     const titulo = `REPORTES DE FLOTA - ${tabActiva === 'presencia' ? 'PRESENCIA' : 'ACCESOS'}`;
     const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
     const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
-    
+
     // Insertar membrete al inicio de la hoja
     XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
     XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
     XLSX.utils.sheet_add_aoa(ws, [[fechaInfo]], { origin: 'A3' });
     XLSX.utils.sheet_add_aoa(ws, [['─────────────────────────────────────────────────────────────────']], { origin: 'A4' });
-    
+
     // Mover los datos a partir de la fila 6 (dejando una fila de espacio)
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
     const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 5 });
     if (newData.length > 0) {
       XLSX.utils.sheet_add_aoa(ws, newData as any[][], { origin: 'A6' });
     }
-    
+
     // Agregar hoja al libro
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    
+
     // Generar nombre de archivo según el tipo de reporte
     const timestamp = getTimestamp();
-    const filename = tabActiva === 'presencia' 
+    const filename = tabActiva === 'presencia'
       ? `presenciaflota_${timestamp}.xlsx`
       : `accesoflota_${timestamp}.xlsx`;
-    
+
     // Guardar archivo
     XLSX.writeFile(wb, filename);
-    
+
     mostrarNotificacion('✅ REPORTE EXPORTADO', 'exito');
   };
 
@@ -433,7 +443,7 @@ export default function ReportesFlotaPage() {
   return (
     <main className="min-h-screen bg-[#050a14] p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        
+
         {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
@@ -444,34 +454,44 @@ export default function ReportesFlotaPage() {
         />
 
         {/* HEADER */}
-        <MemebreteSuperior 
-          usuario={user} 
+        <MemebreteSuperior
+          usuario={user}
           onExportar={exportarExcel}
           onRegresar={handleRegresar}
         />
 
-        {/* PESTAÑAS */}
-        <div className="flex gap-1 mb-3 justify-center">
+        {/* PESTAÑAS + FILTRO SUCURSAL */}
+        <div className="flex flex-wrap gap-2 mb-3 justify-center items-center">
           <button
             onClick={() => setTabActiva('presencia')}
-            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              tabActiva === 'presencia'
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${tabActiva === 'presencia'
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-white/5 text-slate-400 hover:text-white'
-            }`}
+              }`}
           >
             PRESENCIA
           </button>
           <button
             onClick={() => setTabActiva('accesos')}
-            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              tabActiva === 'accesos'
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${tabActiva === 'accesos'
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-white/5 text-slate-400 hover:text-white'
-            }`}
+              }`}
           >
             ACCESOS
           </button>
+          {sucursales.length > 0 && (
+            <select
+              value={sucursalFiltro}
+              onChange={e => setSucursalFiltro(e.target.value)}
+              className="bg-white/5 border border-white/10 px-3 py-2 rounded-xl text-[10px] font-black text-white outline-none focus:border-blue-500/50"
+            >
+              <option value="">🏢 TODAS LAS SUCURSALES</option>
+              {sucursales.map((s: any) => (
+                <option key={s.codigo} value={s.codigo}>{s.codigo} — {s.nombre}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {loading ? (
@@ -496,11 +516,10 @@ export default function ReportesFlotaPage() {
                       return (
                         <div
                           key={(p as any).id}
-                          className={`p-3 rounded-xl border-2 transition-all shadow-lg flex flex-col items-center ${
-                            excedido
+                          className={`p-3 rounded-xl border-2 transition-all shadow-lg flex flex-col items-center ${excedido
                               ? 'border-lime-400 bg-lime-400/10'
                               : 'border-emerald-500 bg-[#0f172a]'
-                          }`}
+                            }`}
                         >
                           <p className="text-white text-[11px] font-black uppercase truncate w-full text-center leading-none mb-1">
                             {(p as any).nombre_completo}
@@ -509,12 +528,10 @@ export default function ReportesFlotaPage() {
                           <p className={`text-[9px] font-black font-mono ${excedido ? 'text-lime-300' : 'text-white'}`}>
                             {formatearFechaHora(acceso?.hora_llegada)}
                           </p>
-                          <div className={`w-full mt-2 py-1 rounded-lg border text-center ${
-                            excedido ? 'bg-lime-400/20 border-lime-400/40' : 'bg-black/40 border-white/5'
-                          }`}>
-                            <p className={`text-sm font-black font-mono italic ${
-                              excedido ? 'text-lime-400 animate-pulse' : 'text-blue-500'
+                          <div className={`w-full mt-2 py-1 rounded-lg border text-center ${excedido ? 'bg-lime-400/20 border-lime-400/40' : 'bg-black/40 border-white/5'
                             }`}>
+                            <p className={`text-sm font-black font-mono italic ${excedido ? 'text-lime-400 animate-pulse' : 'text-blue-500'
+                              }`}>
                               {formatearTiempo(ms)}
                             </p>
                           </div>
@@ -638,7 +655,7 @@ export default function ReportesFlotaPage() {
                                     {new Date((a as any).hora_llegada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </td>
                                   <td className="p-2 text-[9px] font-mono text-red-400">
-                                    {(a as any).hora_salida 
+                                    {(a as any).hora_salida
                                       ? new Date((a as any).hora_salida).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                                       : '--:--'}
                                   </td>
@@ -663,13 +680,12 @@ export default function ReportesFlotaPage() {
                                     )}
                                   </td>
                                   <td className="p-2 text-center">
-                                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase ${
-                                      (a as any).estado === 'despachado'
+                                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase ${(a as any).estado === 'despachado'
                                         ? 'bg-emerald-500/20 text-emerald-500'
                                         : (a as any).estado === 'en_patio'
-                                        ? 'bg-amber-500/20 text-amber-500'
-                                        : 'bg-slate-500/20 text-slate-400'
-                                    }`}>
+                                          ? 'bg-amber-500/20 text-amber-500'
+                                          : 'bg-slate-500/20 text-slate-400'
+                                      }`}>
                                       {(a as any).estado === 'despachado' ? 'DESP' : (a as any).estado === 'en_patio' ? 'PATIO' : (a as any).estado}
                                     </span>
                                   </td>
