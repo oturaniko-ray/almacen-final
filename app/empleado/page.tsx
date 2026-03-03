@@ -159,27 +159,27 @@ export default function EmpleadoPage() {
   // ✅ NUEVA FUNCIÓN DE GPS MEJORADA
   const actualizarGPS = useCallback(async () => {
     setMensajeFlash('Actualizando GPS...');
-    
+
     try {
       const location = await getCurrentLocation();
-      
+
       if (location) {
         setUbicacionActual(location);
-        
+
         const d = calcularDistancia(
           location.lat,
           location.lng,
           config.almacen_lat,
           config.almacen_lon
         );
-        
+
         setDistancia(Math.round(d));
-        
+
         if (d <= config.radio_maximo) {
           setUbicacionOk(true);
           setErrorGps('');
           ultimaActividadRef.current = Date.now();
-          
+
           // Obtener dirección para mostrar
           const address = await getAddressFromCoordinates(location.lat, location.lng);
           if (address) {
@@ -201,7 +201,7 @@ export default function EmpleadoPage() {
       setErrorGps('Error de señal GPS');
       setUbicacionOk(false);
     }
-    
+
     setTimeout(() => setMensajeFlash(''), 3000);
   }, [config]);
 
@@ -209,17 +209,18 @@ export default function EmpleadoPage() {
   useEffect(() => {
     if (config.almacen_lat === 0) return;
     actualizarGPS();
-    
+
     // Actualizar cada 30 segundos mientras la app está abierta
     const interval = setInterval(actualizarGPS, 30000);
     return () => clearInterval(interval);
   }, [config, actualizarGPS]);
 
-  // Generar QR con prefijo P
+  // Generar QR con prefijo E (nuevo formato multi-sucursal)
   useEffect(() => {
     if (ubicacionOk && user) {
       const generateToken = () => {
-        const rawToken = `P|${user.documento_id}|${Date.now()}`;
+        const sucursal = user.sucursal_origen || '01';
+        const rawToken = `E|${user.documento_id}|${sucursal}|${Date.now()}`;
         setToken(btoa(rawToken));
       };
       generateToken();

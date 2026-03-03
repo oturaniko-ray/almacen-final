@@ -168,7 +168,8 @@ export default function QrConductorPage() {
   useEffect(() => {
     if (ubicacionOk && conductor) {
       const generateToken = () => {
-        const rawToken = `F|${conductor.documento_id}|${Date.now()}`;
+        const sucursal = conductor.sucursal_origen || '01';
+        const rawToken = `F|${conductor.documento_id}|${sucursal}|${Date.now()}`;
         setToken(btoa(rawToken));
       };
       generateToken();

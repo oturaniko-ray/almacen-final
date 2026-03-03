@@ -154,7 +154,7 @@ export default function SupervisorPage() {
   const [modo, setModo] = useState<'menu' | 'usb' | 'camara' | 'manual'>('menu');
   const [direccion, setDireccion] = useState<'entrada' | 'salida' | 'auto' | null>(null);
   const [qrData, setQrData] = useState('');
-  const [qrInfo, setQrInfo] = useState<{ tipo: string; docId: string; timestamp: number } | null>(null);
+  const [qrInfo, setQrInfo] = useState<{ tipo: string; docId: string; sucursalCodigo: string; timestamp: number } | null>(null);
   const [pinEmpleado, setPinEmpleado] = useState('');
   const [pinAutorizador, setPinAutorizador] = useState('');
   const [animar, setAnimar] = useState(false);
@@ -287,86 +287,58 @@ export default function SupervisorPage() {
     }
   }, [gps.lat, gps.lon, config]);
 
-  // ✅ VERSIÓN ULTRA ROBUSTA DE PROCESAR QR
-  const procesarQR = (texto: string): { tipo: string; docId: string; timestamp: number } | null => {
+  // ✅ PROCESADOR QR MULTI-FORMATO (retrocompatible)
+  //    Nuevo: E|DOC|SUCURSAL|TS  /  F|DOC|SUCURSAL|TS  (4 partes)
+  //    Viejo: P|DOC|TS           /  F|DOC|TS           (3 partes)
+  const procesarQR = (texto: string): { tipo: string; docId: string; sucursalCodigo: string; timestamp: number } | null => {
     if (!texto || texto.trim() === '') return null;
 
-    // Mostrar el texto original con todos los detalles para depuración
     console.log('🔍 QR original (raw):', JSON.stringify(texto));
-    console.log('🔍 QR length:', texto.length);
-    console.log('🔍 QR char codes:', Array.from(texto).map(c => c.charCodeAt(0)));
 
-    // Estrategia 1: Limpiar solo caracteres de control al inicio/final
-    let cleanText = texto.replace(/^[\n\r\t\s]+|[\n\r\t\s]+$/g, '');
-    console.log('🔍 QR limpio (bordes):', JSON.stringify(cleanText));
+    const intentarDecode = (raw: string): { tipo: string; docId: string; sucursalCodigo: string; timestamp: number } | null => {
+      try {
+        const decoded = atob(raw);
+        console.log('📝 QR decodificado:', decoded);
+        const partes = decoded.split('|');
 
-    // Estrategia 2: Si aún tiene espacios internos sospechosos, intentar decodificar
-    try {
-      // Intentar decodificar directamente
-      let decoded = atob(cleanText);
-      console.log('📝 QR decodificado (directo):', decoded);
-
-      const partes = decoded.split('|');
-      if (partes.length === 3) {
-        const [tipo, docId, timestamp] = partes;
-        const ts = parseInt(timestamp, 10);
-
-        if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
-          if (tipo === 'P' || tipo === 'F') {
-            console.log('✅ QR válido:', { tipo, docId, ts });
-            return { tipo, docId, timestamp: ts };
+        // NUEVO FORMATO: E|DOC|SUCURSAL|TS o F|DOC|SUCURSAL|TS
+        if (partes.length === 4) {
+          const [tipo, docId, sucursalCodigo, timestamp] = partes;
+          const ts = parseInt(timestamp, 10);
+          if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
+            if (tipo === 'E' || tipo === 'F') {
+              console.log('✅ QR v2 válido:', { tipo, docId, sucursalCodigo });
+              return { tipo, docId, sucursalCodigo, timestamp: ts };
+            }
           }
         }
-      }
-    } catch (e) {
-      console.log('❌ Falló decodificación directa:', e);
-    }
 
-    // Estrategia 3: Intentar con decodeURIComponent + escape (para caracteres especiales)
-    try {
-      const decoded = atob(decodeURIComponent(escape(cleanText)));
-      console.log('📝 QR decodificado (con escape):', decoded);
-
-      const partes = decoded.split('|');
-      if (partes.length === 3) {
-        const [tipo, docId, timestamp] = partes;
-        const ts = parseInt(timestamp, 10);
-
-        if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
-          if (tipo === 'P' || tipo === 'F') {
-            console.log('✅ QR válido (con escape):', { tipo, docId, ts });
-            return { tipo, docId, timestamp: ts };
+        // FORMATO ANTIGUO: P|DOC|TS o F|DOC|TS
+        if (partes.length === 3) {
+          const [tipo, docId, timestamp] = partes;
+          const ts = parseInt(timestamp, 10);
+          if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
+            if (tipo === 'P' || tipo === 'F') {
+              // Convertir P → E para unificar el flujo
+              const tipoNorm = tipo === 'P' ? 'E' : 'F';
+              console.log('✅ QR v1 válido (retrocompat):', { tipo: tipoNorm, docId });
+              return { tipo: tipoNorm, docId, sucursalCodigo: '01', timestamp: ts };
+            }
           }
         }
+      } catch (e) {
+        console.log('❌ Fallo decode:', e);
       }
-    } catch (e) {
-      console.log('❌ Falló decodificación con escape:', e);
-    }
+      return null;
+    };
 
-    // Estrategia 4: Intentar limpiar más agresivamente si es necesario
-    try {
-      // Eliminar cualquier cosa que no sea parte de Base64 válido
-      const base64Clean = cleanText.replace(/[^A-Za-z0-9+/=]/g, '');
-      console.log('🔍 Base64 limpio agresivo:', base64Clean);
+    // Estrategia 1: directo
+    let result = intentarDecode(texto.replace(/^[\n\r\t\s]+|[\n\r\t\s]+$/g, ''));
+    if (result) return result;
 
-      const decoded = atob(base64Clean);
-      console.log('📝 QR decodificado (agresivo):', decoded);
-
-      const partes = decoded.split('|');
-      if (partes.length === 3) {
-        const [tipo, docId, timestamp] = partes;
-        const ts = parseInt(timestamp, 10);
-
-        if (!isNaN(ts) && Date.now() - ts <= (Number(config.qr_exp) || 30000)) {
-          if (tipo === 'P' || tipo === 'F') {
-            console.log('✅ QR válido (agresivo):', { tipo, docId, ts });
-            return { tipo, docId, timestamp: ts };
-          }
-        }
-      }
-    } catch (e) {
-      console.log('❌ Falló decodificación agresiva:', e);
-    }
+    // Estrategia 2: base64 limpio agresivo
+    result = intentarDecode(texto.replace(/[^A-Za-z0-9+/=]/g, ''));
+    if (result) return result;
 
     console.error('❌ Todas las estrategias fallaron');
     mostrarNotificacion('QR INVÁLIDO (decodificación)', 'error');
@@ -742,10 +714,11 @@ export default function SupervisorPage() {
         }
       }
     } else {
-      if (tipo === 'P') {
+      // Modo QR (cámara o USB): tipo 'E' = empleado (nuevo), 'P' → 'E' retrocompat, 'F' = flota
+      if (tipo === 'E' || tipo === 'P') {
         const { data: emp, error: empErr } = await (supabase as any)
           .from('empleados')
-          .select('id, nombre, pin_seguridad, activo, documento_id, email')
+          .select('id, nombre, pin_seguridad, activo, documento_id, email, sucursal_origen')
           .or(`documento_id.ilike.%${inputBusqueda}%,email.ilike.%${inputBusqueda.toLowerCase()}%`)
           .maybeSingle();
         if (empErr) {
@@ -755,7 +728,8 @@ export default function SupervisorPage() {
           return;
         }
         if (emp && typeof emp === 'object') {
-          registro = { ...(emp as any), tipo: 'empleado' };
+          const sucursalQR = qrInfo?.sucursalCodigo || '';
+          registro = { ...(emp as any), tipo: 'empleado', sucursalQR };
         }
       } else if (tipo === 'F') {
         const { data: flota, error: flotaErr } = await (supabase as any)
@@ -770,7 +744,8 @@ export default function SupervisorPage() {
           return;
         }
         if (flota && typeof flota === 'object') {
-          registro = { ...(flota as any), tipo: 'flota' };
+          const sucursalQR = qrInfo?.sucursalCodigo || '';
+          registro = { ...(flota as any), tipo: 'flota', sucursalQR };
         }
       }
     }
