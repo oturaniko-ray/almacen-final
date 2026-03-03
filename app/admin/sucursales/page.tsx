@@ -105,7 +105,7 @@ export default function SucursalesPage() {
                 {/* Header */}
                 <div className="flex items-center justify-between mb-8">
                     <div>
-                        <h1 className="text-2xl font-black text-white uppercase tracking-widest italic">🏢 Gestión de Sucursales</h1>
+                        <h1 className="text-2xl font-black text-white uppercase tracking-widest italic">GESTION DE SUCURSALES</h1>
                         <p className="text-slate-500 text-xs mt-1">{sucursales.length} sede{sucursales.length !== 1 ? 's' : ''} registrada{sucursales.length !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="flex gap-3">
@@ -154,7 +154,7 @@ export default function SucursalesPage() {
                                         onClick={() => abrirEditar(s)}
                                         className="text-[10px] font-black text-blue-400 hover:text-blue-300 uppercase bg-blue-900/20 hover:bg-blue-900/40 px-3 py-1.5 rounded-[10px] transition-all"
                                     >
-                                        ✏️ Editar
+                                        EDITAR
                                     </button>
                                 </div>
 
@@ -179,8 +179,8 @@ export default function SucursalesPage() {
                                 </div>
 
                                 <div className="flex items-center justify-between text-[10px] text-slate-600">
-                                    <span>📍 Radio: {s.radio_maximo}m</span>
-                                    <span>⚡ Token: {s.timer_token / 1000}s</span>
+                                    <span>Radio: {s.radio_maximo}m</span>
+                                    <span>Token: {s.timer_token / 1000}s</span>
                                 </div>
                             </div>
                         ))}
@@ -188,7 +188,7 @@ export default function SucursalesPage() {
                         {/* Botón añadir al final */}
                         {sucursales.length === 0 && !loading && (
                             <div className="col-span-3 flex flex-col items-center justify-center py-20 gap-4 text-slate-600">
-                                <span className="text-5xl">🏢</span>
+                                <span className="text-5xl text-slate-700 font-black tracking-widest">— —</span>
                                 <p className="font-black uppercase tracking-widest text-sm">No hay sucursales registradas</p>
                                 <button onClick={abrirCrear} className="bg-emerald-700 hover:bg-emerald-600 text-white font-black text-sm px-6 py-3 rounded-[16px] transition-all">
                                     + Crear primera sucursal
@@ -204,7 +204,7 @@ export default function SucursalesPage() {
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[5000] p-4">
                     <div className="bg-[#0f172a] rounded-[30px] border border-white/10 p-8 w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl space-y-5">
                         <h2 className="text-lg font-black text-white uppercase tracking-widest">
-                            {modal === 'crear' ? '🏢 Nueva Sucursal' : `✏️ Editar Sucursal ${form.codigo}`}
+                            {modal === 'crear' ? 'NUEVA SUCURSAL' : `EDITAR SUCURSAL ${form.codigo}`}
                         </h2>
 
                         {/* Código — solo editable al crear */}
@@ -238,7 +238,7 @@ export default function SucursalesPage() {
                                 disabled={ubicandome}
                                 className="w-full flex items-center justify-center gap-2 py-3 rounded-[14px] bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50"
                             >
-                                {ubicandome ? '⏳ Detectando GPS...' : '📍 Usar mi ubicación actual'}
+                                {ubicandome ? 'Detectando GPS...' : 'USAR MI UBICACION ACTUAL'}
                             </button>
                             <div className="grid grid-cols-2 gap-3">
                                 {campo('lat', 'Latitud', 'number')}
@@ -249,7 +249,7 @@ export default function SucursalesPage() {
 
                         {/* Config de la sucursal */}
                         <div className="border-t border-white/5 pt-4 space-y-3">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">⚙️ Configuración de esta sede</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">CONFIGURACION DE ESTA SEDE</p>
                             <div className="grid grid-cols-2 gap-3">
                                 {campo('timer_token', 'Expiración token QR (ms)', 'number')}
                                 {campo('timer_inactividad', 'Timeout inactividad (ms)', 'number')}
@@ -278,7 +278,7 @@ export default function SucursalesPage() {
                                 disabled={guardando || !form.codigo || !form.nombre}
                                 className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-wider py-3 rounded-[16px] transition-all disabled:opacity-40"
                             >
-                                {guardando ? 'GUARDANDO...' : '💾 GUARDAR'}
+                                {guardando ? 'GUARDANDO...' : 'GUARDAR'}
                             </button>
                             <button
                                 onClick={() => setModal(null)}

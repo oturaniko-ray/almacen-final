@@ -626,7 +626,7 @@ export default function GestionEmpleados() {
     const timestamp = getTimestamp();
     const filename = `empleados_${timestamp}.xlsx`;
     XLSX.writeFile(wb, filename);
-    mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
+    mostrarNotificacion('ARCHIVO EXPORTADO', 'exito');
   };
 
   // ------------------------------------------------------------
@@ -826,7 +826,7 @@ export default function GestionEmpleados() {
               <thead className="bg-[#0f172a] text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
                 <tr>
                   <th className="p-3 w-[18%]">NOMBRE / DOC</th>
-                  <th className="p-3 w-[22%]">📧 EMAIL / 📱 TEL</th>
+                  <th className="p-3 w-[22%]">EMAIL / TELEFONO</th>
                   <th className="p-3 text-center w-[8%]">ROL</th>
                   <th className="p-3 text-center w-[5%]">NIV</th>
                   <th className="p-3 text-center w-[9%]">PIN</th>
@@ -865,11 +865,11 @@ export default function GestionEmpleados() {
                     <td className="p-3">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-slate-300 text-xs truncate" title={emp.email}>
-                          📧 {emp.email}
+                          {emp.email}
                         </span>
                         {emp.telefono && (
                           <span className="text-emerald-400 text-xs truncate">
-                            📱 {emp.telefono}
+                            {emp.telefono}
                           </span>
                         )}
                       </div>
@@ -909,7 +909,7 @@ export default function GestionEmpleados() {
                         onClick={() => editarEmpleado(emp)}
                         className="text-blue-400 hover:text-white font-black text-[10px] uppercase px-3 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
                       >
-                        ✏️
+                        EDITAR
                       </button>
                     </td>
                     {/* NOTIFICACIONES */}
@@ -922,15 +922,15 @@ export default function GestionEmpleados() {
                           title="Enviar correo de bienvenida"
                           className="flex items-center gap-1 text-emerald-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
                         >
-                          {enviandoCorreo === emp.id ? '⏳' : '📧 Email'}
+                          {enviandoCorreo === emp.id ? '...' : 'EMAIL'}
                         </button>
                         {/* TELEGRAM → redirige a módulo de mensajería */}
                         <button
                           onClick={() => router.push('/admin/mensajeria')}
-                          title="Ir al módulo de mensajería Telegram"
+                          title="Ir al modulo de mensajeria Telegram"
                           className="flex items-center gap-1 text-blue-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-blue-400/20 hover:bg-blue-600 transition-all"
                         >
-                          ✈️ Telegram
+                          TELEGRAM
                         </button>
                         {/* WHATSAPP — oculto hasta autorización Meta */}
                         {/* <button onClick={() => handleEnviarWhatsApp(emp)} …>WHATSAPP</button> */}

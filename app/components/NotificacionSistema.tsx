@@ -32,27 +32,33 @@ export default function NotificacionSistema({
 
   if (!mostrar || !tipo) return null;
 
-  const colores = {
-    exito: 'bg-emerald-500 border-emerald-400',
-    error: 'bg-rose-500 border-rose-400',
-    advertencia: 'bg-amber-500 border-amber-400',
-    info: 'bg-blue-500 border-blue-400',
-  };
-  const iconos = {
-    exito: '✅',
-    error: '❌',
-    advertencia: '⚠️',
-    info: 'ℹ️',
+  const estilos = {
+    exito: { barra: 'bg-emerald-500', card: 'border-emerald-500/20', etiq: 'text-emerald-400' },
+    error: { barra: 'bg-rose-500', card: 'border-rose-500/20', etiq: 'text-rose-400' },
+    advertencia: { barra: 'bg-amber-500', card: 'border-amber-500/20', etiq: 'text-amber-400' },
+    info: { barra: 'bg-blue-500', card: 'border-blue-500/20', etiq: 'text-blue-400' },
   };
 
+  const etiquetas = {
+    exito: 'CORRECTO', error: 'ERROR', advertencia: 'ATENCION', info: 'INFO',
+  };
+
+  const e = estilos[tipo];
+
   return (
-    <div
-      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-xl
-        font-bold text-sm shadow-2xl animate-flash-fast max-w-[90%] text-center
-        border-2 ${colores[tipo]} text-white flex items-center gap-3`}
-    >
-      <span className="text-lg">{iconos[tipo]}</span>
-      <span>{mensaje}</span>
+    <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex items-stretch
+      min-w-[280px] max-w-[90vw] rounded-xl shadow-2xl overflow-hidden
+      bg-[#0a0f1e] border animate-flash-fast ${e.card}`}>
+      {/* Barra lateral de color */}
+      <div className={`w-[3px] flex-shrink-0 ${e.barra}`} />
+      {/* Contenido */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <span className={`text-[9px] font-black tracking-[0.2em] uppercase flex-shrink-0 ${e.etiq}`}>
+          {etiquetas[tipo]}
+        </span>
+        <div className="w-px h-4 bg-white/10 flex-shrink-0" />
+        <span className="text-[11px] font-semibold text-white">{mensaje}</span>
+      </div>
     </div>
   );
 }

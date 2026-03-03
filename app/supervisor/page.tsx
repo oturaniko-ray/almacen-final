@@ -654,7 +654,7 @@ export default function SupervisorPage() {
         .update({ en_patio: false })
         .eq('id', registro.id);
 
-      mostrarNotificacion('SALIDA DE FLOTA REGISTRADA ✅', 'exito');
+      mostrarNotificacion('SALIDA DE FLOTA REGISTRADA', 'exito');
       setFlotaSalida({ activo: false, cant_carga: 0, observacion: '' });
       setRegistroPendiente(null);
 
@@ -974,7 +974,7 @@ export default function SupervisorPage() {
             .update({ en_almacen: true, ultimo_ingreso: ahora })
             .eq('id', registro.id);
 
-          mostrarNotificacion('ENTRADA REGISTRADA ✅', 'exito');
+          mostrarNotificacion('ENTRADA REGISTRADA', 'exito');
         } else {
           const { data: j } = await (supabase as any)
             .from('jornadas')
@@ -1007,7 +1007,7 @@ export default function SupervisorPage() {
               .update({ en_almacen: false, ultima_salida: ahora })
               .eq('id', registro.id);
 
-            mostrarNotificacion('SALIDA REGISTRADA ✅', 'exito');
+            mostrarNotificacion('SALIDA REGISTRADA', 'exito');
           } else {
             throw new Error('Datos de jornada inválidos');
           }
@@ -1047,7 +1047,7 @@ export default function SupervisorPage() {
             .update({ en_patio: true })
             .eq('id', registro.id);
 
-          mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA ✅', 'exito');
+          mostrarNotificacion('ENTRADA DE FLOTA REGISTRADA', 'exito');
 
           const inputElement = modo === 'usb' ? usbInputRef.current : null;
           setTimeout(() => {
