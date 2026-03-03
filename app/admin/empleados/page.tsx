@@ -192,6 +192,8 @@ export default function GestionEmpleados() {
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
   const router = useRouter();
+  const [sucursalDetectada, setSucursalDetectada] = useState<string>('01'); // código 2 dígitos
+  const [sucursalNombre, setSucursalNombre] = useState<string>('');
 
   const estadoInicial = {
     nombre: '',
@@ -231,6 +233,26 @@ export default function GestionEmpleados() {
     }
     setUser(currentUser);
     fetchEmpleados();
+
+    // Detectar sucursal por GPS para asignar PIN correcto
+    (async () => {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true, timeout: 8000, maximumAge: 60000
+          })
+        );
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const res = await fetch(`/api/sucursales/detectar?lat=${lat}&lon=${lon}`);
+        const json = await res.json();
+        if (json.deteccion) {
+          setSucursalDetectada(json.deteccion.codigo);
+          setSucursalNombre(json.deteccion.nombre);
+        }
+      } catch {
+        // Si GPS falla, queda '01' por defecto
+      }
+    })();
 
     const channel = supabase
       .channel('empleados_changes')
@@ -468,7 +490,8 @@ export default function GestionEmpleados() {
         if (error) throw error;
         mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
       } else {
-        const { data: pinGenerado, error: pinError } = await (supabase as any).rpc('generar_pin_personal');
+        const { data: pinGenerado, error: pinError } = await (supabase as any)
+          .rpc('generar_pin_empleado', { p_sucursal_codigo: sucursalDetectada });
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
@@ -483,6 +506,7 @@ export default function GestionEmpleados() {
           permiso_reportes: nuevo.permiso_reportes,
           nivel_acceso: nuevo.nivel_acceso,
           pin_generado_en: new Date().toISOString(),
+          sucursal_origen: sucursalDetectada,
         }];
 
         const { data: nuevoEmpleado, error } = await (supabase as any)

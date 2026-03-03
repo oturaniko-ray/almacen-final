@@ -79,6 +79,76 @@ END;
 $$;
 
 -- ──────────────────────────────────────────────────────────
+-- 4b. FUNCIÓN: generar_pin_empleado (MULTI-SUCURSAL)
+--     Formato: E + SS + MMYY + 3dig  (Ej: E010326001)
+-- ──────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.generar_pin_empleado(p_sucursal_codigo char(2) DEFAULT '01')
+RETURNS text LANGUAGE plpgsql AS $$
+DECLARE
+  v_correlativo integer;
+  v_mmaa        text;
+  v_pin         text;
+BEGIN
+  -- Incrementar correlativo por sucursal en la tabla sucursales (si existe)
+  -- Fallback: usar correlativo global de tabla correlativo
+  BEGIN
+    UPDATE public.sucursales
+    SET correlativo_empleado = COALESCE(correlativo_empleado, 0) + 1,
+        updated_at = now()
+    WHERE codigo = p_sucursal_codigo
+    RETURNING correlativo_empleado INTO v_correlativo;
+  EXCEPTION WHEN OTHERS THEN
+    v_correlativo := NULL;
+  END;
+
+  IF v_correlativo IS NULL THEN
+    UPDATE public.correlativo
+    SET correlativo_personal = correlativo_personal + 1, updated_at = now()
+    WHERE id = (SELECT id FROM public.correlativo LIMIT 1)
+    RETURNING correlativo_personal INTO v_correlativo;
+  END IF;
+
+  v_mmaa := to_char(now(), 'MMYY');
+  v_pin  := 'E' || p_sucursal_codigo || v_mmaa || lpad(v_correlativo::text, 3, '0');
+  RETURN v_pin;
+END;
+$$;
+
+-- ──────────────────────────────────────────────────────────
+-- 4c. FUNCIÓN: generar_pin_flota_sucursal (MULTI-SUCURSAL)
+--     Formato: F + SS + MMYY + 3dig  (Ej: F010326001)
+-- ──────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.generar_pin_flota_sucursal(p_sucursal_codigo char(2) DEFAULT '01')
+RETURNS text LANGUAGE plpgsql AS $$
+DECLARE
+  v_correlativo integer;
+  v_mmaa        text;
+  v_pin         text;
+BEGIN
+  BEGIN
+    UPDATE public.sucursales
+    SET correlativo_flota = COALESCE(correlativo_flota, 0) + 1,
+        updated_at = now()
+    WHERE codigo = p_sucursal_codigo
+    RETURNING correlativo_flota INTO v_correlativo;
+  EXCEPTION WHEN OTHERS THEN
+    v_correlativo := NULL;
+  END;
+
+  IF v_correlativo IS NULL THEN
+    UPDATE public.correlativo
+    SET correlativo_flota = correlativo_flota + 1, updated_at = now()
+    WHERE id = (SELECT id FROM public.correlativo LIMIT 1)
+    RETURNING correlativo_flota INTO v_correlativo;
+  END IF;
+
+  v_mmaa := to_char(now(), 'MMYY');
+  v_pin  := 'F' || p_sucursal_codigo || v_mmaa || lpad(v_correlativo::text, 3, '0');
+  RETURN v_pin;
+END;
+$$;
+
+-- ──────────────────────────────────────────────────────────
 -- 5. TABLA: empleados
 -- ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.empleados (

@@ -195,6 +195,8 @@ export default function GestionFlota() {
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; perfil: FlotaPerfil | null }>({ isOpen: false, perfil: null });
   const router = useRouter();
+  const [sucursalDetectada, setSucursalDetectada] = useState<string>('01');
+  const [sucursalNombre, setSucursalNombre] = useState<string>('');
 
   const estadoInicial: NuevoPerfil = {
     nombre_completo: '',
@@ -239,6 +241,26 @@ export default function GestionFlota() {
     }
     setUser(currentUser);
     fetchPerfiles();
+
+    // Detectar sucursal por GPS para asignar PIN correcto
+    (async () => {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true, timeout: 8000, maximumAge: 60000
+          })
+        );
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const res = await fetch(`/api/sucursales/detectar?lat=${lat}&lon=${lon}`);
+        const json = await res.json();
+        if (json.deteccion) {
+          setSucursalDetectada(json.deteccion.codigo);
+          setSucursalNombre(json.deteccion.nombre);
+        }
+      } catch {
+        // Si GPS falla, queda '01' por defecto
+      }
+    })();
 
     const channel = supabase
       .channel('flota_perfil_changes')
@@ -445,7 +467,8 @@ export default function GestionFlota() {
         if (error) throw error;
         mostrarNotificacion('Perfil actualizado correctamente.', 'exito');
       } else {
-        const { data: pinGenerado, error: pinError } = await (supabase as any).rpc('generar_pin_flota');
+        const { data: pinGenerado, error: pinError } = await (supabase as any)
+          .rpc('generar_pin_flota_sucursal', { p_sucursal_codigo: sucursalDetectada });
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
@@ -460,6 +483,7 @@ export default function GestionFlota() {
           pin_secreto: pinGenerado,
           activo: true,
           fecha_creacion: new Date().toISOString(),
+          sucursal_origen: sucursalDetectada,
         }];
 
         const { data: nuevoPerfil, error } = await (supabase as any)
