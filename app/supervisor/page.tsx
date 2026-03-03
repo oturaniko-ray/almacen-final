@@ -258,6 +258,34 @@ export default function SupervisorPage() {
     setUser(JSON.parse(sessionData));
 
     const loadConfig = async () => {
+      // ── Intento 1: config de la sucursal más cercana por GPS ──
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true, timeout: 8000, maximumAge: 60000
+          })
+        );
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const res = await fetch(`/api/sucursales/detectar?lat=${lat}&lon=${lon}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.deteccion) {
+            const s = json.deteccion;
+            setConfig({
+              lat: s.lat,
+              lon: s.lon,
+              radio: s.radio_maximo || 100,
+              qr_exp: s.timer_token || 30000,
+              timer_inactividad: s.timer_inactividad || 120000,
+            });
+            return; // ✅ Sucursal detectada
+          }
+        }
+      } catch {
+        // GPS no disponible → fallback a configuración global
+      }
+
+      // ── Fallback: sistema_config global ──
       const { data } = await (supabase as any).from('sistema_config').select('clave, valor');
       if (data) {
         const m = (data as any[]).reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});

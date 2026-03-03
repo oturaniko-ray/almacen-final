@@ -140,6 +140,35 @@ export default function EmpleadoPage() {
     setUser(userData);
 
     const fetchConfig = async () => {
+      // ── Intento 1: Cargar config desde la sucursal más cercana por GPS ──
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true, timeout: 8000, maximumAge: 60000
+          })
+        );
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const res = await fetch(`/api/sucursales/detectar?lat=${lat}&lon=${lon}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.deteccion) {
+            const s = json.deteccion;
+            setConfig({
+              empresa_nombre: s.empresa_nombre || 'SISTEMA',
+              almacen_lat: s.lat,
+              almacen_lon: s.lon,
+              radio_maximo: s.radio_maximo || 100,
+              timer_inactividad: s.timer_inactividad || 120000,
+              time_token: s.timer_token || 5000,
+            });
+            return; // ✅ Sucursal detectada, no necesitamos el fallback
+          }
+        }
+      } catch {
+        // GPS no disponible → fallback a configuración global
+      }
+
+      // ── Fallback: sistema_config global ──
       const { data } = await supabase.from('sistema_config').select('clave, valor');
       if (data) {
         const cfgMap = data.reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
