@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    // Validar acceso según tipo
     if (tipo === 'flota' && nivel < 5) {
         return NextResponse.json({ error: 'Nivel 5+ requerido para historial de flota' }, { status: 403 });
     }
@@ -35,7 +34,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const offset = (page - 1) * limit;
 
-    // Filtrar por tipo de destinatario
+    // ✅ Filtro usando nombre correcto de columna: tipo_destinatario
     const tipoFiltro = tipo === 'flota'
         ? ['individual_flota', 'grupo_flota']
         : ['individual_empleado', 'grupo_empleado'];
@@ -43,15 +42,35 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await (supabase as any)
         .from('telegram_mensajes')
         .select(`
-      id, destinatario_tipo, etiqueta, mensaje_final,
-      total_enviados, total_errores, estado, created_at,
-      enviado_por_empleado:empleados!enviado_por(nombre)
-    `, { count: 'exact' })
-        .in('destinatario_tipo', tipoFiltro)
+          id,
+          tipo_destinatario,
+          nombre,
+          etiqueta,
+          contenido,
+          mensaje_final,
+          enviados,
+          errores,
+          estado,
+          plantilla_id,
+          created_at,
+          enviado_por_empleado:empleados!enviado_por(nombre)
+        `, { count: 'exact' })
+        // ✅ Columna correcta: tipo_destinatario
+        .in('tipo_destinatario', tipoFiltro)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ data, total: count, page, limit });
+    // Normalizar respuesta para la UI (compat backwards)
+    const normalizado = (data || []).map((m: any) => ({
+        ...m,
+        // Alias para compatibilidad con la UI existente
+        destinatario_tipo: m.tipo_destinatario,
+        mensaje_mostrar: m.mensaje_final || m.contenido || '',
+        total_enviados: m.enviados,
+        total_errores: m.errores,
+    }));
+
+    return NextResponse.json({ data: normalizado, total: count, page, limit });
 }

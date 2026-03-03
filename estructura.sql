@@ -244,17 +244,23 @@ CREATE TABLE IF NOT EXISTS public.telegram_usuarios (
 CREATE TABLE IF NOT EXISTS public.telegram_mensajes (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   enviado_por       uuid REFERENCES public.empleados(id) ON DELETE SET NULL,
-  tipo_destinatario text NOT NULL,
+  tipo_destinatario text NOT NULL,             -- individual_empleado | grupo_empleado | individual_flota | grupo_flota
   destinatario_id   uuid,
-  contenido         text NOT NULL,
+  nombre            text,                      -- nombre/asunto del mensaje (= nombre de la plantilla si aplica)
+  etiqueta          text,                      -- etiqueta opcional para agrupar
+  contenido         text NOT NULL,             -- texto original (con variables sin resolver)
+  mensaje_final     text,                      -- texto enviado (con encabezado y variables resueltas)
   enviados          integer DEFAULT 0,
   errores           integer DEFAULT 0,
   estado            text NOT NULL DEFAULT 'enviado',
   plantilla_id      uuid,
+  sucursal_codigo   char(2),
   created_at        timestamptz DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_telegram_mensajes_tipo ON public.telegram_mensajes(tipo_destinatario);
-CREATE INDEX IF NOT EXISTS idx_telegram_mensajes_date ON public.telegram_mensajes(created_at);
+CREATE INDEX IF NOT EXISTS idx_telegram_mensajes_tipo    ON public.telegram_mensajes(tipo_destinatario);
+CREATE INDEX IF NOT EXISTS idx_telegram_mensajes_date    ON public.telegram_mensajes(created_at);
+CREATE INDEX IF NOT EXISTS idx_telegram_mensajes_estado  ON public.telegram_mensajes(estado);
+CREATE INDEX IF NOT EXISTS idx_telegram_mensajes_enviado ON public.telegram_mensajes(enviado_por);
 
 -- ──────────────────────────────────────────────────────────
 -- 13. TABLA: telegram_plantillas
