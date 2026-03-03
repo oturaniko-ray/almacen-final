@@ -74,13 +74,30 @@ export default function LoginFlotaPage() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const pinUpper = pin.trim().toUpperCase();
+
+      // Buscar con el PIN tal como se ingresó
+      let { data, error } = await supabase
         .from('flota_perfil')
         .select('*')
         .eq('documento_id', documento.trim().toUpperCase())
-        .eq('pin_secreto', pin.trim().toUpperCase())
+        .eq('pin_secreto', pinUpper)
         .eq('activo', true)
         .maybeSingle();
+
+      // Retrocompatibilidad: Si PIN viejo F+7chars, intentar con F+01+7chars
+      if (!data && !error && pinUpper.startsWith('F') && pinUpper.length === 8) {
+        const pinNuevo = 'F01' + pinUpper.substring(1);
+        const res2 = await supabase
+          .from('flota_perfil')
+          .select('*')
+          .eq('documento_id', documento.trim().toUpperCase())
+          .eq('pin_secreto', pinNuevo)
+          .eq('activo', true)
+          .maybeSingle();
+        data = res2.data;
+        error = res2.error;
+      }
 
       if (error || !data) {
         throw new Error('Credenciales inválidas o perfil inactivo');

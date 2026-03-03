@@ -84,13 +84,32 @@ export default function PersonalLoginPage() {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const pinUpper = pin.toUpperCase();
+
+      // Buscar con el PIN tal como se ingresó
+      let { data, error } = await supabase
         .from('empleados')
         .select('*')
         .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
-        .eq('pin_seguridad', pin)
+        .eq('pin_seguridad', pinUpper)
         .eq('activo', true)
         .maybeSingle();
+
+      // Retrocompatibilidad: Si no encontró con PIN viejo (Pxxxxxx),
+      // intentar con formato nuevo (E01xxxxxx) en caso de que el usuario
+      // aún no conoce su PIN actualizado
+      if (!data && !error && pinUpper.startsWith('P') && pinUpper.length === 8) {
+        const pinNuevo = 'E01' + pinUpper.substring(1);
+        const res2 = await supabase
+          .from('empleados')
+          .select('*')
+          .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
+          .eq('pin_seguridad', pinNuevo)
+          .eq('activo', true)
+          .maybeSingle();
+        data = res2.data;
+        error = res2.error;
+      }
 
       if (error || !data) throw new Error('Credenciales inválidas');
 
@@ -101,7 +120,7 @@ export default function PersonalLoginPage() {
           nivel_acceso: Number((data as any).nivel_acceso),
           permiso_reportes: !!((data as any).permiso_reportes),
         };
-        
+
         localStorage.setItem('user_session', JSON.stringify(userData));
 
         if (userData.nivel_acceso <= 2) router.push('/empleado');
