@@ -1,10 +1,11 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import GPSDiagnostic from '../components/GPSDiagnostic';
+import { useRealtimeTable } from '@/lib/useRealtimeTable';
 
+const GPSDiagnostic = dynamic(() => import('../components/GPSDiagnostic'), { ssr: false });
 const MapaInteractivo = dynamic(() => import('./MapaInteractivo'), {
   ssr: false,
   loading: () => (
@@ -63,6 +64,9 @@ export default function ConfigMaestraPage() {
   const [tabActual, setTabActual] = useState('geolocalizacion');
   const [guardando, setGuardando] = useState(false);
   const [ubicandome, setUbicandome] = useState(false);
+  const [sucursalActiva, setSucursalActiva] = useState<any>(null);
+  const [todasSucursales, setTodasSucursales] = useState<any[]>([]);
+  const [detectandoSucursal, setDetectandoSucursal] = useState(false);
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'success' | 'error' | null }>({
     texto: '',
     tipo: null,
@@ -96,6 +100,68 @@ export default function ConfigMaestraPage() {
   const rango60 = Array.from({ length: 60 }, (_, i) => i + 1);
   const rango100Porcentaje = Array.from({ length: 101 }, (_, i) => i);
 
+  // Carga la config detectando la sucursal más cercana por GPS
+  const fetchConfig = useCallback(async () => {
+    setLoading(true);
+    setDetectandoSucursal(true);
+    try {
+      let sucursal: any = null;
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true, timeout: 8000, maximumAge: 30000,
+          })
+        );
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const res = await fetch(`/api/sucursales/detectar?lat=${lat}&lon=${lon}`);
+        const json = await res.json();
+        if (json.deteccion) sucursal = json.deteccion;
+        if (json.sucursales) setTodasSucursales(json.sucursales);
+      } catch {
+        // GPS no disponible, cargar todas para selector manual
+        const res = await fetch('/api/sucursales?activas=true');
+        const todas = await res.json();
+        setTodasSucursales(todas);
+        if (todas.length > 0) sucursal = todas[0];
+      }
+
+      if (sucursal) {
+        setSucursalActiva(sucursal);
+        setConfig({
+          almacen_lat: sucursal.lat?.toString() || '0',
+          almacen_lon: sucursal.lon?.toString() || '0',
+          radio_maximo: sucursal.radio_maximo?.toString() || '100',
+          timer_token: sucursal.timer_token?.toString() || '60000',
+          timer_inactividad: sucursal.timer_inactividad?.toString() || '300000',
+          empresa_nombre: sucursal.empresa_nombre || 'SISTEMA',
+          maximo_labor: sucursal.maximo_labor?.toString() || '28800000',
+          porcentaje_efectividad: sucursal.porcentaje_efectividad?.toString() || '70',
+        });
+      } else {
+        // Fallback legado: leer de sistema_config
+        const { data } = await (supabase as any).from('sistema_config').select('clave, valor');
+        if (data) {
+          const cfgMap = (data as any[]).reduce((acc: any, row: any) => ({ ...acc, [row.clave]: row.valor }), {});
+          setConfig({
+            almacen_lat: cfgMap.almacen_lat || '0',
+            almacen_lon: cfgMap.almacen_lon || '0',
+            radio_maximo: cfgMap.radio_maximo || '100',
+            timer_token: cfgMap.timer_token || '60000',
+            timer_inactividad: cfgMap.timer_inactividad || '300000',
+            empresa_nombre: cfgMap.empresa_nombre || 'SISTEMA',
+            maximo_labor: cfgMap.maximo_labor || '28800000',
+            porcentaje_efectividad: cfgMap.porcentaje_efectividad || '70',
+          });
+        }
+      }
+    } catch {
+      showNotification('ERROR CRÍTICO DE SINCRONIZACIÓN', 'error');
+    } finally {
+      setLoading(false);
+      setDetectandoSucursal(false);
+    }
+  }, []);
+
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
     if (!sessionData) {
@@ -105,34 +171,10 @@ export default function ConfigMaestraPage() {
     setUser(JSON.parse(sessionData));
     fetchConfig();
     fetchEstadisticasRespondIO();
-  }, [router]);
+  }, [router, fetchConfig]);
 
-  const fetchConfig = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await (supabase as any).from('sistema_config').select('clave, valor');
-      if (error) throw error;
-
-      if (data) {
-        const cfgMap = (data as any[]).reduce((acc: any, item: any) => ({ ...acc, [item.clave]: item.valor }), {});
-
-        setConfig({
-          almacen_lat: cfgMap.almacen_lat || cfgMap.gps_latitud || '0',
-          almacen_lon: cfgMap.almacen_lon || cfgMap.gps_longitud || '0',
-          radio_maximo: cfgMap.radio_maximo || '100',
-          timer_token: cfgMap.timer_token || '60000',
-          timer_inactividad: cfgMap.timer_inactividad || '300000',
-          empresa_nombre: cfgMap.empresa_nombre || 'SISTEMA',
-          maximo_labor: cfgMap.maximo_labor || '28800000',
-          porcentaje_efectividad: cfgMap.porcentaje_efectividad || '70',
-        });
-      }
-    } catch (err) {
-      showNotification('ERROR CRÍTICO DE SINCRONIZACIÓN', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Realtime: si alguien cambia config de sucursales, recargamos automáticamente
+  useRealtimeTable('sucursales', fetchConfig);
 
   const fetchEstadisticasRespondIO = async () => {
     try {
@@ -170,22 +212,37 @@ export default function ConfigMaestraPage() {
   const guardarModulo = async (claves: string[]) => {
     setGuardando(true);
     try {
-      const updates = claves.map((clave) => ({
-        clave,
-        valor: config[clave]?.toString() || '',
-        updated_at: new Date().toISOString(),
-      }));
-
-      for (const update of updates) {
+      if (sucursalActiva?.id) {
+        // Guardar en la tabla sucursales (multi-sucursal)
+        const fieldsMap: Record<string, string> = {
+          almacen_lat: 'lat',
+          almacen_lon: 'lon',
+          radio_maximo: 'radio_maximo',
+          timer_token: 'timer_token',
+          timer_inactividad: 'timer_inactividad',
+          empresa_nombre: 'empresa_nombre',
+          maximo_labor: 'maximo_labor',
+          porcentaje_efectividad: 'porcentaje_efectividad',
+        };
+        const updates: any = { updated_at: new Date().toISOString() };
+        for (const clave of claves) {
+          const field = fieldsMap[clave];
+          if (field) updates[field] = config[clave];
+        }
         const { error } = await (supabase as any)
-          .from('sistema_config')
-          .upsert(update, { onConflict: 'clave' });
-
+          .from('sucursales')
+          .update(updates)
+          .eq('id', sucursalActiva.id);
         if (error) throw error;
+      } else {
+        // Fallback legado: guardar en sistema_config
+        for (const clave of claves) {
+          await (supabase as any).from('sistema_config')
+            .upsert({ clave, valor: config[clave]?.toString() || '', updated_at: new Date().toISOString() }, { onConflict: 'clave' });
+        }
       }
-
-      showNotification(`DATOS ACTUALIZADOS: ${tabActual.toUpperCase()}`, 'success');
-    } catch (err) {
+      showNotification(`DATOS ACTUALIZADOS: ${tabActual.toUpperCase()} `, 'success');
+    } catch {
       showNotification('FALLO AL ACTUALIZAR REGISTROS', 'error');
     } finally {
       setGuardando(false);
@@ -235,7 +292,7 @@ export default function ConfigMaestraPage() {
     const res = await fetch('/api/admin/limpieza', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthH() }, body: JSON.stringify(body) });
     const data = await res.json();
     setL(tabla, { cargando: false, preview: null, modalAbierto: false, confirmText: '' });
-    if (res.ok) showNotification(`✅ ${data.eliminados} registros eliminados de ${data.label}`, 'success');
+    if (res.ok) showNotification(`✅ ${data.eliminados} registros eliminados de ${data.label} `, 'success');
     else showNotification(data.error || 'Error al eliminar', 'error');
   };
 
@@ -253,7 +310,7 @@ export default function ConfigMaestraPage() {
         setUbicandome(false);
       },
       (err) => {
-        alert(`No se pudo obtener la ubicación GPS: ${err.message}\n\nVerifica que hayas dado permiso de ubicación al navegador.`);
+        alert(`No se pudo obtener la ubicación GPS: ${err.message} \n\nVerifica que hayas dado permiso de ubicación al navegador.`);
         setUbicandome(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -272,10 +329,10 @@ export default function ConfigMaestraPage() {
       <div className="max-w-7xl mx-auto">
         {mensaje.tipo && (
           <div
-            className={`fixed top-10 right-1/2 translate-x-1/2 z-[5000] px-10 py-5 rounded-[25px] border-2 shadow-2xl animate-in slide-in-from-top-10 duration-500 ${mensaje.tipo === 'success'
-              ? 'bg-blue-600/90 border-blue-400 text-white'
-              : 'bg-rose-600/90 border-rose-400 text-white'
-              }`}
+            className={`fixed top - 10 right - 1 / 2 translate - x - 1 / 2 z - [5000] px - 10 py - 5 rounded - [25px] border - 2 shadow - 2xl animate -in slide -in -from - top - 10 duration - 500 ${mensaje.tipo === 'success'
+                ? 'bg-blue-600/90 border-blue-400 text-white'
+                : 'bg-rose-600/90 border-rose-400 text-white'
+              } `}
           >
             <div className="flex flex-col items-center gap-1">
               <span className="text-[12px] font-black uppercase tracking-[0.4em] italic">Confirmación de Sistema</span>
@@ -318,10 +375,10 @@ export default function ConfigMaestraPage() {
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`w-full flex items-center gap-3 py-3 px-4 rounded-[18px] transition-all duration-300 ${tabActual === tab.id
+                className={`w - full flex items - center gap - 3 py - 3 px - 4 rounded - [18px] transition - all duration - 300 ${tabActual === tab.id
                     ? tab.active + ' text-white shadow-lg'
                     : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
-                  }`}
+                  } `}
               >
                 <span className="text-xl leading-none shrink-0">{tab.emoji}</span>
                 <span className="text-[10px] font-black uppercase tracking-wide text-left leading-tight">
@@ -569,8 +626,8 @@ export default function ConfigMaestraPage() {
                           <div className="flex gap-2">
                             {(['dias', 'rango'] as const).map(m => (
                               <button key={m} onClick={() => setL(tabla, { modo: m, preview: null })}
-                                className={`text-[10px] font-black uppercase px-3 py-1 rounded-lg border transition-all ${st.modo === m ? 'bg-blue-700 border-blue-500 text-white' : 'border-white/10 text-slate-500 hover:text-white'
-                                  }`}>
+                                className={`text - [10px] font - black uppercase px - 3 py - 1 rounded - lg border transition - all ${st.modo === m ? 'bg-blue-700 border-blue-500 text-white' : 'border-white/10 text-slate-500 hover:text-white'
+                                  } `}>
                                 {m === 'dias' ? '⚡ Período rápido' : '📅 Rango de fechas'}
                               </button>
                             ))}
@@ -581,8 +638,8 @@ export default function ConfigMaestraPage() {
                             <div className="flex gap-2 flex-wrap">
                               {[30, 60, 90, 180].map(d => (
                                 <button key={d} onClick={() => setL(tabla, { dias: d, preview: null })}
-                                  className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all ${st.dias === d ? 'bg-slate-700 border-slate-400 text-white' : 'border-white/10 text-slate-500 hover:text-white'
-                                    }`}>
+                                  className={`text - xs font - bold px - 3 py - 1.5 rounded - lg border transition - all ${st.dias === d ? 'bg-slate-700 border-slate-400 text-white' : 'border-white/10 text-slate-500 hover:text-white'
+                                    } `}>
                                   {d} días
                                 </button>
                               ))}

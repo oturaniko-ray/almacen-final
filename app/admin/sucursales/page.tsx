@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRealtimeTable } from '@/lib/useRealtimeTable';
 import type { Sucursal } from '@/lib/useSucursalActiva';
 
 const EMPTY: Partial<Sucursal> = {
@@ -27,14 +28,17 @@ export default function SucursalesPage() {
     const [msg, setMsg] = useState<{ texto: string; tipo: 'ok' | 'err' } | null>(null);
     const [ubicandome, setUbicandome] = useState(false);
 
-    const cargar = async () => {
+    const cargar = useCallback(async () => {
         setLoading(true);
         const res = await fetch('/api/sucursales');
         setSucursales(await res.json());
         setLoading(false);
-    };
+    }, []);
 
-    useEffect(() => { cargar(); }, []);
+    useEffect(() => { cargar(); }, [cargar]);
+
+    // Realtime: recarga automática cuando cambia cualquier sucursal
+    useRealtimeTable('sucursales', cargar);
 
     const notif = (texto: string, tipo: 'ok' | 'err') => {
         setMsg({ texto, tipo });
