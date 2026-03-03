@@ -212,14 +212,14 @@ export default function EmpleadoPage() {
           // Obtener dirección para mostrar
           const address = await getAddressFromCoordinates(location.lat, location.lng);
           if (address) {
-            setMensajeFlash(`✅ Ubicación válida: ${address.split(',')[0]}`);
+            setMensajeFlash(`Ubicacion valida: ${address.split(',')[0]}`);
           } else {
-            setMensajeFlash('✅ Ubicación válida');
+            setMensajeFlash('Ubicacion valida');
           }
         } else {
           setUbicacionOk(false);
           setErrorGps(`Fuera de rango (${Math.round(d)}m)`);
-          setMensajeFlash(`❌ Fuera de rango: ${Math.round(d)}m`);
+          setMensajeFlash(`Fuera de rango: ${Math.round(d)}m`);
         }
       } else {
         setErrorGps('No se pudo obtener ubicación');
@@ -267,8 +267,8 @@ export default function EmpleadoPage() {
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
       {mensajeFlash && (
-        <div className="fixed top-10 z-50 px-8 py-3 bg-blue-600 text-white rounded-full font-bold shadow-2xl animate-pulse text-xs uppercase tracking-widest">
-          📡 {mensajeFlash}
+        <div className="fixed top-10 z-50 px-8 py-3 bg-[#0a0f1e] border border-blue-500/30 text-blue-400 rounded-xl font-black shadow-2xl text-[10px] uppercase tracking-widest">
+          GPS — {mensajeFlash}
         </div>
       )}
 
@@ -278,7 +278,9 @@ export default function EmpleadoPage() {
         <div className="w-full bg-[#111111] p-8 rounded-[35px] border border-white/5 shadow-2xl flex flex-col items-center">
           {!ubicacionOk ? (
             <div className="w-full py-10 bg-rose-500/10 rounded-[30px] border border-rose-500/20 text-center">
-              <span className="text-4xl block mb-3">📍</span>
+              <div className="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center mb-3">
+                <div className="w-2 h-2 rounded-full bg-rose-500" />
+              </div>
               <p className="text-rose-500 font-black text-xs uppercase mb-1">Acceso Denegado</p>
               <p className="text-white/40 text-[9px] uppercase italic">
                 {errorGps || 'Calculando posición...'}
@@ -306,7 +308,7 @@ export default function EmpleadoPage() {
                 </p>
                 {ubicacionActual?.address && (
                   <p className="text-[8px] text-blue-500/70 mt-1 truncate max-w-[250px]">
-                    📍 {ubicacionActual.address.split(',')[0]}
+                    {ubicacionActual.address.split(',')[0]}
                   </p>
                 )}
               </div>
