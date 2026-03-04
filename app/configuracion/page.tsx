@@ -325,7 +325,7 @@ export default function ConfigMaestraPage() {
     );
 
   return (
-    <main className="min-h-screen bg-[#020617] p-4 md:p-8 text-slate-300 font-sans">
+    <main className="min-h-screen bg-[#020617] pt-10 px-4 pb-4 md:pt-12 md:px-8 md:pb-8 text-slate-300 font-sans">
       <div className="max-w-7xl mx-auto">
         {mensaje.tipo && (
           <div
@@ -375,12 +375,12 @@ export default function ConfigMaestraPage() {
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`w-full flex items-center gap-3 py-3 px-4 rounded-[18px] transition-all duration-300 ${tabActual === tab.id
+                className={`w-full flex items-center gap-3 py-4 px-5 rounded-[18px] transition-all duration-300 ${tabActual === tab.id
                   ? tab.active + ' text-white shadow-lg'
                   : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
                   } `}
               >
-                <span className="text-[10px] font-black uppercase tracking-wide text-left leading-tight">
+                <span className="text-[12px] font-black uppercase tracking-wide text-left leading-tight">
                   {tab.label}
                 </span>
               </button>
@@ -392,7 +392,7 @@ export default function ConfigMaestraPage() {
               {tabActual === 'geolocalizacion' && (
                 <div className="space-y-3">
                   {/* Mapa grande */}
-                  <div className="rounded-[20px] overflow-hidden border border-white/[0.07]" style={{ height: '460px' }}>
+                  <div className="rounded-[20px] overflow-hidden border border-white/[0.07]" style={{ height: '276px' }}>
                     <MapaInteractivo
                       lat={config.almacen_lat}
                       lng={config.almacen_lon}
