@@ -104,7 +104,7 @@ export default function SubmenuFlotaHub() {
   );
 
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
+    <main className="min-h-screen bg-black flex flex-col items-center justify-start pt-10 px-4 pb-4 font-sans">
       <div className="w-full max-w-sm flex flex-col items-center">
         <Memebrete />
 

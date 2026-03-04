@@ -41,19 +41,16 @@ export default function PanelAdminHub() {
   const permisoReportes = user.permiso_reportes === true;
 
   const Memebrete = () => (
-    <div className="w-full max-w-sm bg-[#1a1a1a] p-6 rounded-[25px] border border-white/5 mb-4 text-center shadow-2xl">
-      <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-2">
+    <div className="w-full max-w-sm bg-[#1a1a1a] px-5 py-3 rounded-[18px] border border-white/5 mb-3 text-center shadow-xl">
+      <h1 className="text-base font-black italic uppercase tracking-tighter leading-none mb-1">
         <span className="text-white">GESTIÓN </span>
         <span className="text-blue-700">ADMINISTRATIVA</span>
       </h1>
-      <p className="text-white font-bold text-[17px] uppercase tracking-widest mb-3">
-        MENÚ PRINCIPAL
-      </p>
-      <div className="mt-2 pt-2 border-t border-white/10">
-        <span className="text-sm text-white normal-case">{user.nombre}</span>
-        <span className="text-sm text-white mx-2">•</span>
-        <span className="text-sm text-blue-500 normal-case">{user.rol || 'Administrador'}</span>
-        <span className="text-sm text-white ml-2">({user.nivel_acceso})</span>
+      <div className="flex items-center justify-center gap-2 pt-1 border-t border-white/10 mt-1">
+        <span className="text-xs text-white normal-case">{user.nombre}</span>
+        <span className="text-xs text-white/40">•</span>
+        <span className="text-xs text-blue-500 normal-case">{user.rol || 'Administrador'}</span>
+        <span className="text-xs text-white/40">({user.nivel_acceso})</span>
       </div>
     </div>
   );
@@ -108,7 +105,7 @@ export default function PanelAdminHub() {
   );
 
   return (
-    <main className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans">
+    <main className="min-h-screen bg-black flex flex-col items-center justify-start pt-10 px-4 pb-4 font-sans">
       <div className="w-full max-w-sm flex flex-col items-center">
         <Memebrete />
 
