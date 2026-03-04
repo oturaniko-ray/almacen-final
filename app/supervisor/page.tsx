@@ -77,30 +77,25 @@ const MemebreteSuperior = ({ usuario }: { usuario?: any }) => {
 const BotonOpcion = ({
   texto,
   descripcion,
-  icono,
   onClick,
   color,
 }: {
   texto: string;
   descripcion: string;
-  icono: string;
   onClick: () => void;
   color: string;
 }) => {
   return (
     <button
       onClick={onClick}
-      className={`w-full ${color} p-3 rounded-xl border border-white/5 
+      className={`w-full ${color} px-4 py-5 rounded-xl border border-white/5 
         active:scale-95 transition-transform shadow-lg 
-        flex flex-col items-center justify-center gap-1`}
+        flex flex-col items-center justify-center gap-1 text-center`}
     >
-      <div className="w-12 h-12 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-        <span className="text-2xl">{icono}</span>
-      </div>
-      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
+      <span className="text-white font-black uppercase text-[13px] tracking-wider leading-tight">
         {texto}
       </span>
-      <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
+      <span className="text-white/60 text-[10px] uppercase font-bold tracking-widest leading-relaxed">
         {descripcion}
       </span>
     </button>
@@ -1100,24 +1095,11 @@ export default function SupervisorPage() {
       <ContenedorPrincipal>
         {modo === 'menu' ? (
           <div className="grid gap-3 w-full">
-            <BotonOpcion
-              texto="SCANNER USB"
-              descripcion="Lectura mediante escáner conectado"
-              icono="🔌"
-              onClick={() => { setModo('usb'); setDireccion('auto'); }}
-              color="bg-blue-600"
-            />
-            <BotonOpcion
-              texto="CÁMARA MÓVIL"
-              descripcion="Lectura con cámara del dispositivo"
-              icono="📱"
-              onClick={() => { setModo('camara'); setDireccion('auto'); }}
-              color="bg-emerald-600"
-            />
+            <BotonOpcion texto="SCANNER USB" descripcion="Lectura mediante escaner conectado" onClick={() => { setModo('usb'); setDireccion('auto'); }} color="bg-blue-600" />
+            <BotonOpcion texto="CAMARA MOVIL" descripcion="Lectura con camara del dispositivo" onClick={() => { setModo('camara'); setDireccion('auto'); }} color="bg-emerald-600" />
             <BotonOpcion
               texto="MANUAL"
               descripcion="Ingreso manual de datos"
-              icono="🖋️"
               onClick={iniciarModoManual}
               color="bg-slate-700"
             />
@@ -1138,20 +1120,8 @@ export default function SupervisorPage() {
           </div>
         ) : !direccion ? (
           <div className="flex flex-col gap-3 w-full">
-            <BotonOpcion
-              texto="ENTRADA"
-              descripcion="Registrar llegada"
-              icono="🟢"
-              onClick={() => setDireccion('entrada')}
-              color="bg-emerald-600"
-            />
-            <BotonOpcion
-              texto="SALIDA"
-              descripcion="Registrar salida"
-              icono="🔴"
-              onClick={() => setDireccion('salida')}
-              color="bg-rose-600"
-            />
+            <BotonOpcion texto="ENTRADA" descripcion="Registrar llegada" onClick={() => setDireccion('entrada')} color="bg-emerald-600" />
+            <BotonOpcion texto="SALIDA" descripcion="Registrar salida" onClick={() => setDireccion('salida')} color="bg-rose-600" />
             <div className="flex flex-col gap-2 mt-4">
               <button
                 onClick={volverUnNivel}

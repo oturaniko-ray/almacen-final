@@ -330,8 +330,8 @@ export default function ConfigMaestraPage() {
         {mensaje.tipo && (
           <div
             className={`fixed top - 10 right - 1 / 2 translate - x - 1 / 2 z - [5000] px - 10 py - 5 rounded - [25px] border - 2 shadow - 2xl animate -in slide -in -from - top - 10 duration - 500 ${mensaje.tipo === 'success'
-                ? 'bg-blue-600/90 border-blue-400 text-white'
-                : 'bg-rose-600/90 border-rose-400 text-white'
+              ? 'bg-blue-600/90 border-blue-400 text-white'
+              : 'bg-rose-600/90 border-rose-400 text-white'
               } `}
           >
             <div className="flex flex-col items-center gap-1">
@@ -364,23 +364,22 @@ export default function ConfigMaestraPage() {
           {/* ── SIDEBAR IZQUIERDO ─────────────────────────────────────── */}
           <div className="md:col-span-3 flex flex-col gap-3">
             {[
-              { id: 'geolocalizacion', emoji: '📍', label: 'Geocerca GPS', active: 'bg-emerald-700 shadow-emerald-900/40' },
-              { id: 'seguridad', emoji: '🛡️', label: 'Parámetros Tiempo', active: 'bg-blue-600 shadow-blue-900/40' },
-              { id: 'laboral', emoji: '⏱️', label: 'Jornada Laboral', active: 'bg-slate-600 shadow-slate-900/40' },
-              { id: 'efectividad', emoji: '📊', label: '% Efectividad', active: 'bg-amber-600 shadow-amber-900/40' },
-              { id: 'interfaz', emoji: '🖥️', label: 'Sistema', active: 'bg-violet-600 shadow-violet-900/40' },
-              { id: 'respondio', emoji: '🔄', label: 'Respond.io', active: 'bg-indigo-600 shadow-indigo-900/40' },
-              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', emoji: '🧹', label: 'Limpieza DATA', active: 'bg-rose-700 shadow-rose-900/40' }] : []),
+              { id: 'geolocalizacion', label: 'Geocerca GPS', active: 'bg-emerald-700 shadow-emerald-900/40' },
+              { id: 'seguridad', label: 'Parametros Tiempo', active: 'bg-blue-600 shadow-blue-900/40' },
+              { id: 'laboral', label: 'Jornada Laboral', active: 'bg-slate-600 shadow-slate-900/40' },
+              { id: 'efectividad', label: '% Efectividad', active: 'bg-amber-600 shadow-amber-900/40' },
+              { id: 'interfaz', label: 'Sistema', active: 'bg-violet-600 shadow-violet-900/40' },
+              { id: 'respondio', label: 'Respond.io', active: 'bg-indigo-600 shadow-indigo-900/40' },
+              ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', label: 'Limpieza DATA', active: 'bg-rose-700 shadow-rose-900/40' }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setTabActual(tab.id)}
-                className={`w - full flex items - center gap - 3 py - 3 px - 4 rounded - [18px] transition - all duration - 300 ${tabActual === tab.id
-                    ? tab.active + ' text-white shadow-lg'
-                    : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
+                className={`w-full flex items-center gap-3 py-3 px-4 rounded-[18px] transition-all duration-300 ${tabActual === tab.id
+                  ? tab.active + ' text-white shadow-lg'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
                   } `}
               >
-                <span className="text-xl leading-none shrink-0">{tab.emoji}</span>
                 <span className="text-[10px] font-black uppercase tracking-wide text-left leading-tight">
                   {tab.label}
                 </span>
@@ -588,25 +587,24 @@ export default function ConfigMaestraPage() {
               {/* ── TAB LIMPIEZA ── */}
               {tabActual === 'limpieza' && Number(user?.nivel_acceso) >= 8 && (() => {
                 const CARDS = [
-                  { tabla: 'jornadas', emoji: '📋', label: 'Jornadas de empleados', desc: 'Fecha entrada/salida, GPS, duración de jornada' },
-                  { tabla: 'flota_accesos', emoji: '🚛', label: 'Accesos de flota', desc: 'Hora llegada/salida, cantidad de carga registrada' },
-                  { tabla: 'auditoria_flota', emoji: '📊', label: 'Auditoría de flota', desc: 'Horas en patio, exceso, eficiencia calculada (%)' },
-                  { tabla: 'telegram_mensajes', emoji: '📱', label: 'Historial Telegram', desc: 'Textos enviados, destinatario, estado del envío' },
-                  { tabla: 'whatsapp_mensajes', emoji: '💬', label: 'Historial WhatsApp', desc: 'Conversaciones, números, timestamps de mensajes' },
-                  { tabla: 'programaciones', emoji: '⏰', label: 'Programaciones ejecutadas', desc: 'Solo las ejecutadas/con error — las pendientes se conservan' },
+                  { tabla: 'jornadas', label: 'Jornadas de empleados', desc: 'Fecha entrada/salida, GPS, duracion de jornada' },
+                  { tabla: 'flota_accesos', label: 'Accesos de flota', desc: 'Hora llegada/salida, cantidad de carga registrada' },
+                  { tabla: 'auditoria_flota', label: 'Auditoria de flota', desc: 'Horas en patio, exceso, eficiencia calculada (%)' },
+                  { tabla: 'telegram_mensajes', label: 'Historial Telegram', desc: 'Textos enviados, destinatario, estado del envio' },
+                  { tabla: 'whatsapp_mensajes', label: 'Historial WhatsApp', desc: 'Conversaciones, numeros, timestamps de mensajes' },
+                  { tabla: 'programaciones', label: 'Programaciones ejecutadas', desc: 'Solo las ejecutadas/con error — las pendientes se conservan' },
                 ];
 
                 return (
                   <div className="space-y-4">
                     <div className="bg-rose-900/20 border border-rose-500/30 rounded-2xl p-4 flex gap-3 items-start">
-                      <span className="text-xl shrink-0">⚠️</span>
                       <p className="text-rose-300 text-xs font-bold uppercase tracking-wide leading-relaxed">
                         Las eliminaciones son permanentes e irreversibles. Los datos maestros (empleados, flota, configuración, vinculaciones Telegram) nunca se tocan.
                         El sistema aplica un mínimo de 180 días para proteger datos recientes.
                       </p>
                     </div>
 
-                    {CARDS.map(({ tabla, emoji, label, desc }) => {
+                    {CARDS.map(({ tabla, label, desc }) => {
                       const st = limpieza[tabla];
                       const fechaMaxHasta = (() => {
                         const d = new Date(); d.setDate(d.getDate() - 180);
@@ -617,7 +615,7 @@ export default function ConfigMaestraPage() {
                         <div key={tabla} className="bg-[#020617] rounded-2xl border border-white/5 p-5 space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <span className="text-base font-black text-white">{emoji} {label}</span>
+                              <span className="text-base font-black text-white">{label}</span>
                               <p className="text-slate-500 text-xs mt-0.5">{desc}</p>
                             </div>
                           </div>
@@ -628,7 +626,7 @@ export default function ConfigMaestraPage() {
                               <button key={m} onClick={() => setL(tabla, { modo: m, preview: null })}
                                 className={`text - [10px] font - black uppercase px - 3 py - 1 rounded - lg border transition - all ${st.modo === m ? 'bg-blue-700 border-blue-500 text-white' : 'border-white/10 text-slate-500 hover:text-white'
                                   } `}>
-                                {m === 'dias' ? '⚡ Período rápido' : '📅 Rango de fechas'}
+                                {m === 'dias' ? 'Periodo rapido' : 'Rango de fechas'}
                               </button>
                             ))}
                           </div>

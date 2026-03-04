@@ -112,7 +112,7 @@ export default function MensajeriaPage() {
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                notificar(`✅ Enviado: ${data.enviados} mensajes${data.errores > 0 ? ` (${data.errores} fallidos)` : ''}`, 'exito');
+                notificar(`Enviado: ${data.enviados} mensajes${data.errores > 0 ? ` (${data.errores} fallidos)` : ''}`, 'exito');
                 setMensaje('');
                 setPreview('');
                 setIndividualId('');
@@ -151,12 +151,12 @@ export default function MensajeriaPage() {
                 <div className="flex gap-2">
                     <button onClick={() => router.push('/admin/mensajeria/historial')}
                         className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-white/70 transition-all">
-                        📋 Historial
+                        Historial
                     </button>
                     {nivel >= 6 && (
                         <button onClick={() => router.push('/admin/mensajeria/plantillas')}
                             className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-white/70 transition-all">
-                            📌 Plantillas
+                            Plantillas
                         </button>
                     )}
                     <button onClick={() => router.push('/admin')}
@@ -179,12 +179,12 @@ export default function MensajeriaPage() {
                                     onClick={() => { if (g === 'flota' && !puedeFlota) return; setGremio(g); setIndividualId(''); setBusqueda(''); }}
                                     disabled={g === 'flota' && !puedeFlota}
                                     className={`py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all ${gremio === g
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                            : g === 'flota' && !puedeFlota
-                                                ? 'bg-white/3 text-white/20 cursor-not-allowed border border-white/5'
-                                                : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                        : g === 'flota' && !puedeFlota
+                                            ? 'bg-white/3 text-white/20 cursor-not-allowed border border-white/5'
+                                            : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
                                         }`}>
-                                    {g === 'empleado' ? '👥 Empleados' : '🚛 Flota'}
+                                    {g === 'empleado' ? 'EMPLEADOS' : 'FLOTA'}
                                     {g === 'flota' && !puedeFlota && <span className="block text-[10px] mt-0.5">Nivel 5+</span>}
                                 </button>
                             ))}
@@ -199,7 +199,7 @@ export default function MensajeriaPage() {
                                 <button key={a} onClick={() => { setAlcance(a); setIndividualId(''); setBusqueda(''); }}
                                     className={`py-2.5 rounded-xl font-bold text-sm transition-all ${alcance === a ? 'bg-cyan-600 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10 border border-white/10'
                                         }`}>
-                                    {a === 'todos' ? '📣 Todos' : '🎯 Individual'}
+                                    {a === 'todos' ? 'TODOS' : 'INDIVIDUAL'}
                                 </button>
                             ))}
                         </div>
@@ -232,7 +232,7 @@ export default function MensajeriaPage() {
                                 )}
                                 {individualId && (
                                     <div className="mt-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-sm">
-                                        ✅ Seleccionado: {busqueda}
+                                        Seleccionado: {busqueda}
                                     </div>
                                 )}
                             </div>
@@ -298,10 +298,10 @@ export default function MensajeriaPage() {
                         onClick={handleEnviar}
                         disabled={enviando || !mensaje.trim()}
                         className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-95 ${enviando || !mensaje.trim()
-                                ? 'bg-white/5 text-white/20 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg shadow-blue-500/20'
+                            ? 'bg-white/5 text-white/20 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg shadow-blue-500/20'
                             }`}>
-                        {enviando ? '⏳ Enviando...' : `📤 Enviar a ${alcance === 'todos'
+                        {enviando ? 'Enviando...' : `Enviar a ${alcance === 'todos'
                             ? `todos los ${gremio === 'empleado' ? 'empleados' : 'choferes'}${conteo !== null ? ` (${conteo})` : ''}`
                             : busqueda || 'destinatario seleccionado'}`}
                     </button>
