@@ -97,7 +97,9 @@ export default function SucursalesPage() {
             {/* Notificación */}
             {msg && (
                 <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[9000] px-8 py-4 rounded-[20px] shadow-2xl font-black text-sm uppercase tracking-wider ${msg.tipo === 'ok' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                    {msg.tipo === 'ok' ? '✅' : '❌'} {msg.texto}
+                    <span className={`font-black text-[11px] uppercase tracking-widest ${msg.tipo === 'ok' ? 'text-white' : 'text-white'}`}>
+                        {msg.tipo === 'ok' ? 'OK' : 'ERROR'} — {msg.texto}
+                    </span>
                 </div>
             )}
 
@@ -298,8 +300,8 @@ function encargado(s: Sucursal) {
     if (!s.encargado && !s.telefono) return null;
     return (
         <div className="text-xs text-slate-500 space-y-0.5">
-            {s.encargado && <p>👤 {s.encargado}</p>}
-            {s.telefono && <p>📞 {s.telefono}</p>}
+            {s.encargado && <p className="text-slate-400">{s.encargado}</p>}
+            {s.telefono && <p className="text-emerald-500/70 font-mono">{s.telefono}</p>}
         </div>
     );
 }

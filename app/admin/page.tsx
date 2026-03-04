@@ -61,13 +61,11 @@ export default function PanelAdminHub() {
   const BotonOpcion = ({
     texto,
     descripcion,
-    icono,
     onClick,
     color,
   }: {
     texto: string;
     descripcion: string;
-    icono: string;
     onClick: () => void;
     color: string;
   }) => (
@@ -77,8 +75,7 @@ export default function PanelAdminHub() {
         active:scale-95 transition-transform shadow-md
         flex items-center gap-3 text-left`}
     >
-      <span className="text-2xl shrink-0">{icono}</span>
-      <div className="flex flex-col min-w-0">
+      <div className="flex flex-col min-w-0 flex-1">
         <span className="text-white font-bold uppercase text-[11px] tracking-wider leading-tight">
           {texto}
         </span>
@@ -107,7 +104,7 @@ export default function PanelAdminHub() {
           onClick={() => router.push('/')}
           className="text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto hover:text-white transition-colors"
         >
-          <span className="text-lg">🏠</span> CERRAR SESIÓN
+          CERRAR SESION
         </button>
       </div>
     </div>
@@ -120,49 +117,19 @@ export default function PanelAdminHub() {
 
         <div className="w-full space-y-4">
           {nivel >= 4 && (
-            <BotonOpcion
-              texto="GESTOR DE EMPLEADOS"
-              descripcion="Alta, baja y modificación de personal. Generación de PINs P"
-              icono="👥"
-              onClick={() => router.push('/admin/empleados')}
-              color="bg-amber-600"
-            />
+            <BotonOpcion texto="GESTOR DE EMPLEADOS" descripcion="Alta, baja y modificacion de personal. Generacion de PINs" onClick={() => router.push('/admin/empleados')} color="bg-amber-600" />
           )}
           {nivel >= 4 && (
-            <BotonOpcion
-              texto="MENSAJERÍA TELEGRAM"
-              descripcion="Envío de mensajes a empleados y flota. Plantillas e historial"
-              icono="📱"
-              onClick={() => router.push('/admin/mensajeria')}
-              color="bg-blue-700"
-            />
+            <BotonOpcion texto="MENSAJERIA TELEGRAM" descripcion="Envio de mensajes a empleados y flota. Plantillas e historial" onClick={() => router.push('/admin/mensajeria')} color="bg-blue-700" />
           )}
           {(nivel >= 5 || (nivel === 4 && permisoReportes)) && (
-            <BotonOpcion
-              texto="AUDITORÍA"
-              descripcion="Análisis de eficiencia y reportes de auditoría"
-              icono="🔍"
-              onClick={() => router.push('/admin/auditoria')}
-              color="bg-blue-600"
-            />
+            <BotonOpcion texto="AUDITORIA" descripcion="Analisis de eficiencia y reportes de auditoria" onClick={() => router.push('/admin/auditoria')} color="bg-blue-600" />
           )}
           {nivel >= 5 && (
-            <BotonOpcion
-              texto="FLOTA"
-              descripcion="Gestión de perfiles de flota y control de accesos"
-              icono="🚛"
-              onClick={() => router.push('/admin/flota')}
-              color="bg-emerald-600"
-            />
+            <BotonOpcion texto="FLOTA" descripcion="Gestion de perfiles de flota y control de accesos" onClick={() => router.push('/admin/flota')} color="bg-emerald-600" />
           )}
           {nivel >= 8 && (
-            <BotonOpcion
-              texto="SUCURSALES"
-              descripcion="Gestión de sedes y configuración por provincia"
-              icono="🏢"
-              onClick={() => router.push('/admin/sucursales')}
-              color="bg-violet-700"
-            />
+            <BotonOpcion texto="SUCURSALES" descripcion="Gestion de sedes y configuracion por provincia" onClick={() => router.push('/admin/sucursales')} color="bg-violet-700" />
           )}
         </div>
 

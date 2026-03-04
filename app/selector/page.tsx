@@ -130,14 +130,10 @@ export default function SelectorPage() {
             <button
               key={btn.ruta}
               onClick={() => router.push(btn.ruta)}
-              className={`w-full ${btn.color} p-2 rounded-xl border border-white/5 active:scale-95 transition-transform shadow-lg flex flex-col items-center justify-center gap-1`}
+              className={`w-full ${btn.color} px-4 py-3 rounded-xl border border-white/10 active:scale-95 transition-transform shadow-lg flex items-center gap-3 text-left`}
             >
-              <div className="w-10 h-10 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-                <span className="text-xl">{btn.icono}</span>
-              </div>
-              <span className="text-white font-bold uppercase text-[10px] tracking-wider">
-                {btn.label}
-              </span>
+              <span className="text-white font-black uppercase text-[12px] tracking-wider flex-1">{btn.label}</span>
+              <span className="text-white/30 text-lg">›</span>
             </button>
           ))}
         </div>
@@ -161,7 +157,7 @@ export default function SelectorPage() {
             onClick={logout}
             className="text-emerald-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto active:scale-95 transition-transform"
           >
-            <span className="text-lg">🏠</span> CERRAR SESIÓN
+            CERRAR SESION
           </button>
         </div>
       </div>

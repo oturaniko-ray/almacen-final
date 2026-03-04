@@ -44,31 +44,25 @@ export default function ReportesMenuPage() {
   const BotonOpcion = ({
     texto,
     descripcion,
-    icono,
     onClick,
     color,
   }: {
     texto: string;
     descripcion: string;
-    icono: string;
     onClick: () => void;
     color: string;
   }) => (
     <button
       onClick={onClick}
-      className={`w-full ${color} p-4 rounded-xl border border-white/5 
+      className={`w-full ${color} px-4 py-4 rounded-xl border border-white/5 
         active:scale-95 transition-transform shadow-lg 
-        flex flex-col items-center justify-center gap-2`}
+        flex items-center gap-3 text-left`}
     >
-      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-        <span className="text-3xl">{icono}</span>
+      <div className="flex flex-col flex-1">
+        <span className="text-white font-bold uppercase text-[12px] tracking-wider leading-tight">{texto}</span>
+        <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">{descripcion}</span>
       </div>
-      <span className="text-white font-bold uppercase text-[11px] tracking-wider">
-        {texto}
-      </span>
-      <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
-        {descripcion}
-      </span>
+      <span className="text-white/30 text-lg">›</span>
     </button>
   );
 
@@ -88,7 +82,7 @@ export default function ReportesMenuPage() {
           onClick={() => router.push('/')}
           className="text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 mx-auto hover:text-white transition-colors"
         >
-          <span className="text-lg">🏠</span> CERRAR SESIÓN
+          CERRAR SESION
         </button>
       </div>
     </div>
@@ -100,20 +94,8 @@ export default function ReportesMenuPage() {
         <Memebrete />
 
         <div className="w-full space-y-4">
-          <BotonOpcion
-            texto="MONITOR DE PRESENCIA"
-            descripcion="Visualización en tiempo real de empleados en almacén"
-            icono="⏱️"
-            onClick={() => router.push('/reportes/presencia')}
-            color="bg-blue-600"
-          />
-          <BotonOpcion
-            texto="REPORTE DE ACCESOS"
-            descripcion="Historial de jornadas y accesos"
-            icono="🏃‍♂️‍➡️"
-            onClick={() => router.push('/reportes/accesos')}
-            color="bg-slate-700"
-          />
+          <BotonOpcion texto="MONITOR DE PRESENCIA" descripcion="Visualizacion en tiempo real de empleados en almacen" onClick={() => router.push('/reportes/presencia')} color="bg-blue-600" />
+          <BotonOpcion texto="REPORTE DE ACCESOS" descripcion="Historial de jornadas y accesos" onClick={() => router.push('/reportes/accesos')} color="bg-slate-700" />
         </div>
 
         <Footer />
