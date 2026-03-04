@@ -367,7 +367,7 @@ export default function ConfigMaestraPage() {
               { id: 'geolocalizacion', label: 'Geocerca GPS', active: 'bg-emerald-700 shadow-emerald-900/40' },
               { id: 'seguridad', label: 'Parametros Tiempo', active: 'bg-blue-600 shadow-blue-900/40' },
               { id: 'laboral', label: 'Jornada Laboral', active: 'bg-slate-600 shadow-slate-900/40' },
-              { id: 'efectividad', label: '% Efectividad', active: 'bg-amber-600 shadow-amber-900/40' },
+              { id: 'efectividad', label: 'Porcentaje Efectividad', active: 'bg-amber-600 shadow-amber-900/40' },
               { id: 'interfaz', label: 'Sistema', active: 'bg-violet-600 shadow-violet-900/40' },
               { id: 'respondio', label: 'Respond.io', active: 'bg-indigo-600 shadow-indigo-900/40' },
               ...(user?.nivel_acceso >= 8 ? [{ id: 'limpieza', label: 'Limpieza DATA', active: 'bg-rose-700 shadow-rose-900/40' }] : []),
@@ -387,7 +387,7 @@ export default function ConfigMaestraPage() {
             ))}
           </div>
 
-          <div className="md:col-span-9 bg-[#0f172a] rounded-[40px] border border-white/5 p-7 md:p-10 shadow-2xl">
+          <div className="md:col-span-9 bg-[#0f172a] rounded-[20px] border border-white/5 p-4 md:p-5 shadow-2xl">
             <div className="space-y-8">
               {tabActual === 'geolocalizacion' && (
                 <div className="space-y-3">
