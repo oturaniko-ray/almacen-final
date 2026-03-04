@@ -1,4 +1,4 @@
-export const runtime = 'nodejs';
+﻿export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
     let html = '';
 
     if (tipo === 'empleado') {
-      subject = `🎫 Bienvenido al Sistema - ${datos.nombre}`;
+      subject = "Acceso al Sistema - Credenciales para ${datos.nombre}";
 
       // ✅ GENERAR / REUSAR TOKEN ANTES DEL RENDER
       const token = await obtenerTokenEmpleado(supabase, datos.empleadoId, datos.documento_id);
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
       }));
 
     } else if (tipo === 'flota') {
-      subject = `🚛 Perfil de Flota Creado - ${datos.nombre_completo}`;
+      subject = `Perfil de Conductor Registrado - ${datos.nombre_completo}`;
 
       // ✅ GENERAR / REUSAR TOKEN ANTES DEL RENDER
       const token = await obtenerTokenFlota(supabase, datos.flotaId, datos.documento_id);

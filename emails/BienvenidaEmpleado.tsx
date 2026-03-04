@@ -50,7 +50,7 @@ export const BienvenidaEmpleado = ({
           {/* Mensaje de bienvenida */}
           <Section style={welcomeSection}>
             <Text style={welcomeText}>
-              🎉 ¡Bienvenido a bordo, <strong>{nombre}</strong>!
+              Bienvenido al sistema, <strong>{nombre}</strong>.
             </Text>
             <Text style={welcomeDescription}>
               Tu cuenta ha sido creada exitosamente en nuestro sistema. A continuación encontrarás tus credenciales de acceso.
@@ -59,7 +59,7 @@ export const BienvenidaEmpleado = ({
 
           {/* DATOS DEL EMPLEADO */}
           <Section style={dataSection}>
-            <Text style={dataTitle}>📋 DATOS DEL EMPLEADO</Text>
+            <Text style={dataTitle}>DATOS DEL EMPLEADO</Text>
             <table style={dataTable}>
               <tr>
                 <td style={dataLabel}>Nombre:</td>
@@ -86,7 +86,7 @@ export const BienvenidaEmpleado = ({
 
           {/* PIN de seguridad */}
           <Section style={pinSection}>
-            <Text style={pinLabel}>🔐 PIN DE SEGURIDAD</Text>
+            <Text style={pinLabel}>PIN DE SEGURIDAD</Text>
             <Text style={pinValue}>{pin_seguridad}</Text>
             <Text style={pinWarning}>
               Este PIN es personal e intransferible. No lo compartas con nadie.
@@ -95,7 +95,7 @@ export const BienvenidaEmpleado = ({
 
           {/* ACCESO AL SISTEMA */}
           <Section style={accessSection}>
-            <Text style={accessTitle}>🚀 ACCEDER AL SISTEMA</Text>
+            <Text style={accessTitle}>ACCEDER AL SISTEMA</Text>
             <a href={appUrl} style={accessButton}>
               INGRESAR AL SISTEMA
             </a>
@@ -106,14 +106,14 @@ export const BienvenidaEmpleado = ({
 
           {/* SECCIÓN TELEGRAM */}
           <Section style={telegramSection}>
-            <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
+            <Text style={telegramTitle}>CONFIRMACION POR TELEGRAM</Text>
 
             <div style={telegramMainContainer}>
               <Text style={telegramMainText}>
                 Para recibir notificaciones y confirmar la recepción de este correo:
               </Text>
               <a href={telegramLink} style={telegramMainButton}>
-                🤖 INGRESAR A TELEGRAM PARA CONFIRMAR
+                INGRESAR A TELEGRAM PARA CONFIRMAR
               </a>
               <Text style={telegramBotName}>
                 @{telegramBotUsername}
@@ -125,7 +125,7 @@ export const BienvenidaEmpleado = ({
                 ¿No tienes Telegram?
               </Text>
               <a href={telegramDownloadUrl} style={telegramDownloadButton}>
-                📲 DESCARGAR TELEGRAM
+                DESCARGAR TELEGRAM
               </a>
             </div>
 
@@ -136,7 +136,7 @@ export const BienvenidaEmpleado = ({
 
           {/* Instrucciones de acceso */}
           <Section style={instructionsSection}>
-            <Text style={instructionsTitle}>📱 CÓMO ACCEDER AL SISTEMA</Text>
+            <Text style={instructionsTitle}>COMO ACCEDER AL SISTEMA</Text>
             <div style={instructionsBox}>
               <div style={instructionItem}>
                 <span style={instructionNumber}>1</span>
@@ -159,7 +159,7 @@ export const BienvenidaEmpleado = ({
 
           {/* Reglas y procedimientos */}
           <Section style={rulesSection}>
-            <Text style={rulesTitle}>📌 NORMAS Y PROCEDIMIENTOS OBLIGATORIOS</Text>
+            <Text style={rulesTitle}>NORMAS Y PROCEDIMIENTOS</Text>
             <Text style={rulesText}>
               Como parte de nuestra política de control de acceso, es fundamental que todos los empleados registren su entrada y salida en el sistema.
             </Text>

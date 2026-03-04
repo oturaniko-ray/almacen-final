@@ -45,14 +45,14 @@ export const BienvenidaFlota = ({
         <Container style={container}>
           {/* Encabezado */}
           <Section style={header}>
-            <Text style={headerTitle}>🚛 GESTOR DE FLOTA</Text>
+            <Text style={headerTitle}>GESTOR DE FLOTA</Text>
             <Text style={headerSubtitle}>Sistema de Control de Acceso para Transporte</Text>
           </Section>
 
           {/* Mensaje de bienvenida */}
           <Section style={welcomeSection}>
             <Text style={welcomeText}>
-              🎉 ¡Bienvenido, <strong>{nombre_completo}</strong>!
+              Bienvenido al sistema, <strong>{nombre_completo}</strong>.
             </Text>
             <Text style={welcomeDescription}>
               Tu perfil de flota ha sido registrado exitosamente en nuestro sistema. A continuación encontrarás tus credenciales de acceso.
@@ -61,7 +61,7 @@ export const BienvenidaFlota = ({
 
           {/* DATOS DEL CONDUCTOR */}
           <Section style={dataSection}>
-            <Text style={dataTitle}>📋 DATOS DEL CONDUCTOR</Text>
+            <Text style={dataTitle}>DATOS DEL CONDUCTOR</Text>
             <table style={dataTable}>
               <tr>
                 <td style={dataLabel}>Nombre completo:</td>
@@ -92,7 +92,7 @@ export const BienvenidaFlota = ({
 
           {/* PIN de seguridad */}
           <Section style={pinSection}>
-            <Text style={pinLabel}>🔐 PIN DE SEGURIDAD</Text>
+            <Text style={pinLabel}>PIN DE SEGURIDAD</Text>
             <Text style={pinValue}>{pin_secreto}</Text>
             <Text style={pinWarning}>
               Este PIN es personal e intransferible. No lo compartas con nadie.
@@ -101,7 +101,7 @@ export const BienvenidaFlota = ({
 
           {/* ACCESO AL SISTEMA */}
           <Section style={accessSection}>
-            <Text style={accessTitle}>🚀 ACCEDER AL SISTEMA</Text>
+            <Text style={accessTitle}>ACCEDER AL SISTEMA</Text>
             <a href={appUrl} style={accessButton}>
               INGRESAR AL SISTEMA
             </a>
@@ -112,14 +112,14 @@ export const BienvenidaFlota = ({
 
           {/* SECCIÓN TELEGRAM */}
           <Section style={telegramSection}>
-            <Text style={telegramTitle}>📱 CONFIRMACIÓN POR TELEGRAM</Text>
+            <Text style={telegramTitle}>CONFIRMACION POR TELEGRAM</Text>
 
             <div style={telegramMainContainer}>
               <Text style={telegramMainText}>
                 Para recibir notificaciones y confirmar la recepción de este correo:
               </Text>
               <a href={telegramLink} style={telegramMainButton}>
-                🤖 INGRESAR A TELEGRAM PARA CONFIRMAR
+                INGRESAR A TELEGRAM PARA CONFIRMAR
               </a>
               <Text style={telegramBotName}>
                 @{telegramBotUsername}
@@ -131,7 +131,7 @@ export const BienvenidaFlota = ({
                 ¿No tienes Telegram?
               </Text>
               <a href={telegramDownloadUrl} style={telegramDownloadButton}>
-                📲 DESCARGAR TELEGRAM
+                DESCARGAR TELEGRAM
               </a>
             </div>
 
@@ -142,7 +142,7 @@ export const BienvenidaFlota = ({
 
           {/* Instrucciones para flota */}
           <Section style={instructionsSection}>
-            <Text style={instructionsTitle}>📱 ¿CÓMO FUNCIONA EL ACCESO?</Text>
+            <Text style={instructionsTitle}>COMO FUNCIONA EL ACCESO</Text>
             <div style={instructionsBox}>
               <div style={instructionItem}>
                 <span style={instructionNumber}>1</span>
@@ -165,7 +165,7 @@ export const BienvenidaFlota = ({
 
           {/* Reglas */}
           <Section style={rulesSection}>
-            <Text style={rulesTitle}>📌 NORMAS Y PROCEDIMIENTOS OBLIGATORIOS</Text>
+            <Text style={rulesTitle}>NORMAS Y PROCEDIMIENTOS</Text>
             <ul style={rulesList}>
               <li style={listItem}>
                 <strong>Registro obligatorio:</strong> Todo conductor debe registrarse con el supervisor al ingresar al almacén.
