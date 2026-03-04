@@ -54,15 +54,12 @@ export default function ReportesMenuPage() {
   }) => (
     <button
       onClick={onClick}
-      className={`w-full ${color} px-4 py-4 rounded-xl border border-white/5 
-        active:scale-95 transition-transform shadow-lg 
-        flex items-center gap-3 text-left`}
+      className={`w-full ${color} px-4 py-5 rounded-xl border border-white/5
+        active:scale-95 transition-transform shadow-lg
+        flex flex-col items-center justify-center gap-1 text-center`}
     >
-      <div className="flex flex-col flex-1">
-        <span className="text-white font-bold uppercase text-[12px] tracking-wider leading-tight">{texto}</span>
-        <span className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">{descripcion}</span>
-      </div>
-      <span className="text-white/30 text-lg">›</span>
+      <span className="text-white font-black uppercase text-[13px] tracking-wider leading-tight">{texto}</span>
+      <span className="text-white/60 text-[10px] uppercase font-bold tracking-widest leading-relaxed">{descripcion}</span>
     </button>
   );
 

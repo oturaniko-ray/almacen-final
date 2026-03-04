@@ -4,8 +4,8 @@ import { useSucursalGlobal } from '@/lib/SucursalContext';
 export default function SucursalBar() {
     const { sucursalFiltro, setSucursalFiltro, sucursales, esCentral } = useSucursalGlobal();
 
-    // Solo aparece para usuarios con acceso central y cuando hay más de 1 sucursal
-    if (!esCentral || sucursales.length <= 1) return null;
+    // Solo aparece para usuarios con acceso central
+    if (!esCentral || sucursales.length === 0) return null;
 
     const sedeActual = sucursales.find(s => s.codigo === sucursalFiltro);
 

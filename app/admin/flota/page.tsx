@@ -66,37 +66,25 @@ export default function SubmenuFlotaHub() {
     );
   };
 
-  // ----- BOTÓN DE OPCIÓN (CÍRCULO + EMOJI + DESCRIPCIÓN) -----
   const BotonOpcion = ({
     texto,
-    icono,
     onClick,
     color,
     descripcion,
   }: {
     texto: string;
-    icono: string;
     onClick: () => void;
     color: string;
     descripcion: string;
   }) => (
     <button
       onClick={onClick}
-      className={`w-full ${color} p-6 rounded-xl border border-white/5 
+      className={`w-full ${color} px-4 py-5 rounded-xl border border-white/5 
         active:scale-95 transition-transform shadow-lg 
-        flex flex-col items-center justify-center gap-3`}
+        flex flex-col items-center justify-center gap-1 text-center`}
     >
-      <div className="w-14 h-14 rounded-full bg-black/30 border border-white/20 flex items-center justify-center">
-        <span className="text-3xl">{icono}</span>
-      </div>
-      <div className="space-y-1">
-        <h3 className="text-white font-bold uppercase text-[13px] tracking-wider">
-          {texto}
-        </h3>
-        <p className="text-white/60 text-[9px] uppercase font-bold tracking-widest leading-relaxed">
-          {descripcion}
-        </p>
-      </div>
+      <span className="text-white font-black uppercase text-[13px] tracking-wider leading-tight">{texto}</span>
+      <span className="text-white/60 text-[10px] uppercase font-bold tracking-widest leading-relaxed">{descripcion}</span>
     </button>
   );
 
@@ -121,32 +109,11 @@ export default function SubmenuFlotaHub() {
         <Memebrete />
 
         <div className="w-full space-y-4">
-          {/* GESTIÓN DE PERFILES */}
-          <BotonOpcion
-            texto="Gestión de Perfiles"
-            icono="⚙️"
-            onClick={() => router.push('/admin/flota/gestionflota')}
-            color="bg-blue-600"
-            descripcion="Alta de choferes, capacidad de rutas y generación de Smart Pins F"
-          />
+          <BotonOpcion texto="GESTION DE PERFILES" onClick={() => router.push('/admin/flota/gestionflota')} color="bg-blue-600" descripcion="Alta de choferes, capacidad de rutas y generacion de Smart Pins" />
 
-          {/* REPORTES DE ACCESOS */}
-          <BotonOpcion
-            texto=" Reporte de Flotas"
-            icono="📅"
-            onClick={() => router.push('/admin/flota/reportes')}
-            color="bg-slate-700"
-            descripcion="Historial de entradas y salidas de flota"
-          />
+          <BotonOpcion texto="REPORTE DE FLOTAS" onClick={() => router.push('/admin/flota/reportes')} color="bg-slate-700" descripcion="Historial de entradas y salidas de flota" />
 
-          {/* AUDITORÍA */}
-          <BotonOpcion
-            texto="Auditoría"
-            icono="📊"
-            onClick={() => router.push('/admin/flota/auditoria')}
-            color="bg-emerald-600"
-            descripcion="Análisis de cumplimiento: Capacidad Nominal vs Carga Real"
-          />
+          <BotonOpcion texto="AUDITORIA" onClick={() => router.push('/admin/flota/auditoria')} color="bg-emerald-600" descripcion="Analisis de cumplimiento: Capacidad Nominal vs Carga Real" />
         </div>
 
         <Footer />

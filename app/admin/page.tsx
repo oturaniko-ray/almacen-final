@@ -71,19 +71,16 @@ export default function PanelAdminHub() {
   }) => (
     <button
       onClick={onClick}
-      className={`w-full ${color} px-4 py-3 rounded-xl border border-white/10
+      className={`w-full ${color} px-4 py-5 rounded-xl border border-white/10
         active:scale-95 transition-transform shadow-md
-        flex items-center gap-3 text-left`}
+        flex flex-col items-center justify-center gap-1 text-center`}
     >
-      <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-white font-bold uppercase text-[11px] tracking-wider leading-tight">
-          {texto}
-        </span>
-        <span className="text-white/55 text-[9px] uppercase font-semibold tracking-widest leading-relaxed truncate">
-          {descripcion}
-        </span>
-      </div>
-      <span className="ml-auto text-white/30 text-lg shrink-0">›</span>
+      <span className="text-white font-black uppercase text-[13px] tracking-wider leading-tight">
+        {texto}
+      </span>
+      <span className="text-white/55 text-[10px] uppercase font-semibold tracking-widest leading-relaxed">
+        {descripcion}
+      </span>
     </button>
   );
 

@@ -130,10 +130,9 @@ export default function SelectorPage() {
             <button
               key={btn.ruta}
               onClick={() => router.push(btn.ruta)}
-              className={`w-full ${btn.color} px-4 py-3 rounded-xl border border-white/10 active:scale-95 transition-transform shadow-lg flex items-center gap-3 text-left`}
+              className={`w-full ${btn.color} px-4 py-5 rounded-xl border border-white/10 active:scale-95 transition-transform shadow-lg flex flex-col items-center justify-center gap-1 text-center`}
             >
-              <span className="text-white font-black uppercase text-[12px] tracking-wider flex-1">{btn.label}</span>
-              <span className="text-white/30 text-lg">›</span>
+              <span className="text-white font-black uppercase text-sm tracking-wider">{btn.label}</span>
             </button>
           ))}
         </div>
