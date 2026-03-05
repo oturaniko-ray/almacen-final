@@ -1,7 +1,7 @@
 // ============================================
-// Cliente de Supabase para MIDDLEWARE
+// Cliente de Supabase para proxy
 // ============================================
-// Este archivo se usa en middleware.ts para proteger rutas
+// Este archivo se usa en proxy.ts para proteger rutas
 
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
