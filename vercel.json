@@ -16,6 +16,13 @@
       "maxDuration": 10
     }
   },
+  
+  "functions": {
+    "app/api/send-email/route.ts": {
+      "runtime": "nodejs18.x"
+    }
+  },
+
   "crons": [
     {
       "path": "/api/cron/send-scheduled",
