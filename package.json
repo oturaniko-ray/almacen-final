@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "next dev",
+    "build:webpack": "next build --webpack",
+    "dev:turbo": "next dev --turbopack"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
@@ -38,6 +38,7 @@
     "@types/nodemailer": "^7.0.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "empty-module": "^0.0.2",
     "eslint": "^9",
     "eslint-config-next": "16.1.3",
     "tailwindcss": "^4",

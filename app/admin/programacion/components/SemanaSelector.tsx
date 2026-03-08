@@ -9,35 +9,32 @@ interface SemanaSelectorProps {
 }
 
 export function SemanaSelector({ fechaBase, onChange }: SemanaSelectorProps) {
-  // Calcular inicio y fin de la semana
-  const inicio = startOfWeek(fechaBase, { weekStartsOn: 1 }); // 1 = Lunes
+  const inicio = startOfWeek(fechaBase, { weekStartsOn: 1 });
   const fin = endOfWeek(fechaBase, { weekStartsOn: 1 });
-
-  // Formatear para mostrar
   const textoPeriodo = `${format(inicio, 'dd/MM/yyyy', { locale: es })} - ${format(fin, 'dd/MM/yyyy', { locale: es })}`;
 
   return (
-    <div className="flex items-center gap-4 bg-white p-4 rounded-lg shadow">
-      <button
-        onClick={() => onChange(subWeeks(fechaBase, 1))}
-        className="p-2 hover:bg-gray-100 rounded-full"
-        title="Semana anterior"
-      >
-        ← Anterior
-      </button>
-      
-      <div className="flex-1 text-center">
-        <p className="text-sm text-gray-500">Semana del</p>
-        <p className="font-semibold text-lg">{textoPeriodo}</p>
+    <div className="bg-white border-2 border-blue-200 rounded-lg p-4 shadow-sm mb-4">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => onChange(subWeeks(fechaBase, 1))}
+          className="px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+        >
+          ← Anterior
+        </button>
+        
+        <div className="text-center">
+          <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Semana</p>
+          <p className="font-semibold text-blue-900">{textoPeriodo}</p>
+        </div>
+        
+        <button
+          onClick={() => onChange(addWeeks(fechaBase, 1))}
+          className="px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+        >
+          Siguiente →
+        </button>
       </div>
-      
-      <button
-        onClick={() => onChange(addWeeks(fechaBase, 1))}
-        className="p-2 hover:bg-gray-100 rounded-full"
-        title="Semana siguiente"
-      >
-        Siguiente →
-      </button>
     </div>
   );
 }

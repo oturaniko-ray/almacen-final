@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SemanaSelector } from './SemanaSelector';
 import { CalendarioTurnos } from './CalendarioTurnos';
 import { AsignarTurnoModal } from './AsignarTurnoModal';
 import { asignarTurno } from '@/lib/turnos/service';
+import { useRealtime } from '@/lib/hooks/useRealtime';
 import type { VistaAsignacionCompleta } from '@/lib/turnos/types';
 
 interface ProgramacionClientProps {
-  empleados: Array<{ id: string; nombre: string }>;
+  empleados: Array<{ id: string; nombre: string; email?: string }>;
   asignacionesIniciales: VistaAsignacionCompleta[];
   fechaBaseInicial: Date;
 }
@@ -27,18 +28,24 @@ export function ProgramacionClient({
   const [selectedEmpleado, setSelectedEmpleado] = useState({ id: '', nombre: '' });
   const [selectedFecha, setSelectedFecha] = useState('');
 
-  // Manejar cambio de semana
+  // Suscribirse a cambios en asignaciones
+  const asignacionesRealtime = useRealtime(asignacionesIniciales, {
+    table: 'asignaciones_turno'
+  });
+
+  // Actualizar estado cuando cambian en tiempo real
+  useEffect(() => {
+    setAsignaciones(asignacionesRealtime);
+  }, [asignacionesRealtime]);
+
   const handleSemanaChange = (nuevaFecha: Date) => {
     setFechaBase(nuevaFecha);
-    // Actualizar URL para mantener el estado
     const params = new URLSearchParams();
     params.set('semana', nuevaFecha.toISOString());
     router.push(`/admin/programacion?${params.toString()}`);
-    // Recargar datos
     router.refresh();
   };
 
-  // Abrir modal para asignar turno
   const handleAsignarClick = (empleadoId: string, fecha: string) => {
     const empleado = empleados.find(e => e.id === empleadoId);
     if (empleado) {
@@ -48,8 +55,12 @@ export function ProgramacionClient({
     }
   };
 
-  // Asignar turno
   const handleAsignar = async (turnoId: string) => {
+    if (!turnoId || !selectedEmpleado.id || !selectedFecha) {
+      alert('Faltan datos para la asignación');
+      return;
+    }
+
     const result = await asignarTurno({
       turno_id: turnoId,
       empleado_id: selectedEmpleado.id,
@@ -58,28 +69,30 @@ export function ProgramacionClient({
     });
     
     if (result.success) {
-      // Recargar datos
-      router.refresh();
+      setModalOpen(false);
     } else {
-      alert('Error al asignar turno: ' + result.error);
+      alert('Error al asignar turno: ' + (result.error || 'Error desconocido'));
     }
   };
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Programación de Turnos</h1>
+    <div className="space-y-3 w-full">
+      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg py-2 px-4 shadow-sm">
+        <h1 className="text-xl font-semibold text-blue-900 mb-1">Programación de Turnos</h1>
+        <SemanaSelector 
+          fechaBase={fechaBase}
+          onChange={handleSemanaChange}
+        />
+      </div>
       
-      <SemanaSelector 
-        fechaBase={fechaBase}
-        onChange={handleSemanaChange}
-      />
-      
-      <CalendarioTurnos 
-        fechaBase={fechaBase}
-        empleados={empleados}
-        asignaciones={asignaciones}
-        onAsignarClick={handleAsignarClick}
-      />
+      <div className="w-full overflow-x-auto">
+        <CalendarioTurnos 
+          fechaBase={fechaBase}
+          empleados={empleados}
+          asignaciones={asignaciones}
+          onAsignarClick={handleAsignarClick}
+        />
+      </div>
       
       <AsignarTurnoModal 
         isOpen={modalOpen}

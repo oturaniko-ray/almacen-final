@@ -48,6 +48,29 @@ export type AsignacionTurno = {
   created_at: string;
   updated_at: string;
 };
+// Tipos existentes...
+
+export interface IntercambioTurno {
+  id: string;
+  turno_original_id: string;      // ID de la asignación original
+  empleado_origen_id: string;     // Quién cede el turno
+  empleado_destino_id: string | null; // Quién lo toma (null si disponible)
+  fecha_turno: string;            // Fecha del turno
+  estado: 'disponible' | 'solicitado' | 'aprobado' | 'rechazado' | 'cancelado';
+  motivo: string | null;
+  creado_en: string;
+  actualizado_en: string;
+  aprobado_por: string | null;
+}
+
+export interface IntercambioConDetalles extends IntercambioTurno {
+  turno_nombre: string;
+  hora_inicio: string;
+  hora_fin: string;
+  empleado_origen_nombre: string;
+  empleado_destino_nombre: string | null;
+  sucursal_codigo: string;
+}
 
 // Tipo para crear una asignación
 export type AsignacionCreateInput = {

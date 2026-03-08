@@ -1,8 +1,4 @@
-// ============================================
-// SERVICIO DE TURNOS - VERSIÓN CORREGIDA
-// ============================================
-
-import { createClient } from '@/lib/supabase/client'; // Este es el de server components
+import { createBrowserSupabaseClient } from '@/lib/supabase/client-browser';
 import { TurnoCreateSchema, AsignacionCreateSchema, AsignacionFilterSchema } from './validators';
 import type { Turno, AsignacionTurno, VistaAsignacionCompleta } from './types';
 
@@ -11,14 +7,11 @@ import type { Turno, AsignacionTurno, VistaAsignacionCompleta } from './types';
 // ============================================
 
 export async function crearTurno(data: unknown) {
-  console.log('🟢 [SERVICE] Creando nuevo turno');
+  console.log('[SERVICE] Creando nuevo turno');
   
   try {
     const validatedData = TurnoCreateSchema.parse(data);
-    console.log('✅ Datos validados:', validatedData.nombre);
-    
-    // Usar el nuevo cliente
-    const supabase = createClient();
+    const supabase = createBrowserSupabaseClient();
     
     const { data: turno, error } = await supabase
       .from('turnos')
@@ -30,16 +23,10 @@ export async function crearTurno(data: unknown) {
       .select()
       .single();
     
-    if (error) {
-      console.error('🔴 Error en BD:', error);
-      throw new Error(`Error al crear turno: ${error.message}`);
-    }
-    
-    console.log('✅ Turno creado con ID:', turno.id);
+    if (error) throw new Error(`Error al crear turno: ${error.message}`);
     return { success: true, data: turno };
     
   } catch (error) {
-    console.error('🔴 Error en crearTurno:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Error desconocido'
@@ -48,37 +35,41 @@ export async function crearTurno(data: unknown) {
 }
 
 export async function obtenerTurnos(sucursalCodigo?: string) {
-  console.log('🟢 [SERVICE] Obteniendo turnos');
+  console.log('[SERVICE] Obteniendo turnos');
   
-  const supabase = createClient();
-  
-  let query = supabase
-    .from('turnos')
-    .select('*')
-    .eq('activo', true)
-    .order('hora_inicio');
-  
-  if (sucursalCodigo) {
-    query = query.eq('sucursal_codigo', sucursalCodigo);
+  try {
+    const supabase = createBrowserSupabaseClient();
+    
+    let query = supabase
+      .from('turnos')
+      .select('*')
+      .eq('activo', true)
+      .order('hora_inicio');
+    
+    if (sucursalCodigo) {
+      query = query.eq('sucursal_codigo', sucursalCodigo);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    return { success: true, data: data as Turno[] };
+    
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    };
   }
-  
-  const { data, error } = await query;
-  
-  if (error) {
-    console.error('🔴 Error:', error);
-    return { success: false, error: error.message };
-  }
-  
-  return { success: true, data: data as Turno[] };
 }
 
 export async function actualizarTurno(id: string, data: unknown) {
-  console.log('🟢 [SERVICE] Actualizando turno:', id);
+  console.log('[SERVICE] Actualizando turno:', id);
   
   try {
     const validatedData = TurnoCreateSchema.partial().parse(data);
-    
-    const supabase = createClient();
+    const supabase = createBrowserSupabaseClient();
     
     const { data: turno, error } = await supabase
       .from('turnos')
@@ -103,9 +94,9 @@ export async function actualizarTurno(id: string, data: unknown) {
 }
 
 export async function eliminarTurno(id: string) {
-  console.log('🟢 [SERVICE] Eliminando turno:', id);
+  console.log('[SERVICE] Eliminando turno:', id);
   
-  const supabase = createClient();
+  const supabase = createBrowserSupabaseClient();
   
   const { error } = await supabase
     .from('turnos')
@@ -124,12 +115,11 @@ export async function eliminarTurno(id: string) {
 // ============================================
 
 export async function asignarTurno(data: unknown) {
-  console.log('🟢 [SERVICE] Asignando turno a empleado');
+  console.log('[SERVICE] Asignando turno a empleado');
   
   try {
     const validatedData = AsignacionCreateSchema.parse(data);
-    
-    const supabase = createClient();
+    const supabase = createBrowserSupabaseClient();
     
     // Verificar que el empleado no tenga ya un turno ese día
     const { data: existente } = await supabase
@@ -146,10 +136,14 @@ export async function asignarTurno(data: unknown) {
       };
     }
     
+    // Crear la asignación
     const { data: asignacion, error } = await supabase
       .from('asignaciones_turno')
       .insert({
-        ...validatedData,
+        turno_id: validatedData.turno_id,
+        empleado_id: validatedData.empleado_id,
+        fecha: validatedData.fecha,
+        estado: validatedData.estado || 'asignado',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -158,10 +152,37 @@ export async function asignarTurno(data: unknown) {
     
     if (error) throw error;
     
-    console.log('✅ Asignación creada:', asignacion.id);
-    return { success: true, data: asignacion };
+    // Obtener los datos completos del turno
+    const { data: turnoData, error: turnoError } = await supabase
+      .from('turnos')
+      .select('nombre, hora_inicio, hora_fin')
+      .eq('id', validatedData.turno_id)
+      .single();
+    
+    if (turnoError) {
+      console.error('Error obteniendo datos del turno:', turnoError);
+      return { success: true, data: asignacion };
+    }
+    
+    // Construir objeto con la estructura completa
+    const asignacionCompleta = {
+      asignacion_id: asignacion.id,
+      fecha: asignacion.fecha,
+      estado: asignacion.estado,
+      empleado_id: asignacion.empleado_id,
+      empleado_nombre: '',
+      empleado_email: '',
+      turno_id: asignacion.turno_id,
+      turno_nombre: turnoData.nombre,
+      hora_inicio: turnoData.hora_inicio,
+      hora_fin: turnoData.hora_fin,
+      sucursal_codigo: 'ALM01'
+    };
+    
+    return { success: true, data: asignacionCompleta };
     
   } catch (error) {
+    console.error('Error en asignarTurno:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Error desconocido'
@@ -170,11 +191,11 @@ export async function asignarTurno(data: unknown) {
 }
 
 export async function obtenerAsignaciones(filtros: unknown) {
-  console.log('🟢 [SERVICE] Obteniendo asignaciones');
+  console.log('[SERVICE] Obteniendo asignaciones');
   
   try {
     const validatedFilters = AsignacionFilterSchema.parse(filtros || {});
-    const supabase = createClient();
+    const supabase = createBrowserSupabaseClient();
     
     let query = supabase
       .from('vista_asignaciones_completa')
@@ -214,9 +235,9 @@ export async function actualizarEstadoAsignacion(
   asignacionId: string, 
   nuevoEstado: 'confirmado' | 'ausente' | 'swap'
 ) {
-  console.log('🟢 [SERVICE] Actualizando estado asignación:', asignacionId);
+  console.log('[SERVICE] Actualizando estado asignación:', asignacionId);
   
-  const supabase = createClient();
+  const supabase = createBrowserSupabaseClient();
   
   const { data, error } = await supabase
     .from('asignaciones_turno')
@@ -240,9 +261,9 @@ export async function obtenerTurnosEmpleado(
   fechaInicio: string,
   fechaFin: string
 ) {
-  console.log('🟢 [SERVICE] Obteniendo turnos de empleado:', empleadoId);
+  console.log('[SERVICE] Obteniendo turnos de empleado:', empleadoId);
   
-  const supabase = createClient();
+  const supabase = createBrowserSupabaseClient();
   
   const { data, error } = await supabase
     .from('vista_asignaciones_completa')

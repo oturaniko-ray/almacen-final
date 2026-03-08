@@ -23,7 +23,6 @@ export default function PanelAdminHub() {
     setLoading(false);
   }, [router]);
 
-  // ===== FUNCIÓN DE NAVEGACIÓN =====
   const volverAlSelector = () => {
     console.log('→ Saliendo del módulo admin al selector inicial');
     router.push('/selector');
@@ -81,7 +80,6 @@ export default function PanelAdminHub() {
     </button>
   );
 
-
   const Footer = () => (
     <div className="w-full max-w-sm mt-8 pt-4 border-t border-white/5 text-center">
       <p className="text-[9px] text-white/40 uppercase tracking-widest mb-4">
@@ -124,6 +122,10 @@ export default function PanelAdminHub() {
           )}
           {nivel >= 8 && (
             <BotonOpcion texto="SUCURSALES" descripcion="Gestion de sedes y configuracion por provincia" onClick={() => router.push('/admin/sucursales')} color="bg-violet-700" />
+          )}
+          {/* ✅ NUEVO: RRHH OPERATIVO - NIVEL 7 */}
+          {nivel >= 7 && (
+            <BotonOpcion texto="RRHH OPERATIVO" descripcion="Gestion de horarios, ausencias, nomina y desempeño" onClick={() => router.push('/admin/rrhh-operativo')} color="bg-teal-600" />
           )}
         </div>
 
