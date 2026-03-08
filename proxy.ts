@@ -31,10 +31,24 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Si está en /admin y no tiene sesión, redirigir a login
+  // Proteger rutas admin - requiere usuario autenticado
   if (request.nextUrl.pathname.startsWith('/admin') && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
+    url.pathname = '/personal/login';
+    return NextResponse.redirect(url);
+  }
+
+  // Proteger rutas de empleado - requiere usuario autenticado
+  if (request.nextUrl.pathname.startsWith('/empleado') && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/personal/login';
+    return NextResponse.redirect(url);
+  }
+
+  // Si ya está autenticado y va al login, redirigir al selector
+  if (user && request.nextUrl.pathname === '/personal/login') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/selector';
     return NextResponse.redirect(url);
   }
 

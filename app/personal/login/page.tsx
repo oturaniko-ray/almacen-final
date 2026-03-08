@@ -3,6 +3,22 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 
+// Definir el tipo de Empleado
+interface Empleado {
+  id: string;
+  nombre: string;
+  email: string;
+  documento_id: string;
+  nivel_acceso: number;
+  permiso_reportes: boolean;
+  rol: string;
+  pin_seguridad: string;
+  activo: boolean;
+  telegram_token?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 const formatearRol = (rol: string): string => {
   if (!rol) return 'EMPLEADO';
   const rolLower = rol.toLowerCase();
@@ -65,12 +81,23 @@ export default function PersonalLoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const session = localStorage.getItem('user_session');
-    if (session) {
-      const user = JSON.parse(session);
-      if (Number(user.nivel_acceso) <= 2) router.replace('/empleado');
-      else router.replace('/selector');
-    }
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: userData } = await supabase
+          .from('empleados')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (userData) {
+          const empleado = userData as Empleado;
+          if (empleado.nivel_acceso <= 2) router.replace('/empleado');
+          else router.replace('/selector');
+        }
+      }
+    };
+    checkSession();
   }, [router]);
 
   const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
@@ -87,8 +114,8 @@ export default function PersonalLoginPage() {
     try {
       const pinUpper = pin.toUpperCase();
 
-      // Buscar con el PIN tal como se ingresó
-      let { data, error } = await supabase
+      // Buscar empleado por documento o email
+      let { data: empleado, error } = await supabase
         .from('empleados')
         .select('*')
         .or(`documento_id.eq."${identificador}",email.eq."${identificador.toLowerCase()}"`)
@@ -96,10 +123,8 @@ export default function PersonalLoginPage() {
         .eq('activo', true)
         .maybeSingle();
 
-      // Retrocompatibilidad: Si no encontró con PIN viejo (Pxxxxxx),
-      // intentar con formato nuevo (E01xxxxxx) en caso de que el usuario
-      // aún no conoce su PIN actualizado
-      if (!data && !error && pinUpper.startsWith('P') && pinUpper.length === 8) {
+      // Retrocompatibilidad con PIN antiguo
+      if (!empleado && !error && pinUpper.startsWith('P') && pinUpper.length === 8) {
         const pinNuevo = 'E01' + pinUpper.substring(1);
         const res2 = await supabase
           .from('empleados')
@@ -108,27 +133,28 @@ export default function PersonalLoginPage() {
           .eq('pin_seguridad', pinNuevo)
           .eq('activo', true)
           .maybeSingle();
-        data = res2.data;
+        empleado = res2.data;
         error = res2.error;
       }
 
-      if (error || !data) throw new Error('Credenciales inválidas');
+      if (error || !empleado) throw new Error('Credenciales inválidas');
 
-      // ✅ SOLUCIÓN: Verificar que data es un objeto antes de hacer spread
-      if (data && typeof data === 'object') {
-        const userData = {
-          ...(data as any),
-          nivel_acceso: Number((data as any).nivel_acceso),
-          permiso_reportes: !!((data as any).permiso_reportes),
-        };
+      const empleadoData = empleado as Empleado;
 
-        localStorage.setItem('user_session', JSON.stringify(userData));
+      // Iniciar sesión en Supabase Auth
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: empleadoData.email,
+        password: pinUpper,
+      });
 
-        if (userData.nivel_acceso <= 2) router.push('/empleado');
-        else router.push('/selector');
-      } else {
-        throw new Error('Datos de usuario inválidos');
+      if (signInError) {
+        console.error('Error en auth:', signInError);
       }
+
+      // Redirigir según nivel de acceso
+      if (empleadoData.nivel_acceso <= 2) router.push('/empleado');
+      else router.push('/selector');
+
     } catch {
       mostrarNotificacion('Acceso denegado', 'error');
       setIdentificador('');
