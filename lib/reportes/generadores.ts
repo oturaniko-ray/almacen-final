@@ -17,10 +17,8 @@ export async function generarTimesheetExcel(filtros: { fecha_inicio: string; fec
 
   if (error) throw new Error(`Error obteniendo datos: ${error.message}`);
 
-  // Crear libro de Excel
   const wb = XLSX.utils.book_new();
   
-  // Datos formateados
   const datos = (data || []).map(j => ({
     Fecha: format(new Date(j.fecha), 'dd/MM/yyyy', { locale: es }),
     Empleado: j.empleado_nombre,
@@ -31,10 +29,8 @@ export async function generarTimesheetExcel(filtros: { fecha_inicio: string; fec
             j.estado_jornada === 'ausente' ? 'AUSENTE' : 'JUSTIFICADO'
   }));
 
-  // Crear hoja
   const ws = XLSX.utils.json_to_sheet(datos);
   
-  // Ajustar ancho de columnas
   const columnas = [
     { wch: 12 }, // Fecha
     { wch: 25 }, // Empleado
@@ -45,14 +41,9 @@ export async function generarTimesheetExcel(filtros: { fecha_inicio: string; fec
   ];
   ws['!cols'] = columnas;
 
-  // Agregar al libro
   XLSX.utils.book_append_sheet(wb, ws, 'Timesheet');
 
-  // Convertir a buffer
-  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-  
-  console.log(`✅ Timesheet generado: ${buffer.length} bytes`);
-  return buffer;
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
 export async function generarComparativaExcel(filtros: { fecha_inicio: string; fecha_fin: string }) {
@@ -85,11 +76,63 @@ export async function generarComparativaExcel(filtros: { fecha_inicio: string; f
   const ws = XLSX.utils.json_to_sheet(datos);
   
   const columnas = [
-    { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }
+    { wch: 12 }, // Fecha
+    { wch: 25 }, // Empleado
+    { wch: 15 }, // Turno
+    { wch: 10 }, // Inicio
+    { wch: 10 }, // Fin
+    { wch: 15 }, // Estado
   ];
   ws['!cols'] = columnas;
 
   XLSX.utils.book_append_sheet(wb, ws, 'Comparativa');
+  
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+export async function generarAusenciasExcel(filtros: { fecha_inicio: string; fecha_fin: string }) {
+  console.log(`📊 Generando reporte de ausencias del ${filtros.fecha_inicio} al ${filtros.fecha_fin}`);
+  
+  const supabase = await createServerSupabaseClient();
+  
+  const { data, error } = await supabase
+    .from('vista_solicitudes_completa')
+    .select('*')
+    .gte('fecha_inicio', filtros.fecha_inicio)
+    .lte('fecha_fin', filtros.fecha_fin)
+    .order('fecha_inicio', { ascending: true });
+
+  if (error) throw new Error(`Error obteniendo datos: ${error.message}`);
+
+  const wb = XLSX.utils.book_new();
+  
+  const datos = (data || []).map(s => ({
+    Empleado: s.empleado_nombre,
+    Tipo: s.tipo === 'vacacion' ? 'VACACIONES' :
+          s.tipo === 'enfermedad' ? 'ENFERMEDAD' :
+          s.tipo === 'personal' ? 'ASUNTOS PERSONALES' : s.tipo.toUpperCase(),
+    'Fecha Inicio': new Date(s.fecha_inicio).toLocaleDateString('es-ES'),
+    'Fecha Fin': new Date(s.fecha_fin).toLocaleDateString('es-ES'),
+    Días: s.dias_solicitados,
+    Estado: s.estado === 'aprobada' ? 'APROBADA' :
+            s.estado === 'rechazada' ? 'RECHAZADA' : 'PENDIENTE',
+    Motivo: s.motivo || '-'
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(datos);
+  
+  const columnas = [
+    { wch: 25 }, // Empleado
+    { wch: 20 }, // Tipo
+    { wch: 12 }, // Fecha Inicio
+    { wch: 12 }, // Fecha Fin
+    { wch: 8 },  // Días
+    { wch: 12 }, // Estado
+    { wch: 30 }, // Motivo
+  ];
+  ws['!cols'] = columnas;
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Ausencias');
   
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
