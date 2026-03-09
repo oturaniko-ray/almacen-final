@@ -1,91 +1,95 @@
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-export async function generarTimesheetExcel(filtros: any): Promise<string> {
+export async function generarTimesheetExcel(filtros: { fecha_inicio: string; fecha_fin: string }) {
+  console.log(`📊 Generando timesheet del ${filtros.fecha_inicio} al ${filtros.fecha_fin}`);
+  
   const supabase = await createServerSupabaseClient();
   
-  // Obtener datos
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('vista_jornadas_completa')
     .select('*')
     .gte('fecha', filtros.fecha_inicio)
     .lte('fecha', filtros.fecha_fin)
     .order('fecha', { ascending: true });
-  
-  // Crear Excel
+
+  if (error) throw new Error(`Error obteniendo datos: ${error.message}`);
+
+  // Crear libro de Excel
   const wb = XLSX.utils.book_new();
   
-  const datosFormateados = (data || []).map(j => ({
-    Fecha: format(new Date(j.fecha), 'dd/MM/yyyy'),
+  // Datos formateados
+  const datos = (data || []).map(j => ({
+    Fecha: format(new Date(j.fecha), 'dd/MM/yyyy', { locale: es }),
     Empleado: j.empleado_nombre,
     'Hora Entrada': j.hora_entrada ? format(new Date(j.hora_entrada), 'HH:mm:ss') : '',
     'Hora Salida': j.hora_salida ? format(new Date(j.hora_salida), 'HH:mm:ss') : '',
-    'Horas Trabajadas': j.horas_trabajadas,
-    Estado: j.estado_jornada
+    'Horas Trabajadas': j.horas_trabajadas || 0,
+    Estado: j.estado_jornada === 'presente' ? 'PRESENTE' : 
+            j.estado_jornada === 'ausente' ? 'AUSENTE' : 'JUSTIFICADO'
   }));
+
+  // Crear hoja
+  const ws = XLSX.utils.json_to_sheet(datos);
   
-  const ws = XLSX.utils.json_to_sheet(datosFormateados);
+  // Ajustar ancho de columnas
+  const columnas = [
+    { wch: 12 }, // Fecha
+    { wch: 25 }, // Empleado
+    { wch: 12 }, // Entrada
+    { wch: 12 }, // Salida
+    { wch: 10 }, // Horas
+    { wch: 12 }, // Estado
+  ];
+  ws['!cols'] = columnas;
+
+  // Agregar al libro
   XLSX.utils.book_append_sheet(wb, ws, 'Timesheet');
+
+  // Convertir a buffer
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   
-  // Guardar temporalmente (en producción, subir a storage)
-  const fileName = `timesheet_${filtros.fecha_inicio}_${filtros.fecha_fin}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-  
-  // En producción, subir a Supabase Storage y devolver URL
-  return fileName;
+  console.log(`✅ Timesheet generado: ${buffer.length} bytes`);
+  return buffer;
 }
 
-export async function generarTimesheetPDF(filtros: any): Promise<string> {
+export async function generarComparativaExcel(filtros: { fecha_inicio: string; fecha_fin: string }) {
+  console.log(`📊 Generando comparativa del ${filtros.fecha_inicio} al ${filtros.fecha_fin}`);
+  
   const supabase = await createServerSupabaseClient();
   
-  const { data } = await supabase
-    .from('vista_jornadas_completa')
+  const { data, error } = await supabase
+    .from('vista_asignaciones_completa')
     .select('*')
     .gte('fecha', filtros.fecha_inicio)
     .lte('fecha', filtros.fecha_fin)
     .order('fecha', { ascending: true });
-  
-  const doc = new jsPDF();
-  
-  // Título
-  doc.setFontSize(16);
-  doc.text('Timesheet Semanal', 14, 22);
-  
-  doc.setFontSize(10);
-  doc.text(`Período: ${filtros.fecha_inicio} al ${filtros.fecha_fin}`, 14, 30);
-  
-  // Tabla
-  const tableData = (data || []).map(j => [
-    format(new Date(j.fecha), 'dd/MM/yyyy'),
-    j.empleado_nombre,
-    j.hora_entrada ? format(new Date(j.hora_entrada), 'HH:mm') : '',
-    j.hora_salida ? format(new Date(j.hora_salida), 'HH:mm') : '',
-    j.horas_trabajadas?.toString() || '',
-    j.estado_jornada
-  ]);
-  
-  autoTable(doc, {
-    head: [['Fecha', 'Empleado', 'Entrada', 'Salida', 'Horas', 'Estado']],
-    body: tableData,
-    startY: 40,
-  });
-  
-  const fileName = `timesheet_${filtros.fecha_inicio}_${filtros.fecha_fin}.pdf`;
-  doc.save(fileName);
-  
-  return fileName;
-}
 
-export async function generarComparativaExcel(filtros: any): Promise<string> {
-  // Similar a timesheet pero con datos de comparativa
-  return 'comparativa.xlsx';
-}
+  if (error) throw new Error(`Error obteniendo datos: ${error.message}`);
 
-export async function generarAusenciasExcel(filtros: any): Promise<string> {
-  // Reporte de ausencias
-  return 'ausencias.xlsx';
+  const wb = XLSX.utils.book_new();
+  
+  const datos = (data || []).map(a => ({
+    Fecha: format(new Date(a.fecha), 'dd/MM/yyyy', { locale: es }),
+    Empleado: a.empleado_nombre,
+    'Turno Asignado': a.turno_nombre || 'Sin turno',
+    'Hora Inicio': a.hora_inicio?.slice(0,5) || '',
+    'Hora Fin': a.hora_fin?.slice(0,5) || '',
+    'Estado Asignación': a.estado === 'asignado' ? 'PENDIENTE' :
+                         a.estado === 'confirmado' ? 'CONFIRMADO' :
+                         a.estado === 'ausente' ? 'AUSENTE' : 'INTERCAMBIO'
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(datos);
+  
+  const columnas = [
+    { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }
+  ];
+  ws['!cols'] = columnas;
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Comparativa');
+  
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
