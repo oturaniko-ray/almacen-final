@@ -1,45 +1,45 @@
 import nodemailer from 'nodemailer';
+import type { SendMailOptions } from 'nodemailer';
 
-// Configurar transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ionos.es',
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: { rejectUnauthorized: false }
-});
+// ✅ CORREGIDO: Usamos el tipo exacto de nodemailer
+import type { Attachment as NodemailerAttachment } from 'nodemailer/lib/mailer';
 
 export async function enviarReportePorEmail(
-  destinatarios: string[],
-  asunto: string,
-  buffer: Buffer,
-  nombreArchivo: string
+  to: string | string[],
+  subject: string,
+  html: string,
+  attachments?: NodemailerAttachment[]
 ) {
-  console.log(`📧 Enviando reporte a: ${destinatarios.join(', ')}`);
-  
-  const info = await transporter.sendMail({
-    from: process.env.EMAIL_FROM || 'reportes@redmundialenvios.online',
-    to: destinatarios.join(', '),
-    subject: asunto,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2 style="color: #2563eb;">📊 Reporte Automático</h2>
-        <p>Adjunto encontrarás el reporte solicitado.</p>
-        <p><strong>Fecha de generación:</strong> ${new Date().toLocaleString('es-ES')}</p>
-        <p><strong>Archivo:</strong> ${nombreArchivo}</p>
-        <hr>
-        <p style="color: #666; font-size: 12px;">Este es un envío automático del sistema.</p>
-      </div>
-    `,
-    attachments: [{
-      filename: nombreArchivo,
-      content: buffer,
-    }],
+  // Configurar transporte
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
   });
 
-  console.log(`✅ Email enviado: ${info.messageId}`);
-  return info;
+  // Crear el objeto de opciones
+  const mailOptions: SendMailOptions = {
+    from: process.env.SMTP_FROM,
+    to: Array.isArray(to) ? to.join(', ') : to,
+    subject,
+    html,
+  };
+
+  // ✅ CORREGIDO: Asignamos attachments directamente si existen
+  if (attachments && attachments.length > 0) {
+    mailOptions.attachments = attachments;
+  }
+
+  try {
+    // Enviar correo
+    const info = await transporter.sendMail(mailOptions);
+    return info;
+  } catch (error) {
+    console.error('Error enviando correo:', error);
+    throw error;
+  }
 }

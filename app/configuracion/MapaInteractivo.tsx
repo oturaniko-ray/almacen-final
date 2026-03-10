@@ -1,16 +1,21 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import { getCurrentLocation, getAddressFromCoordinates } from '@/lib/locationService';
 
-// Solución para el icono por defecto de Leaflet
+// SOLUCIÓN - Usar require
+const L = require('leaflet');
+
+import { getAddressFromCoordinates } from '@/lib/locationService';
+
+// Solución para el icono
 const customIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
 });
 
 interface MapaInteractivoProps {
@@ -24,20 +29,19 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInte
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [address, setAddress] = useState<string>('');
   const [geocodingStatus, setGeocodingStatus] = useState<'loading' | 'success' | 'error'>('success');
-  const mapRef = useRef<L.Map | null>(null);
+  
+  const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markerRef = useRef<L.Marker | null>(null);
+  const markerRef = useRef<any>(null);
+  const locateButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const nLat = parseFloat(lat) || -12.046374;
   const nLng = parseFloat(lng) || -77.042793;
 
-  // Solo renderizar en el cliente
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Función para obtener dirección con manejo de errores
-  // En MapaInteractivo.tsx, la función fetchAddress:
   const fetchAddress = async (lat: number, lng: number) => {
     setGeocodingStatus('loading');
     try {
@@ -56,42 +60,70 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInte
     }
   };
 
-  // Obtener dirección cuando cambian las coordenadas
+  const handleLocateUser = () => {
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización.');
+      return;
+    }
+
+    setLoadingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        
+        if (mapRef.current) {
+          mapRef.current.setView([lat, lng], 18);
+          
+          if (markerRef.current) {
+            markerRef.current.setLatLng([lat, lng]);
+          } else {
+            const newMarker = L.marker([lat, lng], { icon: customIcon }).addTo(mapRef.current);
+            markerRef.current = newMarker;
+          }
+        }
+
+        fetchAddress(lat, lng);
+        onLocationChange(lat, lng);
+        setLoadingLocation(false);
+      },
+      (err) => {
+        alert(`No se pudo obtener la ubicación: ${err.message}`);
+        setLoadingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
   useEffect(() => {
     if (nLat !== 0 && nLng !== 0) {
       fetchAddress(nLat, nLng);
     }
   }, [nLat, nLng]);
 
-  // Inicializar el mapa cuando el componente esté montado en el cliente
   useEffect(() => {
     if (!isClient || !mapContainerRef.current) return;
 
-    // Si ya existe un mapa, destruirlo antes de crear uno nuevo
     if (mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
     }
 
-    // Crear el mapa
     const map = L.map(mapContainerRef.current).setView([nLat, nLng], 18);
     mapRef.current = map;
 
-    // Añadir capa de Google Satellite
     L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       maxZoom: 20,
+      attribution: 'Google Satellite'
     }).addTo(map);
 
-    // Crear marcador
     const marker = L.marker([nLat, nLng], { icon: customIcon }).addTo(map);
     markerRef.current = marker;
 
-    // Manejar clics en el mapa
-    map.on('click', (e) => {
+    map.on('click', (e: any) => {
       const { lat, lng } = e.latlng;
 
-      // Actualizar marcador
       if (markerRef.current) {
         markerRef.current.setLatLng([lat, lng]);
       } else {
@@ -99,103 +131,65 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInte
         markerRef.current = newMarker;
       }
 
-      // Obtener dirección del punto clickeado
       fetchAddress(lat, lng);
-
-      // Notificar cambio
       onLocationChange(lat, lng);
     });
 
-    // Botón para ubicar al usuario - usando el método correcto de Leaflet
-    const LocateButton = L.Control.extend({
+    // Botón personalizado
+    const CustomLocateButton = L.Control.extend({
       options: {
-        position: 'bottomright'
+        position: 'bottomright',
       },
-      onAdd: function () {
-        const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
-        btn.innerHTML = '📍 Ubícame';
-        btn.title = 'Usar mi ubicación actual';
-        btn.style.backgroundColor = '#065f46';
-        btn.style.color = 'white';
-        btn.style.width = 'auto';
-        btn.style.height = '34px';
-        btn.style.padding = '0 12px';
-        btn.style.fontSize = '12px';
-        btn.style.fontWeight = '900';
-        btn.style.letterSpacing = '0.05em';
-        btn.style.cursor = 'pointer';
-        btn.style.border = '2px solid #10b981';
-        btn.style.borderRadius = '10px';
-        btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
-        btn.style.whiteSpace = 'nowrap';
+      onAdd: function() {
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const button = L.DomUtil.create('button', '', container);
+        
+        button.innerHTML = '📍';
+        button.title = 'Usar mi ubicación actual';
+        button.style.backgroundColor = '#065f46';
+        button.style.color = 'white';
+        button.style.width = '34px';
+        button.style.height = '34px';
+        button.style.fontSize = '18px';
+        button.style.border = '2px solid #10b981';
+        button.style.borderRadius = '4px';
+        button.style.cursor = 'pointer';
+        button.style.display = 'flex';
+        button.style.alignItems = 'center';
+        button.style.justifyContent = 'center';
 
-        btn.onclick = () => {
-          if (!navigator.geolocation) {
-            alert('Tu navegador no soporta geolocalización.');
-            return;
+        locateButtonRef.current = button;
+
+        // CORREGIDO: Añadir tipo MouseEvent explícito
+        button.onclick = (e: MouseEvent) => {
+          e.stopPropagation();
+          e.preventDefault();
+          if (!loadingLocation) {
+            handleLocateUser();
           }
-          setLoadingLocation(true);
-          btn.innerHTML = '⏳ Buscando...';
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              const { latitude: lat, longitude: lng } = pos.coords;
-              if (mapRef.current) {
-                mapRef.current.setView([lat, lng], 18);
-                if (markerRef.current) {
-                  markerRef.current.setLatLng([lat, lng]);
-                }
-              }
-              fetchAddress(lat, lng);
-              onLocationChange(lat, lng);
-              setLoadingLocation(false);
-              btn.innerHTML = '📍 Ubícame';
-            },
-            (err) => {
-              alert(`No se pudo obtener la ubicación: ${err.message}`);
-              setLoadingLocation(false);
-              btn.innerHTML = '📍 Ubícame';
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-          );
         };
 
-        return btn;
+        return container;
       }
     });
 
-    map.addControl(new LocateButton());
+    map.addControl(new CustomLocateButton());
 
-    // Manejar evento de localización
-    map.on('locationfound', (e) => {
-      const { lat, lng } = e.latlng;
-
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng]);
-      } else if (mapRef.current) {
-        const newMarker = L.marker([lat, lng], { icon: customIcon }).addTo(mapRef.current);
-        markerRef.current = newMarker;
-      }
-
-      fetchAddress(lat, lng);
-      onLocationChange(lat, lng);
-      setLoadingLocation(false);
-    });
-
-    map.on('locationerror', () => {
-      setLoadingLocation(false);
-      alert('No se pudo obtener tu ubicación. Verifica los permisos.');
-    });
-
-    // Limpiar al desmontar
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
-  }, [isClient, nLat, nLng, onLocationChange]);
+  }, [isClient]);
 
-  // Actualizar marcador cuando cambian las coordenadas externamente
+  useEffect(() => {
+    if (locateButtonRef.current) {
+      locateButtonRef.current.innerHTML = loadingLocation ? '⏳' : '📍';
+      locateButtonRef.current.style.cursor = loadingLocation ? 'wait' : 'pointer';
+    }
+  }, [loadingLocation]);
+
   useEffect(() => {
     if (mapRef.current && markerRef.current) {
       markerRef.current.setLatLng([nLat, nLng]);
@@ -219,7 +213,6 @@ export default function MapaInteractivo({ lat, lng, onLocationChange }: MapaInte
         style={{ minHeight: '100%' }}
       />
 
-      {/* Overlay con dirección */}
       {address && (
         <div className="absolute top-4 left-4 z-[1000] max-w-md bg-[#1a1a1a] border border-blue-500/30 rounded-lg p-2 shadow-lg">
           <p className="text-[9px] font-black text-blue-400 uppercase tracking-wider">UBICACIÓN ACTUAL</p>

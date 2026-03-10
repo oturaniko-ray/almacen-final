@@ -13,7 +13,7 @@ let nodemailer: any;
 let BienvenidaEmpleado: any;
 let BienvenidaFlota: any;
 
-// Cliente Supabase Admin - ✅ Usamos any para evitar errores de tipos
+// Cliente Supabase Admin
 function getSupabaseAdmin(): any {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,7 +27,7 @@ function getSupabaseAdmin(): any {
 const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || 'Notificaacceso_bot';
 
 // ================================================================
-// TOKEN PARA EMPLEADO - ✅ CON ANY PARA EVITAR ERRORES
+// TOKEN PARA EMPLEADO
 // ================================================================
 async function obtenerTokenEmpleado(
   supabase: any,
@@ -62,7 +62,7 @@ async function obtenerTokenEmpleado(
 }
 
 // ================================================================
-// TOKEN PARA FLOTA - ✅ CON ANY PARA EVITAR ERRORES
+// TOKEN PARA FLOTA
 // ================================================================
 async function obtenerTokenFlota(
   supabase: any,
@@ -103,6 +103,7 @@ export async function POST(request: Request) {
   try {
     await requireAdminAuth();
 
+    // ✅ Importaciones dinámicas
     nodemailer = await import('nodemailer');
     const emailComponents = await import('@/emails/BienvenidaEmpleado');
     const flotaComponents = await import('@/emails/BienvenidaFlota');
@@ -124,6 +125,7 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseAdmin();
     
+    // ✅ Transporter creado con el nodemailer importado
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.ionos.es',
       port: Number(process.env.SMTP_PORT) || 587,

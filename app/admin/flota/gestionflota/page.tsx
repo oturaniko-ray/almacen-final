@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 import { getAuthHeaders } from '@/lib/apiClient';
 import {
   CampoEntrada,
@@ -26,6 +26,7 @@ interface FlotaPerfil {
   pin_secreto: string;
   activo: boolean;
   fecha_creacion: string;
+  sucursal_origen?: string;
   en_patio?: boolean;
 }
 
@@ -104,7 +105,6 @@ const ModalConfirmacion = ({
 // ------------------------------------------------------------
 // FUNCIONES AUXILIARES
 // ------------------------------------------------------------
-
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
   const rolLower = rol.toLowerCase();
@@ -131,12 +131,15 @@ const getTimestamp = () => {
 // ------------------------------------------------------------
 // MEMBRETE SUPERIOR
 // ------------------------------------------------------------
-// SOLO LA PARTE DEL MEMBRETE SUPERIOR - REEMPLAZAR EN EL ARCHIVO EXISTENTE
-
-// ------------------------------------------------------------
-// MEMBRETE SUPERIOR - DISTRIBUIDO SIN ESPACIOS (IGUAL QUE EMPLEADOS)
-// ------------------------------------------------------------
-const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any; onExportar: () => void; onRegresar: () => void }) => {
+const MemebreteSuperior = ({ 
+  usuario, 
+  onExportar, 
+  onRegresar 
+}: { 
+  usuario?: any; 
+  onExportar: () => void; 
+  onRegresar: () => void;
+}) => {
   const titulo = "GESTOR DE FLOTA";
   const palabras = titulo.split(' ');
   const ultimaPalabra = palabras.pop();
@@ -144,34 +147,32 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any;
 
   return (
     <div className="w-full mb-4">
-      <div className="w-full bg-[#1a1a1a] px-6 py-4 rounded-[25px] border border-white/5 shadow-2xl flex items-center justify-between">
-        {/* Título y usuario a la izquierda */}
+      <div className="w-full bg-gradient-to-r from-[#1a1a1a] to-[#0f172a] px-6 py-4 rounded-[25px] border border-blue-500/20 shadow-2xl flex items-center justify-between">
         <div className="flex flex-col">
           <h1 className="text-xl font-black italic uppercase tracking-tighter">
             <span className="text-white">{primerasPalabras} </span>
-            <span className="text-blue-700">{ultimaPalabra}</span>
+            <span className="text-blue-500">{ultimaPalabra}</span>
           </h1>
           {usuario && (
-            <div className="text-sm">
-              <span className="text-white">{usuario.nombre}</span>
-              <span className="text-white mx-1">•</span>
-              <span className="text-blue-500">{formatearRol(usuario.rol)}</span>
-              <span className="text-white ml-1">({usuario.nivel_acceso})</span>
+            <div className="text-sm mt-1">
+              <span className="text-white/80">{usuario.nombre}</span>
+              <span className="text-white/50 mx-1">•</span>
+              <span className="text-blue-400">{formatearRol(usuario.rol)}</span>
+              <span className="text-white/50 ml-1">(Nivel {usuario.nivel_acceso})</span>
             </div>
           )}
         </div>
 
-        {/* Botones a la derecha */}
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             onClick={onExportar}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider border border-emerald-500/30 hover:border-emerald-500 transition-all active:scale-95"
           >
             EXPORTAR
           </button>
           <button
             onClick={onRegresar}
-            className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            className="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider border border-blue-500/30 hover:border-blue-500 transition-all active:scale-95"
           >
             REGRESAR
           </button>
@@ -180,6 +181,7 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar }: { usuario?: any;
     </div>
   );
 };
+
 // ------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ------------------------------------------------------------
@@ -196,7 +198,6 @@ export default function GestionFlota() {
   const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; perfil: FlotaPerfil | null }>({ isOpen: false, perfil: null });
   const router = useRouter();
   const [sucursalDetectada, setSucursalDetectada] = useState<string>('01');
-  const [sucursalNombre, setSucursalNombre] = useState<string>('');
 
   const estadoInicial: NuevoPerfil = {
     nombre_completo: '',
@@ -221,7 +222,7 @@ export default function GestionFlota() {
   // CARGAR SESIÓN Y DATOS
   // ------------------------------------------------------------
   const fetchPerfiles = useCallback(async () => {
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from('flota_perfil')
       .select('*')
       .order('nombre_completo', { ascending: true });
@@ -255,7 +256,6 @@ export default function GestionFlota() {
         const json = await res.json();
         if (json.deteccion) {
           setSucursalDetectada(json.deteccion.codigo);
-          setSucursalNombre(json.deteccion.nombre);
         }
       } catch {
         // Si GPS falla, queda '01' por defecto
@@ -268,9 +268,7 @@ export default function GestionFlota() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel).catch(error => {
-        console.error('Error removing channel:', error);
-      });
+      supabase.removeChannel(channel).catch(console.error);
     };
   }, [fetchPerfiles, router]);
 
@@ -278,32 +276,28 @@ export default function GestionFlota() {
   // VALIDACIONES DE DUPLICADOS
   // ------------------------------------------------------------
   const validarDuplicados = async (): Promise<boolean> => {
-    const { data: docExistente, error: errDoc } = await (supabase as any)
+    const { data: docExistente } = await supabase
       .from('flota_perfil')
       .select('id, nombre_completo')
       .eq('documento_id', nuevo.documento_id)
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .maybeSingle();
 
-    if (errDoc) { mostrarNotificacion('Error al validar documento ID', 'error'); return false; }
-
-    if (docExistente && typeof docExistente === 'object' && 'nombre_completo' in docExistente) {
-      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${(docExistente as { nombre_completo: string }).nombre_completo}.`, 'advertencia');
+    if (docExistente) {
+      mostrarNotificacion(`El documento ID ya está registrado para ${docExistente.nombre_completo}.`, 'advertencia');
       return false;
     }
 
     if (nuevo.email) {
-      const { data: emailExistente, error: errEmail } = await (supabase as any)
+      const { data: emailExistente } = await supabase
         .from('flota_perfil')
         .select('id, nombre_completo')
         .eq('email', nuevo.email.toLowerCase())
         .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
         .maybeSingle();
 
-      if (errEmail) { mostrarNotificacion('Error al validar email', 'error'); return false; }
-
-      if (emailExistente && typeof emailExistente === 'object' && 'nombre_completo' in emailExistente) {
-        mostrarNotificacion(`⚠️ El email ya está registrado para ${(emailExistente as { nombre_completo: string }).nombre_completo}.`, 'advertencia');
+      if (emailExistente) {
+        mostrarNotificacion(`El email ya está registrado para ${emailExistente.nombre_completo}.`, 'advertencia');
         return false;
       }
     }
@@ -311,7 +305,7 @@ export default function GestionFlota() {
     return true;
   };
 
-  // --- FUNCIÓN: enviar correo de flota usando fetch a la API ---
+  // --- FUNCIÓN: enviar correo ---
   const enviarCorreoFlota = async (perfil: FlotaPerfil, to?: string) => {
     setEnviandoCorreo(perfil.id);
     try {
@@ -321,7 +315,7 @@ export default function GestionFlota() {
         body: JSON.stringify({
           tipo: 'flota',
           datos: {
-            flotaId: perfil.id,              // ← REQUERIDO para el token de Telegram
+            flotaId: perfil.id,
             nombre_completo: perfil.nombre_completo,
             documento_id: perfil.documento_id,
             email: perfil.email,
@@ -349,40 +343,6 @@ export default function GestionFlota() {
     }
   };
 
-  // --- FUNCIÓN: enviar WhatsApp ---
-  const handleEnviarWhatsApp = async (perfil: FlotaPerfil) => {
-    if (!perfil.telefono) {
-      mostrarNotificacion('El perfil no tiene teléfono registrado', 'advertencia');
-      return;
-    }
-
-    setEnviandoWhatsApp(perfil.id);
-
-    const mensaje = `Hola ${perfil.nombre_completo}, tu perfil de flota ha sido registrado.\nTu PIN de acceso es: ${perfil.pin_secreto}.\nCuando llegues al almacén, un supervisor registrará tu ingreso.\nMás información en: https://almacen-final.vercel.app/`;
-
-    try {
-      const response = await fetch('/api/send-whatsapp', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          to: perfil.telefono,
-          message: mensaje
-        }),
-      });
-      const resultado = await response.json();
-
-      if (resultado.success) {
-        mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
-      } else {
-        mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
-      }
-    } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    } finally {
-      setEnviandoWhatsApp(null);
-    }
-  };
-
   // --- FUNCIÓN: enviar Telegram ---
   const handleEnviarTelegram = async (perfil: FlotaPerfil) => {
     if (!perfil.telefono) {
@@ -392,17 +352,33 @@ export default function GestionFlota() {
 
     setEnviandoTelegram(perfil.id);
 
-    const mensaje = `🚛 *Perfil de Flota Registrado*\n\nHola *${perfil.nombre_completo}*,\nTu PIN de acceso es: *${perfil.pin_secreto}*\n\nCuando llegues al almacén, un supervisor registrará tu ingreso.\nMás información: https://almacen-final.vercel.app/`;
-
     try {
+      const { data: telegramUser } = await supabase
+        .from('telegram_usuarios')
+        .select('chat_id')
+        .eq('empleado_id', perfil.id)
+        .maybeSingle();
+
+      if (!telegramUser) {
+        mostrarNotificacion(
+          'El perfil no ha iniciado conversación con el bot',
+          'error'
+        );
+        setEnviandoTelegram(null);
+        return;
+      }
+
+      const mensaje = `Perfil de Flota Registrado\n\nHola ${perfil.nombre_completo},\nTu PIN de acceso es: ${perfil.pin_secreto}\n\nMás información: https://almacen-final.vercel.app/`;
+
       const response = await fetch('/api/send-telegram', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          to: perfil.telefono,
-          message: mensaje
+          chat_id: telegramUser.chat_id,
+          text: mensaje
         }),
       });
+
       const resultado = await response.json();
 
       if (resultado.success) {
@@ -411,6 +387,7 @@ export default function GestionFlota() {
         mostrarNotificacion(`Error Telegram: ${resultado.error}`, 'error');
       }
     } catch (error: any) {
+      console.error('Error en Telegram:', error);
       mostrarNotificacion(`Error: ${error.message}`, 'error');
     } finally {
       setEnviandoTelegram(null);
@@ -420,7 +397,7 @@ export default function GestionFlota() {
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
   const toggleActivo = async (perfil: FlotaPerfil) => {
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('flota_perfil')
         .update({ activo: !perfil.activo })
         .eq('id', perfil.id);
@@ -459,24 +436,27 @@ export default function GestionFlota() {
           cant_rutas: nuevo.cant_rutas,
         };
 
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('flota_perfil')
           .update(updateData)
           .eq('id', editando.id);
 
         if (error) throw error;
         mostrarNotificacion('Perfil actualizado correctamente.', 'exito');
+        cancelarEdicion();
+        fetchPerfiles();
       } else {
-        const { data: pinGenerado, error: pinError } = await (supabase as any)
+        const { data: pinGenerado, error: pinError } = await supabase
           .rpc('generar_pin_flota_sucursal', { p_sucursal_codigo: sucursalDetectada });
+
         if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        const insertData = [{
+        const insertData = {
           nombre_completo: nuevo.nombre_completo,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
-          telefono: nuevo.telefono,
+          telefono: nuevo.telefono || null,
           nombre_flota: nuevo.nombre_flota,
           cant_choferes: nuevo.cant_choferes,
           cant_rutas: nuevo.cant_rutas,
@@ -484,17 +464,17 @@ export default function GestionFlota() {
           activo: true,
           fecha_creacion: new Date().toISOString(),
           sucursal_origen: sucursalDetectada,
-        }];
+        };
 
-        const { data: nuevoPerfil, error } = await (supabase as any)
+        const { data: nuevoPerfil, error } = await supabase
           .from('flota_perfil')
-          .insert(insertData)
+          .insert([insertData])
           .select()
           .single();
 
         if (error) throw error;
 
-        if (nuevo.email) {
+        if (nuevo.email && nuevoPerfil) {
           setModalConfirmacion({
             isOpen: true,
             perfil: nuevoPerfil as FlotaPerfil
@@ -502,9 +482,9 @@ export default function GestionFlota() {
         } else {
           mostrarNotificacion('Perfil de flota creado correctamente.', 'exito');
         }
+        cancelarEdicion();
+        fetchPerfiles();
       }
-
-      cancelarEdicion();
     } catch (error: any) {
       console.error(error);
       mostrarNotificacion(`Error: ${error.message}`, 'error');
@@ -514,7 +494,7 @@ export default function GestionFlota() {
   };
 
   // ------------------------------------------------------------
-  // FUNCIÓN PARA REENVIAR CORREO (CON MODAL)
+  // FUNCIÓN PARA REENVIAR CORREO
   // ------------------------------------------------------------
   const handleReenviarCorreo = (perfil: FlotaPerfil) => {
     if (!perfil.email) {
@@ -553,20 +533,20 @@ export default function GestionFlota() {
   };
 
   // ------------------------------------------------------------
-  // EXPORTAR EXCEL - UNIFICADO
+  // EXPORTAR EXCEL
   // ------------------------------------------------------------
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new();
     const data = perfiles.map((p) => ({
       Nombre: p.nombre_completo,
       Documento: p.documento_id,
-      Email: p.email,
-      Teléfono: p.telefono || '',
-      Flota: p.nombre_flota,
+      Email: p.email || '',
+      Telefono: p.telefono || '',
+      Flota: p.nombre_flota || '',
       Choferes: p.cant_choferes,
       Rutas: p.cant_rutas,
       PIN: p.pin_secreto,
-      Activo: p.activo ? 'SÍ' : 'NO',
+      Activo: p.activo ? 'SI' : 'NO',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -583,7 +563,7 @@ export default function GestionFlota() {
 
     const titulo = `GESTOR DE FLOTA`;
     const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
-    const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
+    const fechaInfo = `Fecha de emision: ${fechaEmision}`;
 
     XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
     XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
@@ -600,7 +580,7 @@ export default function GestionFlota() {
     const timestamp = getTimestamp();
     const filename = `flota_${timestamp}.xlsx`;
     XLSX.writeFile(wb, filename);
-    mostrarNotificacion('✅ ARCHIVO EXPORTADO', 'exito');
+    mostrarNotificacion('ARCHIVO EXPORTADO', 'exito');
   };
 
   // ------------------------------------------------------------
@@ -626,9 +606,8 @@ export default function GestionFlota() {
   // RENDERIZADO
   // ------------------------------------------------------------
   return (
-    <main className="min-h-screen bg-black p-3 text-white font-sans">
+    <main className="min-h-screen bg-gradient-to-b from-black to-[#050a14] p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
           tipo={notificacion.tipo}
@@ -637,87 +616,83 @@ export default function GestionFlota() {
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
         />
 
-        {/* HEADER */}
         <MemebreteSuperior
           usuario={user}
           onExportar={exportarExcel}
           onRegresar={handleRegresar}
         />
 
-        {/* FORMULARIO - Grid 9 columnas */}
-        <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
+        <div className={`bg-gradient-to-br from-[#0f172a] to-[#1a1a1a] p-4 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 shadow-lg shadow-amber-500/10' : 'border-blue-500/20'}`}>
           <form onSubmit={handleGuardar}>
-            <div className="grid grid-cols-9 gap-2">
-
-              {/* Col 1: NOMBRE */}
-              <div className="col-span-1">
+            <div className="grid grid-cols-1 md:grid-cols-9 gap-3">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="NOMBRE"
-                  placeholder="Nombre"
+                  placeholder="Nombre completo"
                   valor={nuevo.nombre_completo}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_completo: e.target.value })}
                   required
                   autoFocus
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 2: DOCUMENTO */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="DOCUMENTO"
-                  placeholder="DNI"
+                  placeholder="DNI / RUC"
                   valor={nuevo.documento_id}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                   required
                   mayusculas
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 3: EMAIL */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="EMAIL"
-                  placeholder="Email"
+                  placeholder="correo@empresa.com"
                   tipo="email"
                   valor={nuevo.email}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, email: e.target.value })}
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 4: TELÉFONO */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
-                  label="TELÉFONO"
-                  placeholder="+34 XXX XXX XXX"
+                  label="TELEFONO"
+                  placeholder="+34 600 000 000"
                   valor={nuevo.telefono}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, telefono: e.target.value })}
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 5: FLOTA */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="FLOTA"
-                  placeholder="Empresa"
+                  placeholder="Nombre de la flota"
                   valor={nuevo.nombre_flota}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre_flota: e.target.value })}
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 6: CHOFERES - CORREGIDO: SIN PROP MIN */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
-                  label="CHOF"
+                  label="CHOFERES"
                   placeholder="0"
                   tipo="number"
                   valor={nuevo.cant_choferes.toString()}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_choferes: parseInt(e.target.value) || 0 })}
                   required
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 7: RUTAS - CORREGIDO: SIN PROP MIN */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="RUTAS"
                   placeholder="0"
@@ -725,62 +700,60 @@ export default function GestionFlota() {
                   valor={nuevo.cant_rutas.toString()}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, cant_rutas: parseInt(e.target.value) || 0 })}
                   required
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 8: PIN (solo edición) */}
               {editando && (
-                <div className="col-span-1">
+                <div className="md:col-span-1">
                   <CampoEntrada
                     label="PIN"
                     valor={editando.pin_secreto || ''}
-                    onChange={() => { }}
+                    onChange={() => {}}
                     disabled
                     mayusculas
-                    className="border-blue-500/30"
+                    className="bg-blue-500/10 border-blue-500/30 text-blue-400"
                   />
                 </div>
               )}
 
-              {/* Col 9: BOTONES */}
-              <div className="col-span-1 flex flex-col items-stretch justify-center gap-1">
+              <div className="md:col-span-1 flex flex-col items-stretch justify-center gap-2">
                 <button
                   type="button"
                   onClick={cancelarEdicion}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all"
+                  className="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white font-black text-xs uppercase py-2.5 rounded-lg border border-rose-500/30 hover:border-rose-500 transition-all"
                 >
                   CANCELAR
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all disabled:opacity-50"
+                  className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white font-black text-xs uppercase py-2.5 rounded-lg border border-emerald-500/30 hover:border-emerald-500 transition-all disabled:opacity-50"
                 >
-                  ACEPTAR
+                  {loading ? '...' : 'ACEPTAR'}
                 </button>
               </div>
             </div>
           </form>
         </div>
 
-        {/* BUSCADOR */}
         <div className="mb-3">
           <Buscador
-            placeholder="BUSCAR PERFIL..."
+            placeholder="BUSCAR PERFIL POR NOMBRE, DOCUMENTO, EMAIL O FLOTA"
             value={filtro}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setFiltro(e.target.value)}
             onClear={() => setFiltro('')}
+            className="bg-[#0f172a] border-blue-500/20 focus:border-blue-500"
           />
         </div>
 
-        {/* TABLA - Con botones de WhatsApp y Telegram */}
-        <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
+        <div className="bg-gradient-to-br from-[#0f172a] to-[#1a1a1a] rounded-xl border border-blue-500/20 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: '1200px' }}>
-              <thead className="bg-[#0f172a] text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
+              <thead className="bg-black/40 text-[11px] font-black text-blue-400 uppercase tracking-wider sticky top-0 z-30 border-b border-blue-500/20">
                 <tr>
                   <th className="p-3 w-[18%]">NOMBRE / DOC</th>
-                  <th className="p-3 w-[22%]">📧 EMAIL / 📱 TEL</th>
+                  <th className="p-3 w-[22%]">EMAIL / TELEFONO</th>
                   <th className="p-3 w-[14%]">FLOTA</th>
                   <th className="p-3 text-center w-[5%]">CHOF</th>
                   <th className="p-3 text-center w-[5%]">RUT</th>
@@ -790,92 +763,90 @@ export default function GestionFlota() {
                   <th className="p-3 text-center w-[13%]">NOTIFICACIONES</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-blue-500/10">
                 {perfilesFiltrados.map((perfil) => (
-                  <tr key={perfil.id} className="hover:bg-white/[0.02] transition-colors">
-                    {/* COLUMNA 1: NOMBRE + DOCUMENTO unificados */}
+                  <tr key={perfil.id} className="hover:bg-blue-500/5 transition-colors group">
                     <td className="p-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <div
-                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${perfil.en_patio ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse' : 'bg-slate-600'}`}
+                          className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                            perfil.en_patio ? 'bg-amber-500 shadow-[0_0_12px_#f59e0b] animate-pulse' : 'bg-slate-600'
+                          }`}
                           title={perfil.en_patio ? 'En Patio' : 'Fuera del almacén'}
                         />
                         <div className="flex flex-col">
-                          <span className="font-bold text-[13px] uppercase text-white truncate" title={perfil.nombre_completo}>
-                            {perfil.nombre_completo.length > 20
-                              ? perfil.nombre_completo.substring(0, 18) + '...'
-                              : perfil.nombre_completo}
+                          <span className="font-bold text-sm uppercase text-white group-hover:text-blue-400 transition-colors truncate" title={perfil.nombre_completo}>
+                            {perfil.nombre_completo}
                           </span>
-                          <span className="text-slate-400 text-[11px] font-mono truncate">{perfil.documento_id}</span>
+                          <span className="text-slate-500 text-[10px] font-mono truncate">{perfil.documento_id}</span>
                         </div>
                       </div>
                     </td>
-                    {/* COLUMNA 2: EMAIL + TEL con emojis */}
+
                     <td className="p-3">
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-col gap-1">
                         <span className="text-slate-300 text-xs truncate" title={perfil.email || ''}>
-                          📧 {perfil.email || '-'}
+                          {perfil.email || '-'}
                         </span>
                         {perfil.telefono && (
                           <span className="text-emerald-400 text-xs truncate">
-                            📱 {perfil.telefono}
+                            {perfil.telefono}
                           </span>
                         )}
                       </div>
                     </td>
+
                     <td className="p-3 text-xs truncate text-white/80">{perfil.nombre_flota || '-'}</td>
                     <td className="p-3 text-center font-black text-xs">{perfil.cant_choferes}</td>
                     <td className="p-3 text-center font-black text-xs">{perfil.cant_rutas}</td>
+
                     <td className="p-3 text-center">
                       <div className="group relative inline-block">
                         <span className="text-xs font-mono text-slate-600 group-hover:hidden tracking-widest">••••••</span>
                         <span className="text-xs font-mono text-amber-500 hidden group-hover:block font-bold">{perfil.pin_secreto}</span>
                       </div>
                     </td>
+
                     <td className="p-3 text-center">
-                      {/* BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
                       <button
                         onClick={() => toggleActivo(perfil)}
-                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${perfil.activo
-                          ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
-                          : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
-                          }`}
+                        className={`px-3 py-1.5 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
+                          perfil.activo
+                            ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30'
+                            : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-500/30'
+                        }`}
                         title={perfil.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
                       >
                         {perfil.activo ? 'ACTIVO' : 'INACTIVO'}
                       </button>
                     </td>
-                    {/* EDITAR - compacto */}
+
                     <td className="p-3 text-center">
                       <button
                         onClick={() => editarPerfil(perfil)}
-                        className="text-blue-400 hover:text-white font-black text-[10px] uppercase px-3 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
+                        className="text-blue-400 hover:text-white font-black text-[10px] uppercase px-4 py-2 rounded-lg border border-blue-500/30 hover:bg-blue-600 transition-all group-hover:border-blue-500"
                       >
-                        ✏️
+                        EDITAR
                       </button>
                     </td>
-                    {/* NOTIFICACIONES */}
+
                     <td className="p-3 text-center">
-                      <div className="flex gap-1.5 items-center justify-center">
-                        {/* EMAIL */}
+                      <div className="flex gap-2 items-center justify-center">
                         <button
                           onClick={() => handleReenviarCorreo(perfil)}
                           disabled={enviandoCorreo === perfil.id}
                           title="Enviar correo de bienvenida"
-                          className="flex items-center gap-1 text-emerald-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
+                          className="flex items-center gap-1 text-emerald-400 hover:text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:bg-emerald-600 transition-all disabled:opacity-50"
                         >
-                          {enviandoCorreo === perfil.id ? '⏳' : '📧 Email'}
+                          {enviandoCorreo === perfil.id ? '...' : 'EMAIL'}
                         </button>
-                        {/* TELEGRAM → redirige a módulo de mensajería */}
                         <button
                           onClick={() => router.push('/admin/mensajeria')}
                           title="Ir al módulo de mensajería Telegram"
-                          className="flex items-center gap-1 text-blue-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-blue-400/20 hover:bg-blue-600 transition-all"
+                          className="flex items-center gap-1 text-blue-400 hover:text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-lg border border-blue-500/30 hover:bg-blue-600 transition-all"
                         >
-                          ✈️ Telegram
+                          TG
                         </button>
-                        {/* WHATSAPP — oculto hasta autorización Meta */}
-                        {/* <button onClick={() => handleEnviarWhatsApp(perfil)} …>WHATSAPP</button> */}
                       </div>
                     </td>
                   </tr>
@@ -884,14 +855,13 @@ export default function GestionFlota() {
             </table>
           </div>
           {perfilesFiltrados.length === 0 && (
-            <div className="p-6 text-center">
-              <p className="text-slate-500 text-[10px] uppercase tracking-widest">No hay perfiles que coincidan con la búsqueda.</p>
+            <div className="p-12 text-center">
+              <p className="text-slate-500 text-xs uppercase tracking-widest">No hay perfiles que coincidan con la búsqueda.</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Modal de Confirmación para envío de correo */}
       <ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
         onClose={() => setModalConfirmacion({ isOpen: false, perfil: null })}

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 import { getAuthHeaders } from '@/lib/apiClient';
 import {
   CampoEntrada,
@@ -11,29 +11,8 @@ import {
   NotificacionSistema
 } from '../../components';
 import { useSucursalGlobal } from '@/lib/SucursalContext';
-
-
-
-// ... resto del código sin cambios
-
-// ------------------------------------------------------------
-// DEFINICIÓN DE TIPOS PARA SUPABASE
-// ------------------------------------------------------------
-type EmpleadoUpdate = {
-  nombre: string;
-  documento_id: string;
-  email: string;
-  telefono: string;
-  rol: string;
-  activo: boolean;
-  permiso_reportes: boolean;
-  nivel_acceso: number;
-};
-
-type EmpleadoInsert = EmpleadoUpdate & {
-  pin_seguridad: string;
-  pin_generado_en: string;
-};
+import { useEmpleados } from '@/lib/hooks/useEmpleados';
+import type { Empleado } from '@/lib/types/empleados';
 
 // ------------------------------------------------------------
 // COMPONENTE MODAL DE CONFIRMACIÓN
@@ -100,7 +79,6 @@ const ModalConfirmacion = ({
 // ------------------------------------------------------------
 // FUNCIONES AUXILIARES
 // ------------------------------------------------------------
-
 const formatearRol = (rol: string): string => {
   if (!rol) return 'USUARIO';
   const rolLower = rol.toLowerCase();
@@ -125,9 +103,19 @@ const getTimestamp = () => {
 };
 
 // ------------------------------------------------------------
-// MEMBRETE SUPERIOR - DISTRIBUIDO SIN ESPACIOS
+// MEMBRETE SUPERIOR
 // ------------------------------------------------------------
-const MemebreteSuperior = ({ usuario, onExportar, onRegresar, onSincronizar }: { usuario?: any; onExportar: () => void; onRegresar: () => void; onSincronizar: () => void }) => {
+const MemebreteSuperior = ({ 
+  usuario, 
+  onExportar, 
+  onRegresar, 
+  onSincronizar 
+}: { 
+  usuario?: any; 
+  onExportar: () => void; 
+  onRegresar: () => void; 
+  onSincronizar: () => void;
+}) => {
   const titulo = "GESTOR DE EMPLEADOS";
   const palabras = titulo.split(' ');
   const ultimaPalabra = palabras.pop();
@@ -135,40 +123,38 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar, onSincronizar }: {
 
   return (
     <div className="w-full mb-4">
-      <div className="w-full bg-[#1a1a1a] px-6 py-4 rounded-[25px] border border-white/5 shadow-2xl flex items-center justify-between">
-        {/* Título y usuario a la izquierda */}
+      <div className="w-full bg-gradient-to-r from-[#1a1a1a] to-[#0f172a] px-6 py-4 rounded-[25px] border border-blue-500/20 shadow-2xl flex items-center justify-between">
         <div className="flex flex-col">
           <h1 className="text-xl font-black italic uppercase tracking-tighter">
             <span className="text-white">{primerasPalabras} </span>
-            <span className="text-blue-700">{ultimaPalabra}</span>
+            <span className="text-blue-500">{ultimaPalabra}</span>
           </h1>
           {usuario && (
-            <div className="text-sm">
-              <span className="text-white">{usuario.nombre}</span>
-              <span className="text-white mx-1">•</span>
-              <span className="text-blue-500">{formatearRol(usuario.rol)}</span>
-              <span className="text-white ml-1">({usuario.nivel_acceso})</span>
+            <div className="text-sm mt-1">
+              <span className="text-white/80">{usuario.nombre}</span>
+              <span className="text-white/50 mx-1">•</span>
+              <span className="text-blue-400">{formatearRol(usuario.rol)}</span>
+              <span className="text-white/50 ml-1">(Nivel {usuario.nivel_acceso})</span>
             </div>
           )}
         </div>
 
-        {/* Botones a la derecha */}
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             onClick={onSincronizar}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            className="bg-purple-600/20 hover:bg-purple-600 text-purple-400 hover:text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider border border-purple-500/30 hover:border-purple-500 transition-all active:scale-95"
           >
-            🔄 SINCRONIZAR
+            SINCRONIZAR
           </button>
           <button
             onClick={onExportar}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider border border-emerald-500/30 hover:border-emerald-500 transition-all active:scale-95"
           >
             EXPORTAR
           </button>
           <button
             onClick={onRegresar}
-            className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-transform"
+            className="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider border border-blue-500/30 hover:border-blue-500 transition-all active:scale-95"
           >
             REGRESAR
           </button>
@@ -183,30 +169,30 @@ const MemebreteSuperior = ({ usuario, onExportar, onRegresar, onSincronizar }: {
 // ------------------------------------------------------------
 export default function GestionEmpleados() {
   const [user, setUser] = useState<any>(null);
-  const [empleados, setEmpleados] = useState<any[]>([]);
-  const [editando, setEditando] = useState<any>(null);
+  const [empleados, setEmpleados] = useState<Empleado[]>([]);
+  const [editando, setEditando] = useState<Empleado | null>(null);
   const [filtro, setFiltro] = useState('');
   const [loading, setLoading] = useState(false);
   const [enviandoCorreo, setEnviandoCorreo] = useState<string | null>(null);
   const [enviandoWhatsApp, setEnviandoWhatsApp] = useState<string | null>(null);
   const [enviandoTelegram, setEnviandoTelegram] = useState<string | null>(null);
   const [notificacion, setNotificacion] = useState<{ mensaje: string; tipo: 'exito' | 'error' | 'advertencia' | null }>({ mensaje: '', tipo: null });
-  const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: any | null }>({ isOpen: false, empleado: null });
+  const [modalConfirmacion, setModalConfirmacion] = useState<{ isOpen: boolean; empleado: Empleado | null }>({ isOpen: false, empleado: null });
   const router = useRouter();
   const [sucursalDetectada, setSucursalDetectada] = useState<string>('01');
-  const [sucursalNombre, setSucursalNombre] = useState<string>('');
   const { sucursalFiltro: sGlobal } = useSucursalGlobal();
+  const { listar, insertar, actualizar, toggleActivo, generarPin } = useEmpleados();
 
   const estadoInicial = {
-    nombre: '',
-    documento_id: '',
-    email: '',
-    telefono: '',
-    rol: 'empleado',
-    activo: true,
-    permiso_reportes: false,
-    nivel_acceso: 1,
-  };
+  nombre: '',
+  documento_id: '',
+  email: '',
+  telefono: '',
+  rol: 'empleado' as Empleado['rol'], // ✅ Type assertion aquí
+  activo: true,
+  permiso_reportes: false,
+  nivel_acceso: 1,
+};
   const [nuevo, setNuevo] = useState(estadoInicial);
 
   const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' | 'advertencia') => {
@@ -215,12 +201,9 @@ export default function GestionEmpleados() {
   };
 
   const fetchEmpleados = useCallback(async () => {
-    const { data } = await (supabase as any)
-      .from('empleados')
-      .select('*')
-      .order('nombre', { ascending: true });
-    if (data) setEmpleados(data);
-  }, []);
+    const data = await listar();
+    setEmpleados(data);
+  }, [listar]);
 
   useEffect(() => {
     const sessionData = localStorage.getItem('user_session');
@@ -236,7 +219,6 @@ export default function GestionEmpleados() {
     setUser(currentUser);
     fetchEmpleados();
 
-    // Detectar sucursal por GPS para asignar PIN correcto
     (async () => {
       try {
         const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
@@ -249,7 +231,6 @@ export default function GestionEmpleados() {
         const json = await res.json();
         if (json.deteccion) {
           setSucursalDetectada(json.deteccion.codigo);
-          setSucursalNombre(json.deteccion.nombre);
         }
       } catch {
         // Si GPS falla, queda '01' por defecto
@@ -262,9 +243,7 @@ export default function GestionEmpleados() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel).catch(error => {
-        console.error('Error removing channel:', error);
-      });
+      supabase.removeChannel(channel).catch(console.error);
     };
   }, [fetchEmpleados, router]);
 
@@ -277,48 +256,39 @@ export default function GestionEmpleados() {
     return [1];
   };
 
+  // ------------------------------------------------------------
+  // VALIDAR DUPLICADOS
+  // ------------------------------------------------------------
   const validarDuplicados = async (): Promise<boolean> => {
-    const { data: docExistente, error: errDoc } = await (supabase as any)
+    const { data: docExistente } = await supabase
       .from('empleados')
       .select('id, nombre')
       .eq('documento_id', nuevo.documento_id)
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .maybeSingle();
 
-    if (errDoc) {
-      mostrarNotificacion('Error al validar documento ID', 'error');
-      return false;
-    }
-
     if (docExistente) {
-      const existente = docExistente as { id: string; nombre: string };
-      mostrarNotificacion(`⚠️ El documento ID ya está registrado para ${existente.nombre}.`, 'advertencia');
+      mostrarNotificacion(`El documento ID ya está registrado para ${docExistente.nombre}.`, 'advertencia');
       return false;
     }
 
-    const { data: emailExistente, error: errEmail } = await (supabase as any)
+    const { data: emailExistente } = await supabase
       .from('empleados')
       .select('id, nombre')
       .eq('email', nuevo.email.toLowerCase())
       .neq('id', editando?.id || '00000000-0000-0000-0000-000000000000')
       .maybeSingle();
 
-    if (errEmail) {
-      mostrarNotificacion('Error al validar email', 'error');
-      return false;
-    }
-
     if (emailExistente) {
-      const existente = emailExistente as { id: string; nombre: string };
-      mostrarNotificacion(`⚠️ El email ya está registrado para ${existente.nombre}.`, 'advertencia');
+      mostrarNotificacion(`El email ya está registrado para ${emailExistente.nombre}.`, 'advertencia');
       return false;
     }
 
     return true;
   };
 
-  // --- FUNCIÓN: enviar correo usando fetch a la API ---
-  const enviarCorreoEmpleado = async (empleado: any, to?: string) => {
+  // --- FUNCIÓN: enviar correo ---
+  const enviarCorreoEmpleado = async (empleado: Empleado, to?: string) => {
     setEnviandoCorreo(empleado.id);
     try {
       const response = await fetch('/api/send-email', {
@@ -327,7 +297,7 @@ export default function GestionEmpleados() {
         body: JSON.stringify({
           tipo: 'empleado',
           datos: {
-            empleadoId: empleado.id,          // ← REQUERIDO para el token de Telegram
+            empleadoId: empleado.id,
             nombre: empleado.nombre,
             documento_id: empleado.documento_id,
             email: empleado.email,
@@ -354,68 +324,27 @@ export default function GestionEmpleados() {
     }
   };
 
-  // --- FUNCIÓN: enviar WhatsApp ---
-  const handleEnviarWhatsApp = async (empleado: any) => {
-    if (!empleado.telefono) {
-      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
-      return;
-    }
-
-    setEnviandoWhatsApp(empleado.id);
-
-    const mensaje = `Hola ${empleado.nombre}, este es un mensaje del sistema de gestión.\nTu PIN de acceso es: ${empleado.pin_seguridad}.\nPuedes ingresar en: https://almacen-final.vercel.app/`;
-
-    try {
-      const response = await fetch('/api/send-whatsapp', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          to: empleado.telefono,
-          message: mensaje
-        }),
-      });
-      const resultado = await response.json();
-
-      if (resultado.success) {
-        mostrarNotificacion('WhatsApp enviado correctamente', 'exito');
-      } else {
-        mostrarNotificacion(`Error WhatsApp: ${resultado.error}`, 'error');
-      }
-    } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
-    } finally {
-      setEnviandoWhatsApp(null);
-    }
-  };
-
-  // --- FUNCIÓN: enviar Telegram (MEJORADA) ---
-  const handleEnviarTelegram = async (empleado: any) => {
-    if (!empleado.telefono) {
-      mostrarNotificacion('El empleado no tiene teléfono registrado', 'advertencia');
-      return;
-    }
-
+  // --- FUNCIÓN: enviar Telegram ---
+  const handleEnviarTelegram = async (empleado: Empleado) => {
     setEnviandoTelegram(empleado.id);
 
     try {
-      const { data: telegramUser, error } = await (supabase as any)
+      const { data: telegramUser } = await supabase
         .from('telegram_usuarios')
         .select('chat_id')
         .eq('empleado_id', empleado.id)
         .maybeSingle();
 
-      if (error) throw error;
-
       if (!telegramUser) {
         mostrarNotificacion(
-          '❌ El empleado no ha iniciado conversación con @Notificaacceso_bot',
+          'El empleado no ha iniciado conversación con @Notificaacceso_bot',
           'error'
         );
         setEnviandoTelegram(null);
         return;
       }
 
-      const mensaje = `🔐 *Credenciales de acceso*\n\nHola *${empleado.nombre}*,\nTu PIN de acceso es: *${empleado.pin_seguridad}*\n\nPuedes ingresar en: https://almacen-final.vercel.app/`;
+      const mensaje = `Credenciales de acceso\n\nHola ${empleado.nombre},\nTu PIN de acceso es: ${empleado.pin_seguridad}\n\nPuedes ingresar en: https://almacen-final.vercel.app/`;
 
       const response = await fetch('/api/send-telegram', {
         method: 'POST',
@@ -429,35 +358,27 @@ export default function GestionEmpleados() {
       const resultado = await response.json();
 
       if (resultado.ok) {
-        mostrarNotificacion('✅ Telegram enviado correctamente', 'exito');
+        mostrarNotificacion('Telegram enviado correctamente', 'exito');
       } else {
-        mostrarNotificacion(`❌ Error Telegram: ${resultado.description || 'Error desconocido'}`, 'error');
+        mostrarNotificacion(`Error Telegram: ${resultado.description || 'Error desconocido'}`, 'error');
       }
     } catch (error: any) {
       console.error('Error en Telegram:', error);
-      mostrarNotificacion(`❌ Error: ${error.message}`, 'error');
+      mostrarNotificacion(`Error: ${error.message}`, 'error');
     } finally {
       setEnviandoTelegram(null);
     }
   };
 
   // --- FUNCIÓN: cambiar estado activo/inactivo ---
-  const toggleActivo = async (empleado: any) => {
-    try {
-      const { error } = await (supabase as any)
-        .from('empleados')
-        .update({ activo: !empleado.activo })
-        .eq('id', empleado.id);
-
-      if (error) throw error;
-
+  const handleToggleActivo = async (empleado: Empleado) => {
+    const success = await toggleActivo(empleado.id, empleado.activo);
+    if (success) {
       mostrarNotificacion(
         empleado.activo ? 'Empleado desactivado' : 'Empleado activado',
         'exito'
       );
       fetchEmpleados();
-    } catch (error: any) {
-      mostrarNotificacion(`Error: ${error.message}`, 'error');
     }
   };
 
@@ -473,35 +394,31 @@ export default function GestionEmpleados() {
       if (!esValido) { setLoading(false); return; }
 
       if (editando) {
-        const updateData = {
+        const result = await actualizar(editando.id, {
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
-          telefono: nuevo.telefono,
+          telefono: nuevo.telefono || null,
           rol: nuevo.rol,
           activo: nuevo.activo,
           permiso_reportes: nuevo.permiso_reportes,
           nivel_acceso: nuevo.nivel_acceso,
-        };
+        });
 
-        const { error } = await (supabase as any)
-          .from('empleados')
-          .update(updateData)
-          .eq('id', editando.id);
-
-        if (error) throw error;
-        mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
+        if (result) {
+          mostrarNotificacion('Empleado actualizado correctamente.', 'exito');
+          cancelarEdicion();
+          fetchEmpleados();
+        }
       } else {
-        const { data: pinGenerado, error: pinError } = await (supabase as any)
-          .rpc('generar_pin_empleado', { p_sucursal_codigo: sucursalDetectada });
-        if (pinError) throw new Error('Error al generar PIN: ' + pinError.message);
+        const pinGenerado = await generarPin(sucursalDetectada);
         if (!pinGenerado) throw new Error('No se pudo generar el PIN');
 
-        const insertData = [{
+        const nuevoEmpleado = await insertar({
           nombre: nuevo.nombre,
           documento_id: nuevo.documento_id,
           email: nuevo.email.toLowerCase(),
-          telefono: nuevo.telefono,
+          telefono: nuevo.telefono || null,
           pin_seguridad: pinGenerado,
           rol: nuevo.rol,
           activo: nuevo.activo,
@@ -509,27 +426,22 @@ export default function GestionEmpleados() {
           nivel_acceso: nuevo.nivel_acceso,
           pin_generado_en: new Date().toISOString(),
           sucursal_origen: sucursalDetectada,
-        }];
+          en_almacen: false,
+        });
 
-        const { data: nuevoEmpleado, error } = await (supabase as any)
-          .from('empleados')
-          .insert(insertData)
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        if (nuevo.email) {
-          setModalConfirmacion({
-            isOpen: true,
-            empleado: nuevoEmpleado
-          });
-        } else {
-          mostrarNotificacion('Empleado creado correctamente.', 'exito');
+        if (nuevoEmpleado) {
+          if (nuevo.email) {
+            setModalConfirmacion({
+              isOpen: true,
+              empleado: nuevoEmpleado
+            });
+          } else {
+            mostrarNotificacion('Empleado creado correctamente.', 'exito');
+          }
+          cancelarEdicion();
+          fetchEmpleados();
         }
       }
-
-      cancelarEdicion();
     } catch (error: any) {
       console.error(error);
       mostrarNotificacion(`Error: ${error.message}`, 'error');
@@ -539,9 +451,9 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // FUNCIÓN PARA REENVIAR CORREO (CON MODAL)
+  // FUNCIÓN PARA REENVIAR CORREO
   // ------------------------------------------------------------
-  const handleReenviarCorreo = (empleado: any) => {
+  const handleReenviarCorreo = (empleado: Empleado) => {
     if (!empleado.email) {
       mostrarNotificacion('El empleado no tiene email para reenviar.', 'advertencia');
       return;
@@ -563,7 +475,7 @@ export default function GestionEmpleados() {
   // ------------------------------------------------------------
   // EDITAR EMPLEADO
   // ------------------------------------------------------------
-  const editarEmpleado = (emp: any) => {
+  const editarEmpleado = (emp: Empleado) => {
     setEditando(emp);
     setNuevo({
       nombre: emp.nombre,
@@ -579,7 +491,7 @@ export default function GestionEmpleados() {
   };
 
   // ------------------------------------------------------------
-  // EXPORTAR EXCEL - UNIFICADO
+  // EXPORTAR EXCEL
   // ------------------------------------------------------------
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -587,12 +499,12 @@ export default function GestionEmpleados() {
       Nombre: e.nombre,
       Documento: e.documento_id,
       Email: e.email,
-      Teléfono: e.telefono || '',
+      Telefono: e.telefono || '',
       Rol: e.rol,
       Nivel: e.nivel_acceso,
       PIN: e.pin_seguridad,
-      Activo: e.activo ? 'SÍ' : 'NO',
-      Reportes: e.permiso_reportes ? 'SÍ' : 'NO',
+      Activo: e.activo ? 'SI' : 'NO',
+      Reportes: e.permiso_reportes ? 'SI' : 'NO',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -609,7 +521,7 @@ export default function GestionEmpleados() {
 
     const titulo = `GESTOR DE EMPLEADOS`;
     const empleadoInfo = user ? `${user.nombre} - ${formatearRol(user.rol)} (Nivel ${user.nivel_acceso})` : 'Sistema';
-    const fechaInfo = `Fecha de emisión: ${fechaEmision}`;
+    const fechaInfo = `Fecha de emision: ${fechaEmision}`;
 
     XLSX.utils.sheet_add_aoa(ws, [[titulo]], { origin: 'A1' });
     XLSX.utils.sheet_add_aoa(ws, [[empleadoInfo]], { origin: 'A2' });
@@ -657,9 +569,8 @@ export default function GestionEmpleados() {
   // RENDERIZADO
   // ------------------------------------------------------------
   return (
-    <main className="min-h-screen bg-black p-3 text-white font-sans">
+    <main className="min-h-screen bg-gradient-to-b from-black to-[#050a14] p-3 text-white font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* NOTIFICACIÓN FLOTANTE */}
         <NotificacionSistema
           mensaje={notificacion.mensaje}
           tipo={notificacion.tipo}
@@ -668,7 +579,6 @@ export default function GestionEmpleados() {
           onCerrar={() => setNotificacion({ mensaje: '', tipo: null })}
         />
 
-        {/* HEADER - DISTRIBUIDO SIN ESPACIOS */}
         <MemebreteSuperior
           usuario={user}
           onExportar={exportarExcel}
@@ -676,66 +586,63 @@ export default function GestionEmpleados() {
           onSincronizar={handleSincronizarMasiva}
         />
 
-        {/* FORMULARIO - Grid 9 columnas */}
-        <div className={`bg-[#0f172a] p-3 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 bg-amber-500/5' : 'border-white/5'}`}>
+        <div className={`bg-gradient-to-br from-[#0f172a] to-[#1a1a1a] p-4 rounded-xl border transition-all mb-3 ${editando ? 'border-amber-500/50 shadow-lg shadow-amber-500/10' : 'border-blue-500/20'}`}>
           <form onSubmit={handleGuardar}>
-            <div className="grid grid-cols-9 gap-2">
-
-              {/* Col 1: NOMBRE */}
-              <div className="col-span-1">
+            <div className="grid grid-cols-1 md:grid-cols-9 gap-3">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="NOMBRE"
-                  placeholder="Nombre"
+                  placeholder="Nombre completo"
                   valor={nuevo.nombre}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, nombre: e.target.value })}
                   required
                   autoFocus
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 2: DOCUMENTO */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="DOCUMENTO"
-                  placeholder="DNI"
+                  placeholder="DNI / RUC"
                   valor={nuevo.documento_id}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, documento_id: e.target.value })}
                   required
                   mayusculas
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 3: EMAIL */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
                   label="EMAIL"
-                  placeholder="Email"
+                  placeholder="correo@empresa.com"
                   tipo="email"
                   valor={nuevo.email}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, email: e.target.value })}
                   required
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 4: TELÉFONO */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <CampoEntrada
-                  label="TELÉFONO"
-                  placeholder="+34 XXX XXX XXX"
+                  label="TELEFONO"
+                  placeholder="+34 600 000 000"
                   valor={nuevo.telefono}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNuevo({ ...nuevo, telefono: e.target.value })}
+                  className="bg-black/30 border-white/10 focus:border-blue-500"
                 />
               </div>
 
-              {/* Col 5: ROL */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <SelectOpcion
                   label="ROL"
                   value={nuevo.rol}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) =>
                     setNuevo({
                       ...nuevo,
-                      rol: e.target.value,
+                      rol: e.target.value as Empleado['rol'],
                       nivel_acceso:
                         e.target.value === 'supervisor' ? 3 :
                           e.target.value === 'admin' ? 4 :
@@ -748,59 +655,58 @@ export default function GestionEmpleados() {
                     { value: 'admin', label: 'ADMIN' },
                     { value: 'tecnico', label: 'TECNICO' }
                   ]}
+                  className="bg-black/30 border-white/10"
                 />
               </div>
 
-              {/* Col 6: NIVEL */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <SelectOpcion
                   label="NIVEL"
                   value={nuevo.nivel_acceso}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => setNuevo({ ...nuevo, nivel_acceso: parseInt(e.target.value) })}
                   options={obtenerOpcionesNivel().map(n => ({ value: n, label: n.toString() }))}
+                  className="bg-black/30 border-white/10"
                 />
               </div>
 
-              {/* Col 7: REPORTES */}
-              <div className="col-span-1">
+              <div className="md:col-span-1">
                 <SelectOpcion
                   label="REPORTES"
                   value={nuevo.permiso_reportes ? 'si' : 'no'}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => setNuevo({ ...nuevo, permiso_reportes: e.target.value === 'si' })}
                   options={[
                     { value: 'no', label: 'NO' },
-                    { value: 'si', label: 'SÍ' }
+                    { value: 'si', label: 'SI' }
                   ]}
+                  className="bg-black/30 border-white/10"
                 />
               </div>
 
-              {/* Col 8: PIN (solo edición) */}
               {editando && (
-                <div className="col-span-1">
+                <div className="md:col-span-1">
                   <CampoEntrada
                     label="PIN"
                     valor={editando.pin_seguridad || ''}
-                    onChange={() => { }}
+                    onChange={() => {}}
                     disabled
                     mayusculas
-                    className="border-blue-500/30"
+                    className="bg-blue-500/10 border-blue-500/30 text-blue-400"
                   />
                 </div>
               )}
 
-              {/* Col 9: BOTONES - ESTILO FLOTA (sin BotonIcono) */}
-              <div className="col-span-1 flex flex-col items-stretch justify-center gap-1">
+              <div className="md:col-span-1 flex flex-col items-stretch justify-center gap-2">
                 <button
                   type="button"
                   onClick={cancelarEdicion}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all"
+                  className="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white font-black text-xs uppercase py-2.5 rounded-lg border border-rose-500/30 hover:border-rose-500 transition-all"
                 >
                   CANCELAR
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase py-2 rounded-lg transition-all disabled:opacity-50"
+                  className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white font-black text-xs uppercase py-2.5 rounded-lg border border-emerald-500/30 hover:border-emerald-500 transition-all disabled:opacity-50"
                 >
                   {loading ? '...' : 'ACEPTAR'}
                 </button>
@@ -809,21 +715,20 @@ export default function GestionEmpleados() {
           </form>
         </div>
 
-        {/* BUSCADOR */}
         <div className="mb-3">
           <Buscador
-            placeholder="BUSCAR EMPLEADO..."
+            placeholder="BUSCAR EMPLEADO POR NOMBRE, DOCUMENTO, EMAIL O TELEFONO"
             value={filtro}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setFiltro(e.target.value)}
             onClear={() => setFiltro('')}
+            className="bg-[#0f172a] border-blue-500/20 focus:border-blue-500"
           />
         </div>
 
-        {/* TABLA - Con distribución de 2 columnas: nombre+documento | email+teléfono */}
-        <div className="bg-[#0f172a] rounded-xl border border-white/5 overflow-hidden max-h-[60vh] overflow-y-auto">
+        <div className="bg-gradient-to-br from-[#0f172a] to-[#1a1a1a] rounded-xl border border-blue-500/20 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: '1200px' }}>
-              <thead className="bg-[#0f172a] text-[11px] font-black text-slate-400 uppercase tracking-wider sticky top-0 z-30 border-b border-white/10">
+              <thead className="bg-black/40 text-[11px] font-black text-blue-400 uppercase tracking-wider sticky top-0 z-30 border-b border-blue-500/20">
                 <tr>
                   <th className="p-3 w-[18%]">NOMBRE / DOC</th>
                   <th className="p-3 w-[22%]">EMAIL / TELEFONO</th>
@@ -836,34 +741,32 @@ export default function GestionEmpleados() {
                   <th className="p-3 text-center w-[18%]">NOTIFICACIONES</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-blue-500/10">
                 {empleadosFiltrados.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors">
-                    {/* COLUMNA 1: NOMBRE + DOCUMENTO */}
+                  <tr key={emp.id} className="hover:bg-blue-500/5 transition-colors group">
                     <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        {/* INDICADOR PARA EN_ALMACEN */}
+                      <div className="flex items-center gap-3">
                         <div
-                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${emp.en_almacen
-                            ? 'bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse'
-                            : 'bg-slate-600'
-                            }`}
-                          title={emp.en_almacen ? 'En almacén' : 'Fuera del almacén'}
+                          className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                            emp.en_almacen
+                              ? 'bg-emerald-500 shadow-[0_0_12px_#10b981] animate-pulse'
+                              : 'bg-slate-600'
+                          }`}
+                          title={emp.en_almacen ? 'En almacen' : 'Fuera del almacen'}
                         />
                         <div className="flex flex-col">
-                          <span className="font-bold text-[13px] uppercase text-white truncate" title={emp.nombre}>
-                            {emp.nombre.length > 20 ? emp.nombre.substring(0, 18) + '...' : emp.nombre}
+                          <span className="font-bold text-sm uppercase text-white group-hover:text-blue-400 transition-colors truncate" title={emp.nombre}>
+                            {emp.nombre}
                           </span>
-                          <span className="text-slate-400 text-[11px] font-mono truncate" title={emp.documento_id}>
+                          <span className="text-slate-500 text-[10px] font-mono truncate" title={emp.documento_id}>
                             {emp.documento_id}
                           </span>
                         </div>
                       </div>
                     </td>
 
-                    {/* COLUMNA 2: EMAIL + TELÉFONO con emojis */}
                     <td className="p-3">
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-col gap-1">
                         <span className="text-slate-300 text-xs truncate" title={emp.email}>
                           {emp.email}
                         </span>
@@ -886,54 +789,52 @@ export default function GestionEmpleados() {
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${emp.permiso_reportes ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                        {emp.permiso_reportes ? 'SÍ' : 'NO'}
+                      <span className={`text-[10px] font-black px-2 py-1 rounded-full ${
+                        emp.permiso_reportes 
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                          : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                      }`}>
+                        {emp.permiso_reportes ? 'SI' : 'NO'}
                       </span>
                     </td>
                     <td className="p-3 text-center">
-                      {/* BOTÓN DE ACTIVO/INACTIVO - CLICABLE */}
                       <button
-                        onClick={() => toggleActivo(emp)}
-                        className={`px-2 py-1 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${emp.activo
-                          ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
-                          : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30'
-                          }`}
+                        onClick={() => handleToggleActivo(emp)}
+                        className={`px-3 py-1.5 rounded-full text-[9px] font-black transition-all cursor-pointer hover:scale-105 ${
+                          emp.activo
+                            ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30'
+                            : 'bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-500/30'
+                        }`}
                         title={emp.activo ? 'Activo (haz clic para desactivar)' : 'Inactivo (haz clic para activar)'}
                       >
                         {emp.activo ? 'ACTIVO' : 'INACTIVO'}
                       </button>
                     </td>
-                    {/* EDITAR - compacto */}
                     <td className="p-3 text-center">
                       <button
                         onClick={() => editarEmpleado(emp)}
-                        className="text-blue-400 hover:text-white font-black text-[10px] uppercase px-3 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-600 transition-all"
+                        className="text-blue-400 hover:text-white font-black text-[10px] uppercase px-4 py-2 rounded-lg border border-blue-500/30 hover:bg-blue-600 transition-all group-hover:border-blue-500"
                       >
                         EDITAR
                       </button>
                     </td>
-                    {/* NOTIFICACIONES */}
                     <td className="p-3 text-center">
-                      <div className="flex gap-1.5 items-center justify-center">
-                        {/* EMAIL */}
+                      <div className="flex gap-2 items-center justify-center">
                         <button
                           onClick={() => handleReenviarCorreo(emp)}
                           disabled={enviandoCorreo === emp.id}
                           title="Enviar correo de bienvenida"
-                          className="flex items-center gap-1 text-emerald-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50"
+                          className="flex items-center gap-1 text-emerald-400 hover:text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:bg-emerald-600 transition-all disabled:opacity-50"
                         >
                           {enviandoCorreo === emp.id ? '...' : 'EMAIL'}
                         </button>
-                        {/* TELEGRAM → redirige a módulo de mensajería */}
                         <button
                           onClick={() => router.push('/admin/mensajeria')}
                           title="Ir al modulo de mensajeria Telegram"
-                          className="flex items-center gap-1 text-blue-400 hover:text-white font-black text-[10px] uppercase px-2.5 py-1.5 rounded-lg border border-blue-400/20 hover:bg-blue-600 transition-all"
+                          className="flex items-center gap-1 text-blue-400 hover:text-white font-black text-[9px] uppercase px-3 py-1.5 rounded-lg border border-blue-500/30 hover:bg-blue-600 transition-all"
                         >
-                          TELEGRAM
+                          TG
                         </button>
-                        {/* WHATSAPP — oculto hasta autorización Meta */}
-                        {/* <button onClick={() => handleEnviarWhatsApp(emp)} …>WHATSAPP</button> */}
                       </div>
                     </td>
                   </tr>
@@ -942,14 +843,13 @@ export default function GestionEmpleados() {
             </table>
           </div>
           {empleadosFiltrados.length === 0 && (
-            <div className="p-6 text-center">
-              <p className="text-slate-500 text-[10px] uppercase tracking-widest">No hay empleados que coincidan con la búsqueda.</p>
+            <div className="p-12 text-center">
+              <p className="text-slate-500 text-xs uppercase tracking-widest">No hay empleados que coincidan con la busqueda.</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Modal de Confirmación para envío de correo */}
       <ModalConfirmacion
         isOpen={modalConfirmacion.isOpen}
         onClose={() => setModalConfirmacion({ isOpen: false, empleado: null })}

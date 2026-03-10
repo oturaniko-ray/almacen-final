@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2017",
+    "typeRoots": ["./node_modules/@types", "./types"],
     "lib": ["dom", "dom.iterable", "esnext"],
+    "baseUrl": ".",
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,7 +21,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"]  // ← ESTA LÍNEA ES CRUCIAL
     }
   },
   "include": [

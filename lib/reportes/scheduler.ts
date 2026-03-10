@@ -1,188 +1,115 @@
-import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { generarTimesheetExcel, generarComparativaExcel, generarAusenciasExcel } from './generadores';
-import type { ReporteProgramado } from './types';
+import { enviarReportePorEmail } from '@/lib/email/reportes';
+import { createServerSupabaseClient } from '@/lib/supabase/client';
+import { format } from 'date-fns';
 
-export class ReporteScheduler {
-  private supabase: any;
+interface ReporteProgramado {
+  id: string;
+  tipo: 'timesheet' | 'comparativa' | 'ausencias';
+  frecuencia: 'diario' | 'semanal' | 'mensual';
+  destinatarios: string[];
+  activo: boolean;
+}
 
-  constructor() {
-    // Inicializar sin cliente, se creará bajo demanda
-  }
+export async function ejecutarReportesProgramados() {
+  const supabase = await createServerSupabaseClient();
+  
+  // Obtener reportes programados activos
+  const { data: reportes } = await supabase
+    .from('reportes_programados')
+    .select('*')
+    .eq('activo', true);
 
-  private async getClient() {
-    if (!this.supabase) {
-      this.supabase = await createServerSupabaseClient();
-    }
-    return this.supabase;
-  }
+  if (!reportes) return;
 
-  // Calcular próxima fecha de envío
-  calcularProximaFecha(reporte: Partial<ReporteProgramado>): Date | null {
-    const ahora = new Date();
-    const [hora, minuto] = (reporte.hora_envio || '08:00').split(':').map(Number);
-    
-    let fecha = new Date();
-    fecha.setHours(hora, minuto, 0, 0);
-    
-    if (fecha <= ahora) {
-      // Si ya pasó hoy, programar para próximo período
-      switch (reporte.frecuencia) {
-        case 'diario':
-          fecha.setDate(fecha.getDate() + 1);
+  const fechaActual = new Date();
+  const fechaInicio = format(fechaActual, 'yyyy-MM-dd');
+  const fechaFin = format(fechaActual, 'yyyy-MM-dd');
+
+  for (const reporte of reportes) {
+    try {
+      let buffer: Buffer;
+      let filename: string;
+      let subject: string;
+
+      // ✅ CORREGIDO: Ahora manejamos buffers, no strings
+      switch (reporte.tipo) {
+        case 'timesheet':
+          buffer = await generarTimesheetExcel({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+          filename = `timesheet_${fechaInicio}.xlsx`;
+          subject = `Timesheet del ${fechaInicio}`;
           break;
-        case 'semanal':
-          fecha.setDate(fecha.getDate() + (7 - fecha.getDay() + (reporte.dia_semana || 1)));
+        case 'comparativa':
+          buffer = await generarComparativaExcel({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+          filename = `comparativa_${fechaInicio}.xlsx`;
+          subject = `Comparativa del ${fechaInicio}`;
           break;
-        case 'mensual':
-          fecha.setMonth(fecha.getMonth() + 1);
-          fecha.setDate(reporte.dia_mes || 1);
+        case 'ausencias':
+          buffer = await generarAusenciasExcel({ fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+          filename = `ausencias_${fechaInicio}.xlsx`;
+          subject = `Reporte de ausencias del ${fechaInicio}`;
           break;
-        case 'trimestral':
-          fecha.setMonth(fecha.getMonth() + 3);
-          break;
+        default:
+          continue;
       }
-    }
-    
-    return fecha;
-  }
 
-  // Actualizar próximos envíos
-  async actualizarProximosEnvios() {
-    const supabase = await this.getClient();
-    
-    const { data: reportes, error } = await supabase
-      .from('reportes_programados')
-      .select('*')
-      .eq('activo', true);
-    
-    if (error) throw error;
-    
-    for (const reporte of reportes) {
-      const proximoEnvio = this.calcularProximaFecha(reporte);
+      // Enviar por email
+      await enviarReportePorEmail(
+        reporte.destinatarios,
+        subject,
+        `
+          <h2>Reporte automático</h2>
+          <p>Adjunto encontrarás el reporte generado automáticamente.</p>
+          <p><small>Este es un correo automático del sistema de gestión.</small></p>
+        `,
+        [{
+          filename,
+          content: buffer,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }]
+      );
+
+      // Registrar ejecución exitosa
+      await supabase.from('reportes_ejecuciones').insert({
+        reporte_id: reporte.id,
+        fecha_ejecucion: new Date().toISOString(),
+        estado: 'exito'
+      });
+
+    } catch (error) {
+      console.error(`Error ejecutando reporte ${reporte.id}:`, error);
       
-      await supabase
-        .from('reportes_programados')
-        .update({ proximo_envio: proximoEnvio?.toISOString() })
-        .eq('id', reporte.id);
-    }
-  }
-
-  // Generar y enviar reportes pendientes
-  async ejecutarEnviosPendientes() {
-    const supabase = await this.getClient();
-    const ahora = new Date();
-    
-    // Buscar reportes que deben ejecutarse ahora
-    const { data: reportes, error } = await supabase
-      .from('reportes_programados')
-      .select('*')
-      .eq('activo', true)
-      .lte('proximo_envio', ahora.toISOString());
-    
-    if (error) throw error;
-    
-    for (const reporte of reportes) {
-      try {
-        // Generar reporte según tipo
-        let archivoUrl = '';
-        let tamañoBytes = 0;
-        
-        const filtros = {
-          fecha_inicio: this.obtenerFechaInicio(reporte),
-          fecha_fin: this.obtenerFechaFin(reporte),
-          ...reporte.filtros
-        };
-        
-        switch (reporte.tipo) {
-          case 'timesheet':
-            archivoUrl = await generarTimesheetExcel(filtros);
-            break;
-          case 'comparativa':
-            archivoUrl = await generarComparativaExcel(filtros);
-            break;
-          case 'ausencias':
-            archivoUrl = await generarAusenciasExcel(filtros);
-            break;
-        }
-        
-        // Registrar en historial
-        await supabase
-          .from('reportes_historial')
-          .insert({
-            reporte_programado_id: reporte.id,
-            fecha_generacion: new Date().toISOString(),
-            archivo_url: archivoUrl,
-            tamaño_bytes: tamañoBytes,
-            destinatarios: reporte.destinatarios
-          });
-        
-        // Actualizar último envío y calcular próximo
-        const proximoEnvio = this.calcularProximaFecha(reporte);
-        await supabase
-          .from('reportes_programados')
-          .update({ 
-            ultimo_envio: new Date().toISOString(),
-            proximo_envio: proximoEnvio?.toISOString()
-          })
-          .eq('id', reporte.id);
-        
-      } catch (error) {
-        console.error(`Error generando reporte ${reporte.id}:`, error);
-        
-        // Registrar error
-        await supabase
-          .from('reportes_historial')
-          .insert({
-            reporte_programado_id: reporte.id,
-            fecha_generacion: new Date().toISOString(),
-            archivo_url: '',
-            enviado: false,
-            destinatarios: reporte.destinatarios,
-            error: error instanceof Error ? error.message : 'Error desconocido'
-          });
-      }
-    }
-  }
-
-  private obtenerFechaInicio(reporte: any): string {
-    const hoy = new Date();
-    
-    switch (reporte.frecuencia) {
-      case 'diario':
-        return hoy.toISOString().split('T')[0];
-      case 'semanal':
-        const inicioSemana = new Date(hoy);
-        inicioSemana.setDate(hoy.getDate() - hoy.getDay() + 1);
-        return inicioSemana.toISOString().split('T')[0];
-      case 'mensual':
-        return new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
-      case 'trimestral':
-        const trimestre = Math.floor(hoy.getMonth() / 3) * 3;
-        return new Date(hoy.getFullYear(), trimestre, 1).toISOString().split('T')[0];
-      default:
-        return hoy.toISOString().split('T')[0];
-    }
-  }
-
-  private obtenerFechaFin(reporte: any): string {
-    const hoy = new Date();
-    
-    switch (reporte.frecuencia) {
-      case 'diario':
-        return hoy.toISOString().split('T')[0];
-      case 'semanal':
-        const finSemana = new Date(hoy);
-        finSemana.setDate(hoy.getDate() - hoy.getDay() + 7);
-        return finSemana.toISOString().split('T')[0];
-      case 'mensual':
-        return new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
-      case 'trimestral':
-        const trimestre = Math.floor(hoy.getMonth() / 3) * 3;
-        return new Date(hoy.getFullYear(), trimestre + 3, 0).toISOString().split('T')[0];
-      default:
-        return hoy.toISOString().split('T')[0];
+      // Registrar error
+      await supabase.from('reportes_ejecuciones').insert({
+        reporte_id: reporte.id,
+        fecha_ejecucion: new Date().toISOString(),
+        estado: 'error',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      });
     }
   }
 }
 
-export const reporteScheduler = new ReporteScheduler();
+// Función para programar ejecuciones (opcional)
+export function iniciarProgramadorReportes() {
+  // Ejecutar cada día a las 8:00 AM
+  const ahora = new Date();
+  const proximaEjecucion = new Date(
+    ahora.getFullYear(),
+    ahora.getMonth(),
+    ahora.getDate(),
+    8, 0, 0
+  );
+  
+  if (proximaEjecucion < ahora) {
+    proximaEjecucion.setDate(proximaEjecucion.getDate() + 1);
+  }
+
+  const tiempoHastaEjecucion = proximaEjecucion.getTime() - ahora.getTime();
+
+  setTimeout(() => {
+    ejecutarReportesProgramados();
+    // Programar siguiente ejecución
+    setInterval(ejecutarReportesProgramados, 24 * 60 * 60 * 1000);
+  }, tiempoHastaEjecucion);
+}

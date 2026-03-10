@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/client';
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -43,7 +43,9 @@ export async function generarTimesheetExcel(filtros: { fecha_inicio: string; fec
 
   XLSX.utils.book_append_sheet(wb, ws, 'Timesheet');
 
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  // ✅ CORREGIDO: Usar write con type 'buffer' y tipado correcto
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  return buffer;
 }
 
 export async function generarComparativaExcel(filtros: { fecha_inicio: string; fecha_fin: string }) {
@@ -87,7 +89,9 @@ export async function generarComparativaExcel(filtros: { fecha_inicio: string; f
 
   XLSX.utils.book_append_sheet(wb, ws, 'Comparativa');
   
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  // ✅ CORREGIDO: Usar write con type 'buffer' y tipado correcto
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  return buffer;
 }
 
 export async function generarAusenciasExcel(filtros: { fecha_inicio: string; fecha_fin: string }) {
@@ -134,5 +138,7 @@ export async function generarAusenciasExcel(filtros: { fecha_inicio: string; fec
 
   XLSX.utils.book_append_sheet(wb, ws, 'Ausencias');
   
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  // ✅ CORREGIDO: Usar write con type 'buffer' y tipado correcto
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  return buffer;
 }
